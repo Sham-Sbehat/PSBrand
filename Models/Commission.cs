@@ -17,5 +17,7 @@ namespace PSBrand.API.Models
         // Navigation Properties
         public virtual User Designer { get; set; } = null!;
         public virtual Order Order { get; set; } = null!;
+
+        //test
     }
 }
