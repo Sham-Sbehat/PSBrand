@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PSBrand.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c83886feb8bff30d0853beb29c5ffe18391df9cc")]
 [assembly: System.Reflection.AssemblyProductAttribute("PSBrand.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PSBrand.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
