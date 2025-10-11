@@ -78,7 +78,7 @@ const AdminDashboard = () => {
       <AppBar position="static" elevation={2}>
         <Toolbar>
           <Typography variant="h5" sx={{ flexGrow: 1, fontWeight: 700 }}>
-            PSBrand - لوحة الأدمن
+            PSBrand -اااااااااااااااااا لوحة الأدمن
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Avatar sx={{ bgcolor: 'secondary.main' }}>
