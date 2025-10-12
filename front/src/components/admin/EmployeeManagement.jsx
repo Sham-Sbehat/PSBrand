@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import {
   Paper,
@@ -19,21 +19,48 @@ import {
   IconButton,
   Chip,
   Alert,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  FormHelperText,
 } from '@mui/material';
 import {
   Add,
   Delete,
   Person,
-  Email,
   Phone,
-  Badge,
+  Work,
 } from '@mui/icons-material';
 import { useApp } from '../../context/AppContext';
+import { employeesService } from '../../services/api';
 
 const EmployeeManagement = () => {
-  const { employees, addEmployee, deleteEmployee } = useApp();
+  const { employees, addEmployee, deleteEmployee, setEmployees } = useApp();
   const [openDialog, setOpenDialog] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    loadEmployees();
+  }, []);
+
+  const loadEmployees = async () => {
+    try {
+      setLoading(true);
+      const response = await employeesService.getAllEmployees();
+      const convertedEmployees = response.map(emp => ({
+        ...emp,
+        role: employeesService.convertRoleToString(emp.role)
+      }));
+      setEmployees(convertedEmployees);
+    } catch (err) {
+      setError('فشل في جلب بيانات الموظفين');
+      console.error('Error loading employees:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const {
     control,
@@ -43,9 +70,8 @@ const EmployeeManagement = () => {
   } = useForm({
     defaultValues: {
       name: '',
-      email: '',
       phone: '',
-      employeeId: '',
+      role: '',
       username: '',
       password: '',
     },
@@ -60,19 +86,43 @@ const EmployeeManagement = () => {
     reset();
   };
 
-  const onSubmit = (data) => {
-    addEmployee(data);
-    setSubmitSuccess(true);
-
-    setTimeout(() => {
-      setSubmitSuccess(false);
-      handleCloseDialog();
-    }, 2000);
+  const onSubmit = async (data) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await employeesService.createEmployee(data);
+      const newEmployee = {
+        ...response,
+        role: employeesService.convertRoleToString(response.role)
+      };
+      setEmployees((prev) => [newEmployee, ...prev]);
+      
+      setSubmitSuccess(true);
+      setTimeout(() => {
+        setSubmitSuccess(false);
+        handleCloseDialog();
+      }, 2000);
+    } catch (err) {
+      setError('فشل في إضافة الموظف');
+      console.error('Error creating employee:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (employeeId) => {
+  const handleDelete = async (employeeId) => {
     if (window.confirm('هل أنت متأكد من حذف هذا الموظف؟')) {
-      deleteEmployee(employeeId);
+      try {
+        setLoading(true);
+        setError(null);
+        await employeesService.deleteEmployee(employeeId);
+        deleteEmployee(employeeId);
+      } catch (err) {
+        setError('فشل في حذف الموظف');
+        console.error('Error deleting employee:', err);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -98,7 +148,19 @@ const EmployeeManagement = () => {
         </Button>
       </Box>
 
-      {employees.length === 0 ? (
+      {error && (
+        <Alert severity="error" sx={{ marginBottom: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      {loading && employees.length === 0 ? (
+        <Box sx={{ textAlign: 'center', padding: 4 }}>
+          <Typography variant="h6" color="text.secondary">
+            جاري تحميل الموظفين...
+          </Typography>
+        </Box>
+      ) : employees.length === 0 ? (
         <Box sx={{ textAlign: 'center', padding: 4 }}>
           <Typography variant="h6" color="text.secondary">
             لا يوجد موظفين مسجلين
@@ -111,9 +173,8 @@ const EmployeeManagement = () => {
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>الاسم</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>اسم المستخدم</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>البريد الإلكتروني</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>الهاتف</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>رقم الموظف</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>الوظيفة</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>تاريخ الإضافة</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center">
                   الإجراءات
@@ -132,10 +193,21 @@ const EmployeeManagement = () => {
                   <TableCell>
                     <Chip label={employee.username} color="primary" size="small" variant="outlined" />
                   </TableCell>
-                  <TableCell>{employee.email}</TableCell>
                   <TableCell>{employee.phone}</TableCell>
                   <TableCell>
-                    <Chip label={employee.employeeId} size="small" />
+                    <Chip 
+                      label={
+                        employee.role === 'admin' ? 'أدمن' :
+                        employee.role === 'designer' ? 'مصمم' : 
+                        'محضر طلبات'
+                      } 
+                      color={
+                        employee.role === 'admin' ? 'error' :
+                        employee.role === 'designer' ? 'secondary' : 
+                        'success'
+                      }
+                      size="small" 
+                    />
                   </TableCell>
                   <TableCell>
                     {new Date(employee.createdAt).toLocaleDateString('ar')}
@@ -169,6 +241,12 @@ const EmployeeManagement = () => {
               تم إضافة الموظف بنجاح! ✓
             </Alert>
           )}
+          
+          {error && (
+            <Alert severity="error" sx={{ marginBottom: 2 }}>
+              {error}
+            </Alert>
+          )}
 
           <Box
             component="form"
@@ -189,32 +267,6 @@ const EmployeeManagement = () => {
                   sx={{ marginBottom: 2 }}
                   InputProps={{
                     startAdornment: <Person sx={{ marginRight: 1 }} />,
-                  }}
-                />
-              )}
-            />
-
-            <Controller
-              name="email"
-              control={control}
-              rules={{
-                required: 'البريد الإلكتروني مطلوب',
-                pattern: {
-                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: 'بريد إلكتروني غير صحيح',
-                },
-              }}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  fullWidth
-                  label="البريد الإلكتروني"
-                  type="email"
-                  error={!!errors.email}
-                  helperText={errors.email?.message}
-                  sx={{ marginBottom: 2 }}
-                  InputProps={{
-                    startAdornment: <Email sx={{ marginRight: 1 }} />,
                   }}
                 />
               )}
@@ -246,21 +298,26 @@ const EmployeeManagement = () => {
             />
 
             <Controller
-              name="employeeId"
+              name="role"
               control={control}
-              rules={{ required: 'رقم الموظف مطلوب' }}
+              rules={{ required: 'الوظيفة مطلوبة' }}
               render={({ field }) => (
-                <TextField
-                  {...field}
-                  fullWidth
-                  label="رقم الموظف"
-                  error={!!errors.employeeId}
-                  helperText={errors.employeeId?.message}
-                  sx={{ marginBottom: 2 }}
-                  InputProps={{
-                    startAdornment: <Badge sx={{ marginRight: 1 }} />,
-                  }}
-                />
+                <FormControl fullWidth sx={{ marginBottom: 2 }} error={!!errors.role}>
+                  <InputLabel>الوظيفة</InputLabel>
+                  <Select
+                    {...field}
+                    label="الوظيفة"
+                    startAdornment={<Work sx={{ marginRight: 1, marginLeft: 1 }} />}
+                  >
+                    
+                    <MenuItem value="admin">أدمن</MenuItem>
+                    <MenuItem value="designer">مصمم</MenuItem>
+                    <MenuItem value="order_preparer">محضر طلبات</MenuItem>
+                  </Select>
+                  {errors.role && (
+                    <FormHelperText>{errors.role.message}</FormHelperText>
+                  )}
+                </FormControl>
               )}
             />
 
@@ -317,13 +374,15 @@ const EmployeeManagement = () => {
           </Box>
         </DialogContent>
         <DialogActions sx={{ padding: 3 }}>
-          <Button onClick={handleCloseDialog}>إلغاء</Button>
+          <Button onClick={handleCloseDialog} disabled={loading}>
+            إلغاء
+          </Button>
           <Button
             variant="contained"
             onClick={handleSubmit(onSubmit)}
-            disabled={submitSuccess}
+            disabled={submitSuccess || loading}
           >
-            إضافة
+            {loading ? 'جاري الإضافة...' : 'إضافة'}
           </Button>
         </DialogActions>
       </Dialog>

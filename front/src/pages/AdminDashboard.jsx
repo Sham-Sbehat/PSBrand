@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Container,
   Box,
@@ -12,18 +12,18 @@ import {
   Card,
   CardContent,
   Avatar,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Logout,
   Assignment,
   People,
   CheckCircle,
   Pending,
-} from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
-import OrdersList from '../components/admin/OrdersList';
-import EmployeeManagement from '../components/admin/EmployeeManagement';
+} from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
+import { useApp } from "../context/AppContext";
+import OrdersList from "../components/admin/OrdersList";
+import EmployeeManagement from "../components/admin/EmployeeManagement";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -32,60 +32,57 @@ const AdminDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate("/");
   };
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
   };
-
-  // إحصائيات الأدمن
-  const pendingOrders = orders.filter((order) => order.status === 'pending');
+  const pendingOrders = orders.filter((order) => order.status === "pending");
   const completedOrders = orders.filter(
-    (order) => order.status === 'completed'
+    (order) => order.status === "completed"
   );
 
   const stats = [
     {
-      title: 'إجمالي الطلبات',
+      title: "إجمالي الطلبات",
       value: orders.length,
       icon: Assignment,
-      color: '#1976d2',
+      color: "#1976d2",
     },
     {
-      title: 'قيد الانتظار',
+      title: "قيد الانتظار",
       value: pendingOrders.length,
       icon: Pending,
-      color: '#ed6c02',
+      color: "#ed6c02",
     },
     {
-      title: 'مكتملة',
+      title: "مكتملة",
       value: completedOrders.length,
       icon: CheckCircle,
-      color: '#2e7d32',
+      color: "#2e7d32",
     },
     {
-      title: 'عدد الموظفين',
+      title: "عدد الموظفين",
       value: employees.length,
       icon: People,
-      color: '#9c27b0',
+      color: "#9c27b0",
     },
   ];
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
-      {/* شريط العنوان */}
+    <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
       <AppBar position="static" elevation={2}>
         <Toolbar>
           <Typography variant="h5" sx={{ flexGrow: 1, fontWeight: 700 }}>
-            PSBrand -اااااااااااااااااا لوحة الأدمن
+            PSBrand - لوحة الأدمن
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{ bgcolor: 'secondary.main' }}>
-              {user?.name?.charAt(0) || 'أ'}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Avatar sx={{ bgcolor: "secondary.main" }}>
+              {user?.name?.charAt(0) || "أ"}
             </Avatar>
             <Typography variant="body1" sx={{ fontWeight: 500 }}>
-              {user?.name || 'الأدمن'}
+              {user?.name || "الأدمن"}
             </Typography>
             <IconButton color="inherit" onClick={handleLogout}>
               <Logout />
@@ -95,7 +92,6 @@ const AdminDashboard = () => {
       </AppBar>
 
       <Container maxWidth="xl" sx={{ paddingY: 4 }}>
-        {/* الإحصائيات */}
         <Grid container spacing={3} sx={{ marginBottom: 4 }}>
           {stats.map((stat, index) => {
             const Icon = stat.icon;
@@ -104,19 +100,19 @@ const AdminDashboard = () => {
                 <Card
                   sx={{
                     background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}dd 100%)`,
-                    color: 'white',
-                    transition: 'transform 0.2s',
-                    '&:hover': {
-                      transform: 'translateY(-5px)',
+                    color: "white",
+                    transition: "transform 0.2s",
+                    "&:hover": {
+                      transform: "translateY(-5px)",
                     },
                   }}
                 >
                   <CardContent>
                     <Box
                       sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
                       }}
                     >
                       <Box>
@@ -136,34 +132,32 @@ const AdminDashboard = () => {
           })}
         </Grid>
 
-        {/* التبويبات */}
         <Box sx={{ marginBottom: 3 }}>
           <Tabs
             value={currentTab}
             onChange={handleTabChange}
             variant="fullWidth"
             sx={{
-              backgroundColor: 'white',
+              backgroundColor: "white",
               borderRadius: 2,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             }}
           >
             <Tab
               label="الطلبات"
               icon={<Assignment />}
               iconPosition="start"
-              sx={{ fontWeight: 600, fontSize: '1rem' }}
+              sx={{ fontWeight: 600, fontSize: "1rem" }}
             />
             <Tab
               label="إدارة الموظفين"
               icon={<People />}
               iconPosition="start"
-              sx={{ fontWeight: 600, fontSize: '1rem' }}
+              sx={{ fontWeight: 600, fontSize: "1rem" }}
             />
           </Tabs>
         </Box>
 
-        {/* المحتوى */}
         <Box>
           {currentTab === 0 && <OrdersList />}
           {currentTab === 1 && <EmployeeManagement />}
@@ -174,5 +168,3 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
-
-

@@ -1,19 +1,19 @@
-import axios from 'axios';
+import axios from "axios";
 
 // إعداد Axios للاتصال مع الباك اند .NET
-const API_BASE_URL = 'http://localhost:5000/api'; // سيتم تحديثه لاحقاً
+const API_BASE_URL = "https://localhost:44345/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 // إضافة Token للطلبات (للمصادقة)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem("authToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,8 +30,8 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Unauthorized - إعادة توجيه لتسجيل الدخول
-      localStorage.removeItem('authToken');
-      window.location.href = '/';
+      localStorage.removeItem("authToken");
+      window.location.href = "/";
     }
     return Promise.reject(error);
   }
@@ -40,12 +40,12 @@ api.interceptors.response.use(
 // ============= خدمات المصادقة =============
 export const authService = {
   login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
+    const response = await api.post("/auth/login", credentials);
     return response.data;
   },
-  
+
   logout: async () => {
-    const response = await api.post('/auth/logout');
+    const response = await api.post("/auth/logout");
     return response.data;
   },
 };
@@ -54,7 +54,7 @@ export const authService = {
 export const ordersService = {
   // جلب جميع الطلبات
   getAllOrders: async () => {
-    const response = await api.get('/orders');
+    const response = await api.get("/orders");
     return response.data;
   },
 
@@ -66,7 +66,7 @@ export const ordersService = {
 
   // إنشاء طلب جديد
   createOrder: async (orderData) => {
-    const response = await api.post('/orders', orderData);
+    const response = await api.post("/orders", orderData);
     return response.data;
   },
 
@@ -86,65 +86,65 @@ export const ordersService = {
   uploadDesignImages: async (orderId, images) => {
     const formData = new FormData();
     images.forEach((image) => {
-      formData.append('images', image);
+      formData.append("images", image);
     });
     const response = await api.post(`/orders/${orderId}/images`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
     });
     return response.data;
   },
 };
 
-// ============= خدمات الموظفين =============
 export const employeesService = {
-  // جلب جميع الموظفين
+  convertRoleToNumber: (role) => {
+    switch (role) {
+      case "admin":
+        return 1;
+      case "designer":
+        return 2;
+      case "order_preparer":
+        return 3;
+    }
+  },
+  convertRoleToString: (roleNumber) => {
+    switch (roleNumber) {
+      case 1:
+        return "admin";
+      case 2:
+        return "designer";
+      case 3:
+        return "order_preparer";
+      default:
+        return "unknown";
+    }
+  },
+
   getAllEmployees: async () => {
-    const response = await api.get('/employees');
+    const response = await api.get("/Users");
     return response.data;
   },
-
-  // جلب موظف محدد
   getEmployeeById: async (id) => {
-    const response = await api.get(`/employees/${id}`);
+    const response = await api.get(`/Users/${id}`);
     return response.data;
   },
-
-  // إنشاء حساب موظف جديد
   createEmployee: async (employeeData) => {
-    const response = await api.post('/employees', employeeData);
+    const apiData = {
+      name: employeeData.name,
+      username: employeeData.username,
+      password: employeeData.password,
+      phone: employeeData.phone,
+      role: employeesService.convertRoleToNumber(employeeData.role),
+      isActive: true,
+    };
+
+    const response = await api.post("/Users", apiData);
     return response.data;
   },
 
-  // تحديث بيانات موظف
-  updateEmployee: async (id, employeeData) => {
-    const response = await api.put(`/employees/${id}`, employeeData);
-    return response.data;
-  },
-
-  // حذف موظف
   deleteEmployee: async (id) => {
-    const response = await api.delete(`/employees/${id}`);
+    const response = await api.delete(`/Users/${id}`);
     return response.data;
   },
 };
-
-// ============= خدمات الإحصائيات =============
-export const statsService = {
-  // جلب إحصائيات الأدمن
-  getAdminStats: async () => {
-    const response = await api.get('/stats/admin');
-    return response.data;
-  },
-
-  // جلب إحصائيات موظف
-  getEmployeeStats: async (employeeId) => {
-    const response = await api.get(`/stats/employee/${employeeId}`);
-    return response.data;
-  },
-};
-
-export default api;
-
-

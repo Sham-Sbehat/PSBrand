@@ -1,6 +1,5 @@
 import { createTheme } from '@mui/material/styles';
-
-// ثيم عربي مع دعم RTL
+ 
 const theme = createTheme({
   direction: 'rtl',
   palette: {

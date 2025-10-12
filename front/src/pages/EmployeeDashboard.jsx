@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   Container,
   Box,
@@ -13,16 +13,11 @@ import {
   CardContent,
   Chip,
   Avatar,
-} from '@mui/material';
-import {
-  Logout,
-  Assignment,
-  CheckCircle,
-  Pending,
-} from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
-import OrderForm from '../components/employee/OrderForm';
+} from "@mui/material";
+import { Logout, Assignment, CheckCircle, Pending } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
+import { useApp } from "../context/AppContext";
+import OrderForm from "../components/employee/OrderForm";
 
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
@@ -31,55 +26,53 @@ const EmployeeDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate("/");
   };
 
-  // إحصائيات الموظف
   const employeeOrders = orders.filter(
     (order) => order.employeeName === user?.name
   );
   const pendingOrders = employeeOrders.filter(
-    (order) => order.status === 'pending'
+    (order) => order.status === "pending"
   );
   const completedOrders = employeeOrders.filter(
-    (order) => order.status === 'completed'
+    (order) => order.status === "completed"
   );
 
   const stats = [
     {
-      title: 'إجمالي الطلبات',
+      title: "إجمالي الطلبات",
       value: employeeOrders.length,
       icon: Assignment,
-      color: '#1976d2',
+      color: "#1976d2",
     },
     {
-      title: 'قيد الانتظار',
+      title: "قيد الانتظار",
       value: pendingOrders.length,
       icon: Pending,
-      color: '#ed6c02',
+      color: "#ed6c02",
     },
     {
-      title: 'مكتملة',
+      title: "مكتملة",
       value: completedOrders.length,
       icon: CheckCircle,
-      color: '#2e7d32',
+      color: "#2e7d32",
     },
   ];
 
   return (
-    <Box sx={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
-      {/* شريط العنوان */}
+    <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
       <AppBar position="static" elevation={2}>
         <Toolbar>
           <Typography variant="h5" sx={{ flexGrow: 1, fontWeight: 700 }}>
             PSBrand - لوحة الموظف
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{ bgcolor: 'secondary.main' }}>
-              {user?.name?.charAt(0) || 'م'}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Avatar sx={{ bgcolor: "secondary.main" }}>
+              {user?.name?.charAt(0) || "م"}
             </Avatar>
             <Typography variant="body1" sx={{ fontWeight: 500 }}>
-              {user?.name || 'موظف'}
+              {user?.name || "موظف"}
             </Typography>
             <IconButton color="inherit" onClick={handleLogout}>
               <Logout />
@@ -89,7 +82,6 @@ const EmployeeDashboard = () => {
       </AppBar>
 
       <Container maxWidth="lg" sx={{ paddingY: 4 }}>
-        {/* الإحصائيات */}
         <Grid container spacing={3} sx={{ marginBottom: 4 }}>
           {stats.map((stat, index) => {
             const Icon = stat.icon;
@@ -98,19 +90,19 @@ const EmployeeDashboard = () => {
                 <Card
                   sx={{
                     background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}dd 100%)`,
-                    color: 'white',
-                    transition: 'transform 0.2s',
-                    '&:hover': {
-                      transform: 'translateY(-5px)',
+                    color: "white",
+                    transition: "transform 0.2s",
+                    "&:hover": {
+                      transform: "translateY(-5px)",
                     },
                   }}
                 >
                   <CardContent>
                     <Box
                       sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
                       }}
                     >
                       <Box>
@@ -129,13 +121,10 @@ const EmployeeDashboard = () => {
             );
           })}
         </Grid>
-
-        {/* نموذج إنشاء الطلب */}
         <Box sx={{ marginBottom: 4 }}>
           <OrderForm onSuccess={() => setShowForm(false)} />
         </Box>
 
-        {/* قائمة الطلبات السابقة */}
         {employeeOrders.length > 0 && (
           <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
             <Typography
@@ -151,19 +140,19 @@ const EmployeeDashboard = () => {
                 <Grid item xs={12} md={6} key={order.id}>
                   <Card
                     sx={{
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        transform: 'translateY(-3px)',
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                      transition: "all 0.2s",
+                      "&:hover": {
+                        transform: "translateY(-3px)",
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
                       },
                     }}
                   >
                     <CardContent>
                       <Box
                         sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'start',
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "start",
                           marginBottom: 2,
                         }}
                       >
@@ -172,18 +161,18 @@ const EmployeeDashboard = () => {
                         </Typography>
                         <Chip
                           label={
-                            order.status === 'pending'
-                              ? 'قيد الانتظار'
-                              : order.status === 'completed'
-                              ? 'مكتمل'
-                              : 'ملغي'
+                            order.status === "pending"
+                              ? "قيد الانتظار"
+                              : order.status === "completed"
+                              ? "مكتمل"
+                              : "ملغي"
                           }
                           color={
-                            order.status === 'pending'
-                              ? 'warning'
-                              : order.status === 'completed'
-                              ? 'success'
-                              : 'error'
+                            order.status === "pending"
+                              ? "warning"
+                              : order.status === "completed"
+                              ? "success"
+                              : "error"
                           }
                           size="small"
                         />
@@ -201,7 +190,7 @@ const EmployeeDashboard = () => {
                         color="text.secondary"
                         gutterBottom
                       >
-                        <strong>المقاس:</strong> {order.size} |{' '}
+                        <strong>المقاس:</strong> {order.size} |{" "}
                         <strong>اللون:</strong> {order.color}
                       </Typography>
                       <Typography
@@ -214,14 +203,14 @@ const EmployeeDashboard = () => {
                       <Typography
                         variant="caption"
                         color="text.secondary"
-                        sx={{ display: 'block', marginTop: 1 }}
+                        sx={{ display: "block", marginTop: 1 }}
                       >
-                        {new Date(order.createdAt).toLocaleDateString('ar', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
+                        {new Date(order.createdAt).toLocaleDateString("ar", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
                         })}
                       </Typography>
                     </CardContent>
@@ -237,5 +226,3 @@ const EmployeeDashboard = () => {
 };
 
 export default EmployeeDashboard;
-
-

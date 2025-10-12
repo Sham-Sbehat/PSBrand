@@ -7,7 +7,6 @@ import createCache from '@emotion/cache';
 import App from './App.jsx';
 import './index.css';
 
-// إنشاء cache للـ RTL
 const cacheRtl = createCache({
   key: 'muirtl',
   stylisPlugins: [prefixer, rtlPlugin],
