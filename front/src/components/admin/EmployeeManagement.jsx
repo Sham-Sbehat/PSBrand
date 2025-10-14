@@ -95,28 +95,60 @@ const EmployeeManagement = () => {
         role: employeesService.convertRoleToString(response.role)
       };
       setEmployees((prev) => [newEmployee, ...prev]);
+      await Swal.fire({
+        title: 'تم الإضافة بنجاح!',
+        text: 'تم إضافة الموظف الجديد بنجاح.',
+        icon: 'success',
+        confirmButtonColor: '#3085d6'
+      });
       
-      setSubmitSuccess(true);
-      setTimeout(() => {
-        setSubmitSuccess(false);
-        handleCloseDialog();
-      }, 2000);
+      handleCloseDialog();
     } catch (err) {
       setError('فشل في إضافة الموظف');
+      Swal.fire({
+        title: 'خطأ!',
+        text: 'فشل في إضافة الموظف. حاول مرة أخرى.',
+        icon: 'error',
+        confirmButtonColor: '#d33'
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (employeeId) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا الموظف؟')) {
+    const result = await Swal.fire({
+      title: 'هل أنت متأكد؟',
+      text: 'هل أنت متأكد من حذف هذا الموظف؟ لن يمكنك التراجع عن هذا الإجراء!',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'نعم، احذفه!',
+      cancelButtonText: 'إلغاء',
+      reverseButtons: true
+    });
+
+    if (result.isConfirmed) {
       try {
         setLoading(true);
         setError(null);
         await employeesService.deleteEmployee(employeeId);
         deleteEmployee(employeeId);
+        Swal.fire({
+          title: 'تم الحذف!',
+          text: 'تم حذف الموظف بنجاح.',
+          icon: 'success',
+          confirmButtonColor: '#3085d6'
+        });
       } catch (err) {
         setError('فشل في حذف الموظف');
+        Swal.fire({
+          title: 'خطأ!',
+          text: 'فشل في حذف الموظف. حاول مرة أخرى.',
+          icon: 'error',
+          confirmButtonColor: '#d33'
+        });
       } finally {
         setLoading(false);
       }
