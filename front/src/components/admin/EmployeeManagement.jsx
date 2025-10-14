@@ -313,6 +313,7 @@ const EmployeeManagement = () => {
                     <MenuItem value="admin">أدمن</MenuItem>
                     <MenuItem value="designer">مصمم</MenuItem>
                     <MenuItem value="order_preparer">محضر طلبات</MenuItem>
+                    <MenuItem value="designmanager">مدير التصميم</MenuItem>
                   </Select>
                   {errors.role && (
                     <FormHelperText>{errors.role.message}</FormHelperText>
