@@ -16,6 +16,7 @@ import {
   Person as EmployeeIcon,
   DesignServices as DesignerIcon,
   Assignment as PreparerIcon,
+  ManageAccounts as DesignManagerIcon,
 } from "@mui/icons-material";
 import { useApp } from "../context/AppContext";
 
@@ -25,13 +26,8 @@ const RoleSelection = () => {
   const [hoveredRole, setHoveredRole] = useState(null);
 
   const handleRoleSelect = (role) => {
-    if (role === "admin") {
-      navigate("/admin/login");
-    } else if (role === "designer") {
-      navigate("/employee/login");
-    } else if (role === "preparer") {
-      navigate("/employee/login");
-    }
+    // كل الأدوار تروح لنفس صفحة Login مع تمرير الـ Role
+    navigate(`/login?role=${role}`);
   };
 
   const roles = [
@@ -42,6 +38,14 @@ const RoleSelection = () => {
       icon: AdminIcon,
       color: "#d32f2f",
       gradient: "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)",
+    },
+    {
+      id: "designmanager",
+      title: "مدير التصميم",
+      description: "إدارة ومراجعة التصاميم من المصممين",
+      icon: DesignManagerIcon,
+      color: "#e65100",
+      gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
     },
     {
       id: "designer",

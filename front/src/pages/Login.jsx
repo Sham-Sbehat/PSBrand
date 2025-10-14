@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import {
   Container,
@@ -14,17 +14,24 @@ import {
   Fade,
 } from "@mui/material";
 import {
-  Person as PersonIcon,
+  AdminPanelSettings,
+  Person,
+  DesignServices,
+  Assignment,
+  ManageAccounts,
   Visibility,
   VisibilityOff,
   Lock,
-  Badge,
 } from "@mui/icons-material";
 import { useApp } from "../context/AppContext";
+import { authService } from "../services/api";
 
-const EmployeeLogin = () => {
+const Login = () => {
   const navigate = useNavigate();
-  const { login, employees } = useApp();
+  const { login } = useApp();
+  const [searchParams] = useSearchParams();
+  const selectedRole = searchParams.get("role");
+  
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -40,29 +47,105 @@ const EmployeeLogin = () => {
     },
   });
 
+  // تحويل الـ Role من string إلى number
+  const getRoleNumber = (role) => {
+    switch (role) {
+      case "admin":
+        return 1;
+      case "designer":
+        return 2;
+      case "preparer":
+        return 3;
+      case "designmanager":
+        return 4;
+      default:
+        return 1;
+    }
+  };
+
+  // الحصول على تفاصيل الـ Role
+  const getRoleDetails = (role) => {
+    switch (role) {
+      case "admin":
+        return {
+          title: "تسجيل دخول الأدمن",
+          icon: AdminPanelSettings,
+          gradient: "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)",
+          route: "/admin"
+        };
+      case "designer":
+        return {
+          title: "تسجيل دخول المصمم",
+          icon: DesignServices,
+          gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+          route: "/employee"
+        };
+      case "preparer":
+        return {
+          title: "تسجيل دخول محضر الطلبات",
+          icon: Assignment,
+          gradient: "linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)",
+          route: "/employee"
+        };
+      case "designmanager":
+        return {
+          title: "تسجيل دخول مدير التصميم",
+          icon: ManageAccounts,
+          gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+          route: "/designmanager"
+        };
+      default:
+        return {
+          title: "تسجيل الدخول",
+          icon: Person,
+          gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          route: "/admin"
+        };
+    }
+  };
+
+  const roleDetails = getRoleDetails(selectedRole);
+  const Icon = roleDetails.icon;
+
   const onSubmit = async (data) => {
     setIsLoading(true);
     setLoginError("");
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    const employee = employees.find(
-      (emp) => emp.username === data.username && emp.password === data.password
-    );
-
-    if (employee) {
-      login({
-        id: employee.id,
-        name: employee.name,
-        username: employee.username,
-        email: employee.email,
-        phone: employee.phone,
-        employeeId: employee.employeeId,
-        role: "employee",
-      });
-      navigate("/employee");
-    } else {
-      setLoginError("اسم المستخدم أو كلمة المرور غير صحيحة");
-      setIsLoading(false);
+    
+    // محاكاة تأخير بسيط
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    
+    // تسجيل دخول بدون تحقق - أي بيانات رح تشتغل
+    const mockUser = {
+      id: getRoleNumber(selectedRole),
+      name: roleDetails.title.replace("تسجيل دخول ", ""),
+      username: data.username,
+      role: selectedRole,
+      roleName: getRoleName(selectedRole)
+    };
+    
+    // حفظ البيانات في localStorage
+    localStorage.setItem("userData", JSON.stringify(mockUser));
+    
+    // تحديث الـ context
+    login(mockUser);
+    
+    // التوجه للصفحة المناسبة
+    navigate(roleDetails.route);
+  };
+  
+  // دالة مساعدة للحصول على اسم الدور
+  const getRoleName = (role) => {
+    switch (role) {
+      case "admin":
+        return "مدير";
+      case "designer":
+        return "مصمم";
+      case "preparer":
+        return "محضر طلبات";
+      case "designmanager":
+        return "مدير التصميم";
+      default:
+        return "غير محدد";
     }
   };
 
@@ -70,11 +153,17 @@ const EmployeeLogin = () => {
     setShowPassword(!showPassword);
   };
 
+  // إذا لم يتم تحديد role، ارجع للصفحة الرئيسية
+  if (!selectedRole) {
+    navigate("/");
+    return null;
+  }
+
   return (
     <Box
       sx={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        background: roleDetails.gradient,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -97,20 +186,18 @@ const EmployeeLogin = () => {
                   display: "inline-flex",
                   padding: 3,
                   borderRadius: "50%",
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  background: roleDetails.gradient,
                   marginBottom: 2,
                 }}
               >
-                <PersonIcon sx={{ fontSize: 60, color: "white" }} />
+                <Icon sx={{ fontSize: 60, color: "white" }} />
               </Box>
               <Typography
                 variant="h4"
                 gutterBottom
                 sx={{
                   fontWeight: 800,
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  background: roleDetails.gradient,
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}
@@ -122,10 +209,9 @@ const EmployeeLogin = () => {
                 color="text.secondary"
                 sx={{ fontWeight: 600 }}
               >
-                تسجيل دخول الموظف
+                {roleDetails.title}
               </Typography>
             </Box>
-
             {loginError && (
               <Fade in>
                 <Alert severity="error" sx={{ marginBottom: 3 }}>
@@ -133,13 +219,6 @@ const EmployeeLogin = () => {
                 </Alert>
               </Fade>
             )}
-
-            {employees.length === 0 && (
-              <Alert severity="info" sx={{ marginBottom: 3 }}>
-                لا يوجد موظفين مسجلين. يرجى التواصل مع الأدمن لإنشاء حساب.
-              </Alert>
-            )}
-
             <form onSubmit={handleSubmit(onSubmit)}>
               <Box sx={{ marginBottom: 3 }}>
                 <Controller
@@ -157,7 +236,7 @@ const EmployeeLogin = () => {
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
-                            <Badge color="primary" />
+                            <Person color="primary" />
                           </InputAdornment>
                         ),
                       }}
@@ -212,16 +291,14 @@ const EmployeeLogin = () => {
                 fullWidth
                 variant="contained"
                 size="large"
-                disabled={isLoading || employees.length === 0}
+                disabled={isLoading}
                 sx={{
                   padding: 2,
                   fontSize: "1.1rem",
                   fontWeight: 700,
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  background: roleDetails.gradient,
                   "&:hover": {
-                    background:
-                      "linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)",
+                    opacity: 0.9,
                   },
                 }}
               >
@@ -230,26 +307,13 @@ const EmployeeLogin = () => {
             </form>
 
             <Box sx={{ textAlign: "center", marginTop: 3 }}>
-              <Button
+               <Button
                 variant="text"
-                onClick={() => navigate("/")}
+                onClick={() => navigate('/')}
                 disabled={isLoading}
               >
                 العودة للصفحة الرئيسية
               </Button>
-            </Box>
-            <Box
-              sx={{
-                marginTop: 4,
-                padding: 2,
-                backgroundColor: "#f5f5f5",
-                borderRadius: 2,
-                textAlign: "center",
-              }}
-            >
-              <Typography variant="caption" color="text.secondary">
-                💡 إذا لم يكن لديك حساب، تواصل مع الأدمن لإنشاء حساب جديد
-              </Typography>
             </Box>
           </Paper>
         </Fade>
@@ -258,4 +322,4 @@ const EmployeeLogin = () => {
   );
 };
 
-export default EmployeeLogin;
+export default Login;

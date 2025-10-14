@@ -6,8 +6,8 @@ import theme from './theme/theme';
 import RoleSelection from './pages/RoleSelection';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
-import AdminLogin from './pages/AdminLogin';
-import EmployeeLogin from './pages/EmployeeLogin';
+import Login from './pages/Login';
+import DesignManagerDashboard from './pages/DesignManagerDashboard';
 
 // مكون الحماية للصفحات
 const ProtectedRoute = ({ children, allowedRole }) => {
@@ -29,8 +29,7 @@ function AppContent() {
     <Router>
       <Routes>
         <Route path="/" element={<RoleSelection />} />
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/employee/login" element={<EmployeeLogin />} />
+        <Route path="/login" element={<Login />} />
         <Route
           path="/employee"
           element={
@@ -44,6 +43,14 @@ function AppContent() {
           element={
             <ProtectedRoute allowedRole="admin">
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/designmanager"
+          element={
+            <ProtectedRoute allowedRole="designmanager">
+              <DesignManagerDashboard />
             </ProtectedRoute>
           }
         />

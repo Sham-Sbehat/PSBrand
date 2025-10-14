@@ -31,6 +31,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Unauthorized - إعادة توجيه لتسجيل الدخول
       localStorage.removeItem("authToken");
+      localStorage.removeItem("userData");
       window.location.href = "/";
     }
     return Promise.reject(error);
@@ -40,7 +41,7 @@ api.interceptors.response.use(
 // ============= خدمات المصادقة =============
 export const authService = {
   login: async (credentials) => {
-    const response = await api.post("/auth/login", credentials);
+    const response = await api.post("/Auth/login", credentials);
     return response.data;
   },
 
@@ -104,8 +105,12 @@ export const employeesService = {
         return 1;
       case "designer":
         return 2;
-      case "order_preparer":
+      case "preparer":
         return 3;
+      case "designmanager":
+        return 4;
+      default:
+        return 1;
     }
   },
   convertRoleToString: (roleNumber) => {
@@ -115,18 +120,20 @@ export const employeesService = {
       case 2:
         return "designer";
       case 3:
-        return "order_preparer";
+        return "preparer";
+      case 4:
+        return "designmanager";
       default:
         return "unknown";
     }
   },
 
   getAllEmployees: async () => {
-    const response = await api.get("/Users");
+    const response = await api.get("/Users/GetUsers");
     return response.data;
   },
   getEmployeeById: async (id) => {
-    const response = await api.get(`/Users/${id}`);
+    const response = await api.get(`/Users/GetUser${id}`);
     return response.data;
   },
   createEmployee: async (employeeData) => {
@@ -139,12 +146,12 @@ export const employeesService = {
       isActive: true,
     };
 
-    const response = await api.post("/Users", apiData);
+    const response = await api.post("/Users/CreateUser", apiData);
     return response.data;
   },
 
   deleteEmployee: async (id) => {
-    const response = await api.delete(`/Users/${id}`);
+    const response = await api.delete(`/Users/DeleteUser/${id}`);
     return response.data;
   },
 };

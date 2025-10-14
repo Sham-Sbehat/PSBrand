@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 
 const AppContext = createContext();
 
@@ -15,11 +15,22 @@ export const AppProvider = ({ children }) => {
   const [orders, setOrders] = useState([]);
   const [employees, setEmployees] = useState([]);
 
+  // تحميل بيانات المستخدم من localStorage عند بدء التطبيق
+  useEffect(() => {
+    const savedUser = localStorage.getItem("userData");
+    
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
+
   const login = (userData) => {
     setUser(userData);
   };
 
   const logout = () => {
+    // مسح البيانات من localStorage
+    localStorage.removeItem("userData");
     setUser(null);
   };
 
