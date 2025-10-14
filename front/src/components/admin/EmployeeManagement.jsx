@@ -56,7 +56,6 @@ const EmployeeManagement = () => {
       setEmployees(convertedEmployees);
     } catch (err) {
       setError('فشل في جلب بيانات الموظفين');
-      console.error('Error loading employees:', err);
     } finally {
       setLoading(false);
     }
@@ -104,7 +103,6 @@ const EmployeeManagement = () => {
       }, 2000);
     } catch (err) {
       setError('فشل في إضافة الموظف');
-      console.error('Error creating employee:', err);
     } finally {
       setLoading(false);
     }
@@ -119,7 +117,6 @@ const EmployeeManagement = () => {
         deleteEmployee(employeeId);
       } catch (err) {
         setError('فشل في حذف الموظف');
-        console.error('Error deleting employee:', err);
       } finally {
         setLoading(false);
       }

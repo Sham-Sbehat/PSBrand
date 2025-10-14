@@ -118,11 +118,7 @@ const Login = () => {
         role: getRoleNumber(selectedRole)
       };
       
-      console.log("Sending login request:", credentials);
-      
       const result = await authService.login(credentials);
-      
-      console.log("Login response:", result);
       
       if (result.success) {
         localStorage.setItem("authToken", result.token);
@@ -133,7 +129,6 @@ const Login = () => {
         setLoginError(result.message || "فشل في تسجيل الدخول");
       }
     } catch (error) {
-      console.error("Login error:", error);
       if (error.response) {
         const errorMessage = error.response.data?.message || 
                            error.response.data?.Message || 

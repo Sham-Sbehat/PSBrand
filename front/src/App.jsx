@@ -29,7 +29,6 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     : userRoleString === allowedRole;
   
   if (allowedRole && !isRoleAllowed) {
-    console.log("Role mismatch:", { userRole: userRoleString, allowedRole, userRoleNumber: user.role });
     return <Navigate to="/" replace />;
   }
 
