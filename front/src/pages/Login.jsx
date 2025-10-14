@@ -111,26 +111,42 @@ const Login = () => {
     setIsLoading(true);
     setLoginError("");
     
-    // محاكاة تأخير بسيط
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    
-    // تسجيل دخول بدون تحقق - أي بيانات رح تشتغل
-    const mockUser = {
-      id: getRoleNumber(selectedRole),
-      name: roleDetails.title.replace("تسجيل دخول ", ""),
-      username: data.username,
-      role: selectedRole,
-      roleName: getRoleName(selectedRole)
-    };
-    
-    // حفظ البيانات في localStorage
-    localStorage.setItem("userData", JSON.stringify(mockUser));
-    
-    // تحديث الـ context
-    login(mockUser);
-    
-    // التوجه للصفحة المناسبة
-    navigate(roleDetails.route);
+    try {
+      const credentials = {
+        username: data.username,
+        password: data.password,
+        role: getRoleNumber(selectedRole)
+      };
+      
+      console.log("Sending login request:", credentials);
+      
+      const result = await authService.login(credentials);
+      
+      console.log("Login response:", result);
+      
+      if (result.success) {
+        localStorage.setItem("authToken", result.token);
+        localStorage.setItem("userData", JSON.stringify(result.user));
+        login(result.user);
+        navigate(roleDetails.route);
+      } else {
+        setLoginError(result.message || "فشل في تسجيل الدخول");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.Message || 
+                           `خطأ من الخادم: ${error.response.status}`;
+        setLoginError(errorMessage);
+      } else if (error.request) {
+         setLoginError("لا يمكن الاتصال بالخادم. تأكد من تشغيل الـ Backend");
+      } else {
+        setLoginError("❌ حدث خطأ غير متوقع أثناء تسجيل الدخول. حاول مرة أخرى.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   // دالة مساعدة للحصول على اسم الدور

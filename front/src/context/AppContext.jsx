@@ -18,8 +18,9 @@ export const AppProvider = ({ children }) => {
   // تحميل بيانات المستخدم من localStorage عند بدء التطبيق
   useEffect(() => {
     const savedUser = localStorage.getItem("userData");
+    const savedToken = localStorage.getItem("authToken");
     
-    if (savedUser) {
+    if (savedUser && savedToken) {
       setUser(JSON.parse(savedUser));
     }
   }, []);
@@ -30,6 +31,7 @@ export const AppProvider = ({ children }) => {
 
   const logout = () => {
     // مسح البيانات من localStorage
+    localStorage.removeItem("authToken");
     localStorage.removeItem("userData");
     setUser(null);
   };

@@ -28,8 +28,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Unauthorized - إعادة توجيه لتسجيل الدخول
+    // فقط إذا كان المستخدم مسجل دخول مسبقاً (يوجد token)
+    // وليس أثناء محاولة تسجيل الدخول
+    const token = localStorage.getItem("authToken");
+    const isLoginAttempt = error.config?.url?.includes('/Auth/login');
+    
+    if (error.response?.status === 401 && token && !isLoginAttempt) {
+      // Unauthorized - إعادة توجيه لتسجيل الدخول فقط للمستخدمين المسجلين
       localStorage.removeItem("authToken");
       localStorage.removeItem("userData");
       window.location.href = "/";

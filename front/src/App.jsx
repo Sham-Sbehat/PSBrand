@@ -9,15 +9,27 @@ import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import DesignManagerDashboard from './pages/DesignManagerDashboard';
 
-// مكون الحماية للصفحات
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useApp();
 
-  if (!user) {
-    return <Navigate to="/" replace />;
-  }
 
-  if (allowedRole && user.role !== allowedRole) {
+  const getUserRoleString = (roleNumber) => {
+    switch (roleNumber) {
+      case 1: return "admin";
+      case 2: return "designer";
+      case 3: return "preparer";
+      case 4: return "designmanager";
+      default: return "unknown";
+    }
+  };
+
+  const userRoleString = getUserRoleString(user.role);
+  const isRoleAllowed = Array.isArray(allowedRole) 
+    ? allowedRole.includes(userRoleString)
+    : userRoleString === allowedRole;
+  
+  if (allowedRole && !isRoleAllowed) {
+    console.log("Role mismatch:", { userRole: userRoleString, allowedRole, userRoleNumber: user.role });
     return <Navigate to="/" replace />;
   }
 
@@ -33,7 +45,7 @@ function AppContent() {
         <Route
           path="/employee"
           element={
-            <ProtectedRoute allowedRole="employee">
+            <ProtectedRoute allowedRole={["designer", "preparer"]}>
               <EmployeeDashboard />
             </ProtectedRoute>
           }
