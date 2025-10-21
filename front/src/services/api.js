@@ -1,49 +1,80 @@
 import axios from "axios";
+import { STORAGE_KEYS } from "../constants";
+import { storage } from "../utils";
 
-// إعداد Axios للاتصال مع الباك اند .NET
+// Configuration
 const API_BASE_URL = "https://localhost:44345/api";
 
+// Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 10000, // 10 seconds timeout
 });
 
-// إضافة Token للطلبات (للمصادقة)
+// Request interceptor for authentication
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("authToken");
+    const token = storage.get(STORAGE_KEYS.AUTH_TOKEN);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// معالجة الأخطاء
+// Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // فقط إذا كان المستخدم مسجل دخول مسبقاً (يوجد token)
-    // وليس أثناء محاولة تسجيل الدخول
-    const token = localStorage.getItem("authToken");
+    const token = storage.get(STORAGE_KEYS.AUTH_TOKEN);
     const isLoginAttempt = error.config?.url?.includes('/Auth/login');
     
     if (error.response?.status === 401 && token && !isLoginAttempt) {
-      // Unauthorized - إعادة توجيه لتسجيل الدخول فقط للمستخدمين المسجلين
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("userData");
+      // Unauthorized - redirect to login
+      storage.remove(STORAGE_KEYS.AUTH_TOKEN);
+      storage.remove(STORAGE_KEYS.USER_DATA);
       window.location.href = "/";
     }
+    
     return Promise.reject(error);
   }
 );
 
-// ============= خدمات المصادقة =============
+// Constants
+const USER_ROLES = {
+  ADMIN: 1,
+  DESIGNER: 2,
+  PREPARER: 3,
+  DESIGN_MANAGER: 4,
+};
+
+const ROLE_STRINGS = {
+  [USER_ROLES.ADMIN]: "admin",
+  [USER_ROLES.DESIGNER]: "designer",
+  [USER_ROLES.PREPARER]: "preparer",
+  [USER_ROLES.DESIGN_MANAGER]: "designmanager",
+};
+
+// Utility functions
+const convertRoleToNumber = (role) => {
+  const roleMap = {
+    "admin": USER_ROLES.ADMIN,
+    "designer": USER_ROLES.DESIGNER,
+    "preparer": USER_ROLES.PREPARER,
+    "designmanager": USER_ROLES.DESIGN_MANAGER,
+  };
+  return roleMap[role] || USER_ROLES.ADMIN;
+};
+
+const convertRoleToString = (roleNumber) => {
+  return ROLE_STRINGS[roleNumber] || "unknown";
+};
+
+// Authentication Service
 export const authService = {
   login: async (credentials) => {
     const response = await api.post("/Auth/login", credentials);
@@ -56,44 +87,39 @@ export const authService = {
   },
 };
 
-// ============= خدمات الطلبات =============
+// Orders Service
 export const ordersService = {
-  // جلب جميع الطلبات
   getAllOrders: async () => {
     const response = await api.get("/Orders/GetOrders");
     return response.data;
   },
 
-  // جلب طلب محدد
   getOrderById: async (id) => {
     const response = await api.get(`/Orders/GetOrder/${id}`);
     return response.data;
   },
 
-  // إنشاء طلب جديد
   createOrder: async (orderData) => {
     const response = await api.post("/Orders/CreateOrder", orderData);
     return response.data;
   },
 
-  // تحديث حالة الطلب
   updateOrderStatus: async (id, status) => {
     const response = await api.patch(`/Orders/UpdateOrderStatus/${id}`, { status });
     return response.data;
   },
 
-  // حذف طلب
   deleteOrder: async (id) => {
     const response = await api.delete(`/Orders/DeleteOrder/${id}`);
     return response.data;
   },
 
-  // رفع صور التصميم
   uploadDesignImages: async (orderId, images) => {
     const formData = new FormData();
     images.forEach((image) => {
       formData.append("images", image);
     });
+    
     const response = await api.post(`/Orders/${orderId}/UploadImages`, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
@@ -103,57 +129,35 @@ export const ordersService = {
   },
 };
 
+// Employees Service
 export const employeesService = {
-  convertRoleToNumber: (role) => {
-    switch (role) {
-      case "admin":
-        return 1;
-      case "designer":
-        return 2;
-      case "preparer":
-        return 3;
-      case "designmanager":
-        return 4;
-      default:
-        return 1;
-    }
-  },
-  convertRoleToString: (roleNumber) => {
-    switch (roleNumber) {
-      case 1:
-        return "admin";
-      case 2:
-        return "designer";
-      case 3:
-        return "preparer";
-      case 4:
-        return "designmanager";
-      default:
-        return "unknown";
-    }
-  },
+  // Utility functions
+  convertRoleToNumber,
+  convertRoleToString,
 
+  // API calls
   getAllEmployees: async () => {
     const response = await api.get("/Users/GetUsers");
     return response.data;
   },
 
-  // جلب المستخدمين حسب الدور
   getUsersByRole: async (role) => {
     const response = await api.get(`/Users/role/${role}`);
     return response.data;
   },
+
   getEmployeeById: async (id) => {
-    const response = await api.get(`/Users/GetUser${id}`);
+    const response = await api.get(`/Users/GetUser/${id}`);
     return response.data;
   },
+
   createEmployee: async (employeeData) => {
     const apiData = {
       name: employeeData.name,
       username: employeeData.username,
       password: employeeData.password,
       phone: employeeData.phone,
-      role: employeesService.convertRoleToNumber(employeeData.role),
+      role: convertRoleToNumber(employeeData.role),
       isActive: true,
     };
 
@@ -166,3 +170,6 @@ export const employeesService = {
     return response.data;
   },
 };
+
+// Export constants for use in components
+export { USER_ROLES, ROLE_STRINGS };

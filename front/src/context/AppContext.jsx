@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { employeesService } from "../services/api";
+import { STORAGE_KEYS } from "../constants";
+import { storage } from "../utils";
 
 const AppContext = createContext();
 
@@ -12,95 +14,122 @@ export const useApp = () => {
 };
 
 export const AppProvider = ({ children }) => {
+  // State management
   const [user, setUser] = useState(null);
   const [orders, setOrders] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // تحميل قائمة الموظفين
-  const loadEmployees = async () => {
+
+  // Load employees from API
+  const loadEmployees = useCallback(async () => {
+    if (loading) return; // Prevent multiple simultaneous calls
+    
+    setLoading(true);
     try {
-      // جلب جميع المستخدمين
       const employeesData = await employeesService.getAllEmployees();
-      console.log('تم تحميل الموظفين:', employeesData);
-      setEmployees(employeesData);
+      setEmployees(employeesData || []);
     } catch (error) {
       console.error('خطأ في تحميل الموظفين:', error);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [loading]);
 
-  // جلب المستخدمين حسب الدور
-  const loadUsersByRole = async (role) => {
+  // Load users by role
+  const loadUsersByRole = useCallback(async (role) => {
     try {
       const usersData = await employeesService.getUsersByRole(role);
-      console.log(`تم تحميل المستخدمين للدور ${role}:`, usersData);
-      return usersData;
+      return usersData || [];
     } catch (error) {
       console.error(`خطأ في تحميل المستخدمين للدور ${role}:`, error);
       return [];
     }
-  };
-
-  // تحميل بيانات المستخدم من localStorage عند بدء التطبيق
-  useEffect(() => {
-    const savedUser = localStorage.getItem("userData");
-    const savedToken = localStorage.getItem("authToken");
-    
-    if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
-      // تحميل قائمة الموظفين
-      loadEmployees();
-    }
   }, []);
 
-  const login = (userData) => {
+  // Initialize app data
+  useEffect(() => {
+    const initializeApp = async () => {
+      const savedUser = storage.get(STORAGE_KEYS.USER_DATA);
+      const savedToken = storage.get(STORAGE_KEYS.AUTH_TOKEN);
+      
+      if (savedUser && savedToken) {
+        try {
+          setUser(savedUser);
+          await loadEmployees();
+        } catch (error) {
+          console.error('خطأ في تحميل بيانات المستخدم:', error);
+          // Clear invalid data
+          storage.remove(STORAGE_KEYS.USER_DATA);
+          storage.remove(STORAGE_KEYS.AUTH_TOKEN);
+        }
+      }
+    };
+
+    initializeApp();
+  }, [loadEmployees]);
+
+  // Login function
+  const login = useCallback((userData) => {
     setUser(userData);
-    // تحميل قائمة الموظفين بعد تسجيل الدخول
     loadEmployees();
-  };
+  }, [loadEmployees]);
 
-  const logout = () => {
-    // مسح البيانات من localStorage
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userData");
+  // Logout function
+  const logout = useCallback(() => {
+    storage.remove(STORAGE_KEYS.AUTH_TOKEN);
+    storage.remove(STORAGE_KEYS.USER_DATA);
     setUser(null);
-  };
+    setOrders([]);
+    setEmployees([]);
+  }, []);
 
-  const addOrder = (order) => {
+  // Add order to context
+  const addOrder = useCallback((order) => {
     const newOrder = {
       ...order,
-      id: Date.now(),
-      createdAt: new Date().toISOString(),
+      id: order.id || Date.now(),
+      createdAt: order.createdAt || new Date().toISOString(),
       createdBy: user?.name || "موظف",
-      status: "pending",
+      status: order.status || "pending",
     };
     setOrders((prev) => [newOrder, ...prev]);
     return newOrder;
-  };
+  }, [user]);
 
-  const updateOrderStatus = (orderId, status) => {
+  // Update order status
+  const updateOrderStatus = useCallback((orderId, status) => {
     setOrders((prev) =>
-      prev.map((order) => (order.id === orderId ? { ...order, status } : order))
+      prev.map((order) => 
+        order.id === orderId ? { ...order, status } : order
+      )
     );
-  };
+  }, []);
 
-  const addEmployee = (employee) => {
+  // Add employee
+  const addEmployee = useCallback((employee) => {
     const newEmployee = {
       ...employee,
       createdAt: new Date().toISOString(),
     };
     setEmployees((prev) => [newEmployee, ...prev]);
     return newEmployee;
-  };
+  }, []);
 
-  const deleteEmployee = (employeeId) => {
+  // Delete employee
+  const deleteEmployee = useCallback((employeeId) => {
     setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
-  };
+  }, []);
 
-  const value = {
+  // Memoized context value
+  const contextValue = useMemo(() => ({
+    // State
     user,
     orders,
     employees,
-    setEmployees,
+    loading,
+    
+    // Actions
     login,
     logout,
     addOrder,
@@ -108,7 +137,28 @@ export const AppProvider = ({ children }) => {
     addEmployee,
     deleteEmployee,
     loadUsersByRole,
-  };
+    loadEmployees,
+    
+    // Setters (for external state management if needed)
+    setEmployees,
+  }), [
+    user,
+    orders,
+    employees,
+    loading,
+    login,
+    logout,
+    addOrder,
+    updateOrderStatus,
+    addEmployee,
+    deleteEmployee,
+    loadUsersByRole,
+    loadEmployees,
+  ]);
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={contextValue}>
+      {children}
+    </AppContext.Provider>
+  );
 };

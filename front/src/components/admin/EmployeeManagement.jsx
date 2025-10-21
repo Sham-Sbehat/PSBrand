@@ -24,6 +24,7 @@ import {
   FormControl,
   InputLabel,
   FormHelperText,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add,
@@ -83,34 +84,34 @@ const EmployeeManagement = () => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     reset();
+    setError(null);
+    setSubmitSuccess(false);
   };
 
   const onSubmit = async (data) => {
     try {
       setLoading(true);
       setError(null);
+      setSubmitSuccess(false);
+      
       const response = await employeesService.createEmployee(data);
       const newEmployee = {
         ...response,
         role: employeesService.convertRoleToString(response.role)
       };
       setEmployees((prev) => [newEmployee, ...prev]);
-      await Swal.fire({
-        title: 'تم الإضافة بنجاح!',
-        text: 'تم إضافة الموظف الجديد بنجاح.',
-        icon: 'success',
-        confirmButtonColor: '#3085d6'
-      });
       
-      handleCloseDialog();
+      // إظهار رسالة النجاح
+      setSubmitSuccess(true);
+      
+      // إغلاق المودال تلقائياً بعد ثانيتين
+      setTimeout(() => {
+        handleCloseDialog();
+      }, 2000);
+      
     } catch (err) {
       setError('فشل في إضافة الموظف');
-      Swal.fire({
-        title: 'خطأ!',
-        text: 'فشل في إضافة الموظف. حاول مرة أخرى.',
-        icon: 'error',
-        confirmButtonColor: '#d33'
-      });
+      setSubmitSuccess(false);
     } finally {
       setLoading(false);
     }
@@ -267,7 +268,7 @@ const EmployeeManagement = () => {
         <DialogContent>
           {submitSuccess && (
             <Alert severity="success" sx={{ marginBottom: 2 }}>
-              تم إضافة الموظف بنجاح! ✓
+              ✅ تم إضافة الموظف بنجاح! 
             </Alert>
           )}
           
@@ -405,12 +406,13 @@ const EmployeeManagement = () => {
         </DialogContent>
         <DialogActions sx={{ padding: 3 }}>
           <Button onClick={handleCloseDialog} disabled={loading}>
-            إلغاء
+            إغلاق
           </Button>
           <Button
             variant="contained"
             onClick={handleSubmit(onSubmit)}
             disabled={submitSuccess || loading}
+            startIcon={loading ? <CircularProgress size={16} /> : null}
           >
             {loading ? 'جاري الإضافة...' : 'إضافة'}
           </Button>
