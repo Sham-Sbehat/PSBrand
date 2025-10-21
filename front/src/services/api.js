@@ -60,31 +60,31 @@ export const authService = {
 export const ordersService = {
   // جلب جميع الطلبات
   getAllOrders: async () => {
-    const response = await api.get("/orders");
+    const response = await api.get("/Orders/GetOrders");
     return response.data;
   },
 
   // جلب طلب محدد
   getOrderById: async (id) => {
-    const response = await api.get(`/orders/${id}`);
+    const response = await api.get(`/Orders/GetOrder/${id}`);
     return response.data;
   },
 
   // إنشاء طلب جديد
   createOrder: async (orderData) => {
-    const response = await api.post("/orders", orderData);
+    const response = await api.post("/Orders/CreateOrder", orderData);
     return response.data;
   },
 
   // تحديث حالة الطلب
   updateOrderStatus: async (id, status) => {
-    const response = await api.patch(`/orders/${id}/status`, { status });
+    const response = await api.patch(`/Orders/UpdateOrderStatus/${id}`, { status });
     return response.data;
   },
 
   // حذف طلب
   deleteOrder: async (id) => {
-    const response = await api.delete(`/orders/${id}`);
+    const response = await api.delete(`/Orders/DeleteOrder/${id}`);
     return response.data;
   },
 
@@ -94,7 +94,7 @@ export const ordersService = {
     images.forEach((image) => {
       formData.append("images", image);
     });
-    const response = await api.post(`/orders/${orderId}/images`, formData, {
+    const response = await api.post(`/Orders/${orderId}/UploadImages`, formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -135,6 +135,12 @@ export const employeesService = {
 
   getAllEmployees: async () => {
     const response = await api.get("/Users/GetUsers");
+    return response.data;
+  },
+
+  // جلب المستخدمين حسب الدور
+  getUsersByRole: async (role) => {
+    const response = await api.get(`/Users/role/${role}`);
     return response.data;
   },
   getEmployeeById: async (id) => {

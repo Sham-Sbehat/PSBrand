@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import {
   Box,
@@ -14,6 +14,10 @@ import {
   Card,
   CardMedia,
   CardActions,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   Person,
@@ -25,14 +29,22 @@ import {
   AttachMoney,
   CloudUpload,
   Delete,
+  Business,
+  Assignment,
 } from '@mui/icons-material';
 import { useApp } from '../../context/AppContext';
+import { ordersService, employeesService } from '../../services/api';
 
 const OrderForm = ({ onSuccess }) => {
-  const { addOrder, user } = useApp();
+  const { addOrder, user, employees, loadUsersByRole } = useApp();
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [designers, setDesigners] = useState([]);
+  const [preparers, setPreparers] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
 
   const {
     control,
@@ -41,16 +53,43 @@ const OrderForm = ({ onSuccess }) => {
     formState: { errors },
   } = useForm({
     defaultValues: {
+      orderNumber: '',
       customerName: '',
       customerPhone: '',
-      customerLocation: '',
-      customerDetails: '',
+      country: '',
+      province: '',
+      district: '',
+      totalAmount: '',
+      designerId: '',
+      preparerId: '',
+      fabricType: '',
       size: '',
-      color: '',
-      price: '',
-      orderDetails: '',
+      quantity: '',
+      unitPrice: '',
     },
   });
+
+  // تحميل المصممين والمعدين عند تحميل المكون
+  useEffect(() => {
+    const loadEmployeesData = async () => {
+      setLoadingEmployees(true);
+      try {
+        // جلب المصممين (الدور 2)
+        const designersData = await loadUsersByRole(2);
+        setDesigners(designersData);
+
+        // جلب المعدين (الدور 3)
+        const preparersData = await loadUsersByRole(3);
+        setPreparers(preparersData);
+      } catch (error) {
+        console.error('خطأ في تحميل الموظفين:', error);
+      } finally {
+        setLoadingEmployees(false);
+      }
+    };
+
+    loadEmployeesData();
+  }, [loadUsersByRole]);
 
   // معالجة اختيار الصور
   const handleImageChange = (e) => {
@@ -74,16 +113,134 @@ const OrderForm = ({ onSuccess }) => {
   };
 
   // إرسال النموذج
-  const onSubmit = (data) => {
-    const orderData = {
-      ...data,
-      images: images.length,
-      imagePreviews: imagePreviews,
-      employeeName: user?.name || 'موظف',
-      employeeId: user?.id || Date.now(),
-    };
+  const onSubmit = async (data) => {
+    setIsSubmitting(true);
+    setSubmitError('');
 
-    addOrder(orderData);
+    try {
+      // التحقق من الحقول المطلوبة
+      if (!data.designerId || data.designerId === '') {
+        setSubmitError('يجب اختيار مصمم');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!data.preparerId || data.preparerId === '') {
+        setSubmitError('يجب اختيار معد');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // تحضير بيانات الطلب حسب API الجديد
+    const orderData = {
+        id: 0,
+        orderNumber: data.orderNumber || `ORD-${Date.now()}`,
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        country: data.country,
+        province: data.province,
+        district: data.district,
+        orderDate: new Date().toISOString(),
+        totalAmount: parseFloat(data.totalAmount) || 0,
+        status: 1, // حالة جديدة
+        designerId: parseInt(data.designerId),
+        preparerId: parseInt(data.preparerId),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        designer: {
+          id: parseInt(data.designerId),
+          name: designers.find(d => d.id === parseInt(data.designerId))?.name || '',
+          username: designers.find(d => d.id === parseInt(data.designerId))?.username || '',
+          password: designers.find(d => d.id === parseInt(data.designerId))?.password || 'defaultpassword',
+          phone: designers.find(d => d.id === parseInt(data.designerId))?.phone || '',
+          role: 2, // Designer role
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          orders: []
+        },
+        preparer: {
+          id: parseInt(data.preparerId),
+          name: preparers.find(p => p.id === parseInt(data.preparerId))?.name || '',
+          username: preparers.find(p => p.id === parseInt(data.preparerId))?.username || '',
+          password: preparers.find(p => p.id === parseInt(data.preparerId))?.password || 'defaultpassword',
+          phone: preparers.find(p => p.id === parseInt(data.preparerId))?.phone || '',
+          role: 3, // Preparer role
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          orders: []
+        },
+        orderDesigns: [
+          {
+            id: 0,
+            orderId: 0,
+            mockupImageUrl: 'placeholder_mockup.jpg', // قيمة مؤقتة حتى يتم رفع الصور
+            printFileUrl: 'placeholder_print.pdf', // قيمة مؤقتة حتى يتم رفع الملفات
+            fabricType: data.fabricType,
+            size: data.size,
+            quantity: parseInt(data.quantity) || 1,
+            unitPrice: parseFloat(data.unitPrice) || 0,
+            totalPrice: parseFloat(data.unitPrice) * (parseInt(data.quantity) || 1),
+            createdAt: new Date().toISOString(),
+            order: {
+              id: 0,
+              orderNumber: data.orderNumber || `ORD-${Date.now()}`,
+              customerName: data.customerName,
+              customerPhone: data.customerPhone,
+              country: data.country,
+              province: data.province,
+              district: data.district,
+              orderDate: new Date().toISOString(),
+              totalAmount: parseFloat(data.totalAmount) || 0,
+              status: 1,
+              designerId: parseInt(data.designerId),
+              preparerId: parseInt(data.preparerId),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              designer: {
+                id: parseInt(data.designerId),
+                name: designers.find(d => d.id === parseInt(data.designerId))?.name || '',
+                username: designers.find(d => d.id === parseInt(data.designerId))?.username || '',
+                password: designers.find(d => d.id === parseInt(data.designerId))?.password || 'defaultpassword',
+                phone: designers.find(d => d.id === parseInt(data.designerId))?.phone || '',
+                role: 2,
+                isActive: true,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                orders: []
+              },
+              preparer: {
+                id: parseInt(data.preparerId),
+                name: preparers.find(p => p.id === parseInt(data.preparerId))?.name || '',
+                username: preparers.find(p => p.id === parseInt(data.preparerId))?.username || '',
+                password: preparers.find(p => p.id === parseInt(data.preparerId))?.password || 'defaultpassword',
+                phone: preparers.find(p => p.id === parseInt(data.preparerId))?.phone || '',
+                role: 3,
+                isActive: true,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                orders: []
+              },
+              orderDesigns: []
+            }
+          }
+        ]
+      };
+
+      // طباعة البيانات المرسلة للتشخيص
+      console.log('بيانات الطلب المرسلة:', orderData);
+      
+      // إرسال الطلب إلى API
+      const response = await ordersService.createOrder(orderData);
+      
+      // إذا كان هناك صور، قم برفعها
+      if (images.length > 0 && response.id) {
+        await ordersService.uploadDesignImages(response.id, images);
+      }
+
+      // إضافة الطلب إلى السياق المحلي
+      addOrder(response);
     setSubmitSuccess(true);
 
     // إعادة تعيين النموذج
@@ -94,6 +251,13 @@ const OrderForm = ({ onSuccess }) => {
       setSubmitSuccess(false);
       if (onSuccess) onSuccess();
     }, 2000);
+
+    } catch (error) {
+      console.error('خطأ في إرسال الطلب:', error);
+      setSubmitError(error.response?.data?.message || 'حدث خطأ أثناء إرسال الطلب');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -109,6 +273,12 @@ const OrderForm = ({ onSuccess }) => {
       {submitSuccess && (
         <Alert severity="success" sx={{ marginBottom: 3 }}>
           تم إرسال الطلب بنجاح! ✓
+        </Alert>
+      )}
+
+      {submitError && (
+        <Alert severity="error" sx={{ marginBottom: 3 }}>
+          {submitError}
         </Alert>
       )}
 
@@ -128,6 +298,28 @@ const OrderForm = ({ onSuccess }) => {
           </Typography>
 
           <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Controller
+                name="orderNumber"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="رقم الطلب (اختياري)"
+                    placeholder="سيتم توليده تلقائياً إذا ترك فارغاً"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Assignment />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+
             <Grid item xs={12} md={6}>
               <Controller
                 name="customerName"
@@ -182,18 +374,42 @@ const OrderForm = ({ onSuccess }) => {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} md={4}>
               <Controller
-                name="customerLocation"
+                name="country"
                 control={control}
-                rules={{ required: 'الموقع مطلوب' }}
+                rules={{ required: 'البلد مطلوب' }}
                 render={({ field }) => (
                   <TextField
                     {...field}
                     fullWidth
-                    label="الموقع"
-                    error={!!errors.customerLocation}
-                    helperText={errors.customerLocation?.message}
+                    label="البلد"
+                    error={!!errors.country}
+                    helperText={errors.country?.message}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Business />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <Controller
+                name="province"
+                control={control}
+                rules={{ required: 'المحافظة مطلوبة' }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="المحافظة"
+                    error={!!errors.province}
+                    helperText={errors.province?.message}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -206,21 +422,22 @@ const OrderForm = ({ onSuccess }) => {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} md={4}>
               <Controller
-                name="customerDetails"
+                name="district"
                 control={control}
+                rules={{ required: 'المديرية مطلوبة' }}
                 render={({ field }) => (
                   <TextField
                     {...field}
                     fullWidth
-                    label="تفاصيل إضافية عن الزبون"
-                    multiline
-                    rows={2}
+                    label="المديرية"
+                    error={!!errors.district}
+                    helperText={errors.district?.message}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
-                          <Description />
+                          <LocationOn />
                         </InputAdornment>
                       ),
                     }}
@@ -245,7 +462,136 @@ const OrderForm = ({ onSuccess }) => {
             تفاصيل الطلب
           </Typography>
 
+          {loadingEmployees && (
+            <Alert severity="info" sx={{ marginBottom: 2 }}>
+              جاري تحميل قائمة الموظفين...
+            </Alert>
+          )}
+
+          {!loadingEmployees && (designers.length === 0 || preparers.length === 0) && (
+            <Alert 
+              severity="warning" 
+              sx={{ marginBottom: 2 }}
+              action={
+                <Button 
+                  color="inherit" 
+                  size="small" 
+                  onClick={() => window.location.reload()}
+                >
+                  إعادة تحميل
+                </Button>
+              }
+            >
+              تحذير: لم يتم تحميل قائمة الموظفين. تأكد من الاتصال بالإنترنت.
+            </Alert>
+          )}
+
           <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth error={!!errors.designerId}>
+                <InputLabel>المصمم</InputLabel>
+                <Controller
+                  name="designerId"
+                  control={control}
+                  rules={{ required: 'المصمم مطلوب' }}
+                  render={({ field }) => (
+                    <Select
+                      {...field}
+                      label="المصمم"
+                      value={field.value || ''}
+                      disabled={loadingEmployees || designers.length === 0}
+                    >
+                      {loadingEmployees ? (
+                        <MenuItem disabled>
+                          جاري التحميل...
+                        </MenuItem>
+                      ) : designers.length > 0 ? (
+                        designers.map((designer) => (
+                          <MenuItem key={designer.id} value={designer.id}>
+                            {designer.name}
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>
+                          لا يوجد مصممون متاحون
+                        </MenuItem>
+                      )}
+                    </Select>
+                  )}
+                />
+                {errors.designerId && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
+                    {errors.designerId.message}
+                  </Typography>
+                )}
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth error={!!errors.preparerId}>
+                <InputLabel>المعد</InputLabel>
+                <Controller
+                  name="preparerId"
+                  control={control}
+                  rules={{ required: 'المعد مطلوب' }}
+                  render={({ field }) => (
+                    <Select
+                      {...field}
+                      label="المعد"
+                      value={field.value || ''}
+                      disabled={loadingEmployees || preparers.length === 0}
+                    >
+                      {loadingEmployees ? (
+                        <MenuItem disabled>
+                          جاري التحميل...
+                        </MenuItem>
+                      ) : preparers.length > 0 ? (
+                        preparers.map((preparer) => (
+                          <MenuItem key={preparer.id} value={preparer.id}>
+                            {preparer.name}
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>
+                          لا يوجد معدون متاحون
+                        </MenuItem>
+                      )}
+                    </Select>
+                  )}
+                />
+                {errors.preparerId && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
+                    {errors.preparerId.message}
+                  </Typography>
+                )}
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <Controller
+                name="fabricType"
+                control={control}
+                rules={{ required: 'نوع القماش مطلوب' }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    fullWidth
+                    label="نوع القماش"
+                    placeholder="مثال: قطن، بوليستر"
+                    error={!!errors.fabricType}
+                    helperText={errors.fabricType?.message}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Palette />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+
             <Grid item xs={12} md={4}>
               <Controller
                 name="size"
@@ -273,20 +619,24 @@ const OrderForm = ({ onSuccess }) => {
 
             <Grid item xs={12} md={4}>
               <Controller
-                name="color"
+                name="quantity"
                 control={control}
-                rules={{ required: 'اللون مطلوب' }}
+                rules={{
+                  required: 'الكمية مطلوبة',
+                  min: { value: 1, message: 'الكمية يجب أن تكون أكبر من 0' }
+                }}
                 render={({ field }) => (
                   <TextField
                     {...field}
                     fullWidth
-                    label="اللون"
-                    error={!!errors.color}
-                    helperText={errors.color?.message}
+                    label="الكمية"
+                    type="number"
+                    error={!!errors.quantity}
+                    helperText={errors.quantity?.message}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
-                          <Palette />
+                          <Description />
                         </InputAdornment>
                       ),
                     }}
@@ -295,25 +645,22 @@ const OrderForm = ({ onSuccess }) => {
               />
             </Grid>
 
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <Controller
-                name="price"
+                name="unitPrice"
                 control={control}
                 rules={{
-                  required: 'السعر مطلوب',
-                  pattern: {
-                    value: /^[0-9]+$/,
-                    message: 'السعر يجب أن يكون رقماً',
-                  },
+                  required: 'سعر الوحدة مطلوب',
+                  min: { value: 0, message: 'السعر يجب أن يكون أكبر من أو يساوي 0' }
                 }}
                 render={({ field }) => (
                   <TextField
                     {...field}
                     fullWidth
-                    label="السعر"
+                    label="سعر الوحدة"
                     type="number"
-                    error={!!errors.price}
-                    helperText={errors.price?.message}
+                    error={!!errors.unitPrice}
+                    helperText={errors.unitPrice?.message}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -326,21 +673,29 @@ const OrderForm = ({ onSuccess }) => {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} md={6}>
               <Controller
-                name="orderDetails"
+                name="totalAmount"
                 control={control}
-                rules={{ required: 'تفاصيل الطلب مطلوبة' }}
+                rules={{
+                  required: 'المبلغ الإجمالي مطلوب',
+                  min: { value: 0, message: 'المبلغ يجب أن يكون أكبر من أو يساوي 0' }
+                }}
                 render={({ field }) => (
                   <TextField
                     {...field}
                     fullWidth
-                    label="تفاصيل الطلب"
-                    multiline
-                    rows={4}
-                    error={!!errors.orderDetails}
-                    helperText={errors.orderDetails?.message}
-                    placeholder="اكتب تفاصيل التصميم والملاحظات الخاصة بالطلب"
+                    label="المبلغ الإجمالي"
+                    type="number"
+                    error={!!errors.totalAmount}
+                    helperText={errors.totalAmount?.message}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <AttachMoney />
+                        </InputAdornment>
+                      ),
+                    }}
                   />
                 )}
               />
@@ -422,13 +777,14 @@ const OrderForm = ({ onSuccess }) => {
           variant="contained"
           size="large"
           fullWidth
+          disabled={isSubmitting}
           sx={{
             padding: 2,
             fontSize: '1.1rem',
             fontWeight: 600,
           }}
         >
-          إرسال الطلب
+          {isSubmitting ? 'جاري الإرسال...' : 'إرسال الطلب'}
         </Button>
       </form>
     </Paper>

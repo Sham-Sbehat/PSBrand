@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { employeesService } from "../services/api";
 
 const AppContext = createContext();
 
@@ -15,6 +16,30 @@ export const AppProvider = ({ children }) => {
   const [orders, setOrders] = useState([]);
   const [employees, setEmployees] = useState([]);
 
+  // تحميل قائمة الموظفين
+  const loadEmployees = async () => {
+    try {
+      // جلب جميع المستخدمين
+      const employeesData = await employeesService.getAllEmployees();
+      console.log('تم تحميل الموظفين:', employeesData);
+      setEmployees(employeesData);
+    } catch (error) {
+      console.error('خطأ في تحميل الموظفين:', error);
+    }
+  };
+
+  // جلب المستخدمين حسب الدور
+  const loadUsersByRole = async (role) => {
+    try {
+      const usersData = await employeesService.getUsersByRole(role);
+      console.log(`تم تحميل المستخدمين للدور ${role}:`, usersData);
+      return usersData;
+    } catch (error) {
+      console.error(`خطأ في تحميل المستخدمين للدور ${role}:`, error);
+      return [];
+    }
+  };
+
   // تحميل بيانات المستخدم من localStorage عند بدء التطبيق
   useEffect(() => {
     const savedUser = localStorage.getItem("userData");
@@ -22,11 +47,15 @@ export const AppProvider = ({ children }) => {
     
     if (savedUser && savedToken) {
       setUser(JSON.parse(savedUser));
+      // تحميل قائمة الموظفين
+      loadEmployees();
     }
   }, []);
 
   const login = (userData) => {
     setUser(userData);
+    // تحميل قائمة الموظفين بعد تسجيل الدخول
+    loadEmployees();
   };
 
   const logout = () => {
@@ -78,6 +107,7 @@ export const AppProvider = ({ children }) => {
     updateOrderStatus,
     addEmployee,
     deleteEmployee,
+    loadUsersByRole,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
