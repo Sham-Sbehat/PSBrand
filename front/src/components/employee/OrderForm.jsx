@@ -44,7 +44,7 @@ import {
   CheckCircle,
 } from '@mui/icons-material';
 import { useApp } from '../../context/AppContext';
-import { ordersService } from '../../services/api';
+import { ordersService, clientsService } from '../../services/api';
 import { ORDER_STATUS, USER_ROLES, FABRIC_TYPES, SIZES } from '../../constants';
 import { generateOrderNumber, calculateTotal, createImagePreview } from '../../utils';
 
@@ -131,9 +131,30 @@ const OrderForm = ({ onSuccess }) => {
   }, [loadUsersByRole]);
 
   // Handle customer form submission
-  const onCustomerSubmit = (data) => {
-    setCustomerData(data);
-    setCustomerDialogOpen(false);
+  const onCustomerSubmit = async (data) => {
+    try {
+      // Prepare client data according to API format
+      const clientData = {
+        name: data.customerName,
+        phone: data.customerPhone,
+        country: data.country,
+        province: data.province,
+        district: data.district,
+      };
+
+      // Call API to create client
+      const response = await clientsService.createClient(clientData);
+      console.log('Client created:', response);
+
+      // Update local state with client data
+      setCustomerData(data);
+      setCustomerDialogOpen(false);
+      setSubmitSuccess(true);
+      setTimeout(() => setSubmitSuccess(false), 3000);
+    } catch (error) {
+      console.error('Error creating client:', error);
+      setSubmitError('فشل في إنشاء العميل. يرجى المحاولة مرة أخرى.');
+    }
   };
 
   // Update order name

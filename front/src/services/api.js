@@ -171,5 +171,33 @@ export const employeesService = {
   },
 };
 
+// Clients Service
+export const clientsService = {
+  createClient: async (clientData) => {
+    const response = await api.post("/Client/CreateClient", clientData);
+    return response.data;
+  },
+
+  getAllClients: async () => {
+    const response = await api.get("/Client/GetClients");
+    return response.data;
+  },
+
+  getClientById: async (id) => {
+    const response = await api.get(`/Client/GetClient/${id}`);
+    return response.data;
+  },
+
+  updateClient: async (id, clientData) => {
+    const response = await api.put(`/Client/UpdateClient/${id}`, clientData);
+    return response.data;
+  },
+
+  deleteClient: async (id) => {
+    const response = await api.delete(`/Client/DeleteClient/${id}`);
+    return response.data;
+  },
+};
+
 // Export constants for use in components
 export { USER_ROLES, ROLE_STRINGS };
