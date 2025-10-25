@@ -188,6 +188,11 @@ export const clientsService = {
     return response.data;
   },
 
+  searchClients: async (searchTerm) => {
+    const response = await api.get(`/Client/search?searchTerm=${encodeURIComponent(searchTerm)}`);
+    return response.data;
+  },
+
   updateClient: async (id, clientData) => {
     const response = await api.put(`/Client/UpdateClient/${id}`, clientData);
     return response.data;
