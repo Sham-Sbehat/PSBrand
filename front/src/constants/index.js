@@ -28,26 +28,133 @@ export const USER_ROLE_LABELS = {
   [USER_ROLES.DESIGN_MANAGER]: 'مدير التصميم',
 };
 
-// Fabric Types
-export const FABRIC_TYPES = [
-  'قطن',
-  'بوليستر',
-  'حرير',
-  'صوف',
-  'كتان',
-  'دنة',
-];
+// Size Enum (matching backend exactly)
+export const SIZE_ENUM = {
+  Size2: 2,
+  Size4: 4,
+  Size6: 6,
+  Size8: 8,
+  Size10: 10,
+  Size12: 12,
+  Size14: 14,
+  Size16: 16,
+  Size18: 18,
+  XS: 1,
+  S: 2,        // Note: Same value as Size2
+  M: 3,
+  L: 4,        // Note: Same value as Size4
+  XL: 5,
+  XXL: 6,      // Note: Same value as Size6
+  Size3XL: 7,
+  Size4XL: 8,
+  Size5XL: 9,
+  Size6XL: 10,
+  Size7XL: 11
+};
 
-// Sizes
-export const SIZES = [
-  'XS',
-  'S',
-  'M',
-  'L',
-  'XL',
-  'XXL',
-  'XXXL',
-];
+// Size Labels (Arabic) - Handling conflicts by prioritizing letter sizes
+export const SIZE_LABELS = {
+  [SIZE_ENUM.XS]: 'XS',
+  [SIZE_ENUM.S]: 'S',           // Prioritizing S over Size2 for value 2
+  [SIZE_ENUM.M]: 'M',
+  [SIZE_ENUM.L]: 'L',           // Prioritizing L over Size4 for value 4
+  [SIZE_ENUM.XL]: 'XL',
+  [SIZE_ENUM.XXL]: 'XXL',       // Prioritizing XXL over Size6 for value 6
+  [SIZE_ENUM.Size3XL]: '3XL',
+  [SIZE_ENUM.Size4XL]: '4XL',
+  [SIZE_ENUM.Size5XL]: '5XL',
+  [SIZE_ENUM.Size6XL]: '6XL',
+  [SIZE_ENUM.Size7XL]: '7XL',
+  [SIZE_ENUM.Size8]: '8',
+  [SIZE_ENUM.Size10]: '10',
+  [SIZE_ENUM.Size12]: '12',
+  [SIZE_ENUM.Size14]: '14',
+  [SIZE_ENUM.Size16]: '16',
+  [SIZE_ENUM.Size18]: '18'
+};
+
+// Fabric Type Enum (matching backend)
+export const FABRIC_TYPE_ENUM = {
+  Cotton200g: 1,        // قطن 200 غرام
+  Cotton250g: 2,        // قطن 250 غرام
+  Cotton100Percent: 3,  // 100% قطن
+  FrenchTerry: 4,       // فرنشتيري
+  LightSleeve: 5,       // كم خفيف
+  HoodieFleecePadded: 6, // هودي فوتر مبطن
+  Hoodie280g: 7,       // هودي 280 غرام
+  Hoodie330g: 8,       // هودي 330 غرام
+  Hoodie400g: 9,       // هودي 400 غرام
+  JacketFleece: 10,    // جكيت فوتر
+  Sweatshirt: 11,      // سويت شيرت
+  HalfZip: 12,         // نص سحاب
+  TrackSuit: 14        // ترنج
+};
+
+// Fabric Type Labels (Arabic)
+export const FABRIC_TYPE_LABELS = {
+  [FABRIC_TYPE_ENUM.Cotton200g]: 'قطن 200 غرام',
+  [FABRIC_TYPE_ENUM.Cotton250g]: 'قطن 250 غرام',
+  [FABRIC_TYPE_ENUM.Cotton100Percent]: '100% قطن',
+  [FABRIC_TYPE_ENUM.FrenchTerry]: 'فرنشتيري',
+  [FABRIC_TYPE_ENUM.LightSleeve]: 'كم خفيف',
+  [FABRIC_TYPE_ENUM.HoodieFleecePadded]: 'هودي فوتر مبطن',
+  [FABRIC_TYPE_ENUM.Hoodie280g]: 'هودي 280 غرام',
+  [FABRIC_TYPE_ENUM.Hoodie330g]: 'هودي 330 غرام',
+  [FABRIC_TYPE_ENUM.Hoodie400g]: 'هودي 400 غرام',
+  [FABRIC_TYPE_ENUM.JacketFleece]: 'جكيت فوتر',
+  [FABRIC_TYPE_ENUM.Sweatshirt]: 'سويت شيرت',
+  [FABRIC_TYPE_ENUM.HalfZip]: 'نص سحاب',
+  [FABRIC_TYPE_ENUM.TrackSuit]: 'ترنج'
+};
+
+// Color Enum (matching backend)
+export const COLOR_ENUM = {
+  Black: 1,         // أسود
+  White: 2,         // أبيض
+  Skin: 3,          // سكني
+  Blue: 4,          // أزرق
+  Brown: 5,         // بني
+  Purple: 6,        // بنفسجي
+  Pink: 7,          // زهري
+  Beige: 8,         // بيج
+  Burgundy: 9       // خمري
+};
+
+// Color Labels (Arabic)
+export const COLOR_LABELS = {
+  [COLOR_ENUM.Black]: 'أسود',
+  [COLOR_ENUM.White]: 'أبيض',
+  [COLOR_ENUM.Skin]: 'سكني',
+  [COLOR_ENUM.Blue]: 'أزرق',
+  [COLOR_ENUM.Brown]: 'بني',
+  [COLOR_ENUM.Purple]: 'بنفسجي',
+  [COLOR_ENUM.Pink]: 'زهري',
+  [COLOR_ENUM.Beige]: 'بيج',
+  [COLOR_ENUM.Burgundy]: 'خمري'
+};
+
+// Legacy arrays for backward compatibility (deprecated)
+export const FABRIC_TYPES = Object.values(FABRIC_TYPE_LABELS);
+export const SIZES = Object.values(SIZE_LABELS);
+export const COLORS = Object.values(COLOR_LABELS);
+
+// Size conflict resolution helper
+export const SIZE_CONFLICTS = {
+  2: { primary: 'S', secondary: 'Size2' },
+  4: { primary: 'L', secondary: 'Size4' },
+  6: { primary: 'XXL', secondary: 'Size6' }
+};
+
+// Helper function to get size label by value (handles conflicts)
+export const getSizeLabelByValue = (value) => {
+  return SIZE_LABELS[value] || 'Unknown';
+};
+
+// Helper function to get size value by label
+export const getSizeValueByLabel = (label) => {
+  const entry = Object.entries(SIZE_LABELS).find(([key, value]) => value === label);
+  return entry ? parseInt(entry[0]) : 0;
+};
 
 // API Endpoints
 export const API_ENDPOINTS = {

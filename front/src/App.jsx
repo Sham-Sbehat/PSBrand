@@ -12,6 +12,10 @@ import DesignManagerDashboard from './pages/DesignManagerDashboard';
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useApp();
 
+  // Check if user is authenticated
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
 
   const getUserRoleString = (roleNumber) => {
     switch (roleNumber) {
@@ -23,7 +27,7 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     }
   };
 
-  const userRoleString = getUserRoleString(user.role);
+  const userRoleString = getUserRoleString(user?.role);
   const isRoleAllowed = Array.isArray(allowedRole) 
     ? allowedRole.includes(userRoleString)
     : userRoleString === allowedRole;

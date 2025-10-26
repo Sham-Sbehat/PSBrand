@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   TextField,
@@ -49,11 +50,12 @@ import {
 import { Autocomplete } from '@mui/material';
 import { useApp } from '../../context/AppContext';
 import { ordersService, clientsService } from '../../services/api';
-import { ORDER_STATUS, USER_ROLES, FABRIC_TYPES, SIZES } from '../../constants';
+import { ORDER_STATUS, USER_ROLES, FABRIC_TYPE_ENUM, FABRIC_TYPE_LABELS, SIZE_ENUM, SIZE_LABELS, COLOR_ENUM, COLOR_LABELS, getSizeValueByLabel } from '../../constants';
 import { generateOrderNumber, calculateTotal, createImagePreview } from '../../utils';
 
 const OrderForm = ({ onSuccess }) => {
   const { addOrder, user, loadUsersByRole } = useApp();
+  const [searchParams] = useSearchParams();
   
   // Step management
   const [currentStep, setCurrentStep] = useState(1);
@@ -86,11 +88,6 @@ const OrderForm = ({ onSuccess }) => {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [designers, setDesigners] = useState([]);
-  const [preparers, setPreparers] = useState([]);
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
-  const [selectedDesigner, setSelectedDesigner] = useState('');
-  const [selectedPreparer, setSelectedPreparer] = useState('');
   const [expandedOrders, setExpandedOrders] = useState([1]);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [deliveryPrice, setDeliveryPrice] = useState(0);
@@ -100,6 +97,13 @@ const OrderForm = ({ onSuccess }) => {
   const [clientId, setClientId] = useState(null);
   const [allClients, setAllClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(false);
+
+  // Dirty state management to prevent duplicate submissions
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSubmittedData, setLastSubmittedData] = useState(null);
+
+  // Get employee ID from URL
+  const employeeIdFromUrl = searchParams.get('employeeId');
 
   // Customer form
   const {
@@ -116,11 +120,15 @@ const OrderForm = ({ onSuccess }) => {
     }
   });
 
-  // Load employees and clients on component mount
+  // Load clients on component mount
   useEffect(() => {
-    loadEmployees();
     loadAllClients();
   }, []);
+
+  // Track form changes to update dirty state
+  useEffect(() => {
+    checkIfFormIsDirty();
+  }, [orders, clientId, deliveryPrice, discount, discountType, employeeIdFromUrl]);
 
   const loadAllClients = async () => {
     setLoadingClients(true);
@@ -133,23 +141,6 @@ const OrderForm = ({ onSuccess }) => {
       setLoadingClients(false);
     }
   };
-
-  const loadEmployees = useCallback(async () => {
-    setLoadingEmployees(true);
-    try {
-      const [designersData, preparersData] = await Promise.all([
-        loadUsersByRole(USER_ROLES.DESIGNER),
-        loadUsersByRole(USER_ROLES.PREPARER),
-      ]);
-      setDesigners(designersData || []);
-      setPreparers(preparersData || []);
-    } catch (error) {
-      console.error('خطأ في تحميل الموظفين:', error);
-      setSubmitError('خطأ في تحميل قائمة الموظفين');
-    } finally {
-      setLoadingEmployees(false);
-    }
-  }, [loadUsersByRole]);
 
   // Handle customer form submission
   const onCustomerSubmit = async (data) => {
@@ -196,6 +187,35 @@ const OrderForm = ({ onSuccess }) => {
       setClientId(null);
       setCustomerNotFound(false);
     }
+  };
+
+  // Helper function to generate a hash of current form data for comparison
+  const generateFormHash = (formData) => {
+    return JSON.stringify({
+      orders: formData.orders,
+      clientId: formData.clientId,
+      deliveryPrice: formData.deliveryPrice,
+      discount: formData.discount,
+      discountType: formData.discountType,
+      designerId: formData.designerId
+    });
+  };
+
+  // Helper function to check if form data has changed
+  const checkIfFormIsDirty = () => {
+    const currentData = {
+      orders,
+      clientId,
+      deliveryPrice,
+      discount,
+      discountType,
+      designerId: employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0
+    };
+    
+    const currentHash = generateFormHash(currentData);
+    const isFormDirty = lastSubmittedData !== currentHash;
+    setIsDirty(isFormDirty);
+    return isFormDirty;
   };
 
   // Update order name
@@ -364,6 +384,13 @@ const OrderForm = ({ onSuccess }) => {
     }));
   };
 
+  // Helper function to get enum value from label
+  const getEnumValueFromLabel = (label, labelsObject) => {
+    if (!label) return 0;
+    const entry = Object.entries(labelsObject).find(([key, value]) => value === label);
+    return entry ? parseInt(entry[0]) : 0;
+  };
+
   // Handle final submission
   const onSubmit = async () => {
     // Check if customer data is available
@@ -393,17 +420,18 @@ const OrderForm = ({ onSuccess }) => {
 
     setIsSubmitting(true);
     setSubmitError('');
+    setSubmitSuccess(false); // Clear any previous success message
 
     try {
       // Transform orders to match API structure
       const orderDesigns = orders.map(order => ({
         designName: order.orderName,  // This is the design name
-        mockupImageUrl: order.designImages[0] || 'placeholder_mockup.jpg',
+        mockupImageUrl: order.designImages[0]?.url || 'placeholder_mockup.jpg',
         printFileUrl: 'placeholder_print.pdf',
         orderDesignItems: order.items.map(item => ({
-          size: item.size,
-          color: item.color,
-          fabricType: item.fabricType,
+          size: getSizeValueByLabel(item.size),
+          color: getEnumValueFromLabel(item.color, COLOR_LABELS),
+          fabricType: getEnumValueFromLabel(item.fabricType, FABRIC_TYPE_LABELS),
           quantity: parseInt(item.quantity) || 1,
           unitPrice: parseFloat(item.unitPrice) || 0
         }))
@@ -420,8 +448,8 @@ const OrderForm = ({ onSuccess }) => {
         country: customerData.country,
         province: customerData.province,
         district: customerData.district,
-        designerId: selectedDesigner ? parseInt(selectedDesigner) : 0,
-        preparerId: selectedPreparer ? parseInt(selectedPreparer) : 0,
+        designerId: employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0,
+        preparerId: null, // Set to 0 as requested
         discountPercentage: discountType === 'percentage' ? discount : 0,
         deliveryFee: deliveryPrice,
         discountNotes: discount > 0 ? `خصم ${discountType === 'percentage' ? discount + '%' : discount + '$'}` : '',
@@ -429,9 +457,23 @@ const OrderForm = ({ onSuccess }) => {
       };
 
       console.log('Sending order data:', JSON.stringify(orderData, null, 2));
+      console.log('Employee ID from URL:', employeeIdFromUrl);
+      console.log('Designer ID being sent:', employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0);
       const response = await ordersService.createOrder(orderData);
       console.log('Order created successfully:', response);
       addOrder(response);
+
+      // Mark form as clean after successful submission
+      const currentData = {
+        orders,
+        clientId,
+        deliveryPrice,
+        discount,
+        discountType,
+        designerId: employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0
+      };
+      setLastSubmittedData(generateFormHash(currentData));
+      setIsDirty(false);
 
       setSubmitSuccess(true);
       setTimeout(() => {
@@ -440,6 +482,7 @@ const OrderForm = ({ onSuccess }) => {
     } catch (error) {
       console.error('خطأ في إرسال الطلب:', error);
       setSubmitError(error.message || 'حدث خطأ أثناء إرسال الطلب');
+      setSubmitSuccess(false); // Ensure success is cleared on error
     } finally {
       setIsSubmitting(false);
     }
@@ -464,7 +507,7 @@ const OrderForm = ({ onSuccess }) => {
           <Assignment sx={{ mr: 1, verticalAlign: 'middle' }} />
           إنشاء طلب جديد
         </Typography>
-
+      
         {submitError && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setSubmitError('')}>
             {submitError}
@@ -1190,7 +1233,7 @@ const OrderForm = ({ onSuccess }) => {
                   variant="contained"
                   size="large"
                   onClick={onSubmit}
-                  disabled={isSubmitting || loadingEmployees}
+                  disabled={isSubmitting || !isDirty}
                   startIcon={isSubmitting ? <CircularProgress size={20} /> : <Assignment />}
                   sx={{ minWidth: 200, py: 1.5 }}
                 >

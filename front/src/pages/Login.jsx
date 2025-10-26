@@ -124,7 +124,13 @@ const Login = () => {
         localStorage.setItem("authToken", result.token);
         localStorage.setItem("userData", JSON.stringify(result.user));
         login(result.user);
-        navigate(roleDetails.route);
+        
+        // Add employee ID to URL if available
+        const routeWithId = result.user?.id ? 
+          `${roleDetails.route}?employeeId=${result.user.id}` : 
+          roleDetails.route;
+        
+        navigate(routeWithId);
       } else {
         setLoginError(result.message || "فشل في تسجيل الدخول");
       }
