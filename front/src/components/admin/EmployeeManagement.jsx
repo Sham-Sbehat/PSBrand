@@ -228,7 +228,7 @@ const EmployeeManagement = () => {
                     <Chip 
                       label={
                         employee.role === 'admin' ? 'أدمن' :
-                        employee.role === 'designer' ? 'مصمم' : 
+                        employee.role === 'designer' ? 'بائع' : 
                         'محضر طلبات'
                       } 
                       color={
@@ -341,7 +341,7 @@ const EmployeeManagement = () => {
                   >
                     
                     <MenuItem value="admin">أدمن</MenuItem>
-                    <MenuItem value="designer">مصمم</MenuItem>
+                    <MenuItem value="designer">بائع</MenuItem>
                     <MenuItem value="order_preparer">محضر طلبات</MenuItem>
                     <MenuItem value="designmanager">مدير التصميم</MenuItem>
                   </Select>

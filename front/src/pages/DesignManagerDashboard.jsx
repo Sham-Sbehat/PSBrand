@@ -166,7 +166,7 @@ const DesignManagerDashboard = () => {
               sx={{ fontWeight: 700, marginBottom: 3 }}
             >
               <DesignServices sx={{ verticalAlign: "middle", mr: 1 }} />
-              الطلبات الواردة من المصممين
+              الطلبات الواردة من البائعين
             </Typography>
 
             <TableContainer component={Paper} elevation={0}>

@@ -49,8 +49,8 @@ const RoleSelection = () => {
     },
     {
       id: "designer",
-      title: "مصمم",
-      description: "تصميم البلايز والمنتجات",
+      title: "بائع",
+      description: "استقبال الطلبات والبيع",
       icon: DesignerIcon,
       color: "#7b1fa2",
       gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
@@ -109,7 +109,7 @@ const RoleSelection = () => {
                 color="text.secondary"
                 sx={{ fontWeight: 500 }}
               >
-                نظام إدارة طلبات تصميم البلايز
+                نظام إدارة المبيعات  
               </Typography>
             </Paper>
             <Grid container spacing={4} justifyContent="center">

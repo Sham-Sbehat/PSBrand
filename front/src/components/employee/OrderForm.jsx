@@ -423,18 +423,56 @@ const OrderForm = ({ onSuccess }) => {
     setSubmitSuccess(false); // Clear any previous success message
 
     try {
+      // Helper function to convert file to data URL
+      const fileToDataURL = (file) => {
+        return new Promise((resolve, reject) => {
+          if (!file) {
+            reject(new Error('No file provided'));
+            return;
+          }
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
+
       // Transform orders to match API structure
-      const orderDesigns = orders.map(order => ({
-        designName: order.orderName,  // This is the design name
-        mockupImageUrl: order.designImages[0]?.url || 'placeholder_mockup.jpg',
-        printFileUrl: 'placeholder_print.pdf',
-        orderDesignItems: order.items.map(item => ({
-          size: getSizeValueByLabel(item.size),
-          color: getEnumValueFromLabel(item.color, COLOR_LABELS),
-          fabricType: getEnumValueFromLabel(item.fabricType, FABRIC_TYPE_LABELS),
-          quantity: parseInt(item.quantity) || 1,
-          unitPrice: parseFloat(item.unitPrice) || 0
-        }))
+      const orderDesigns = await Promise.all(orders.map(async order => {
+        // Get first image (PNG/JPG) for mockup and first PDF for print file
+        const mockupImage = order.designImages.find(img => img.type && img.type.startsWith('image/'));
+        const pdfFile = order.designImages.find(img => img.type === 'application/pdf');
+        const otherFile = order.designImages.find(img => !img.type || (!img.type.startsWith('image/') && img.type !== 'application/pdf'));
+        
+        let printFileUrl = pdfFile?.url || otherFile?.url || mockupImage?.url || 'placeholder_print.pdf';
+        
+        // If printFileUrl is null/undefined but we have a file object, convert it
+        if (!pdfFile?.url && pdfFile?.file) {
+          try {
+            printFileUrl = await fileToDataURL(pdfFile.file);
+          } catch (error) {
+            console.error('Error converting PDF file:', error);
+          }
+        } else if (!otherFile?.url && otherFile?.file) {
+          try {
+            printFileUrl = await fileToDataURL(otherFile.file);
+          } catch (error) {
+            console.error('Error converting file:', error);
+          }
+        }
+        
+        return {
+          designName: order.orderName,  // This is the design name
+          mockupImageUrl: mockupImage?.url || order.designImages[0]?.url || 'placeholder_mockup.jpg',
+          printFileUrl: printFileUrl,
+          orderDesignItems: order.items.map(item => ({
+            size: getSizeValueByLabel(item.size),
+            color: getEnumValueFromLabel(item.color, COLOR_LABELS),
+            fabricType: getEnumValueFromLabel(item.fabricType, FABRIC_TYPE_LABELS),
+            quantity: parseInt(item.quantity) || 1,
+            unitPrice: parseFloat(item.unitPrice) || 0
+          }))
+        };
       }));
 
       if (!clientId) {
@@ -475,8 +513,32 @@ const OrderForm = ({ onSuccess }) => {
       setLastSubmittedData(generateFormHash(currentData));
       setIsDirty(false);
 
+      // Reset form data
+      setOrders([{
+        id: 1,
+        orderName: '',
+        designImages: [],
+        blouseImages: [],
+        items: [{
+          id: 1,
+          fabricType: '',
+          color: '',
+          size: '',
+          quantity: 1,
+          unitPrice: 0,
+          totalPrice: 0,
+        }]
+      }]);
+      setExpandedOrders([1]);
+      setDeliveryPrice(0);
+      setDiscount(0);
+      setDiscountType('percentage');
+      setCustomerData(null);
+      setClientId(null);
+
       setSubmitSuccess(true);
       setTimeout(() => {
+        setSubmitSuccess(false);
         if (onSuccess) onSuccess();
       }, 2000);
     } catch (error) {

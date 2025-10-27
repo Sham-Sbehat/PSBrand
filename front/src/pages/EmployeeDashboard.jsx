@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Container,
   Box,
@@ -13,20 +13,95 @@ import {
   CardContent,
   Chip,
   Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from "@mui/material";
-import { Logout, Assignment, CheckCircle, Pending } from "@mui/icons-material";
+import { Logout, Assignment, CheckCircle, Pending, Close, Visibility } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
+import { ordersService } from "../services/api";
+import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS } from "../constants";
 import OrderForm from "../components/employee/OrderForm";
 
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
   const { user, logout, orders } = useApp();
   const [showForm, setShowForm] = useState(true);
+  const [openOrdersModal, setOpenOrdersModal] = useState(false);
+  const [openDetailsModal, setOpenDetailsModal] = useState(false);
+  const [ordersList, setOrdersList] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [totalOrdersCount, setTotalOrdersCount] = useState(0);
+
+  // Fetch designer orders count on component mount
+  const fetchDesignerOrdersCount = async () => {
+    if (user?.role === USER_ROLES.DESIGNER && user?.id) {
+      try {
+        const response = await ordersService.getOrdersByDesigner(user.id);
+        setTotalOrdersCount(response?.length || 0);
+      } catch (error) {
+        console.error('Error fetching orders count:', error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchDesignerOrdersCount();
+  }, [user]);
 
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const handleCardClick = async (index) => {
+    // If it's the first card (Total Orders) and user is a designer, open modal
+    if (index === 0 && user?.role === USER_ROLES.DESIGNER && user?.id) {
+      setLoading(true);
+      try {
+        const response = await ordersService.getOrdersByDesigner(user.id);
+        setOrdersList(response || []);
+        setTotalOrdersCount(response?.length || 0); // Update count
+        setOpenOrdersModal(true);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleViewDetails = (order) => {
+    setSelectedOrder(order);
+    setOpenDetailsModal(true);
+  };
+
+  const handleCloseOrdersModal = () => {
+    setOpenOrdersModal(false);
+    setOrdersList([]);
+  };
+
+  const handleCloseDetailsModal = () => {
+    setOpenDetailsModal(false);
+    setSelectedOrder(null);
+  };
+
+  const getStatusLabel = (status) => {
+    const statusMap = {
+      0: { label: "قيد الانتظار", color: "warning" },
+      1: { label: "قيد التصميم", color: "info" },
+      2: { label: "مكتمل", color: "success" },
+    };
+    return statusMap[status] || { label: "غير معروف", color: "default" };
   };
 
   const employeeOrders = orders.filter(
@@ -42,7 +117,7 @@ const EmployeeDashboard = () => {
   const stats = [
     {
       title: "إجمالي الطلبات",
-      value: employeeOrders.length,
+      value: user?.role === USER_ROLES.DESIGNER ? totalOrdersCount : employeeOrders.length,
       icon: Assignment,
       color: "#1976d2",
     },
@@ -88,10 +163,12 @@ const EmployeeDashboard = () => {
             return (
               <Grid item xs={12} sm={4} key={index}>
                 <Card
+                  onClick={() => handleCardClick(index)}
                   sx={{
                     background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}dd 100%)`,
                     color: "white",
                     transition: "transform 0.2s",
+                    cursor: index === 0 && user?.role === USER_ROLES.DESIGNER ? "pointer" : "default",
                     "&:hover": {
                       transform: "translateY(-5px)",
                     },
@@ -122,7 +199,10 @@ const EmployeeDashboard = () => {
           })}
         </Grid>
         <Box sx={{ marginBottom: 4 }}>
-          <OrderForm onSuccess={() => setShowForm(false)} />
+          <OrderForm onSuccess={() => {
+            setShowForm(false);
+            fetchDesignerOrdersCount(); // Refresh orders count after creating new order
+          }} />
         </Box>
 
         {employeeOrders.length > 0 && (
@@ -221,6 +301,282 @@ const EmployeeDashboard = () => {
           </Paper>
         )}
       </Container>
+
+      {/* Orders Modal */}
+      <Dialog
+        open={openOrdersModal}
+        onClose={handleCloseOrdersModal}
+        maxWidth="xl"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="h6"> اجمالي الطلبات</Typography>
+          <IconButton onClick={handleCloseOrdersModal}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {loading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
+              <Typography>جاري التحميل...</Typography>
+            </Box>
+          ) : ordersList.length === 0 ? (
+            <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
+              <Typography>لا توجد طلبات</Typography>
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الرقم</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الإجمالي</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {ordersList.map((order) => {
+                    const status = getStatusLabel(order.status);
+                    return (
+                      <TableRow key={order.id} hover>
+                        <TableCell>{order.orderNumber}</TableCell>
+                        <TableCell>{order.client?.name || "-"}</TableCell>
+                        <TableCell>{order.client?.phone || "-"}</TableCell>
+                        <TableCell>{order.totalAmount} ₪</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={status.label}
+                            color={status.color}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {order.orderDate 
+                            ? new Date(order.orderDate).toLocaleDateString("ar-SA", { calendar: "gregory" })
+                            : "-"
+                          }
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<Visibility />}
+                            onClick={() => handleViewDetails(order)}
+                          >
+                            عرض التفاصيل
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseOrdersModal}>إغلاق</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Order Details Modal */}
+      <Dialog
+        open={openDetailsModal}
+        onClose={handleCloseDetailsModal}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="h6">تفاصيل الطلب</Typography>
+          <IconButton onClick={handleCloseDetailsModal}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {selectedOrder && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">رقم الطلب:</Typography>
+                  <Typography variant="body1">{selectedOrder.orderNumber}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">اسم العميل:</Typography>
+                  <Typography variant="body1">{selectedOrder.client?.name || "-"}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">رقم الهاتف:</Typography>
+                  <Typography variant="body1">{selectedOrder.client?.phone || "-"}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">البلد:</Typography>
+                  <Typography variant="body1">{selectedOrder.country || "-"}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">المحافظة:</Typography>
+                  <Typography variant="body1">{selectedOrder.province || "-"}</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">المنطقة:</Typography>
+                  <Typography variant="body1">{selectedOrder.district || "-"}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">الفرعي:</Typography>
+                  <Typography variant="body1">{selectedOrder.subTotal} ₪</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">الإجمالي:</Typography>
+                  <Typography variant="body1">{selectedOrder.totalAmount} ₪</Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">التاريخ:</Typography>
+                  <Typography variant="body1">
+                    {selectedOrder.orderDate 
+                      ? new Date(selectedOrder.orderDate).toLocaleDateString("ar-SA", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          calendar: "gregory"
+                        })
+                      : "-"
+                    }
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary">الحالة:</Typography>
+                  <Chip
+                    label={getStatusLabel(selectedOrder.status).label}
+                    color={getStatusLabel(selectedOrder.status).color}
+                    size="small"
+                  />
+                </Grid>
+                
+                {selectedOrder.orderDesigns && selectedOrder.orderDesigns.length > 0 && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                      التصاميم:
+                    </Typography>
+                    {selectedOrder.orderDesigns.map((design, idx) => (
+                      <Paper key={idx} sx={{ p: 2, mb: 2, bgcolor: "#f5f5f5" }}>
+                        <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
+                          اسم التصميم: {design.designName}
+                        </Typography>
+                        {design.mockupImageUrl && (
+                          <Box 
+                            sx={{ 
+                              mb: 2, 
+                              display: "flex", 
+                              justifyContent: "center",
+                              alignItems: "center",
+                              width: "100%",
+                              height: "250px",
+                              backgroundColor: "#ffffff",
+                              borderRadius: "8px",
+                              border: "1px solid #e0e0e0",
+                              overflow: "hidden"
+                            }}
+                          >
+                            <img 
+                              src={design.mockupImageUrl} 
+                              alt={design.designName}
+                              onError={(e) => {
+                                e.target.parentElement.style.display = 'none';
+                              }}
+                              style={{ 
+                                width: "auto", 
+                                height: "100%", 
+                                maxWidth: "100%",
+                                objectFit: "contain"
+                              }}
+                            />
+                          </Box>
+                        )}
+                        {design.orderDesignItems && design.orderDesignItems.length > 0 && (
+                          <Box sx={{ mt: 2 }}>
+                            <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700, mb: 1.5 }}>
+                              عناصر التصميم:
+                            </Typography>
+                            {design.orderDesignItems.map((item, itemIdx) => (
+                              <Paper 
+                                key={itemIdx} 
+                                sx={{ 
+                                  p: 1.5, 
+                                  mb: 1.5, 
+                                  backgroundColor: "#ffffff",
+                                  border: "1px solid #e0e0e0"
+                                }}
+                              >
+                                <Grid container spacing={1}>
+                                  <Grid item xs={6}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                      حجم: {SIZE_LABELS[item.size] || item.size}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                      لون: {COLOR_LABELS[item.color] || item.color}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                      نوع القماش: {FABRIC_TYPE_LABELS[item.fabricType] || item.fabricType}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                      الكمية: {item.quantity}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6}>
+                                    <Typography variant="body2" color="text.secondary">
+                                      سعر الوحدة: {item.unitPrice} ₪
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6}>
+                                    <Typography variant="body2" color="primary" sx={{ fontWeight: 700 }}>
+                                      المجموع: {item.totalPrice} ₪
+                                    </Typography>
+                                  </Grid>
+                                </Grid>
+                              </Paper>
+                            ))}
+                          </Box>
+                        )}
+                        <Box sx={{ mt: 1, p: 1, backgroundColor: "#e3f2fd", borderRadius: 1 }}>
+                          <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                            إجمالي التصميم: {design.totalPrice} ₪
+                          </Typography>
+                        </Box>
+                        {design.printFileUrl && design.printFileUrl !== "placeholder_print.pdf" && (
+                          <Box sx={{ mt: 1 }}>
+                            <Button
+                              variant="contained"
+                              color="primary"
+                              href={design.printFileUrl}
+                              target="_blank"
+                              download
+                              sx={{ width: "100%" }}
+                            >
+                              📄 تحميل ملف PDF
+                            </Button>
+                          </Box>
+                        )}
+                      </Paper>
+                    ))}
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDetailsModal}>إغلاق</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

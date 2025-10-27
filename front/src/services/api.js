@@ -127,6 +127,11 @@ export const ordersService = {
     });
     return response.data;
   },
+
+  getOrdersByDesigner: async (designerId) => {
+    const response = await api.get(`/Orders/GetOrdersDesigner/${designerId}`);
+    return response.data;
+  },
 };
 
 // Employees Service

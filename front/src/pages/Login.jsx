@@ -75,7 +75,7 @@ const Login = () => {
         };
       case "designer":
         return {
-          title: "تسجيل دخول المصمم",
+          title: "تسجيل دخول البائع",
           icon: DesignServices,
           gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
           route: "/employee"
@@ -156,7 +156,7 @@ const Login = () => {
       case "admin":
         return "مدير";
       case "designer":
-        return "مصمم";
+        return "بائع";
       case "preparer":
         return "محضر طلبات";
       case "designmanager":

@@ -23,7 +23,7 @@ export const USER_ROLES = {
 
 export const USER_ROLE_LABELS = {
   [USER_ROLES.ADMIN]: 'مدير النظام',
-  [USER_ROLES.DESIGNER]: 'مصمم',
+  [USER_ROLES.DESIGNER]: 'بائع',
   [USER_ROLES.PREPARER]: 'معد',
   [USER_ROLES.DESIGN_MANAGER]: 'مدير التصميم',
 };
