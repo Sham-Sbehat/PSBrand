@@ -110,8 +110,19 @@ export const ordersService = {
   },
 
   deleteOrder: async (id) => {
-    const response = await api.delete(`/Orders/DeleteOrder/${id}`);
-    return response.data;
+    console.log('Attempting to delete order with ID:', id);
+    try {
+      // Swagger shows: DELETE /api/Orders/DeleteOrder{id} (without / before number)
+      const response = await api.delete(`/Orders/DeleteOrder${id}`);
+      console.log('Delete response status:', response.status);
+      console.log('Delete response:', response);
+      // 204 No Content has no response body
+      return { success: true, status: response.status };
+    } catch (error) {
+      console.error('Delete error:', error);
+      console.error('Error response:', error.response);
+      throw error;
+    }
   },
 
   uploadDesignImages: async (orderId, images) => {
@@ -130,6 +141,11 @@ export const ordersService = {
 
   getOrdersByDesigner: async (designerId) => {
     const response = await api.get(`/Orders/GetOrdersDesigner/${designerId}`);
+    return response.data;
+  },
+
+  getOrdersByStatus: async (status) => {
+    const response = await api.get(`/Orders/GetOrderStatus/${status}`);
     return response.data;
   },
 };

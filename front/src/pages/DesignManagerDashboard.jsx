@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Container,
   Box,
@@ -26,29 +26,46 @@ import {
   CheckCircle,
   Pending,
   Schedule,
-  Visibility,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
+import { ordersService } from "../services/api";
+import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS } from "../constants";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout, orders } = useApp();
+  const [designOrders, setDesignOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch orders by status (status = 1 means in progress)
+  useEffect(() => {
+    const fetchOrders = async () => {
+      setLoading(true);
+      try {
+        const response = await ordersService.getOrdersByStatus(1);
+        setDesignOrders(response || []);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        setDesignOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, []);
 
   const handleLogout = () => {
     logout();
     navigate("/");
   };
 
-  // Filter orders that have designs (from designers)
-  const designOrders = orders.filter(
-    (order) => order.status !== "pending" && order.design
-  );
   const pendingReview = designOrders.filter(
-    (order) => order.status === "in_design" || order.status === "review"
+    (order) => order.status === 1
   );
   const approvedDesigns = designOrders.filter(
-    (order) => order.status === "approved" || order.status === "completed"
+    (order) => order.status === 2
   );
 
   const stats = [
@@ -79,7 +96,12 @@ const DesignManagerDashboard = () => {
   ];
 
   const getStatusLabel = (status) => {
+    // Handle both number and string status
+    const numericStatus = typeof status === 'number' ? status : parseInt(status);
     const statusMap = {
+      0: { label: "قيد الانتظار", color: "warning" },
+      1: { label: "قيد التصميم", color: "info" },
+      2: { label: "مكتمل", color: "success" },
       pending: { label: "جديد", color: "default" },
       in_design: { label: "قيد التصميم", color: "info" },
       review: { label: "قيد المراجعة", color: "warning" },
@@ -87,7 +109,7 @@ const DesignManagerDashboard = () => {
       completed: { label: "مكتمل", color: "success" },
       cancelled: { label: "ملغي", color: "error" },
     };
-    return statusMap[status] || { label: status, color: "default" };
+    return statusMap[numericStatus] || { label: status, color: "default" };
   };
 
   return (
@@ -176,78 +198,207 @@ const DesignManagerDashboard = () => {
                     <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>رقم الهاتف</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>البائع</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>العدد</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>نوع المنتج</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>التصميم</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الصورة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>ملف PDF</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>تاريخ الإنشاء</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {designOrders.length === 0 ? (
+                  {loading ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center">
+                      <TableCell colSpan={10} align="center">
                         <Box sx={{ padding: 4 }}>
                           <Typography variant="h6" color="text.secondary">
-                            لا توجد تصاميم واردة حالياً
+                            جاري التحميل...
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ) : designOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} align="center">
+                        <Box sx={{ padding: 4 }}>
+                          <Typography variant="h6" color="text.secondary">
+                            لا توجد طلبات حالياً
                           </Typography>
                         </Box>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    designOrders.map((order) => {
+                    designOrders.flatMap((order) => {
                       const status = getStatusLabel(order.status);
-                      return (
-                        <TableRow
-                          key={order.id}
-                          hover
-                          sx={{
-                            "&:last-child td, &:last-child th": { border: 0 },
-                          }}
-                        >
-                          <TableCell>#{order.id}</TableCell>
-                          <TableCell>{order.customerName}</TableCell>
-                          <TableCell>{order.customerPhone}</TableCell>
-                          <TableCell>{order.productType}</TableCell>
-                          <TableCell>
-                            {order.design ? (
+                      const designs = order.orderDesigns || [];
+                      
+                      // If no designs, show at least one row with order info
+                      if (designs.length === 0) {
+                        return (
+                          <TableRow
+                            key={`order-${order.id}`}
+                            hover
+                            sx={{
+                              "&:last-child td, &:last-child th": { border: 0 },
+                            }}
+                          >
+                            <TableCell>{order.orderNumber || `#${order.id}`}</TableCell>
+                            <TableCell>{order.client?.name || "-"}</TableCell>
+                            <TableCell>{order.client?.phone || "-"}</TableCell>
+                            <TableCell>
+                              {order.designer?.name || "غير محدد"}
+                              <br />
+                              <Typography variant="caption" color="text.secondary">
+                                ID: {order.designer?.id || "-"}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>0</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>
                               <Chip
-                                label="متوفر"
-                                color="success"
-                                size="small"
-                                icon={<CheckCircle />}
-                              />
-                            ) : (
-                              <Chip
-                                label="غير متوفر"
-                                color="default"
+                                label={status.label}
+                                color={status.color}
                                 size="small"
                               />
+                            </TableCell>
+                            <TableCell>
+                              {order.orderDate 
+                                ? new Date(order.orderDate).toLocaleDateString("ar-SA", { 
+                                    year: "numeric", 
+                                    month: "short", 
+                                    day: "numeric",
+                                    calendar: "gregory" 
+                                  })
+                                : "-"
+                              }
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+                      
+                      const rowCount = designs.length;
+                      
+                      // For each design in the order, create a separate row
+                      return designs.map((design, designIndex) => {
+                        const isFirstRow = designIndex === 0;
+                        
+                        // Calculate count for this specific design
+                        const designCount = design.orderDesignItems?.reduce((sum, item) => {
+                          return sum + (item.quantity || 0);
+                        }, 0) || 0;
+                        
+                        // Get product type from first item of this design
+                        const productType = design.orderDesignItems?.[0] 
+                          ? `${FABRIC_TYPE_LABELS[design.orderDesignItems[0].fabricType] || design.orderDesignItems[0].fabricType} - ${SIZE_LABELS[design.orderDesignItems[0].size] || design.orderDesignItems[0].size}`
+                          : "-";
+                        
+                        return (
+                          <TableRow
+                            key={`order-${order.id}-design-${design.id || designIndex}`}
+                            hover
+                            sx={{
+                              "&:last-child td, &:last-child th": { border: 0 },
+                            }}
+                          >
+                            {isFirstRow && (
+                              <>
+                                <TableCell rowSpan={rowCount}>
+                                  {order.orderNumber || `#${order.id}`}
+                                </TableCell>
+                                <TableCell rowSpan={rowCount}>
+                                  {order.client?.name || "-"}
+                                </TableCell>
+                                <TableCell rowSpan={rowCount}>
+                                  {order.client?.phone || "-"}
+                                </TableCell>
+                                <TableCell rowSpan={rowCount}>
+                                  {order.designer?.name || "غير محدد"}
+                                  <br />
+                                  <Typography variant="caption" color="text.secondary">
+                                    ID: {order.designer?.id || "-"}
+                                  </Typography>
+                                </TableCell>
+                              </>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={status.label}
-                              color={status.color}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {new Date(order.createdAt).toLocaleDateString(
-                              "ar-SA"
+                            <TableCell>{designCount}</TableCell>
+                            <TableCell>{productType}</TableCell>
+                            <TableCell>
+                              {design?.mockupImageUrl && design.mockupImageUrl !== 'placeholder_mockup.jpg' ? (
+                                <Box sx={{ width: 80, height: 80, position: 'relative' }}>
+                                  <img 
+                                    src={design.mockupImageUrl} 
+                                    alt={design.designName}
+                                    onError={(e) => {
+                                      e.target.src = '';
+                                      e.target.style.display = 'none';
+                                      e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                    style={{ 
+                                      width: "100%", 
+                                      height: "100%", 
+                                      objectFit: "cover",
+                                      borderRadius: "4px"
+                                    }}
+                                  />
+                                  <Box 
+                                    sx={{ 
+                                      display: 'none',
+                                      width: "100%", 
+                                      height: "100%", 
+                                      justifyContent: 'center',
+                                      alignItems: 'center',
+                                      bgcolor: '#f0f0f0',
+                                      borderRadius: "4px",
+                                      fontSize: '0.75rem',
+                                      color: '#666'
+                                    }}
+                                  >
+                                    صورة غير متوفرة
+                                  </Box>
+                                </Box>
+                              ) : "-"}
+                            </TableCell>
+                            <TableCell>
+                              {design?.printFileUrl && design.printFileUrl !== "placeholder_print.pdf" ? (
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  href={design.printFileUrl}
+                                  target="_blank"
+                                  download
+                                >
+                                  PDF
+                                </Button>
+                              ) : "-"}
+                            </TableCell>
+                            {isFirstRow && (
+                              <>
+                                <TableCell rowSpan={rowCount}>
+                                  <Chip
+                                    label={status.label}
+                                    color={status.color}
+                                    size="small"
+                                  />
+                                </TableCell>
+                                <TableCell rowSpan={rowCount}>
+                                  {order.orderDate 
+                                    ? new Date(order.orderDate).toLocaleDateString("ar-SA", { 
+                                        year: "numeric", 
+                                        month: "short", 
+                                        day: "numeric",
+                                        calendar: "gregory" 
+                                      })
+                                    : "-"
+                                  }
+                                </TableCell>
+                              </>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<Visibility />}
-                            >
-                              عرض
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
+                          </TableRow>
+                        );
+                      });
                     })
                   )}
                 </TableBody>
