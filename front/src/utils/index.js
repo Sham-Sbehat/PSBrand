@@ -206,7 +206,15 @@ export const storage = {
   get: (key) => {
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
+      if (!item) return null;
+      
+      // Try to parse as JSON, if it fails return as string
+      try {
+        return JSON.parse(item);
+      } catch (parseError) {
+        // If parsing fails, return the raw string (for tokens)
+        return item;
+      }
     } catch (error) {
       console.error('Error reading from localStorage:', error);
       return null;

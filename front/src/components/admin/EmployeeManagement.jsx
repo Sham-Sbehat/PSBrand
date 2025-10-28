@@ -342,7 +342,7 @@ const EmployeeManagement = () => {
                     
                     <MenuItem value="admin">أدمن</MenuItem>
                     <MenuItem value="designer">بائع</MenuItem>
-                    <MenuItem value="order_preparer">محضر طلبات</MenuItem>
+                    <MenuItem value="preparer">محضر طلبات</MenuItem>
                     <MenuItem value="designmanager">مدير التصميم</MenuItem>
                   </Select>
                   {errors.role && (

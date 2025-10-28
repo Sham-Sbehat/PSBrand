@@ -29,8 +29,8 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService } from "../services/api";
-import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS } from "../constants";
+import { ordersService, orderStatusService } from "../services/api";
+import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
@@ -38,13 +38,20 @@ const DesignManagerDashboard = () => {
   const [designOrders, setDesignOrders] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch orders by status (status = 1 means in progress)
+  // Fetch orders by status (status = 1 and 2)
   useEffect(() => {
     const fetchOrders = async () => {
       setLoading(true);
       try {
-        const response = await ordersService.getOrdersByStatus(1);
-        setDesignOrders(response || []);
+        // Fetch orders with status 1 and 2
+        const [status1Orders, status2Orders] = await Promise.all([
+          ordersService.getOrdersByStatus(1),
+          ordersService.getOrdersByStatus(2)
+        ]);
+        
+        // Combine both arrays
+        const allOrders = [...(status1Orders || []), ...(status2Orders || [])];
+        setDesignOrders(allOrders);
       } catch (error) {
         console.error('Error fetching orders:', error);
         setDesignOrders([]);
@@ -59,6 +66,34 @@ const DesignManagerDashboard = () => {
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  // Handle status update
+  const handleStatusUpdate = async (orderId, currentStatus) => {
+    try {
+      let response;
+      
+      if (currentStatus === ORDER_STATUS.PENDING_PRINTING) {
+        // Move from "بانتظار الطباعة" to "في مرحلة الطباعة"
+        response = await orderStatusService.setInPrinting(orderId);
+      } else if (currentStatus === ORDER_STATUS.IN_PRINTING) {
+        // Move from "في مرحلة الطباعة" to "في مرحلة التحضير"
+        response = await orderStatusService.setInPreparation(orderId);
+      }
+      
+      if (response) {
+        // Update the order status in the current list instead of re-fetching
+        setDesignOrders(prevOrders => 
+          prevOrders.map(order => 
+            order.id === orderId 
+              ? { ...order, status: currentStatus === ORDER_STATUS.PENDING_PRINTING ? ORDER_STATUS.IN_PRINTING : ORDER_STATUS.IN_PREPARATION }
+              : order
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+    }
   };
 
   const pendingReview = designOrders.filter(
@@ -96,20 +131,11 @@ const DesignManagerDashboard = () => {
   ];
 
   const getStatusLabel = (status) => {
-    // Handle both number and string status
     const numericStatus = typeof status === 'number' ? status : parseInt(status);
-    const statusMap = {
-      0: { label: "قيد الانتظار", color: "warning" },
-      1: { label: "قيد التصميم", color: "info" },
-      2: { label: "مكتمل", color: "success" },
-      pending: { label: "جديد", color: "default" },
-      in_design: { label: "قيد التصميم", color: "info" },
-      review: { label: "قيد المراجعة", color: "warning" },
-      approved: { label: "معتمد", color: "success" },
-      completed: { label: "مكتمل", color: "success" },
-      cancelled: { label: "ملغي", color: "error" },
+    return {
+      label: ORDER_STATUS_LABELS[numericStatus] || "غير معروف",
+      color: ORDER_STATUS_COLORS[numericStatus] || "default"
     };
-    return statusMap[numericStatus] || { label: status, color: "default" };
   };
 
   return (
@@ -205,12 +231,13 @@ const DesignManagerDashboard = () => {
                     <TableCell sx={{ fontWeight: 700 }}>ملف PDF</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      <TableCell colSpan={11} align="center">
                         <Box sx={{ padding: 4 }}>
                           <Typography variant="h6" color="text.secondary">
                             جاري التحميل...
@@ -220,7 +247,7 @@ const DesignManagerDashboard = () => {
                     </TableRow>
                   ) : designOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      <TableCell colSpan={11} align="center">
                         <Box sx={{ padding: 4 }}>
                           <Typography variant="h6" color="text.secondary">
                             لا توجد طلبات حالياً
@@ -266,14 +293,25 @@ const DesignManagerDashboard = () => {
                             </TableCell>
                             <TableCell>
                               {order.orderDate 
-                                ? new Date(order.orderDate).toLocaleDateString("ar-SA", { 
+                                ? new Date(order.orderDate).toLocaleDateString("en-GB", { 
                                     year: "numeric", 
-                                    month: "short", 
-                                    day: "numeric",
-                                    calendar: "gregory" 
+                                    month: "2-digit", 
+                                    day: "2-digit"
                                   })
                                 : "-"
                               }
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                color="primary"
+                                onClick={() => handleStatusUpdate(order.id, order.status)}
+                                disabled={order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING}
+                              >
+                                {order.status === ORDER_STATUS.PENDING_PRINTING ? "بدء الطباعة" : 
+                                 order.status === ORDER_STATUS.IN_PRINTING ? "إرسال للتحضير" : "غير متاح"}
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
@@ -385,14 +423,25 @@ const DesignManagerDashboard = () => {
                                 </TableCell>
                                 <TableCell rowSpan={rowCount}>
                                   {order.orderDate 
-                                    ? new Date(order.orderDate).toLocaleDateString("ar-SA", { 
+                                    ? new Date(order.orderDate).toLocaleDateString("en-GB", { 
                                         year: "numeric", 
-                                        month: "short", 
-                                        day: "numeric",
-                                        calendar: "gregory" 
+                                        month: "2-digit", 
+                                        day: "2-digit"
                                       })
                                     : "-"
                                   }
+                                </TableCell>
+                                <TableCell rowSpan={rowCount}>
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="primary"
+                                    onClick={() => handleStatusUpdate(order.id, order.status)}
+                                    disabled={order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING}
+                                  >
+                                    {order.status === ORDER_STATUS.PENDING_PRINTING ? "بدء الطباعة" : 
+                                     order.status === ORDER_STATUS.IN_PRINTING ? "إرسال للتحضير" : "غير متاح"}
+                                  </Button>
                                 </TableCell>
                               </>
                             )}

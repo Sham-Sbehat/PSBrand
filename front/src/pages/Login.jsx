@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import {
@@ -12,6 +12,8 @@ import {
   InputAdornment,
   IconButton,
   Fade,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
 import {
   AdminPanelSettings,
@@ -25,6 +27,7 @@ import {
 } from "@mui/icons-material";
 import { useApp } from "../context/AppContext";
 import { authService } from "../services/api";
+import { STORAGE_KEYS } from "../constants";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -35,17 +38,36 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const {
     control,
     handleSubmit,
     formState: { errors },
+    setValue,
   } = useForm({
     defaultValues: {
       username: "",
       password: "",
     },
   });
+
+  // Load saved credentials on component mount
+  useEffect(() => {
+    const savedCredentials = localStorage.getItem('savedCredentials');
+    const savedRememberMe = localStorage.getItem('rememberMe');
+    
+    if (savedCredentials && savedRememberMe === 'true') {
+      try {
+        const credentials = JSON.parse(savedCredentials);
+        setValue('username', credentials.username);
+        setValue('password', credentials.password);
+        setRememberMe(true);
+      } catch (error) {
+        console.error('Error loading saved credentials:', error);
+      }
+    }
+  }, [setValue]);
 
   // تحويل الـ Role من string إلى number
   const getRoleNumber = (role) => {
@@ -85,7 +107,7 @@ const Login = () => {
           title: "تسجيل دخول محضر الطلبات",
           icon: Assignment,
           gradient: "linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)",
-          route: "/employee"
+          route: "/preparer"
         };
       case "designmanager":
         return {
@@ -121,8 +143,30 @@ const Login = () => {
       const result = await authService.login(credentials);
       
       if (result.success) {
-        localStorage.setItem("authToken", result.token);
-        localStorage.setItem("userData", JSON.stringify(result.user));
+        console.log('Login successful, saving data:', { token: result.token, user: result.user });
+        
+        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
+        localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
+        
+        console.log('Data saved to localStorage:', {
+          token: localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN),
+          user: localStorage.getItem(STORAGE_KEYS.USER_DATA)
+        });
+        
+        // Save credentials if "Remember Me" is checked
+        if (rememberMe) {
+          localStorage.setItem('savedCredentials', JSON.stringify({
+            username: data.username,
+            password: data.password,
+            role: selectedRole
+          }));
+          localStorage.setItem('rememberMe', 'true');
+        } else {
+          // Clear saved credentials if "Remember Me" is unchecked
+          localStorage.removeItem('savedCredentials');
+          localStorage.removeItem('rememberMe');
+        }
+        
         login(result.user);
         
         // Add employee ID to URL if available
@@ -303,6 +347,25 @@ const Login = () => {
                 />
               </Box>
 
+              <Box sx={{ marginBottom: 3 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label="تذكرني"
+                  sx={{ 
+                    color: "text.secondary",
+                    "& .MuiFormControlLabel-label": {
+                      fontSize: "0.9rem"
+                    }
+                  }}
+                />
+              </Box>
+
               <Button
                 type="submit"
                 fullWidth
@@ -331,6 +394,22 @@ const Login = () => {
               >
                 العودة للصفحة الرئيسية
               </Button>
+              {rememberMe && (
+                <Button
+                  variant="text"
+                  onClick={() => {
+                    localStorage.removeItem('savedCredentials');
+                    localStorage.removeItem('rememberMe');
+                    setValue('username', '');
+                    setValue('password', '');
+                    setRememberMe(false);
+                  }}
+                  disabled={isLoading}
+                  sx={{ marginTop: 1, fontSize: '0.8rem' }}
+                >
+                  مسح البيانات المحفوظة
+                </Button>
+              )}
             </Box>
           </Paper>
         </Fade>

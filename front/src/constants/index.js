@@ -1,16 +1,26 @@
 // Order Status Constants
 export const ORDER_STATUS = {
-  PENDING: 1,
-  APPROVED: 2,
-  COMPLETED: 3,
-  CANCELLED: 4,
+  PENDING_PRINTING: 1,    // بانتظار الطباعة
+  IN_PRINTING: 2,         // في مرحلة الطباعة
+  IN_PREPARATION: 3,      // في مرحلة التحضير
+  COMPLETED: 4,           // مكتمل
+  CANCELLED: 5,           // ملغي
 };
 
 export const ORDER_STATUS_LABELS = {
-  [ORDER_STATUS.PENDING]: 'قيد التحضير',
-  [ORDER_STATUS.APPROVED]: 'معتمد',
+  [ORDER_STATUS.PENDING_PRINTING]: 'بانتظار الطباعة',
+  [ORDER_STATUS.IN_PRINTING]: 'في مرحلة الطباعة',
+  [ORDER_STATUS.IN_PREPARATION]: 'في مرحلة التحضير',
   [ORDER_STATUS.COMPLETED]: 'مكتمل',
   [ORDER_STATUS.CANCELLED]: 'ملغي',
+};
+
+export const ORDER_STATUS_COLORS = {
+  [ORDER_STATUS.PENDING_PRINTING]: 'warning',
+  [ORDER_STATUS.IN_PRINTING]: 'info',
+  [ORDER_STATUS.IN_PREPARATION]: 'secondary',
+  [ORDER_STATUS.COMPLETED]: 'success',
+  [ORDER_STATUS.CANCELLED]: 'error',
 };
 
 // User Role Constants

@@ -33,11 +33,17 @@ api.interceptors.response.use(
     const token = storage.get(STORAGE_KEYS.AUTH_TOKEN);
     const isLoginAttempt = error.config?.url?.includes('/Auth/login');
     
+    // Only redirect to login if it's a 401 error and not a login attempt
+    // Don't redirect if the token is missing (user might not be logged in)
     if (error.response?.status === 401 && token && !isLoginAttempt) {
-      // Unauthorized - redirect to login
-      storage.remove(STORAGE_KEYS.AUTH_TOKEN);
-      storage.remove(STORAGE_KEYS.USER_DATA);
-      window.location.href = "/";
+      // Check if the error is due to expired token
+      if (error.response?.data?.message?.includes('expired') || 
+          error.response?.data?.message?.includes('invalid')) {
+        // Unauthorized - redirect to login
+        storage.remove(STORAGE_KEYS.AUTH_TOKEN);
+        storage.remove(STORAGE_KEYS.USER_DATA);
+        window.location.href = "/";
+      }
     }
     
     return Promise.reject(error);
@@ -146,6 +152,29 @@ export const ordersService = {
 
   getOrdersByStatus: async (status) => {
     const response = await api.get(`/Orders/GetOrderStatus/${status}`);
+    return response.data;
+  },
+};
+
+// Order Status Service
+export const orderStatusService = {
+  setInPrinting: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetInPrinting/${orderId}`);
+    return response.data;
+  },
+
+  setInPreparation: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetInPreparation/${orderId}`);
+    return response.data;
+  },
+
+  setCompleted: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetCompleted/${orderId}`);
+    return response.data;
+  },
+
+  setCancelled: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetCancelled/${orderId}`);
     return response.data;
   },
 };

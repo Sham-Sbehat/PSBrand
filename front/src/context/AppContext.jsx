@@ -53,21 +53,26 @@ export const AppProvider = ({ children }) => {
       const savedUser = storage.get(STORAGE_KEYS.USER_DATA);
       const savedToken = storage.get(STORAGE_KEYS.AUTH_TOKEN);
       
+      console.log('Initializing app with:', { savedUser, savedToken });
+      console.log('Raw localStorage values:', {
+        authToken: localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN),
+        userData: localStorage.getItem(STORAGE_KEYS.USER_DATA)
+      });
+      
       if (savedUser && savedToken) {
         try {
           setUser(savedUser);
-          await loadEmployees();
+          console.log('User restored from localStorage:', savedUser);
         } catch (error) {
           console.error('خطأ في تحميل بيانات المستخدم:', error);
-          // Clear invalid data
-          storage.remove(STORAGE_KEYS.USER_DATA);
-          storage.remove(STORAGE_KEYS.AUTH_TOKEN);
         }
+      } else {
+        console.log('No saved user or token found');
       }
     };
 
     initializeApp();
-  }, [loadEmployees]);
+  }, []);
 
   // Login function
   const login = useCallback((userData) => {

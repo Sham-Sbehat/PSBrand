@@ -8,12 +8,16 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import DesignManagerDashboard from './pages/DesignManagerDashboard';
+import PreparerDashboard from './pages/PreparerDashboard';
 
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useApp();
 
+  console.log('ProtectedRoute check:', { user, allowedRole });
+
   // Check if user is authenticated
   if (!user) {
+    console.log('No user found, redirecting to home');
     return <Navigate to="/" replace />;
   }
 
@@ -32,23 +36,44 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     ? allowedRole.includes(userRoleString)
     : userRoleString === allowedRole;
   
+  console.log('Role check:', { userRoleString, allowedRole, isRoleAllowed });
+  
   if (allowedRole && !isRoleAllowed) {
+    console.log('Role not allowed, redirecting to home');
     return <Navigate to="/" replace />;
   }
 
+  console.log('Access granted');
   return children;
 };
 
 function AppContent() {
+  const { user } = useApp();
+  
+  // Auto-redirect based on user role
+  const getDefaultRoute = () => {
+    if (!user) return "/";
+    
+    switch (user.role) {
+      case 1: return "/admin";
+      case 2: return "/employee";
+      case 3: return "/preparer";
+      case 4: return "/designmanager";
+      default: return "/";
+    }
+  };
+
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<RoleSelection />} />
+        <Route path="/" element={
+          user ? <Navigate to={getDefaultRoute()} replace /> : <RoleSelection />
+        } />
         <Route path="/login" element={<Login />} />
         <Route
           path="/employee"
           element={
-            <ProtectedRoute allowedRole={["designer", "preparer"]}>
+            <ProtectedRoute allowedRole="designer">
               <EmployeeDashboard />
             </ProtectedRoute>
           }
@@ -58,6 +83,14 @@ function AppContent() {
           element={
             <ProtectedRoute allowedRole="admin">
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+         <Route
+          path="/preparer"
+          element={
+            <ProtectedRoute allowedRole="preparer">
+              <PreparerDashboard />
             </ProtectedRoute>
           }
         />
