@@ -39,12 +39,16 @@ const PreparerDashboard = () => {
   const [openDetailsModal, setOpenDetailsModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  // Fetch orders with status = 2 for preparer
+  // Fetch orders for preparer (status 3: IN_PREPARATION, status 6: OPEN_ORDER)
   const fetchPreparerOrders = async () => {
     setPreparerOrdersLoading(true);
     try {
-      const response = await ordersService.getOrdersByStatus(3);
-      setPreparerOrders(response || []);
+      const [prepOrders, openOrders] = await Promise.all([
+        ordersService.getOrdersByStatus(3),
+        ordersService.getOrdersByStatus(6)
+      ]);
+      const merged = [...(prepOrders || []), ...(openOrders || [])];
+      setPreparerOrders(merged);
     } catch (error) {
       console.error('Error fetching preparer orders:', error);
       setPreparerOrders([]);
@@ -72,7 +76,7 @@ const PreparerDashboard = () => {
     setSelectedOrder(null);
   };
 
-  // Handle status update for preparer
+  // Handle status update: when already OPEN_ORDER -> set COMPLETED
   const handleStatusUpdate = async (orderId) => {
     try {
       // Move from "في مرحلة التحضير" to "مكتمل"
@@ -80,16 +84,23 @@ const PreparerDashboard = () => {
       
       if (response) {
         // Update the order status in the current list instead of re-fetching
-        setPreparerOrders(prevOrders => 
-          prevOrders.map(order => 
-            order.id === orderId 
-              ? { ...order, status: ORDER_STATUS.COMPLETED }
-              : order
-          )
-        );
+        setPreparerOrders(prevOrders => prevOrders.filter(o => o.id !== orderId));
       }
     } catch (error) {
       console.error('Error updating order status:', error);
+    }
+  };
+
+  // Mark order as OPEN_ORDER (when preparer takes the order)
+  const handleOpenOrder = async (orderId) => {
+    try {
+      const response = await orderStatusService.setOpenOrder(orderId);
+      if (response) {
+        // Reflect new status locally
+        setPreparerOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: ORDER_STATUS.OPEN_ORDER } : o));
+      }
+    } catch (error) {
+      console.error('Error setting order to OPEN_ORDER:', error);
     }
   };
 
@@ -266,14 +277,14 @@ const PreparerDashboard = () => {
                           <Button
                             size="small"
                             variant="contained"
-                            color="success"
-                            onClick={() => handleStatusUpdate(order.id)}
+                            color={order.status === ORDER_STATUS.OPEN_ORDER ? 'success' : 'primary'}
+                            onClick={() => (order.status === ORDER_STATUS.OPEN_ORDER ? handleStatusUpdate(order.id) : handleOpenOrder(order.id))}
                             sx={{ 
-                              minWidth: '100px',
+                              minWidth: '120px',
                               fontSize: '0.8rem'
                             }}
                           >
-                            إكمال الطلب
+                            {order.status === ORDER_STATUS.OPEN_ORDER ? 'إكمال الطلب' : 'فتح الطلب'}
                           </Button>
                         </Box>
                       </TableCell>

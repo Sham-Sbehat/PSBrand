@@ -179,6 +179,12 @@ export const orderStatusService = {
     const response = await api.post(`/OrderStatus/SetCancelled/${orderId}`);
     return response.data;
   },
+
+  // New: mark order as OpenOrder
+  setOpenOrder: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetOpenOrder/${orderId}`);
+    return response.data;
+  },
 };
 
 // Employees Service
