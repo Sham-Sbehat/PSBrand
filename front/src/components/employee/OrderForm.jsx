@@ -49,7 +49,7 @@ import {
 } from '@mui/icons-material';
 import { Autocomplete } from '@mui/material';
 import { useApp } from '../../context/AppContext';
-import { ordersService, clientsService } from '../../services/api';
+import { ordersService, clientsService, deliveryService } from '../../services/api';
 import { ORDER_STATUS, USER_ROLES, FABRIC_TYPE_ENUM, FABRIC_TYPE_LABELS, SIZE_ENUM, SIZE_LABELS, COLOR_ENUM, COLOR_LABELS, getSizeValueByLabel } from '../../constants';
 import { generateOrderNumber, calculateTotal, createImagePreview } from '../../utils';
 
@@ -91,6 +91,8 @@ const OrderForm = ({ onSuccess }) => {
   const [expandedOrders, setExpandedOrders] = useState([1]);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [deliveryPrice, setDeliveryPrice] = useState(0);
+  const [deliveryRegions, setDeliveryRegions] = useState([]);
+  const [selectedRegion, setSelectedRegion] = useState('');
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage'); // 'percentage' or 'fixed'
   const [customerNotFound, setCustomerNotFound] = useState(false);
@@ -554,6 +556,31 @@ const OrderForm = ({ onSuccess }) => {
       setSubmitSuccess(false); // Ensure success is cleared on error
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Load delivery regions once
+  useEffect(() => {
+    (async () => {
+      try {
+        const regions = await deliveryService.getDeliveryRegions();
+        setDeliveryRegions(Array.isArray(regions) ? regions : []);
+      } catch (e) {
+        console.error('Failed to load delivery regions', e);
+        setDeliveryRegions([]);
+      }
+    })();
+  }, []);
+
+  const handleRegionChange = async (e) => {
+    const region = e.target.value;
+    setSelectedRegion(region);
+    try {
+      const fee = await deliveryService.getDeliveryFee(region);
+      setDeliveryPrice(parseFloat(fee) || 0);
+    } catch (err) {
+      console.error('Failed to fetch delivery fee', err);
+      setDeliveryPrice(0);
     }
   };
 
@@ -1195,17 +1222,33 @@ const OrderForm = ({ onSuccess }) => {
                 <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
                   ملخص الطلب
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={3}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth  >
+                      <InputLabel id="region-select-label">اسم المنطقة</InputLabel>
+                      <Select
+                        labelId="region-select-label"
+                        label="اسم المنطقة"
+                        value={selectedRegion}
+                        onChange={handleRegionChange}
+                        sx={{ minWidth: 200 }}
+                      >
+                        {deliveryRegions.map((r, idx) => (
+                          <MenuItem key={idx} value={r.name || r}>
+                            {r.name || r}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={1}>
                     <TextField
                       fullWidth
-                      label="سعر الطلب"
+                      label="سعر التوصيل"
                       type="number"
-                      disabled
-                      value={orders.reduce((sum, order) => 
-                        sum + order.items.reduce((itemSum, item) => itemSum + item.totalPrice, 0), 0
-                      ).toFixed(2)}
+                      value={deliveryPrice}
                       InputProps={{
+                        readOnly: true,
                         startAdornment: (
                           <InputAdornment position="start">
                             <AttachMoney />
@@ -1226,7 +1269,7 @@ const OrderForm = ({ onSuccess }) => {
                       <MenuItem value="fixed">مبلغ ثابت</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={12} sm={2}>
+                  <Grid item xs={12} sm={1}>
                     <TextField
                       fullWidth
                       label={discountType === 'percentage' ? 'الخصم %' : 'مبلغ الخصم'}
@@ -1242,13 +1285,17 @@ const OrderForm = ({ onSuccess }) => {
                       }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={2}>
+                </Grid>
+                <Grid container spacing={2} sx={{ mt: 3 }}>
+                  <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      label="سعر التوصيل"
+                      label="سعر الطلب"
                       type="number"
-                      value={deliveryPrice}
-                      onChange={(e) => setDeliveryPrice(parseFloat(e.target.value) || 0)}
+                      disabled
+                      value={orders.reduce((sum, order) => 
+                        sum + order.items.reduce((itemSum, item) => itemSum + item.totalPrice, 0), 0
+                      ).toFixed(2)}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -1258,7 +1305,7 @@ const OrderForm = ({ onSuccess }) => {
                       }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={3}>
+                  <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
                       label="المجموع الكلي"

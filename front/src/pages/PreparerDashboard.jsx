@@ -94,6 +94,9 @@ const PreparerDashboard = () => {
   // Mark order as OPEN_ORDER (when preparer takes the order)
   const handleOpenOrder = async (orderId) => {
     try {
+      // 1) Assign current preparer to this order (uses auth token server-side)
+      await ordersService.assignPreparer(orderId);
+      // 2) Set status to OpenOrder
       const response = await orderStatusService.setOpenOrder(orderId);
       if (response) {
         // Reflect new status locally

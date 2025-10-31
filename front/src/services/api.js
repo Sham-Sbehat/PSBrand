@@ -156,6 +156,12 @@ export const ordersService = {
     const response = await api.get(`/Orders/GetOrderStatus/${status}`);
     return response.data;
   },
+
+  // Assign current preparer (from auth token) to order
+  assignPreparer: async (orderId) => {
+    const response = await api.post(`/Orders/AssignPreparer/${orderId}`);
+    return response.data;
+  },
 };
 
 // Order Status Service
@@ -260,6 +266,18 @@ export const clientsService = {
     const response = await api.delete(`/Client/DeleteClient/${id}`);
     return response.data;
   },
+};
+
+// Delivery Service
+export const deliveryService = {
+  getDeliveryRegions: async () => {
+    const response = await api.get('/Delivery/GetDeliveryRegions');
+    return response.data;
+  },
+  getDeliveryFee: async (regionName) => {
+    const response = await api.get(`/Delivery/GetDeliveryFee/${encodeURIComponent(regionName)}`);
+    return response.data;
+  }
 };
 
 // Export constants for use in components
