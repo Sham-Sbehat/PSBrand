@@ -14,10 +14,23 @@ const api = axios.create({
   timeout: 10000, // 10 seconds timeout
 });
 
+// Helper to read/remove token from either sessionStorage or localStorage
+const getAuthToken = () => {
+  // Only honor session token to require login on app restart
+  return sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || null;
+};
+
+const clearAuthTokenEverywhere = () => {
+  try { sessionStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN); } catch {}
+  try { sessionStorage.removeItem(STORAGE_KEYS.USER_DATA); } catch {}
+  storage.remove(STORAGE_KEYS.AUTH_TOKEN);
+  storage.remove(STORAGE_KEYS.USER_DATA);
+};
+
 // Request interceptor for authentication
 api.interceptors.request.use(
   (config) => {
-    const token = storage.get(STORAGE_KEYS.AUTH_TOKEN);
+    const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -30,7 +43,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const token = storage.get(STORAGE_KEYS.AUTH_TOKEN);
+    const token = getAuthToken();
     const isLoginAttempt = error.config?.url?.includes('/Auth/login');
     
     // Only redirect to login if it's a 401 error and not a login attempt
@@ -40,8 +53,7 @@ api.interceptors.response.use(
       if (error.response?.data?.message?.includes('expired') || 
           error.response?.data?.message?.includes('invalid')) {
         // Unauthorized - redirect to login
-        storage.remove(STORAGE_KEYS.AUTH_TOKEN);
-        storage.remove(STORAGE_KEYS.USER_DATA);
+        clearAuthTokenEverywhere();
         window.location.href = "/";
       }
     }

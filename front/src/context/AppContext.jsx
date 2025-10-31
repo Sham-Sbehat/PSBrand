@@ -50,8 +50,11 @@ export const AppProvider = ({ children }) => {
   // Initialize app data
   useEffect(() => {
     const initializeApp = async () => {
-      const savedUser = storage.get(STORAGE_KEYS.USER_DATA);
-      const savedToken = storage.get(STORAGE_KEYS.AUTH_TOKEN);
+      const sessionUserStr = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.USER_DATA) : null;
+      const sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+      // Only use session storage to restore an active session
+      const savedUser = sessionUserStr ? JSON.parse(sessionUserStr) : null;
+      const savedToken = sessionToken || null;
       
       console.log('Initializing app with:', { savedUser, savedToken });
       console.log('Raw localStorage values:', {
@@ -82,6 +85,8 @@ export const AppProvider = ({ children }) => {
 
   // Logout function
   const logout = useCallback(() => {
+    try { sessionStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN); } catch {}
+    try { sessionStorage.removeItem(STORAGE_KEYS.USER_DATA); } catch {}
     storage.remove(STORAGE_KEYS.AUTH_TOKEN);
     storage.remove(STORAGE_KEYS.USER_DATA);
     setUser(null);

@@ -52,22 +52,29 @@ const Login = () => {
     },
   });
 
-  // Load saved credentials on component mount
+  // Load saved credentials for the currently selected role
   useEffect(() => {
-    const savedCredentials = localStorage.getItem('savedCredentials');
-    const savedRememberMe = localStorage.getItem('rememberMe');
+    const credKey = `savedCredentials_${selectedRole}`;
+    const rememberKey = `rememberMe_${selectedRole}`;
+    const savedCredentials = localStorage.getItem(credKey);
+    const savedRememberMe = localStorage.getItem(rememberKey);
     
     if (savedCredentials && savedRememberMe === 'true') {
       try {
         const credentials = JSON.parse(savedCredentials);
-        setValue('username', credentials.username);
-        setValue('password', credentials.password);
+        setValue('username', credentials.username || '');
+        setValue('password', credentials.password || '');
         setRememberMe(true);
       } catch (error) {
         console.error('Error loading saved credentials:', error);
       }
+    } else {
+      // Clear inputs if there are no saved creds for this role
+      setValue('username', '');
+      setValue('password', '');
+      setRememberMe(false);
     }
-  }, [setValue]);
+  }, [selectedRole, setValue]);
 
   // تحويل الـ Role من string إلى number
   const getRoleNumber = (role) => {
@@ -145,26 +152,34 @@ const Login = () => {
       if (result.success) {
         console.log('Login successful, saving data:', { token: result.token, user: result.user });
         
-        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
-        localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
+        if (rememberMe) {
+          // Persist across app restarts
+          localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
+          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
+        } else {
+          // Session-only login: cleared when app/window closes
+          sessionStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
+          sessionStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
+        }
         
         console.log('Data saved to localStorage:', {
           token: localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN),
           user: localStorage.getItem(STORAGE_KEYS.USER_DATA)
         });
         
-        // Save credentials if "Remember Me" is checked
+        // Save credentials if "Remember Me" is checked (per role)
+        const credKey = `savedCredentials_${selectedRole}`;
+        const rememberKey = `rememberMe_${selectedRole}`;
         if (rememberMe) {
-          localStorage.setItem('savedCredentials', JSON.stringify({
+          localStorage.setItem(credKey, JSON.stringify({
             username: data.username,
-            password: data.password,
-            role: selectedRole
+            password: data.password
           }));
-          localStorage.setItem('rememberMe', 'true');
+          localStorage.setItem(rememberKey, 'true');
         } else {
-          // Clear saved credentials if "Remember Me" is unchecked
-          localStorage.removeItem('savedCredentials');
-          localStorage.removeItem('rememberMe');
+          // Clear saved credentials for this role if unchecked
+          localStorage.removeItem(credKey);
+          localStorage.removeItem(rememberKey);
         }
         
         login(result.user);
@@ -398,8 +413,10 @@ const Login = () => {
                 <Button
                   variant="text"
                   onClick={() => {
-                    localStorage.removeItem('savedCredentials');
-                    localStorage.removeItem('rememberMe');
+                    const credKey = `savedCredentials_${selectedRole}`;
+                    const rememberKey = `rememberMe_${selectedRole}`;
+                    localStorage.removeItem(credKey);
+                    localStorage.removeItem(rememberKey);
                     setValue('username', '');
                     setValue('password', '');
                     setRememberMe(false);
