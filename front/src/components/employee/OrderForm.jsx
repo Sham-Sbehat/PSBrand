@@ -481,12 +481,19 @@ const OrderForm = ({ onSuccess }) => {
         return;
       }
 
+      const resolvedDesignerId = employeeIdFromUrl ? parseInt(employeeIdFromUrl) : (user?.id || 0);
+      if (!resolvedDesignerId || resolvedDesignerId <= 0) {
+        setSubmitError('يجب تحديد مصمم صحيح قبل إنشاء الطلب');
+        setIsSubmitting(false);
+        return;
+      }
+
       const orderData = {
         clientId: clientId,
         country: customerData.country,
         province: customerData.province,
         district: customerData.district,
-        designerId: employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0,
+        designerId: resolvedDesignerId,
         preparerId: null, // Set to 0 as requested
         discountPercentage: discountType === 'percentage' ? discount : 0,
         deliveryFee: deliveryPrice,
@@ -496,7 +503,7 @@ const OrderForm = ({ onSuccess }) => {
 
       console.log('Sending order data:', JSON.stringify(orderData, null, 2));
       console.log('Employee ID from URL:', employeeIdFromUrl);
-      console.log('Designer ID being sent:', employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0);
+      console.log('Designer ID being sent:', resolvedDesignerId);
       const response = await ordersService.createOrder(orderData);
       console.log('Order created successfully:', response);
       addOrder(response);
@@ -508,7 +515,7 @@ const OrderForm = ({ onSuccess }) => {
         deliveryPrice,
         discount,
         discountType,
-        designerId: employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0
+        designerId: resolvedDesignerId
       };
       setLastSubmittedData(generateFormHash(currentData));
       setIsDirty(false);

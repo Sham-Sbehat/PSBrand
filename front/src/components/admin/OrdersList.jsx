@@ -27,6 +27,7 @@ import {
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { ordersService } from "../../services/api";
+import { subscribeToOrderUpdates } from "../../services/realtime";
 import { ORDER_STATUS, ORDER_STATUS_LABELS } from "../../constants";
 
 const OrdersList = () => {
@@ -42,7 +43,7 @@ const OrdersList = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Fetch all orders from API
+  // Fetch all orders from API + subscribe to realtime updates
   useEffect(() => {
     const fetchOrders = async () => {
       setLoading(true);
@@ -58,6 +59,22 @@ const OrdersList = () => {
     };
 
     fetchOrders();
+
+    let unsubscribe;
+    (async () => {
+      try {
+        unsubscribe = await subscribeToOrderUpdates({
+          onOrderCreated: () => fetchOrders(),
+          onOrderStatusChanged: () => fetchOrders(),
+        });
+      } catch (err) {
+        console.error('Failed to connect to updates hub:', err);
+      }
+    })();
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
   const handleViewOrder = (order) => {

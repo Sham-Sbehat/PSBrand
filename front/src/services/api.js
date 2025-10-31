@@ -95,13 +95,15 @@ export const authService = {
 
 // Orders Service
 export const ordersService = {
-  getAllOrders: async () => {
-    const response = await api.get("/Orders/GetOrders");
-    return response.data;
+  getAllOrders: async (params = {}) => {
+    // Supports backend pagination/filtering; keeps backward compatibility by returning array when possible
+    const response = await api.get("/Orders/GetOrders", { params });
+    const data = response.data;
+    return Array.isArray(data) ? data : (data?.data ?? []);
   },
 
   getOrderById: async (id) => {
-    const response = await api.get(`/Orders/GetOrder/${id}`);
+    const response = await api.get(`/Orders/GetOrder${id}`); // backend route is GetOrder{id}
     return response.data;
   },
 
