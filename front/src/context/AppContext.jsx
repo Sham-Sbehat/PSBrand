@@ -52,9 +52,13 @@ export const AppProvider = ({ children }) => {
     const initializeApp = async () => {
       const sessionUserStr = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.USER_DATA) : null;
       const sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
-      // Only use session storage to restore an active session
-      const savedUser = sessionUserStr ? JSON.parse(sessionUserStr) : null;
-      const savedToken = sessionToken || null;
+      const localUserStr = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.USER_DATA) : null;
+      const localToken = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+
+      // Prefer session storage (current tab), fallback to localStorage (Remember me)
+      const rawUser = sessionUserStr || localUserStr;
+      const savedUser = rawUser ? JSON.parse(rawUser) : null;
+      const savedToken = sessionToken || localToken || null;
       
       console.log('Initializing app with:', { savedUser, savedToken });
       console.log('Raw localStorage values:', {
@@ -65,7 +69,7 @@ export const AppProvider = ({ children }) => {
       if (savedUser && savedToken) {
         try {
           setUser(savedUser);
-          console.log('User restored from localStorage:', savedUser);
+          console.log('User restored from storage:', savedUser);
         } catch (error) {
           console.error('خطأ في تحميل بيانات المستخدم:', error);
         }

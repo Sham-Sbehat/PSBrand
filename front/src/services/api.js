@@ -14,10 +14,16 @@ const api = axios.create({
   timeout: 10000, // 10 seconds timeout
 });
 
-// Helper to read/remove token from either sessionStorage or localStorage
+// Helper to read token: prefer sessionStorage, fallback to localStorage (for "Remember me")
 const getAuthToken = () => {
-  // Only honor session token to require login on app restart
-  return sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) || null;
+  try {
+    const sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+    if (sessionToken) return sessionToken;
+    const localToken = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+    return localToken || null;
+  } catch {
+    return null;
+  }
 };
 
 const clearAuthTokenEverywhere = () => {
