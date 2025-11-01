@@ -18,6 +18,7 @@ import {
   Select,
   FormControl,
   InputLabel,
+  FormHelperText,
   CircularProgress,
   Divider,
   Accordion,
@@ -93,6 +94,7 @@ const OrderForm = ({ onSuccess }) => {
   const [deliveryPrice, setDeliveryPrice] = useState(0);
   const [deliveryRegions, setDeliveryRegions] = useState([]);
   const [selectedRegion, setSelectedRegion] = useState('');
+  const [regionError, setRegionError] = useState('');
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('percentage'); // 'percentage' or 'fixed'
   const [customerNotFound, setCustomerNotFound] = useState(false);
@@ -407,6 +409,14 @@ const OrderForm = ({ onSuccess }) => {
       return;
     }
 
+    // Validate selected region
+    if (!selectedRegion || selectedRegion.trim() === '') {
+      setRegionError('اسم المنطقة مطلوب');
+      setSubmitError('يجب اختيار اسم المنطقة');
+      setIsSubmitting(false);
+      return;
+    }
+
     // Validate all orders
     const hasInvalidOrders = orders.some(order => 
       !order.orderName || order.items.some(item => 
@@ -422,6 +432,7 @@ const OrderForm = ({ onSuccess }) => {
 
     setIsSubmitting(true);
     setSubmitError('');
+    setRegionError(''); // Clear region error when starting submission
     setSubmitSuccess(false); // Clear any previous success message
 
     try {
@@ -540,6 +551,8 @@ const OrderForm = ({ onSuccess }) => {
       }]);
       setExpandedOrders([1]);
       setDeliveryPrice(0);
+      setSelectedRegion('');
+      setRegionError('');
       setDiscount(0);
       setDiscountType('percentage');
       setCustomerData(null);
@@ -575,6 +588,7 @@ const OrderForm = ({ onSuccess }) => {
   const handleRegionChange = async (e) => {
     const region = e.target.value;
     setSelectedRegion(region);
+    setRegionError(''); // Clear error when region is selected
     try {
       const fee = await deliveryService.getDeliveryFee(region);
       setDeliveryPrice(parseFloat(fee) || 0);
@@ -801,23 +815,48 @@ const OrderForm = ({ onSuccess }) => {
                 <Autocomplete
                   fullWidth
                   options={allClients}
-                  getOptionLabel={(option) => option.name || ''}
+                  getOptionLabel={(option) => option.phone?.toString() || ''}
                   loading={loadingClients}
                   value={allClients.find(client => client.id === clientId) || null}
                   onChange={(event, newValue) => handleCustomerSelect(newValue)}
+                  filterOptions={(options, { inputValue }) => {
+                    // Filter by phone number only
+                    const searchValue = inputValue.toLowerCase().trim();
+                    if (!searchValue) return options;
+                    return options.filter(option => 
+                      option.phone && option.phone.toString().toLowerCase().includes(searchValue)
+                    );
+                  }}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Phone fontSize="small" color="action" />
+                          <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            {option.phone || ''}
+                          </Typography>
+                        </Box>
+                        {option.name && (
+                          <Typography variant="body2" color="text.secondary">
+                            {option.name}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  )}
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      label="اسم العميل"
+                      label="رقم الهاتف"
                       InputProps={{
                         ...params.InputProps,
                         startAdornment: (
                           <InputAdornment position="start">
-                            <Person />
+                            <Phone />
                           </InputAdornment>
                         ),
                       }}
-                      helperText="ابحث واختر العميل من القائمة"
+                      helperText="ابحث برقم الهاتف واختر العميل من القائمة"
                     />
                   )}
                   noOptionsText="لا توجد نتائج"
@@ -827,13 +866,13 @@ const OrderForm = ({ onSuccess }) => {
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  label="رقم الهاتف"
-                  value={customerData?.customerPhone || ''}
-                  onChange={(e) => setCustomerData(prev => ({ ...(prev || {}), customerPhone: e.target.value }))}
+                  label="اسم العميل"
+                  value={customerData?.customerName || ''}
                   InputProps={{
+                    readOnly: true,
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Phone />
+                        <Person />
                       </InputAdornment>
                     ),
                   }}
@@ -889,8 +928,18 @@ const OrderForm = ({ onSuccess }) => {
         </Grid>
 
         {/* Orders Section */}
-        <Grid item xs={12}>
-          <Paper elevation={2} sx={{ p: 3 }}>
+        <Grid item xs={12} sx={{ width: '100%', maxWidth: '100%' }}>
+          <Paper elevation={2} sx={{ 
+            p: 3, 
+            width: '100%', 
+            maxWidth: '100%',
+            minWidth: 0,
+            boxSizing: 'border-box',
+            '& > *': {
+              width: '100%',
+              maxWidth: '100%'
+            }
+          }}>
             <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
               إضافة الطلبات
             </Typography>
@@ -900,9 +949,34 @@ const OrderForm = ({ onSuccess }) => {
               key={order.id} 
               expanded={expandedOrders.includes(order.id)}
               onChange={(e, isExpanded) => handleAccordionChange(order.id, isExpanded)}
-              sx={{ mb: 2 }}
+              sx={{ 
+                mb: 2, 
+                width: '100% !important', 
+                maxWidth: '100% !important',
+                minWidth: 0,
+                boxSizing: 'border-box',
+                overflow: 'visible',
+                '& .MuiCollapse-root': {
+                  width: '100% !important',
+                  maxWidth: '100% !important'
+                },
+                '& .MuiAccordionDetails-root': { 
+                  padding: '16px !important',
+                  width: '100% !important',
+                  maxWidth: '100% !important',
+                  minWidth: 0,
+                  boxSizing: 'border-box',
+                  overflow: 'visible',
+                  margin: 0
+                },
+                '& .MuiAccordionSummary-root': {
+                  width: '100% !important',
+                  maxWidth: '100% !important',
+                  minWidth: 0
+                }
+              }}
             >
-              <AccordionSummary expandIcon={<ExpandMore />}>
+              <AccordionSummary expandIcon={<ExpandMore />} sx={{ width: '100%' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', pr: 2 }}>
                   <Typography variant="h6" sx={{ color: 'primary.main' }}>
                     {order.orderName || `طلب ${index + 1}`}
@@ -920,11 +994,31 @@ const OrderForm = ({ onSuccess }) => {
                   </IconButton>
                 </Box>
               </AccordionSummary>
-              <AccordionDetails>
+              <AccordionDetails sx={{ 
+                width: '100% !important', 
+                maxWidth: '100% !important',
+                minWidth: 0,
+                padding: '16px !important', 
+                boxSizing: 'border-box', 
+                margin: '0 !important',
+                overflow: 'visible',
+                '& > *': { 
+                  width: '100% !important',
+                  maxWidth: '100% !important',
+                  minWidth: 0
+                } 
+              }}>
 
                 {/* Order Name and Images */}
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
+                <Grid container spacing={2} sx={{ 
+                  width: '100% !important', 
+                  maxWidth: '100% !important',
+                  minWidth: 0,
+                  margin: '0 !important',
+                  padding: 0,
+                  boxSizing: 'border-box'
+                }}>
+                  <Grid item xs={12} md={6} >
                     <TextField
                       fullWidth
                       label="اسم الطلب"
@@ -1078,8 +1172,15 @@ const OrderForm = ({ onSuccess }) => {
                         </IconButton>
                       </Box>
                     )}
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6} md={3}>
+                    <Grid container spacing={2} sx={{ 
+                      width: '100% !important', 
+                      maxWidth: '100% !important',
+                      minWidth: 0,
+                      margin: '0 !important',
+                      padding: 0,
+                      boxSizing: 'border-box'
+                    }}>
+                      <Grid item xs={12} sm={4} md={4}>
                         <FormControl fullWidth>
                           <InputLabel>نوع القماش</InputLabel>
                           <Select
@@ -1104,7 +1205,7 @@ const OrderForm = ({ onSuccess }) => {
                           </Select>
                         </FormControl>
                       </Grid>
-                      <Grid item xs={12} sm={6} md={2}>
+                      <Grid item xs={12} sm={3} md={3}>
                         <FormControl fullWidth>
                           <InputLabel>اللون</InputLabel>
                           <Select
@@ -1125,7 +1226,7 @@ const OrderForm = ({ onSuccess }) => {
                           </Select>
                         </FormControl>
                       </Grid>
-                      <Grid item xs={12} sm={6} md={2}>
+                      <Grid item xs={12} sm={2} md={2}>
                         <FormControl fullWidth>
                           <InputLabel>المقاس</InputLabel>
                           <Select
@@ -1157,7 +1258,7 @@ const OrderForm = ({ onSuccess }) => {
                           </Select>
                         </FormControl>
                       </Grid>
-                      <Grid item xs={12} sm={6} md={2}>
+                      <Grid item xs={12} sm={1} md={1}>
                         <TextField
                           fullWidth
                           size="medium"
@@ -1167,7 +1268,7 @@ const OrderForm = ({ onSuccess }) => {
                           onChange={(e) => updateOrderItem(order.id, item.id, 'quantity', parseInt(e.target.value) || 1)}
                         />
                       </Grid>
-                      <Grid item xs={12} sm={6} md={2}>
+                      <Grid item xs={12} sm={2} md={2}>
                         <TextField
                           fullWidth
                           size="medium"
@@ -1181,11 +1282,6 @@ const OrderForm = ({ onSuccess }) => {
                             ),
                           }}
                         />
-                      </Grid>
-                      <Grid item xs={12} sm={6} md={1}>
-                        <Typography variant="body2" sx={{ pt: 1, fontWeight: 600 }}>
-                          {item.totalPrice}$
-                        </Typography>
                       </Grid>
                     </Grid>
                   </Box>
@@ -1224,7 +1320,7 @@ const OrderForm = ({ onSuccess }) => {
                 </Typography>
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth  >
+                    <FormControl fullWidth required error={!!regionError}>
                       <InputLabel id="region-select-label">اسم المنطقة</InputLabel>
                       <Select
                         labelId="region-select-label"
