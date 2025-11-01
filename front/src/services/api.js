@@ -180,6 +180,12 @@ export const ordersService = {
     const response = await api.post(`/Orders/AssignPreparer/${orderId}`);
     return response.data;
   },
+
+  // Update order notes
+  updateOrderNotes: async (orderId, notes) => {
+    const response = await api.patch(`/Orders/${orderId}/Notes`, { notes });
+    return response.data;
+  },
 };
 
 // Order Status Service

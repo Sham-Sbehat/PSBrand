@@ -24,6 +24,9 @@ import {
 import {
   Visibility,
   Delete,
+  Note,
+  Edit,
+  Save,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { ordersService } from "../../services/api";
@@ -31,7 +34,7 @@ import { subscribeToOrderUpdates } from "../../services/realtime";
 import { ORDER_STATUS, ORDER_STATUS_LABELS } from "../../constants";
 
 const OrdersList = () => {
-  const { orders } = useApp();
+  const { orders, user } = useApp();
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -42,6 +45,9 @@ const OrdersList = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
 
   // Fetch all orders from API + subscribe to realtime updates
   useEffect(() => {
@@ -79,12 +85,53 @@ const OrdersList = () => {
 
   const handleViewOrder = (order) => {
     setSelectedOrder(order);
+    setOrderNotes(''); // Start with empty for new note
+    setIsEditingNotes(false);
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setSelectedOrder(null);
+    setOrderNotes('');
+    setIsEditingNotes(false);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedOrder || !orderNotes.trim()) return;
+    setSavingNotes(true);
+    try {
+      const currentDate = new Date();
+      const dateTime = currentDate.toLocaleString("ar-SA", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        calendar: "gregory"
+      });
+      const authorName = user?.name || "مستخدم غير معروف";
+      
+      // Format: [DateTime] Author Name: Note Text
+      const newNote = `[${dateTime}] ${authorName}: ${orderNotes.trim()}`;
+      
+      // Append to existing notes or create new
+      const existingNotes = selectedOrder.notes || '';
+      const updatedNotes = existingNotes ? `${existingNotes}\n\n${newNote}` : newNote;
+      
+      await ordersService.updateOrderNotes(selectedOrder.id, updatedNotes);
+      // Update local state
+      setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
+      setAllOrders(prev => prev.map(order => 
+        order.id === selectedOrder.id ? { ...order, notes: updatedNotes } : order
+      ));
+      setOrderNotes(''); // Clear input
+      setIsEditingNotes(false);
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    } finally {
+      setSavingNotes(false);
+    }
   };
 
   const handleDeleteClick = (order) => {
@@ -477,6 +524,97 @@ const OrdersList = () => {
                     </Typography>
                   )}
                 </Typography>
+              </Box>
+
+              <Box sx={{ mt: 3, p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Note color="primary" fontSize="small" />
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      الملاحظات
+                    </Typography>
+                  </Box>
+                  {!isEditingNotes ? (
+                    <IconButton size="small" onClick={() => setIsEditingNotes(true)}>
+                      <Edit fontSize="small" />
+                    </IconButton>
+                  ) : (
+                    <Box sx={{ display: "flex", gap: 1 }}>
+                      <IconButton 
+                        size="small" 
+                        color="primary" 
+                        onClick={handleSaveNotes}
+                        disabled={savingNotes}
+                      >
+                        {savingNotes ? <CircularProgress size={16} /> : <Save fontSize="small" />}
+                      </IconButton>
+                      <IconButton 
+                        size="small" 
+                        onClick={() => {
+                          setIsEditingNotes(false);
+                          setOrderNotes(selectedOrder.notes || '');
+                        }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  )}
+                </Box>
+                {isEditingNotes ? (
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={4}
+                    value={orderNotes}
+                    onChange={(e) => setOrderNotes(e.target.value)}
+                    placeholder="أضف ملاحظاتك هنا..."
+                    variant="outlined"
+                  />
+                ) : (
+                  <Box sx={{ 
+                    minHeight: 40,
+                    p: 2,
+                    bgcolor: "grey.50",
+                    borderRadius: 1,
+                    maxHeight: 300,
+                    overflowY: 'auto'
+                  }}>
+                    {selectedOrder.notes ? (
+                      selectedOrder.notes.split('\n\n').map((note, idx) => {
+                        // Parse note format: [DateTime] Author: Text
+                        const match = note.match(/^\[([^\]]+)\]\s+(.+?):\s*(.*)$/);
+                        if (match) {
+                          const [, datetime, author, text] = match;
+                          return (
+                            <Box key={idx} sx={{ mb: 2, pb: 2, borderBottom: idx < selectedOrder.notes.split('\n\n').length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                                  {author}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {datetime}
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>
+                                {text}
+                              </Typography>
+                            </Box>
+                          );
+                        }
+                        // Fallback for old format
+                        return (
+                          <Typography key={idx} variant="body2" sx={{ mb: 1, whiteSpace: "pre-wrap" }}>
+                            {note}
+                          </Typography>
+                        );
+                      })
+                    ) : (
+                      <Typography variant="body1" color="text.secondary">
+                        لا توجد ملاحظات
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </Box>
             </Box>
           )}

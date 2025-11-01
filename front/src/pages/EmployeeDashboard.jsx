@@ -23,8 +23,10 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
+  CircularProgress,
 } from "@mui/material";
-import { Logout, Assignment, CheckCircle, Pending, Close, Visibility } from "@mui/icons-material";
+import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService } from "../services/api";
@@ -41,6 +43,9 @@ const EmployeeDashboard = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [totalOrdersCount, setTotalOrdersCount] = useState(0);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
 
   // Fetch designer orders count on component mount
   const fetchDesignerOrdersCount = async () => {
@@ -82,6 +87,8 @@ const EmployeeDashboard = () => {
 
   const handleViewDetails = (order) => {
     setSelectedOrder(order);
+    setOrderNotes(''); // Start with empty for new note
+    setIsEditingNotes(false);
     setOpenDetailsModal(true);
   };
 
@@ -93,6 +100,45 @@ const EmployeeDashboard = () => {
   const handleCloseDetailsModal = () => {
     setOpenDetailsModal(false);
     setSelectedOrder(null);
+    setOrderNotes('');
+    setIsEditingNotes(false);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedOrder || !orderNotes.trim()) return;
+    setSavingNotes(true);
+    try {
+      const currentDate = new Date();
+      const dateTime = currentDate.toLocaleString("ar-SA", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        calendar: "gregory"
+      });
+      const authorName = user?.name || "مستخدم غير معروف";
+      
+      // Format: [DateTime] Author Name: Note Text
+      const newNote = `[${dateTime}] ${authorName}: ${orderNotes.trim()}`;
+      
+      // Append to existing notes or create new
+      const existingNotes = selectedOrder.notes || '';
+      const updatedNotes = existingNotes ? `${existingNotes}\n\n${newNote}` : newNote;
+      
+      await ordersService.updateOrderNotes(selectedOrder.id, updatedNotes);
+      // Update local state
+      setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
+      setOrdersList(prev => prev.map(order => 
+        order.id === selectedOrder.id ? { ...order, notes: updatedNotes } : order
+      ));
+      setOrderNotes(''); // Clear input
+      setIsEditingNotes(false);
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    } finally {
+      setSavingNotes(false);
+    }
   };
 
   const getStatusLabel = (status) => {
@@ -453,6 +499,94 @@ const EmployeeDashboard = () => {
                     color={getStatusLabel(selectedOrder.status).color}
                     size="small"
                   />
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Note color="primary" fontSize="small" />
+                      <Typography variant="subtitle2" color="text.secondary">الملاحظات:</Typography>
+                    </Box>
+                    {!isEditingNotes ? (
+                      <IconButton size="small" onClick={() => setIsEditingNotes(true)}>
+                        <Edit fontSize="small" />
+                      </IconButton>
+                    ) : (
+                      <Box sx={{ display: "flex", gap: 1 }}>
+                        <IconButton 
+                          size="small" 
+                          color="primary" 
+                          onClick={handleSaveNotes}
+                          disabled={savingNotes}
+                        >
+                          {savingNotes ? <CircularProgress size={16} /> : <Save fontSize="small" />}
+                        </IconButton>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => {
+                            setIsEditingNotes(false);
+                            setOrderNotes('');
+                          }}
+                        >
+                          <Close fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    )}
+                  </Box>
+                  {isEditingNotes ? (
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={4}
+                      value={orderNotes}
+                      onChange={(e) => setOrderNotes(e.target.value)}
+                      placeholder="أضف ملاحظاتك هنا..."
+                      variant="outlined"
+                    />
+                  ) : (
+                    <Box sx={{ 
+                      p: 2,
+                      bgcolor: "grey.50",
+                      borderRadius: 1,
+                      minHeight: 60,
+                      maxHeight: 300,
+                      overflowY: 'auto'
+                    }}>
+                      {selectedOrder.notes ? (
+                        selectedOrder.notes.split('\n\n').map((note, idx) => {
+                          // Parse note format: [DateTime] Author: Text
+                          const match = note.match(/^\[([^\]]+)\]\s+(.+?):\s*(.*)$/);
+                          if (match) {
+                            const [, datetime, author, text] = match;
+                            return (
+                              <Box key={idx} sx={{ mb: 2, pb: 2, borderBottom: idx < selectedOrder.notes.split('\n\n').length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                                    {author}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {datetime}
+                                  </Typography>
+                                </Box>
+                                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>
+                                  {text}
+                                </Typography>
+                              </Box>
+                            );
+                          }
+                          // Fallback for old format
+                          return (
+                            <Typography key={idx} variant="body2" sx={{ mb: 1, whiteSpace: "pre-wrap" }}>
+                              {note}
+                            </Typography>
+                          );
+                        })
+                      ) : (
+                        <Typography variant="body1" color="text.secondary">
+                          لا توجد ملاحظات
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
                 </Grid>
                 
                 {selectedOrder.orderDesigns && selectedOrder.orderDesigns.length > 0 && (

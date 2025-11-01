@@ -101,6 +101,7 @@ const OrderForm = ({ onSuccess }) => {
   const [clientId, setClientId] = useState(null);
   const [allClients, setAllClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [notes, setNotes] = useState('');
 
   // Dirty state management to prevent duplicate submissions
   const [isDirty, setIsDirty] = useState(false);
@@ -501,6 +502,22 @@ const OrderForm = ({ onSuccess }) => {
         return;
       }
 
+      // Format notes with timestamp and author if provided
+      let formattedNotes = '';
+      if (notes && notes.trim()) {
+        const currentDate = new Date();
+        const dateTime = currentDate.toLocaleString("ar-SA", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          calendar: "gregory"
+        });
+        const authorName = user?.name || "مستخدم غير معروف";
+        formattedNotes = `[${dateTime}] ${authorName}: ${notes.trim()}`;
+      }
+
       const orderData = {
         clientId: clientId,
         country: customerData.country,
@@ -511,6 +528,7 @@ const OrderForm = ({ onSuccess }) => {
         discountPercentage: discountType === 'percentage' ? discount : 0,
         deliveryFee: deliveryPrice,
         discountNotes: discount > 0 ? `خصم ${discountType === 'percentage' ? discount + '%' : discount + '$'}` : '',
+        notes: formattedNotes,
         orderDesigns: orderDesigns
       };
 
@@ -555,6 +573,7 @@ const OrderForm = ({ onSuccess }) => {
       setRegionError('');
       setDiscount(0);
       setDiscountType('percentage');
+      setNotes('');
       setCustomerData(null);
       setClientId(null);
 
@@ -1310,6 +1329,31 @@ const OrderForm = ({ onSuccess }) => {
               >
                 إضافة طلب جديد
               </Button>
+            </Grid>
+
+            {/* Notes Section */}
+            <Grid item xs={12}>
+              <Paper elevation={2} sx={{ p: 3, bgcolor: 'grey.50', mt: 2 }}>
+                <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+                  الملاحظات
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  label="ملاحظات الطلب"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="أضف أي ملاحظات خاصة بالطلب هنا..."
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Description />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Paper>
             </Grid>
 
             {/* Order Total Section */}

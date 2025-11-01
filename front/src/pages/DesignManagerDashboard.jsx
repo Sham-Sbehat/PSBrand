@@ -19,6 +19,11 @@ import {
   Paper,
   Chip,
   Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  TextField,
+  CircularProgress,
 } from "@mui/material";
 import {
   Logout,
@@ -26,6 +31,10 @@ import {
   CheckCircle,
   Pending,
   Schedule,
+  Close,
+  Note,
+  Edit,
+  Save,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -37,6 +46,13 @@ const DesignManagerDashboard = () => {
   const { user, logout, orders } = useApp();
   const [designOrders, setDesignOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
 
   // Fetch orders by status (status = 1 and 2)
   useEffect(() => {
@@ -66,6 +82,67 @@ const DesignManagerDashboard = () => {
   const handleLogout = () => {
     logout();
     navigate("/");
+  };
+
+  const handleImageClick = (imageUrl) => {
+    setSelectedImage(imageUrl);
+    setImageDialogOpen(true);
+  };
+
+  const handleCloseImageDialog = () => {
+    setImageDialogOpen(false);
+    setSelectedImage(null);
+  };
+
+  const handleNotesClick = (order) => {
+    setSelectedOrder(order);
+    setOrderNotes(''); // Start with empty for new note
+    setIsEditingNotes(false);
+    setNotesDialogOpen(true);
+  };
+
+  const handleCloseNotesDialog = () => {
+    setNotesDialogOpen(false);
+    setSelectedOrder(null);
+    setOrderNotes('');
+    setIsEditingNotes(false);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedOrder || !orderNotes.trim()) return;
+    setSavingNotes(true);
+    try {
+      const currentDate = new Date();
+      const dateTime = currentDate.toLocaleString("ar-SA", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        calendar: "gregory"
+      });
+      const authorName = user?.name || "مستخدم غير معروف";
+      
+      // Format: [DateTime] Author Name: Note Text
+      const newNote = `[${dateTime}] ${authorName}: ${orderNotes.trim()}`;
+      
+      // Append to existing notes or create new
+      const existingNotes = selectedOrder.notes || '';
+      const updatedNotes = existingNotes ? `${existingNotes}\n\n${newNote}` : newNote;
+      
+      await ordersService.updateOrderNotes(selectedOrder.id, updatedNotes);
+      // Update local state
+      setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
+      setDesignOrders(prev => prev.map(order => 
+        order.id === selectedOrder.id ? { ...order, notes: updatedNotes } : order
+      ));
+      setOrderNotes(''); // Clear input
+      setIsEditingNotes(false);
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    } finally {
+      setSavingNotes(false);
+    }
   };
 
   // Handle status update
@@ -231,13 +308,14 @@ const DesignManagerDashboard = () => {
                     <TableCell sx={{ fontWeight: 700 }}>ملف PDF</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={11} align="center">
+                      <TableCell colSpan={12} align="center">
                         <Box sx={{ padding: 4 }}>
                           <Typography variant="h6" color="text.secondary">
                             جاري التحميل...
@@ -247,7 +325,7 @@ const DesignManagerDashboard = () => {
                     </TableRow>
                   ) : designOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} align="center">
+                      <TableCell colSpan={12} align="center">
                         <Box sx={{ padding: 4 }}>
                           <Typography variant="h6" color="text.secondary">
                             لا توجد طلبات حالياً
@@ -300,6 +378,21 @@ const DesignManagerDashboard = () => {
                                   })
                                 : "-"
                               }
+                            </TableCell>
+                            <TableCell sx={{ textAlign: 'center' }}>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleNotesClick(order)}
+                                sx={{
+                                  color: order.notes ? 'primary.main' : 'action.disabled',
+                                  '&:hover': {
+                                    bgcolor: 'action.hover'
+                                  }
+                                }}
+                                title={order.notes ? 'عرض/تعديل الملاحظات' : 'إضافة ملاحظات'}
+                              >
+                                <Note />
+                              </IconButton>
                             </TableCell>
                             <TableCell>
                               <Button
@@ -365,7 +458,18 @@ const DesignManagerDashboard = () => {
                             <TableCell>{productType}</TableCell>
                             <TableCell>
                               {design?.mockupImageUrl && design.mockupImageUrl !== 'placeholder_mockup.jpg' ? (
-                                <Box sx={{ width: 80, height: 80, position: 'relative' }}>
+                                <Box 
+                                  sx={{ 
+                                    width: 80, 
+                                    height: 80, 
+                                    position: 'relative',
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      opacity: 0.8
+                                    }
+                                  }}
+                                  onClick={() => handleImageClick(design.mockupImageUrl)}
+                                >
                                   <img 
                                     src={design.mockupImageUrl} 
                                     alt={design.designName}
@@ -431,6 +535,21 @@ const DesignManagerDashboard = () => {
                                     : "-"
                                   }
                                 </TableCell>
+                                <TableCell rowSpan={rowCount} sx={{ textAlign: 'center' }}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleNotesClick(order)}
+                                    sx={{
+                                      color: order.notes ? 'primary.main' : 'action.disabled',
+                                      '&:hover': {
+                                        bgcolor: 'action.hover'
+                                      }
+                                    }}
+                                    title={order.notes ? 'عرض/تعديل الملاحظات' : 'إضافة ملاحظات'}
+                                  >
+                                    <Note />
+                                  </IconButton>
+                                </TableCell>
                                 <TableCell rowSpan={rowCount}>
                                   <Button
                                     size="small"
@@ -456,6 +575,154 @@ const DesignManagerDashboard = () => {
           </CardContent>
         </Card>
       </Container>
+
+      {/* Image Dialog */}
+      <Dialog
+        open={imageDialogOpen}
+        onClose={handleCloseImageDialog}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">معاينة الصورة</Typography>
+          <IconButton onClick={handleCloseImageDialog}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ padding: 2 }}>
+          {selectedImage && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+              <img 
+                src={selectedImage} 
+                alt="معاينة الصورة"
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '70vh', 
+                  objectFit: 'contain',
+                  borderRadius: '8px'
+                }}
+              />
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Notes Dialog */}
+      <Dialog
+        open={notesDialogOpen}
+        onClose={handleCloseNotesDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'primary.main', color: 'white' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Note />
+            <Typography variant="h6">ملاحظات الطلب</Typography>
+          </Box>
+          <IconButton onClick={handleCloseNotesDialog} sx={{ color: 'white' }}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ padding: 3 }}>
+          {selectedOrder && (
+            <Box>
+              <Box sx={{ mb: 2, pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="body2" color="text.secondary">رقم الطلب:</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  {selectedOrder.orderNumber || `#${selectedOrder.id}`}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  الملاحظات
+                </Typography>
+                {!isEditingNotes ? (
+                  <IconButton size="small" onClick={() => setIsEditingNotes(true)}>
+                    <Edit fontSize="small" />
+                  </IconButton>
+                ) : (
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <IconButton 
+                      size="small" 
+                      color="primary" 
+                      onClick={handleSaveNotes}
+                      disabled={savingNotes}
+                    >
+                      {savingNotes ? <CircularProgress size={16} /> : <Save fontSize="small" />}
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => {
+                        setIsEditingNotes(false);
+                        setOrderNotes('');
+                      }}
+                    >
+                      <Close fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
+              </Box>
+              
+              {isEditingNotes ? (
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={6}
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                  placeholder="أضف ملاحظاتك هنا..."
+                  variant="outlined"
+                />
+              ) : (
+                <Box sx={{ 
+                  p: 2, 
+                  bgcolor: 'grey.50', 
+                  borderRadius: 1, 
+                  minHeight: 150,
+                  maxHeight: 400,
+                  overflowY: 'auto'
+                }}>
+                  {selectedOrder.notes ? (
+                    selectedOrder.notes.split('\n\n').map((note, idx) => {
+                      // Parse note format: [DateTime] Author: Text
+                      const match = note.match(/^\[([^\]]+)\]\s+(.+?):\s*(.*)$/);
+                      if (match) {
+                        const [, datetime, author, text] = match;
+                        return (
+                          <Box key={idx} sx={{ mb: 2, pb: 2, borderBottom: idx < selectedOrder.notes.split('\n\n').length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                                {author}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {datetime}
+                              </Typography>
+                            </Box>
+                            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>
+                              {text}
+                            </Typography>
+                          </Box>
+                        );
+                      }
+                      // Fallback for old format
+                      return (
+                        <Typography key={idx} variant="body2" sx={{ mb: 1, whiteSpace: "pre-wrap" }}>
+                          {note}
+                        </Typography>
+                      );
+                    })
+                  ) : (
+                    <Typography variant="body1" color="text.secondary">
+                      لا توجد ملاحظات
+                    </Typography>
+                  )}
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };
