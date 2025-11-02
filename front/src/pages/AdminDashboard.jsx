@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Container,
   Box,
@@ -22,13 +22,30 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
+import { ordersService } from "../services/api";
 import OrdersList from "../components/admin/OrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
+import { ORDER_STATUS } from "../constants";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { user, logout, orders, employees } = useApp();
+  const { user, logout, employees } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
+  const [allOrders, setAllOrders] = useState([]);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const response = await ordersService.getAllOrders();
+        setAllOrders(response || []);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        setAllOrders([]);
+      }
+    };
+
+    fetchOrders();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -38,27 +55,23 @@ const AdminDashboard = () => {
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
   };
-  const pendingOrders = orders.filter((order) => order.status === "pending");
-  const completedOrders = orders.filter(
-    (order) => order.status === "completed"
-  );
 
   const stats = [
     {
       title: "إجمالي الطلبات",
-      value: orders.length,
+      value: allOrders.length,
       icon: Assignment,
       color: "#1976d2",
     },
     {
-      title: "قيد الانتظار",
-      value: pendingOrders.length,
+      title: "بانتظار الطباعة",
+      value: allOrders.filter((order) => order.status === ORDER_STATUS.PENDING_PRINTING).length,
       icon: Pending,
       color: "#ed6c02",
     },
     {
       title: "مكتملة",
-      value: completedOrders.length,
+      value: allOrders.filter((order) => order.status === ORDER_STATUS.COMPLETED).length,
       icon: CheckCircle,
       color: "#2e7d32",
     },

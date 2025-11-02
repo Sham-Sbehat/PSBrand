@@ -6,10 +6,10 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Avatar,
   Grid,
   Card,
   CardContent,
-  Avatar,
   Table,
   TableBody,
   TableCell,
@@ -23,60 +23,81 @@ import {
   DialogContent,
   DialogTitle,
   TextField,
+  MenuItem,
   CircularProgress,
 } from "@mui/material";
 import {
   Logout,
   DesignServices,
-  CheckCircle,
-  Pending,
-  Schedule,
   Close,
   Note,
-  Edit,
-  Save,
+  Schedule,
+  Print,
+  CheckCircle,
+  Dashboard,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService } from "../services/api";
+import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
+import NotesDialog from "../components/common/NotesDialog";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
-  const { user, logout, orders } = useApp();
-  const [designOrders, setDesignOrders] = useState([]);
+  const { user, logout } = useApp();
+  const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
-  const [orderNotes, setOrderNotes] = useState('');
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [savingNotes, setSavingNotes] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [statusFilter, setStatusFilter] = useState(ORDER_STATUS.PENDING_PRINTING);
 
-  // Fetch orders by status (status = 1 and 2)
-  useEffect(() => {
-    const fetchOrders = async () => {
+  // Fetch all orders
+  const fetchOrders = async (showLoading = false) => {
+    if (showLoading) {
       setLoading(true);
-      try {
-        // Fetch orders with status 1 and 2
-        const [status1Orders, status2Orders] = await Promise.all([
-          ordersService.getOrdersByStatus(1),
-          ordersService.getOrdersByStatus(2)
-        ]);
-        
-        // Combine both arrays
-        const allOrders = [...(status1Orders || []), ...(status2Orders || [])];
-        setDesignOrders(allOrders);
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        setDesignOrders([]);
-      } finally {
+    }
+    try {
+      const response = await ordersService.getAllOrders();
+      setAllOrders(response || []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    } finally {
+      if (showLoading) {
         setLoading(false);
       }
-    };
+    }
+  };
 
-    fetchOrders();
+  useEffect(() => {
+    fetchOrders(true); // Show loading on initial fetch only
+
+    // Subscribe to SignalR updates for real-time order updates
+    let unsubscribe;
+    (async () => {
+      try {
+        unsubscribe = await subscribeToOrderUpdates({
+          onOrderCreated: () => {
+            console.log('SignalR: New order created event received');
+            fetchOrders(false);
+          },
+          onOrderStatusChanged: () => {
+            console.log('SignalR: Order status changed');
+            fetchOrders(false);
+          },
+        });
+        console.log('SignalR: Successfully subscribed to order updates');
+      } catch (err) {
+        console.error('Failed to connect to updates hub:', err);
+      }
+    })();
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
   const handleLogout = () => {
@@ -96,57 +117,26 @@ const DesignManagerDashboard = () => {
 
   const handleNotesClick = (order) => {
     setSelectedOrder(order);
-    setOrderNotes(''); // Start with empty for new note
-    setIsEditingNotes(false);
     setNotesDialogOpen(true);
   };
 
   const handleCloseNotesDialog = () => {
     setNotesDialogOpen(false);
     setSelectedOrder(null);
-    setOrderNotes('');
-    setIsEditingNotes(false);
   };
 
-  const handleSaveNotes = async () => {
-    if (!selectedOrder || !orderNotes.trim()) return;
-    setSavingNotes(true);
-    try {
-      const currentDate = new Date();
-      const dateTime = currentDate.toLocaleString("ar-SA", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        calendar: "gregory"
-      });
-      const authorName = user?.name || "مستخدم غير معروف";
-      
-      // Format: [DateTime] Author Name: Note Text
-      const newNote = `[${dateTime}] ${authorName}: ${orderNotes.trim()}`;
-      
-      // Append to existing notes or create new
-      const existingNotes = selectedOrder.notes || '';
-      const updatedNotes = existingNotes ? `${existingNotes}\n\n${newNote}` : newNote;
-      
-      await ordersService.updateOrderNotes(selectedOrder.id, updatedNotes);
-      // Update local state
-      setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
-      setDesignOrders(prev => prev.map(order => 
-        order.id === selectedOrder.id ? { ...order, notes: updatedNotes } : order
-      ));
-      setOrderNotes(''); // Clear input
-      setIsEditingNotes(false);
-    } catch (error) {
-      console.error('Error saving notes:', error);
-    } finally {
-      setSavingNotes(false);
-    }
+  const handleSaveNotes = async (orderId, updatedNotes) => {
+    await ordersService.updateOrderNotes(orderId, updatedNotes);
+    // Update local state
+    setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
+    setAllOrders(prev => prev.map(order => 
+      order.id === orderId ? { ...order, notes: updatedNotes } : order
+    ));
   };
 
   // Handle status update
   const handleStatusUpdate = async (orderId, currentStatus) => {
+    setUpdatingOrderId(orderId);
     try {
       let response;
       
@@ -158,54 +148,19 @@ const DesignManagerDashboard = () => {
         response = await orderStatusService.setInPreparation(orderId);
       }
       
-      if (response) {
-        // Update the order status in the current list instead of re-fetching
-        setDesignOrders(prevOrders => 
-          prevOrders.map(order => 
-            order.id === orderId 
-              ? { ...order, status: currentStatus === ORDER_STATUS.PENDING_PRINTING ? ORDER_STATUS.IN_PRINTING : ORDER_STATUS.IN_PREPARATION }
-              : order
-          )
-        );
-      }
+      // After successful update, refresh the orders list to get the latest data
+      // Wait a bit for backend to process, then refresh
+      setTimeout(() => {
+        fetchOrders(false); // Don't show loading after action
+      }, 500);
+      
     } catch (error) {
       console.error('Error updating order status:', error);
+      alert(`حدث خطأ أثناء تحديث حالة الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
-
-  const pendingReview = designOrders.filter(
-    (order) => order.status === 1
-  );
-  const approvedDesigns = designOrders.filter(
-    (order) => order.status === 2
-  );
-
-  const stats = [
-    {
-      title: "إجمالي التصاميم",
-      value: designOrders.length,
-      icon: DesignServices,
-      color: "#f093fb",
-    },
-    {
-      title: "بانتظار المراجعة",
-      value: pendingReview.length,
-      icon: Schedule,
-      color: "#ed6c02",
-    },
-    {
-      title: "تصاميم معتمدة",
-      value: approvedDesigns.length,
-      icon: CheckCircle,
-      color: "#2e7d32",
-    },
-    {
-      title: "قيد المعالجة",
-      value: orders.filter((o) => o.status === "in_design").length,
-      icon: Pending,
-      color: "#1976d2",
-    },
-  ];
 
   const getStatusLabel = (status) => {
     const numericStatus = typeof status === 'number' ? status : parseInt(status);
@@ -214,6 +169,44 @@ const DesignManagerDashboard = () => {
       color: ORDER_STATUS_COLORS[numericStatus] || "default"
     };
   };
+
+  // Filter orders by status
+  const filteredOrders = statusFilter === "all"
+    ? allOrders
+    : allOrders.filter((order) => order.status === parseInt(statusFilter));
+
+  // Calculate stats
+  const pendingPrintingCount = allOrders.filter(order => order.status === ORDER_STATUS.PENDING_PRINTING).length;
+  const inPrintingCount = allOrders.filter(order => order.status === ORDER_STATUS.IN_PRINTING).length;
+  const completedCount = allOrders.filter(order => order.status === ORDER_STATUS.COMPLETED).length;
+  const totalOrdersCount = allOrders.length;
+
+  const stats = [
+    {
+      title: "إجمالي الطلبات",
+      value: totalOrdersCount,
+      icon: Dashboard,
+      color: "#1976d2",
+    },
+    {
+      title: "بانتظار الطباعة",
+      value: pendingPrintingCount,
+      icon: Schedule,
+      color: "#ed6c02",
+    },
+    {
+      title: "في مرحلة الطباعة",
+      value: inPrintingCount,
+      icon: Print,
+      color: "#2e7d32",
+    },
+    {
+      title: "مكتملة",
+      value: completedCount,
+      icon: CheckCircle,
+      color: "#9c27b0",
+    },
+  ];
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
@@ -243,6 +236,7 @@ const DesignManagerDashboard = () => {
       </AppBar>
 
       <Container maxWidth="xl" sx={{ paddingY: 4 }}>
+        {/* Stats Cards */}
         <Grid container spacing={3} sx={{ marginBottom: 4 }}>
           {stats.map((stat, index) => {
             const Icon = stat.icon;
@@ -283,58 +277,74 @@ const DesignManagerDashboard = () => {
           })}
         </Grid>
 
-        <Card elevation={3}>
-          <CardContent>
-            <Typography
-              variant="h5"
-              gutterBottom
-              sx={{ fontWeight: 700, marginBottom: 3 }}
-            >
+        <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 3,
+            }}
+          >
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
               <DesignServices sx={{ verticalAlign: "middle", mr: 1 }} />
-              الطلبات الواردة من البائعين
+              جميع الطلبات ({filteredOrders.length})
             </Typography>
 
-            <TableContainer component={Paper} elevation={0}>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                    <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>رقم الهاتف</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>البائع</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>العدد</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>نوع المنتج</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الصورة</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>ملف PDF</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
-                    <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={12} align="center">
-                        <Box sx={{ padding: 4 }}>
-                          <Typography variant="h6" color="text.secondary">
-                            جاري التحميل...
-                          </Typography>
-                        </Box>
-                      </TableCell>
+            <TextField
+              select
+              size="small"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value="all">جميع الطلبات</MenuItem>
+              <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
+              <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
+              <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
+              <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
+              <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
+              <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
+            </TextField>
+          </Box>
+
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', padding: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                      <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>رقم الهاتف</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>البائع</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>العدد</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>نوع المنتج</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>الصورة</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>ملف PDF</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
+                      <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
                     </TableRow>
-                  ) : designOrders.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={12} align="center">
-                        <Box sx={{ padding: 4 }}>
-                          <Typography variant="h6" color="text.secondary">
-                            لا توجد طلبات حالياً
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    designOrders.flatMap((order) => {
+                  </TableHead>
+                  <TableBody>
+                    {filteredOrders.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={12} align="center">
+                          <Box sx={{ padding: 4 }}>
+                            <Typography variant="h6" color="text.secondary">
+                              لا توجد طلبات حالياً
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredOrders.flatMap((order) => {
                       const status = getStatusLabel(order.status);
                       const designs = order.orderDesigns || [];
                       
@@ -400,10 +410,20 @@ const DesignManagerDashboard = () => {
                                 variant="contained"
                                 color="primary"
                                 onClick={() => handleStatusUpdate(order.id, order.status)}
-                                disabled={order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING}
+                                disabled={
+                                  (order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING) ||
+                                  updatingOrderId === order.id
+                                }
                               >
-                                {order.status === ORDER_STATUS.PENDING_PRINTING ? "بدء الطباعة" : 
-                                 order.status === ORDER_STATUS.IN_PRINTING ? "إرسال للتحضير" : "غير متاح"}
+                                {updatingOrderId === order.id ? (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <CircularProgress size={16} color="inherit" />
+                                    جاري التحميل...
+                                  </Box>
+                                ) : (
+                                  order.status === ORDER_STATUS.PENDING_PRINTING ? "بدء الطباعة" : 
+                                  order.status === ORDER_STATUS.IN_PRINTING ? "إرسال للتحضير" : "غير متاح"
+                                )}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -556,10 +576,20 @@ const DesignManagerDashboard = () => {
                                     variant="contained"
                                     color="primary"
                                     onClick={() => handleStatusUpdate(order.id, order.status)}
-                                    disabled={order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING}
+                                    disabled={
+                                      (order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING) ||
+                                      updatingOrderId === order.id
+                                    }
                                   >
-                                    {order.status === ORDER_STATUS.PENDING_PRINTING ? "بدء الطباعة" : 
-                                     order.status === ORDER_STATUS.IN_PRINTING ? "إرسال للتحضير" : "غير متاح"}
+                                    {updatingOrderId === order.id ? (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <CircularProgress size={16} color="inherit" />
+                                        جاري التحميل...
+                                      </Box>
+                                    ) : (
+                                      order.status === ORDER_STATUS.PENDING_PRINTING ? "بدء الطباعة" : 
+                                      order.status === ORDER_STATUS.IN_PRINTING ? "إرسال للتحضير" : "غير متاح"
+                                    )}
                                   </Button>
                                 </TableCell>
                               </>
@@ -568,12 +598,13 @@ const DesignManagerDashboard = () => {
                         );
                       });
                     })
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
+          )}
+        </Paper>
       </Container>
 
       {/* Image Dialog */}
@@ -608,121 +639,13 @@ const DesignManagerDashboard = () => {
       </Dialog>
 
       {/* Notes Dialog */}
-      <Dialog
+      <NotesDialog
         open={notesDialogOpen}
         onClose={handleCloseNotesDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'primary.main', color: 'white' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Note />
-            <Typography variant="h6">ملاحظات الطلب</Typography>
-          </Box>
-          <IconButton onClick={handleCloseNotesDialog} sx={{ color: 'white' }}>
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ padding: 3 }}>
-          {selectedOrder && (
-            <Box>
-              <Box sx={{ mb: 2, pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="body2" color="text.secondary">رقم الطلب:</Typography>
-                <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                  {selectedOrder.orderNumber || `#${selectedOrder.id}`}
-                </Typography>
-              </Box>
-              
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  الملاحظات
-                </Typography>
-                {!isEditingNotes ? (
-                  <IconButton size="small" onClick={() => setIsEditingNotes(true)}>
-                    <Edit fontSize="small" />
-                  </IconButton>
-                ) : (
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <IconButton 
-                      size="small" 
-                      color="primary" 
-                      onClick={handleSaveNotes}
-                      disabled={savingNotes}
-                    >
-                      {savingNotes ? <CircularProgress size={16} /> : <Save fontSize="small" />}
-                    </IconButton>
-                    <IconButton 
-                      size="small" 
-                      onClick={() => {
-                        setIsEditingNotes(false);
-                        setOrderNotes('');
-                      }}
-                    >
-                      <Close fontSize="small" />
-                    </IconButton>
-                  </Box>
-                )}
-              </Box>
-              
-              {isEditingNotes ? (
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={6}
-                  value={orderNotes}
-                  onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder="أضف ملاحظاتك هنا..."
-                  variant="outlined"
-                />
-              ) : (
-                <Box sx={{ 
-                  p: 2, 
-                  bgcolor: 'grey.50', 
-                  borderRadius: 1, 
-                  minHeight: 150,
-                  maxHeight: 400,
-                  overflowY: 'auto'
-                }}>
-                  {selectedOrder.notes ? (
-                    selectedOrder.notes.split('\n\n').map((note, idx) => {
-                      // Parse note format: [DateTime] Author: Text
-                      const match = note.match(/^\[([^\]]+)\]\s+(.+?):\s*(.*)$/);
-                      if (match) {
-                        const [, datetime, author, text] = match;
-                        return (
-                          <Box key={idx} sx={{ mb: 2, pb: 2, borderBottom: idx < selectedOrder.notes.split('\n\n').length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                              <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                                {author}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {datetime}
-                              </Typography>
-                            </Box>
-                            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>
-                              {text}
-                            </Typography>
-                          </Box>
-                        );
-                      }
-                      // Fallback for old format
-                      return (
-                        <Typography key={idx} variant="body2" sx={{ mb: 1, whiteSpace: "pre-wrap" }}>
-                          {note}
-                        </Typography>
-                      );
-                    })
-                  ) : (
-                    <Typography variant="body1" color="text.secondary">
-                      لا توجد ملاحظات
-                    </Typography>
-                  )}
-                </Box>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
+        order={selectedOrder}
+        onSave={handleSaveNotes}
+        user={user}
+      />
     </Box>
   );
 };

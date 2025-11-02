@@ -175,9 +175,20 @@ export const ordersService = {
     return response.data;
   },
 
-  // Assign current preparer (from auth token) to order
-  assignPreparer: async (orderId) => {
-    const response = await api.post(`/Orders/AssignPreparer/${orderId}`);
+  // Get orders for a specific preparer (can filter by status)
+  getOrdersForPreparer: async (preparerId, status = null) => {
+    const params = { preparerId };
+    if (status !== null) {
+      params.status = status;
+    }
+    const response = await api.get(`/Orders/GetOrdersForPreparer`, { params });
+    return response.data;
+  },
+
+  // Assign preparer to order (if preparerId is not provided, uses auth token)
+  assignPreparer: async (orderId, preparerId = null) => {
+    const params = preparerId ? { preparerId } : {};
+    const response = await api.post(`/Orders/AssignPreparer/${orderId}`, null, { params });
     return response.data;
   },
 

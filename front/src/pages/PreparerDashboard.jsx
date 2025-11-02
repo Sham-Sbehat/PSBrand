@@ -24,47 +24,228 @@ import {
   TableHead,
   TableRow,
   CircularProgress,
-  Divider,
-  TextField,
+  Tabs,
+  Tab,
 } from "@mui/material";
-import { Logout, Visibility, Close, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, ShoppingBag, Note, Edit, Save } from "@mui/icons-material";
+import { Logout, Visibility, Close, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, ShoppingBag, Note } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService } from "../services/api";
+import { subscribeToOrderUpdates } from "../services/realtime";
 import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
+import NotesDialog from "../components/common/NotesDialog";
 
 const PreparerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
-  const [preparerOrders, setPreparerOrders] = useState([]);
-  const [preparerOrdersLoading, setPreparerOrdersLoading] = useState(false);
+  const [currentTab, setCurrentTab] = useState(0);
+  const [availableOrders, setAvailableOrders] = useState([]); // Tab 0: Status 3 (IN_PREPARATION)
+  const [myOpenOrders, setMyOpenOrders] = useState([]); // Tab 1: Status 6 (OPEN_ORDER) with preparer === currentUser
+  const [completedOrders, setCompletedOrders] = useState([]); // Tab 2: Status 4 (COMPLETED) with preparer === currentUser
+  const [loading, setLoading] = useState(false);
   const [openDetailsModal, setOpenDetailsModal] = useState(false);
+  const [openCompletedOrdersModal, setOpenCompletedOrdersModal] = useState(false);
+  const [openNotesDialog, setOpenNotesDialog] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [orderNotes, setOrderNotes] = useState('');
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [savingNotes, setSavingNotes] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
 
-  // Fetch orders for preparer (status 3: IN_PREPARATION, status 6: OPEN_ORDER)
-  const fetchPreparerOrders = async () => {
-    setPreparerOrdersLoading(true);
+  // Fetch available orders (Status 3: IN_PREPARATION) - Tab 0
+  const fetchAvailableOrders = async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
-      const [prepOrders, openOrders] = await Promise.all([
-        ordersService.getOrdersByStatus(3),
-        ordersService.getOrdersByStatus(6)
-      ]);
-      const merged = [...(prepOrders || []), ...(openOrders || [])];
-      setPreparerOrders(merged);
+      const prepOrders = await ordersService.getOrdersByStatus(3);
+      setAvailableOrders(prepOrders || []);
     } catch (error) {
-      console.error('Error fetching preparer orders:', error);
-      setPreparerOrders([]);
+      console.error('Error fetching available orders:', error);
     } finally {
-      setPreparerOrdersLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Fetch my open orders (Status 6: OPEN_ORDER with preparer === currentUser) - Tab 1
+  const fetchMyOpenOrders = async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+    try {
+      const currentUserId = user?.id;
+      if (!currentUserId) {
+        setMyOpenOrders([]);
+        return;
+      }
+      
+      // Use GetOrdersForPreparer API with status 6 (OPEN_ORDER)
+      const myOrders = await ordersService.getOrdersForPreparer(currentUserId, ORDER_STATUS.OPEN_ORDER);
+      setMyOpenOrders(myOrders || []);
+    } catch (error) {
+      console.error('Error fetching my open orders:', error);
+      setMyOpenOrders([]);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Fetch completed orders (Status 4: COMPLETED with preparer === currentUser)
+  const fetchCompletedOrders = async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+    try {
+      const currentUserId = user?.id;
+      if (!currentUserId) {
+        setCompletedOrders([]);
+        return;
+      }
+      
+      // Use GetOrdersForPreparer API with status 4 (COMPLETED)
+      const myCompletedOrders = await ordersService.getOrdersForPreparer(currentUserId, ORDER_STATUS.COMPLETED);
+      setCompletedOrders(myCompletedOrders || []);
+    } catch (error) {
+      console.error('Error fetching completed orders:', error);
+      setCompletedOrders([]);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Fetch both tabs data
+  const fetchAllOrders = async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+    try {
+      await Promise.all([
+        fetchAvailableOrders(false),
+        fetchMyOpenOrders(false),
+        fetchCompletedOrders(false)
+      ]);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    fetchPreparerOrders();
-  }, []);
+    fetchAllOrders(true); // Show loading on initial fetch only
+
+    // Subscribe to SignalR updates for real-time order updates
+    let unsubscribe;
+    (async () => {
+      try {
+        unsubscribe = await subscribeToOrderUpdates({
+          onOrderCreated: (newOrder) => {
+            console.log('SignalR: New order created event received', newOrder);
+            if (newOrder && typeof newOrder === 'object' && newOrder.id) {
+              if (newOrder.status === ORDER_STATUS.IN_PREPARATION) {
+                // Add to available orders
+                setAvailableOrders(prevOrders => {
+                  const exists = prevOrders.some(order => order.id === newOrder.id);
+                  if (exists) return prevOrders;
+                  return [newOrder, ...prevOrders];
+                });
+              } else if (newOrder.status === ORDER_STATUS.OPEN_ORDER) {
+                // Check if it's assigned to current user
+                const orderPreparerId = newOrder.preparer?.id || newOrder.preparerId || (typeof newOrder.preparer === 'number' ? newOrder.preparer : null);
+                const currentUserId = user?.id;
+                const preparerIdNum = orderPreparerId ? Number(orderPreparerId) : null;
+                const currentUserIdNum = currentUserId ? Number(currentUserId) : null;
+                
+                if (preparerIdNum === currentUserIdNum) {
+                  setMyOpenOrders(prevOrders => {
+                    const exists = prevOrders.some(order => order.id === newOrder.id);
+                    if (exists) return prevOrders;
+                    return [newOrder, ...prevOrders];
+                  });
+                }
+              }
+            } else {
+              console.log('No order data received, refreshing list');
+              fetchAllOrders(false);
+            }
+          },
+          onOrderStatusChanged: (updatedOrder) => {
+            console.log('SignalR: Order status changed', updatedOrder);
+            if (updatedOrder) {
+              const orderPreparerId = updatedOrder.preparer?.id || updatedOrder.preparerId || (typeof updatedOrder.preparer === 'number' ? updatedOrder.preparer : null);
+              const currentUserId = user?.id;
+              const preparerIdNum = orderPreparerId ? Number(orderPreparerId) : null;
+              const currentUserIdNum = currentUserId ? Number(currentUserId) : null;
+              const isAssignedToMe = preparerIdNum === currentUserIdNum;
+
+              if (updatedOrder.status === ORDER_STATUS.IN_PREPARATION) {
+                // Update in available orders
+                setAvailableOrders(prevOrders => {
+                  const exists = prevOrders.some(order => order.id === updatedOrder.id);
+                  if (exists) {
+                    return prevOrders.map(order => 
+                      order.id === updatedOrder.id ? updatedOrder : order
+                    );
+                  } else {
+                    return [updatedOrder, ...prevOrders];
+                  }
+                });
+                // Remove from my open orders if it was there
+                setMyOpenOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
+              } else if (updatedOrder.status === ORDER_STATUS.OPEN_ORDER && isAssignedToMe) {
+                // Update in my open orders
+                setMyOpenOrders(prevOrders => {
+                  const exists = prevOrders.some(order => order.id === updatedOrder.id);
+                  if (exists) {
+                    return prevOrders.map(order => 
+                      order.id === updatedOrder.id ? updatedOrder : order
+                    );
+                  } else {
+                    return [updatedOrder, ...prevOrders];
+                  }
+                });
+                // Remove from available orders
+                setAvailableOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
+                } else if (updatedOrder.status === ORDER_STATUS.COMPLETED && isAssignedToMe) {
+                  // Update in completed orders
+                  setCompletedOrders(prevOrders => {
+                    const exists = prevOrders.some(order => order.id === updatedOrder.id);
+                    if (exists) {
+                      return prevOrders.map(order => 
+                        order.id === updatedOrder.id ? updatedOrder : order
+                      );
+                    } else {
+                      return [updatedOrder, ...prevOrders];
+                    }
+                  });
+                  // Remove from other lists
+                  setAvailableOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
+                  setMyOpenOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
+                } else {
+                  // Status changed to something else, remove from all lists
+                  setAvailableOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
+                  setMyOpenOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
+                  setCompletedOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
+                }
+            }
+            fetchAllOrders(false);
+          },
+        });
+        console.log('SignalR: Successfully subscribed to order updates');
+      } catch (err) {
+        console.error('Failed to connect to updates hub:', err);
+      }
+    })();
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -73,83 +254,80 @@ const PreparerDashboard = () => {
 
   const handleViewDetails = (order) => {
     setSelectedOrder(order);
-    setOrderNotes(''); // Start with empty for new note
-    setIsEditingNotes(false);
     setOpenDetailsModal(true);
   };
 
   const handleCloseDetailsModal = () => {
     setOpenDetailsModal(false);
     setSelectedOrder(null);
-    setOrderNotes('');
-    setIsEditingNotes(false);
   };
 
-  const handleSaveNotes = async () => {
-    if (!selectedOrder || !orderNotes.trim()) return;
-    setSavingNotes(true);
-    try {
-      const currentDate = new Date();
-      const dateTime = currentDate.toLocaleString("ar-SA", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        calendar: "gregory"
-      });
-      const authorName = user?.name || "مستخدم غير معروف";
-      
-      // Format: [DateTime] Author Name: Note Text
-      const newNote = `[${dateTime}] ${authorName}: ${orderNotes.trim()}`;
-      
-      // Append to existing notes or create new
-      const existingNotes = selectedOrder.notes || '';
-      const updatedNotes = existingNotes ? `${existingNotes}\n\n${newNote}` : newNote;
-      
-      await ordersService.updateOrderNotes(selectedOrder.id, updatedNotes);
-      // Update local state
-      setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
-      setPreparerOrders(prev => prev.map(order => 
-        order.id === selectedOrder.id ? { ...order, notes: updatedNotes } : order
-      ));
-      setOrderNotes(''); // Clear input
-      setIsEditingNotes(false);
-    } catch (error) {
-      console.error('Error saving notes:', error);
-    } finally {
-      setSavingNotes(false);
-    }
+  const handleNotesClick = (order) => {
+    setSelectedOrder(order);
+    setOpenNotesDialog(true);
+  };
+
+  const handleCloseNotesDialog = () => {
+    setOpenNotesDialog(false);
+    setSelectedOrder(null);
+  };
+
+  const handleSaveNotes = async (orderId, updatedNotes) => {
+    await ordersService.updateOrderNotes(orderId, updatedNotes);
+    // Update local state for all order lists
+    setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
+    setAvailableOrders(prev => prev.map(order => 
+      order.id === orderId ? { ...order, notes: updatedNotes } : order
+    ));
+    setMyOpenOrders(prev => prev.map(order => 
+      order.id === orderId ? { ...order, notes: updatedNotes } : order
+    ));
+    setCompletedOrders(prev => prev.map(order => 
+      order.id === orderId ? { ...order, notes: updatedNotes } : order
+    ));
   };
 
   // Handle status update: when already OPEN_ORDER -> set COMPLETED
   const handleStatusUpdate = async (orderId) => {
+    setUpdatingOrderId(orderId);
     try {
       // Move from "في مرحلة التحضير" to "مكتمل"
       const response = await orderStatusService.setCompleted(orderId);
       
-      if (response) {
-        // Update the order status in the current list instead of re-fetching
-        setPreparerOrders(prevOrders => prevOrders.filter(o => o.id !== orderId));
-      }
+      // After successful update, refresh the orders list to get the latest data
+      // Wait a bit for backend to process, then refresh
+      setTimeout(() => {
+        fetchAllOrders(false); // Don't show loading after action
+      }, 500);
+      
     } catch (error) {
       console.error('Error updating order status:', error);
+      alert(`حدث خطأ أثناء تحديث حالة الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
   // Mark order as OPEN_ORDER (when preparer takes the order)
   const handleOpenOrder = async (orderId) => {
+    setUpdatingOrderId(orderId);
     try {
-      // 1) Assign current preparer to this order (uses auth token server-side)
-      await ordersService.assignPreparer(orderId);
+      // 1) Assign current preparer to this order
+      await ordersService.assignPreparer(orderId, user?.id);
       // 2) Set status to OpenOrder
       const response = await orderStatusService.setOpenOrder(orderId);
-      if (response) {
-        // Reflect new status locally
-        setPreparerOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: ORDER_STATUS.OPEN_ORDER } : o));
-      }
+      
+      // After successful update, refresh the orders list and switch to Tab 1
+      setTimeout(() => {
+        fetchAllOrders(false); // Don't show loading after action
+        setCurrentTab(1); // Switch to "طلباتي المفتوحة" tab
+      }, 500);
+      
     } catch (error) {
       console.error('Error setting order to OPEN_ORDER:', error);
+      alert(`حدث خطأ أثناء فتح الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -163,12 +341,39 @@ const PreparerDashboard = () => {
 
   const stats = [
     {
-      title: "الطلبات الجاهزة للتحضير",
-      value: preparerOrders.length,
+      title: "الطلبات المتاحة للتحضير",
+      value: availableOrders.length,
+      icon: Assignment,
+      color: "#1976d2",
+    },
+    {
+      title: "قيد التحضير",
+      value: myOpenOrders.length,
       icon: Assignment,
       color: "#2e7d32",
     },
+    {
+      title: "الطلبات المكتملة",
+      value: completedOrders.length,
+      icon: Assignment,
+      color: "#9c27b0",
+      onClick: () => setOpenCompletedOrdersModal(true),
+    },
   ];
+
+  const handleTabChange = (event, newValue) => {
+    setCurrentTab(newValue);
+    // Refresh the relevant tab when switching
+    if (newValue === 0) {
+      fetchAvailableOrders(false);
+    } else if (newValue === 1) {
+      fetchMyOpenOrders(false);
+    }
+  };
+
+  const handleCloseCompletedOrdersModal = () => {
+    setOpenCompletedOrdersModal(false);
+  };
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
@@ -199,10 +404,12 @@ const PreparerDashboard = () => {
             return (
               <Grid item xs={12} sm={4} key={index}>
                 <Card
+                  onClick={stat.onClick || undefined}
                   sx={{
                     background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}dd 100%)`,
                     color: "white",
                     transition: "transform 0.2s",
+                    cursor: stat.onClick ? "pointer" : "default",
                     "&:hover": {
                       transform: "translateY(-5px)",
                     },
@@ -233,24 +440,53 @@ const PreparerDashboard = () => {
           })}
         </Grid>
 
+        {/* Tabs */}
+        <Box sx={{ marginBottom: 3 }}>
+          <Tabs
+            value={currentTab}
+            onChange={handleTabChange}
+            variant="fullWidth"
+            sx={{
+              backgroundColor: "white",
+              borderRadius: 2,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            }}
+          >
+            <Tab
+              label="الطلبات المتاحة للتحضير"
+              icon={<Assignment />}
+              iconPosition="start"
+              sx={{ fontWeight: 600, fontSize: "1rem" }}
+            />
+            <Tab
+              label="قيد التحضير"
+              icon={<Assignment />}
+              iconPosition="start"
+              sx={{ fontWeight: 600, fontSize: "1rem" }}
+            />
+          </Tabs>
+        </Box>
+
         {/* Orders Table */}
         <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
+          {currentTab === 0 && (
+            <>
           <Typography
             variant="h5"
             gutterBottom
             sx={{ fontWeight: 700, marginBottom: 3 }}
           >
-            الطلبات الجاهزة للتحضير ({preparerOrders.length})
+       الطلبات المتاحة للتحضير ({availableOrders.length})
           </Typography>
 
-          {preparerOrdersLoading ? (
+              {loading && availableOrders.length === 0 ? (
             <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
               <CircularProgress />
               <Typography sx={{ marginLeft: 2 }}>جاري تحميل الطلبات...</Typography>
             </Box>
-          ) : preparerOrders.length === 0 ? (
+              ) : availableOrders.length === 0 ? (
             <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
-              <Typography color="text.secondary">لا توجد طلبات جاهزة للتحضير</Typography>
+                  <Typography color="text.secondary">لا توجد طلبات متاحة للفتح</Typography>
             </Box>
           ) : (
             <TableContainer sx={{ 
@@ -280,11 +516,188 @@ const PreparerDashboard = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>المجموع الفرعي</TableCell>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>الإجمالي</TableCell>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>تاريخ الطلب</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem', minWidth: 80 }}>الملاحظات</TableCell>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>الإجراءات</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {preparerOrders.map((order, index) => (
+                  {availableOrders.map((order, index) => {
+                      // Get preparer ID from order
+                      const orderPreparerId = order.preparer?.id || order.preparerId || (typeof order.preparer === 'number' ? order.preparer : null);
+                      const currentUserId = user?.id;
+                      
+                      // Normalize IDs to numbers for comparison
+                      const preparerIdNum = orderPreparerId ? Number(orderPreparerId) : null;
+                      const currentUserIdNum = currentUserId ? Number(currentUserId) : null;
+                      
+                      const isAssignedToOther = preparerIdNum !== null && preparerIdNum !== currentUserIdNum;
+                      
+                      // Can open order: Status is IN_PREPARATION and not assigned to another preparer
+                      const canOpenOrder = order.status === ORDER_STATUS.IN_PREPARATION && !isAssignedToOther;
+                      
+                      // Show button only if can open
+                      const showActionButton = canOpenOrder;
+                      
+                      return (
+                    <TableRow 
+                      key={order.id} 
+                      hover
+                      sx={{ 
+                        '&:nth-of-type(even)': { backgroundColor: '#fafafa' },
+                        '&:hover': { backgroundColor: '#e3f2fd' },
+                        // Gray out if assigned to another preparer
+                        opacity: (isAssignedToOther && order.status === ORDER_STATUS.IN_PREPARATION) ? 0.6 : 1
+                      }}
+                    >
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        {order.orderNumber || `#${order.id}`}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 500 }}>
+                        {order.client?.name || "-"}
+                      </TableCell>
+                      <TableCell>{order.client?.phone || "-"}</TableCell>
+                      <TableCell>{order.country || "-"}</TableCell>
+                      <TableCell>{order.province || "-"}</TableCell>
+                      <TableCell sx={{ color: "text.secondary" }}>
+                        {order.subTotal || 0} ₪
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700, color: "primary.main", fontSize: '1rem' }}>
+                        {order.totalAmount || 0} ₪
+                      </TableCell>
+                      <TableCell sx={{ color: "text.secondary" }}>
+                        {order.orderDate 
+                          ? new Date(order.orderDate).toLocaleDateString("en-GB", { 
+                              year: "numeric", 
+                              month: "2-digit", 
+                              day: "2-digit" 
+                            })
+                          : "-"
+                        }
+                      </TableCell>
+                      <TableCell sx={{ textAlign: 'center' }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleNotesClick(order)}
+                          sx={{
+                            color: order.notes ? 'primary.main' : 'action.disabled',
+                            '&:hover': {
+                              bgcolor: 'action.hover'
+                            }
+                          }}
+                          title={order.notes ? 'عرض/تعديل الملاحظات' : 'إضافة ملاحظات'}
+                        >
+                          <Note />
+                        </IconButton>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<Visibility />}
+                            onClick={() => handleViewDetails(order)}
+                            sx={{ 
+                              minWidth: '100px',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            عرض التفاصيل
+                          </Button>
+                          {showActionButton ? (
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="primary"
+                              onClick={() => handleOpenOrder(order.id)}
+                              disabled={updatingOrderId === order.id}
+                              sx={{ 
+                                minWidth: '120px',
+                                fontSize: '0.8rem'
+                              }}
+                            >
+                              {updatingOrderId === order.id ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <CircularProgress size={14} color="inherit" />
+                                  جاري...
+                                </Box>
+                              ) : (
+                                'فتح الطلب'
+                              )}
+                            </Button>
+                          ) : isAssignedToOther ? (
+                            <Chip
+                              label={`مفتوح من: ${order.preparer?.name || 'محضر آخر'}`}
+                              color="warning"
+                              size="small"
+                              sx={{ minWidth: '120px' }}
+                            />
+                          ) : null}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+              )}
+            </>
+          )}
+
+          {currentTab === 1 && (
+            <>
+              <Typography
+                variant="h5"
+                gutterBottom
+                sx={{ fontWeight: 700, marginBottom: 3 }}
+              >
+                 قيد التحضير ({myOpenOrders.length})
+              </Typography>
+
+              {loading && myOpenOrders.length === 0 ? (
+                <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
+                  <CircularProgress />
+                  <Typography sx={{ marginLeft: 2 }}>جاري تحميل الطلبات...</Typography>
+                </Box>
+              ) : myOpenOrders.length === 0 ? (
+                <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
+                  <Typography color="text.secondary">لا توجد طلبات مفتوحة</Typography>
+                </Box>
+              ) : (
+            <TableContainer sx={{ 
+              width: '100%',
+              borderRadius: 2, 
+              border: '1px solid #e0e0e0',
+              overflowX: 'auto',
+              '& .MuiTable-root': {
+                direction: 'ltr',
+                width: '100%',
+                minWidth: '1200px'
+              },
+              '& .MuiTableCell-root': {
+                whiteSpace: 'nowrap',
+                padding: '14px 18px',
+                fontSize: '0.95rem'
+              }
+            }}>
+              <Table>
+                <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>رقم الطلب</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>اسم العميل</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>رقم الهاتف</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>البلد</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>المحافظة</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>المجموع الفرعي</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>الإجمالي</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>تاريخ الطلب</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem', minWidth: 80 }}>الملاحظات</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>الإجراءات</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {myOpenOrders.map((order, index) => {
+                      return (
                     <TableRow 
                       key={order.id} 
                       hover
@@ -318,8 +731,23 @@ const PreparerDashboard = () => {
                           : "-"
                         }
                       </TableCell>
+                      <TableCell sx={{ textAlign: 'center' }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleNotesClick(order)}
+                          sx={{
+                            color: order.notes ? 'primary.main' : 'action.disabled',
+                            '&:hover': {
+                              bgcolor: 'action.hover'
+                            }
+                          }}
+                          title={order.notes ? 'عرض/تعديل الملاحظات' : 'إضافة ملاحظات'}
+                        >
+                          <Note />
+                        </IconButton>
+                      </TableCell>
                       <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                           <Button
                             size="small"
                             variant="outlined"
@@ -335,25 +763,148 @@ const PreparerDashboard = () => {
                           <Button
                             size="small"
                             variant="contained"
-                            color={order.status === ORDER_STATUS.OPEN_ORDER ? 'success' : 'primary'}
-                            onClick={() => (order.status === ORDER_STATUS.OPEN_ORDER ? handleStatusUpdate(order.id) : handleOpenOrder(order.id))}
+                            color="success"
+                            onClick={() => handleStatusUpdate(order.id)}
+                            disabled={updatingOrderId === order.id}
                             sx={{ 
                               minWidth: '120px',
                               fontSize: '0.8rem'
                             }}
                           >
-                            {order.status === ORDER_STATUS.OPEN_ORDER ? 'إكمال الطلب' : 'فتح الطلب'}
+                            {updatingOrderId === order.id ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <CircularProgress size={14} color="inherit" />
+                                جاري...
+                              </Box>
+                            ) : (
+                              'إكمال الطلب'
+                            )}
                           </Button>
                         </Box>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+              )}
+            </>
+          )}
+        </Paper>
+      </Container>
+
+      {/* Completed Orders Modal */}
+      <Dialog
+        open={openCompletedOrdersModal}
+        onClose={handleCloseCompletedOrdersModal}
+        maxWidth="xl"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="h6">الطلبات المكتملة ({completedOrders.length})</Typography>
+          <IconButton onClick={handleCloseCompletedOrdersModal}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {loading && completedOrders.length === 0 ? (
+            <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
+              <CircularProgress />
+              <Typography sx={{ marginLeft: 2 }}>جاري التحميل...</Typography>
+            </Box>
+          ) : completedOrders.length === 0 ? (
+            <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
+              <Typography>لا توجد طلبات مكتملة</Typography>
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>رقم الهاتف</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>البلد</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>المحافظة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الإجمالي</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>تاريخ الطلب</TableCell>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {completedOrders.map((order) => {
+                    const status = getStatusLabel(order.status);
+                    return (
+                      <TableRow key={order.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          {order.orderNumber || `#${order.id}`}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 500 }}>
+                          {order.client?.name || "-"}
+                        </TableCell>
+                        <TableCell>{order.client?.phone || "-"}</TableCell>
+                        <TableCell>{order.country || "-"}</TableCell>
+                        <TableCell>{order.province || "-"}</TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: "primary.main" }}>
+                          {order.totalAmount || 0} ₪
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={status.label}
+                            color={status.color}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell sx={{ color: "text.secondary" }}>
+                          {order.orderDate 
+                            ? new Date(order.orderDate).toLocaleDateString("ar-SA", { 
+                                year: "numeric", 
+                                month: "2-digit", 
+                                day: "2-digit" 
+                              })
+                            : "-"
+                          }
+                        </TableCell>
+                        <TableCell sx={{ textAlign: 'center' }}>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleNotesClick(order)}
+                            sx={{
+                              color: order.notes ? 'primary.main' : 'action.disabled',
+                              '&:hover': {
+                                bgcolor: 'action.hover'
+                              }
+                            }}
+                            title={order.notes ? 'عرض/تعديل الملاحظات' : 'إضافة ملاحظات'}
+                          >
+                            <Note />
+                          </IconButton>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<Visibility />}
+                            onClick={() => handleViewDetails(order)}
+                          >
+                            عرض التفاصيل
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
           )}
-        </Paper>
-      </Container>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCompletedOrdersModal}>إغلاق</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Order Details Modal */}
       <Dialog
@@ -522,96 +1073,16 @@ const PreparerDashboard = () => {
               </Paper>
 
               {/* Notes Section */}
-              <Paper elevation={2} sx={{ p: 2.5, borderRadius: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2, pb: 1.5, borderBottom: "2px solid", borderColor: "divider" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Note color="primary" fontSize="small" />
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      الملاحظات
-                    </Typography>
-                  </Box>
-                  {!isEditingNotes ? (
-                    <IconButton size="small" onClick={() => setIsEditingNotes(true)}>
-                      <Edit fontSize="small" />
-                    </IconButton>
-                  ) : (
-                    <Box sx={{ display: "flex", gap: 1 }}>
-                      <IconButton 
-                        size="small" 
-                        color="primary" 
-                        onClick={handleSaveNotes}
-                        disabled={savingNotes}
-                      >
-                        <Save fontSize="small" />
-                      </IconButton>
-                      <IconButton 
-                        size="small" 
-                        onClick={() => {
-                          setIsEditingNotes(false);
-                          setOrderNotes(selectedOrder.notes || '');
-                        }}
-                      >
-                        <Close fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  )}
-                </Box>
-                {isEditingNotes ? (
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={4}
-                    value={orderNotes}
-                    onChange={(e) => setOrderNotes(e.target.value)}
-                    placeholder="أضف ملاحظاتك هنا..."
-                    variant="outlined"
-                  />
-                ) : (
-                  <Box sx={{ 
-                    minHeight: 60,
-                    p: 2,
-                    bgcolor: "grey.50",
-                    borderRadius: 1,
-                    maxHeight: 300,
-                    overflowY: 'auto'
-                  }}>
-                    {selectedOrder.notes ? (
-                      selectedOrder.notes.split('\n\n').map((note, idx) => {
-                        // Parse note format: [DateTime] Author: Text
-                        const match = note.match(/^\[([^\]]+)\]\s+(.+?):\s*(.*)$/);
-                        if (match) {
-                          const [, datetime, author, text] = match;
-                          return (
-                            <Box key={idx} sx={{ mb: 2, pb: 2, borderBottom: idx < selectedOrder.notes.split('\n\n').length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                                  {author}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {datetime}
-                                </Typography>
-                              </Box>
-                              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>
-                                {text}
-                              </Typography>
-                            </Box>
-                          );
-                        }
-                        // Fallback for old format
-                        return (
-                          <Typography key={idx} variant="body2" sx={{ mb: 1, whiteSpace: "pre-wrap" }}>
-                            {note}
-                          </Typography>
-                        );
-                      })
-                    ) : (
-                      <Typography variant="body1" color="text.secondary">
-                        لا توجد ملاحظات
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-              </Paper>
+              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
+                <Button
+                  variant="contained"
+                  startIcon={<Note />}
+                  onClick={() => handleNotesClick(selectedOrder)}
+                  sx={{ minWidth: 200 }}
+                >
+                  عرض/تعديل الملاحظات
+                </Button>
+              </Box>
                 
               {/* Designs Section */}
                 {selectedOrder.orderDesigns && selectedOrder.orderDesigns.length > 0 && (
@@ -720,6 +1191,15 @@ const PreparerDashboard = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Notes Dialog */}
+      <NotesDialog
+        open={openNotesDialog}
+        onClose={handleCloseNotesDialog}
+        order={selectedOrder}
+        onSave={handleSaveNotes}
+        user={user}
+      />
     </Box>
   );
 };
