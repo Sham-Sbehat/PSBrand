@@ -8,5 +8,5 @@ cmds = ["npm install -g npm@latest", "npm install"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "npm run preview -- --host 0.0.0.0"
+cmd = "npm run preview -- --host 0.0.0.0 --port ${5173}"
 
