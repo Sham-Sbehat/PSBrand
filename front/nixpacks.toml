@@ -7,3 +7,6 @@ cmds = ["npm install -g npm@latest", "npm install"]
 [phases.build]
 cmds = ["npm run build"]
 
+[start]
+cmd = "npm run preview -- --host 0.0.0.0 --port ${PORT}"
+
