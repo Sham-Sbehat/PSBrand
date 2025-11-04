@@ -7,9 +7,6 @@ export default defineConfig({
   preview: {
     host: '0.0.0.0',
     port: 5173,
-    allowedHosts: [
-      'earnest-possibility-production-5461.up.railway.app',
-      'localhost'
-    ]
+    allowedHosts: true
   }
 })
