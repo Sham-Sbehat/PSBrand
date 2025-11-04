@@ -1,7 +1,7 @@
 import { HubConnectionBuilder, LogLevel, HttpTransportType } from "@microsoft/signalr";
 
 const getApiBase = () => {
-  const fromEnv = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : "https://localhost:7036/api";
+  const fromEnv = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : "https://psbrand-backend-production.up.railway.app/api";
   // Remove trailing /api to build hub URL
   return fromEnv.replace(/\/api\/?$/, "");
 };
