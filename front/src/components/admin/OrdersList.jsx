@@ -27,6 +27,7 @@ import {
   Note,
   ArrowUpward,
   ArrowDownward,
+  Close,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { ordersService } from "../../services/api";
@@ -44,6 +45,8 @@ const OrdersList = () => {
   const [openNotesDialog, setOpenNotesDialog] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [enlargedImageUrl, setEnlargedImageUrl] = useState(null);
+  const [openImageDialog, setOpenImageDialog] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -101,6 +104,16 @@ const OrdersList = () => {
   const handleCloseNotesDialog = () => {
     setOpenNotesDialog(false);
     setSelectedOrder(null);
+  };
+
+  const handleImageClick = (imageUrl) => {
+    setEnlargedImageUrl(imageUrl);
+    setOpenImageDialog(true);
+  };
+
+  const handleCloseImageDialog = () => {
+    setOpenImageDialog(false);
+    setEnlargedImageUrl(null);
   };
 
   const handleSaveNotes = async (orderId, updatedNotes) => {
@@ -501,7 +514,16 @@ const OrdersList = () => {
                             <img
                               src={design.mockupImageUrl}
                               alt={design.designName}
-                              style={{ maxWidth: '300px', height: 'auto', borderRadius: '8px' }}
+                              onClick={() => handleImageClick(design.mockupImageUrl)}
+                              style={{
+                                maxWidth: '300px',
+                                height: 'auto',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                transition: 'transform 0.2s',
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                             />
                           </Box>
                         )}
@@ -596,6 +618,58 @@ const OrdersList = () => {
             {deleteLoading ? <CircularProgress size={20} /> : "حذف"}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Enlarged Image Dialog */}
+      <Dialog
+        open={openImageDialog}
+        onClose={handleCloseImageDialog}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            boxShadow: 'none',
+          }
+        }}
+      >
+        <DialogContent sx={{
+          padding: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '70vh'
+        }}>
+          {enlargedImageUrl && (
+            <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <img
+                src={enlargedImageUrl}
+                alt="صورة مكبّرة"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '90vh',
+                  objectFit: 'contain',
+                  borderRadius: '8px',
+                }}
+              />
+              <IconButton
+                onClick={handleCloseImageDialog}
+                sx={{
+                  position: 'absolute',
+                  top: 16,
+                  right: 16,
+                  color: 'white',
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                  },
+                }}
+              >
+                <Close />
+              </IconButton>
+            </Box>
+          )}
+        </DialogContent>
       </Dialog>
 
       {/* Notes Dialog */}

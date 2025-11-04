@@ -163,11 +163,26 @@ const OrderForm = ({ onSuccess }) => {
       const response = await clientsService.createClient(clientData);
       console.log('Client created:', response);
 
+      // Reload clients list to include the new client
+      await loadAllClients();
+
       // Update local state with client data
       setCustomerData(data);
       setClientId(response.id);  // Store the new client ID
       setCustomerDialogOpen(false);
       setSubmitSuccess(true);
+      
+      // Auto-select the newly created client in the autocomplete
+      const newClient = {
+        id: response.id,
+        name: data.customerName,
+        phone: data.customerPhone,
+        country: data.country,
+        province: data.province,
+        district: data.district,
+      };
+      handleCustomerSelect(newClient);
+      
       setTimeout(() => setSubmitSuccess(false), 3000);
     } catch (error) {
       console.error('Error creating client:', error);
@@ -839,11 +854,12 @@ const OrderForm = ({ onSuccess }) => {
                   value={allClients.find(client => client.id === clientId) || null}
                   onChange={(event, newValue) => handleCustomerSelect(newValue)}
                   filterOptions={(options, { inputValue }) => {
-                    // Filter by phone number only
+                    // Filter by phone number and name
                     const searchValue = inputValue.toLowerCase().trim();
                     if (!searchValue) return options;
                     return options.filter(option => 
-                      option.phone && option.phone.toString().toLowerCase().includes(searchValue)
+                      (option.phone && option.phone.toString().toLowerCase().includes(searchValue)) ||
+                      (option.name && option.name.toLowerCase().includes(searchValue))
                     );
                   }}
                   renderOption={(props, option) => (
@@ -875,7 +891,7 @@ const OrderForm = ({ onSuccess }) => {
                           </InputAdornment>
                         ),
                       }}
-                      helperText="ابحث برقم الهاتف واختر العميل من القائمة"
+                      helperText="ابحث بالاسم أو رقم الهاتف واختر العميل من القائمة"
                     />
                   )}
                   noOptionsText="لا توجد نتائج"
