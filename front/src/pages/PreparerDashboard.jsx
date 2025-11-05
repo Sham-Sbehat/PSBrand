@@ -27,7 +27,7 @@ import {
   Tabs,
   Tab,
 } from "@mui/material";
-import { Logout, Visibility, Close, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, ShoppingBag, Note } from "@mui/icons-material";
+import { Logout, Visibility, Close, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, ShoppingBag, Note, Image as ImageIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService } from "../services/api";
@@ -48,6 +48,10 @@ const PreparerDashboard = () => {
   const [openNotesDialog, setOpenNotesDialog] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
+  const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
+  const [selectedImage, setSelectedImage] = useState(null); // Selected image for dialog
+  const [imageDialogOpen, setImageDialogOpen] = useState(false); // Image dialog state
 
   // Fetch available orders (Status 3: IN_PREPARATION) - Tab 0
   const fetchAvailableOrders = async (showLoading = false) => {
@@ -252,14 +256,260 @@ const PreparerDashboard = () => {
     navigate("/");
   };
 
-  const handleViewDetails = (order) => {
+  // Load image for display (lazy loading with Intersection Observer)
+  const loadImageForDisplay = async (orderId, designId) => {
+    const cacheKey = `${orderId}-${designId}`;
+    
+    // Check cache first
+    if (imageCache[cacheKey]) {
+      return imageCache[cacheKey];
+    }
+    
+    // Don't load if already loading
+    if (loadingImage === `image-${orderId}-${designId}`) {
+      return null;
+    }
+    
+    // Load if not in cache
+    setLoadingImage(`image-${orderId}-${designId}`);
+    try {
+      console.log('Loading image for:', { orderId, designId });
+      const fullOrder = await ordersService.getOrderById(orderId);
+      const design = fullOrder.orderDesigns?.find(d => d.id === designId);
+      if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
+        console.log('Image loaded successfully:', design.mockupImageUrl.substring(0, 50));
+        // Save to cache
+        setImageCache(prev => ({
+          ...prev,
+          [cacheKey]: design.mockupImageUrl
+        }));
+        return design.mockupImageUrl;
+      } else {
+        console.log('Image not found or excluded:', design);
+      }
+    } catch (error) {
+      console.error('Error loading image:', error);
+    } finally {
+      setLoadingImage(null);
+    }
+    return null;
+  };
+
+  // Force re-render when imageCache changes (to update displayed images)
+  useEffect(() => {
+    // This effect ensures that when imageCache updates, the component re-renders
+    // The dependency on imageCache will trigger re-render automatically
+  }, [imageCache]);
+
+  // Use Intersection Observer for lazy loading images
+  useEffect(() => {
+    let observer = null;
+    
+    // Wait a bit for DOM to render
+    const timer = setTimeout(() => {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const { orderId, designId } = entry.target.dataset;
+              if (orderId && designId) {
+                const key = `${orderId}-${designId}`;
+                
+                // Check if already loaded or loading using current state
+                setImageCache(prevCache => {
+                  if (!prevCache[key]) {
+                    setLoadingImage(prevLoading => {
+                      if (prevLoading !== `image-${orderId}-${designId}`) {
+                        // Load image when it becomes visible
+                        loadImageForDisplay(parseInt(orderId), parseInt(designId));
+                      }
+                      return prevLoading;
+                    });
+                  }
+                  return prevCache;
+                });
+              }
+            }
+          });
+        },
+        { rootMargin: '50px' } // Start loading 50px before image enters viewport
+      );
+
+      // Observe all image placeholders
+      const imageElements = document.querySelectorAll('[data-image-placeholder="true"]');
+      imageElements.forEach((el) => observer.observe(el));
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableOrders.length, myOpenOrders.length, completedOrders.length]); // Re-run when orders change
+
+  // Helper function to open file (handles both URLs and base64)
+  const openFile = async (fileUrl, orderId, designId) => {
+    if (!fileUrl || fileUrl === 'placeholder_print.pdf') {
+      return;
+    }
+
+    // If file data is excluded, fetch full order data first
+    if (fileUrl === 'image_data_excluded' && orderId) {
+      setLoadingImage(`file-${orderId}-${designId}`);
+      try {
+        const fullOrder = await ordersService.getOrderById(orderId);
+        const design = fullOrder.orderDesigns?.find(d => d.id === designId);
+        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
+          fileUrl = design.printFileUrl;
+        } else {
+          alert('الملف غير متوفر');
+          setLoadingImage(null);
+          return;
+        }
+      } catch (error) {
+        console.error('Error fetching order file:', error);
+        alert('حدث خطأ أثناء جلب الملف');
+        setLoadingImage(null);
+        return;
+      } finally {
+        setLoadingImage(null);
+      }
+    }
+
+    // Check if it's a base64 data URL
+    if (fileUrl.startsWith('data:')) {
+      try {
+        let base64Data = '';
+        let mimeType = 'application/pdf';
+        
+        if (fileUrl.includes(',')) {
+          const parts = fileUrl.split(',');
+          base64Data = parts[1];
+          const mimeMatch = fileUrl.match(/data:([^;]+);base64/);
+          if (mimeMatch) {
+            mimeType = mimeMatch[1];
+          }
+        } else {
+          base64Data = fileUrl;
+        }
+
+        const cleanBase64 = base64Data.replace(/\s/g, '');
+        
+        let blob;
+        try {
+          const response = await fetch(fileUrl);
+          blob = await response.blob();
+        } catch (fetchError) {
+          const binaryString = atob(cleanBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          blob = new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+        }
+        
+        if (blob.size === 0) {
+          throw new Error('الملف فارغ');
+        }
+
+        // Detect file type
+        let fileExtension = 'pdf';
+        if (mimeType) {
+          const mimeToExt = {
+            'application/pdf': 'pdf',
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/png': 'png',
+            'image/svg+xml': 'svg',
+            'image/gif': 'gif',
+            'image/webp': 'webp'
+          };
+          fileExtension = mimeToExt[mimeType.toLowerCase()] || 'bin';
+        }
+
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `order_file_${Date.now()}.${fileExtension}`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        }, 1000);
+      } catch (error) {
+        console.error('Error opening file:', error);
+        alert('حدث خطأ أثناء فتح الملف.\n' + error.message);
+      }
+    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileUrl.split('/').pop() || 'file.pdf';
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    }
+  };
+
+  const handleViewDetails = async (order) => {
+    console.log('Opening order details:', order);
+    console.log('Order designs:', order?.orderDesigns);
+    
     setSelectedOrder(order);
     setOpenDetailsModal(true);
+    
+    // Load images for all designs when modal opens
+    if (order?.orderDesigns) {
+      order.orderDesigns.forEach(design => {
+        console.log('Design:', {
+          id: design.id,
+          name: design.designName,
+          mockupImageUrl: design.mockupImageUrl,
+          printFileUrl: design.printFileUrl
+        });
+      });
+      
+      const loadPromises = order.orderDesigns.map(design => {
+        if (design.mockupImageUrl === 'image_data_excluded') {
+          console.log('Loading image for design:', design.id);
+          return loadImageForDisplay(order.id, design.id);
+        }
+        return Promise.resolve(null);
+      });
+      
+      // Wait for all images to load, then update selectedOrder to trigger re-render
+      Promise.all(loadPromises).then(() => {
+        console.log('All images loaded');
+        // Force re-render by updating selectedOrder
+        setSelectedOrder(prev => ({ ...prev }));
+      });
+    }
   };
 
   const handleCloseDetailsModal = () => {
     setOpenDetailsModal(false);
     setSelectedOrder(null);
+  };
+
+  const handleImageClick = (imageUrl) => {
+    if (!imageUrl || imageUrl === 'image_data_excluded' || imageUrl === 'placeholder_mockup.jpg') {
+      return;
+    }
+    setSelectedImage(imageUrl);
+    setImageDialogOpen(true);
+  };
+
+  const handleCloseImageDialog = () => {
+    setImageDialogOpen(false);
+    setSelectedImage(null);
   };
 
   const handleNotesClick = (order) => {
@@ -862,8 +1112,9 @@ const PreparerDashboard = () => {
                           {order.orderDate 
                             ? new Date(order.orderDate).toLocaleDateString("ar-SA", { 
                                 year: "numeric", 
-                                month: "2-digit", 
-                                day: "2-digit" 
+                                month: "short", 
+                                day: "numeric",
+                                calendar: "gregory" 
                               })
                             : "-"
                           }
@@ -956,14 +1207,14 @@ const PreparerDashboard = () => {
                         التاريخ
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
-                    {selectedOrder.orderDate 
-                          ? new Date(selectedOrder.orderDate).toLocaleDateString("ar-SA", {
-                          year: "numeric",
-                              month: "long",
-                              day: "numeric"
-                        })
-                      : "-"
-                    }
+                   {selectedOrder.orderDate 
+                    ? new Date(selectedOrder.orderDate).toLocaleDateString("ar-SA", { 
+                        year: "numeric", 
+                        month: "long", 
+                        day: "numeric",
+                        calendar: "gregory" 
+                      })
+                    : "-"}
                   </Typography>
                     </Box>
                 </Grid>
@@ -1108,19 +1359,60 @@ const PreparerDashboard = () => {
                         )}
                       </Box>
                       
+                      {/* Always show image section if mockupImageUrl exists */}
                       {design.mockupImageUrl && design.mockupImageUrl !== 'placeholder_mockup.jpg' && (
-                        <Box sx={{ mb: 2.5, textAlign: "center", p: 2, bgcolor: "grey.50", borderRadius: 2 }}>
-                            <img 
-                              src={design.mockupImageUrl} 
-                              alt={design.designName}
-                              style={{ 
-                                maxWidth: "100%",
-                              maxHeight: "300px",
-                              objectFit: "contain",
-                              borderRadius: "8px"
+                        (() => {
+                          const cacheKey = `${selectedOrder?.id}-${design.id}`;
+                          const isExcluded = design.mockupImageUrl === 'image_data_excluded';
+                          const cachedImage = imageCache[cacheKey];
+                          const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}`;
+                          const displayImage = isExcluded ? cachedImage : design.mockupImageUrl;
+                          
+                          return (
+                            <Box 
+                              sx={{ 
+                                mb: 2.5, 
+                                textAlign: "center", 
+                                p: 2, 
+                                bgcolor: displayImage ? "grey.50" : "grey.100",
+                                borderRadius: 2,
+                                minHeight: "200px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: isExcluded && !cachedImage ? '1px dashed #ccc' : 'none'
                               }}
-                            />
-                          </Box>
+                              data-image-placeholder={isExcluded && !cachedImage ? "true" : "false"}
+                              data-order-id={selectedOrder?.id}
+                              data-design-id={design.id}
+                            >
+                              {isLoading ? (
+                                <CircularProgress />
+                              ) : displayImage ? (
+                                <img 
+                                  src={displayImage} 
+                                  alt={design.designName}
+                                  onClick={() => handleImageClick(displayImage)}
+                                  style={{ 
+                                    maxWidth: "100%",
+                                    maxHeight: "300px",
+                                    objectFit: "contain",
+                                    borderRadius: "8px",
+                                    cursor: "pointer",
+                                    transition: "transform 0.2s"
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                />
+                              ) : (
+                                <Box sx={{ color: '#999', textAlign: 'center' }}>
+                                  <ImageIcon sx={{ fontSize: 48, mb: 1, opacity: 0.5 }} />
+                                  <Typography variant="body2">جاري التحميل...</Typography>
+                                </Box>
+                              )}
+                            </Box>
+                          );
+                        })()
                         )}
 
                         {design.orderDesignItems && design.orderDesignItems.length > 0 && (
@@ -1159,18 +1451,21 @@ const PreparerDashboard = () => {
                         </Box>
                       )}
 
-                        {design.printFileUrl && design.printFileUrl !== "placeholder_print.pdf" && (
+                        {/* Always show file section if printFileUrl exists */}
+                        {design.printFileUrl && (
                         <Box sx={{ mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
                             <Button
                               variant="contained"
                               color="primary"
-                              href={design.printFileUrl}
-                              target="_blank"
-                              download
-                            fullWidth
-                            sx={{ py: 1.2, fontWeight: 600 }}
+                              onClick={() => openFile(design.printFileUrl, selectedOrder?.id, design.id)}
+                              disabled={loadingImage === `file-${selectedOrder?.id}-${design.id}`}
+                              fullWidth
+                              startIcon={loadingImage === `file-${selectedOrder?.id}-${design.id}` ? <CircularProgress size={16} /> : null}
+                              sx={{ py: 1.2, fontWeight: 600 }}
                             >
-                            تحميل ملف PDF للطباعة
+                              {design.printFileUrl === 'image_data_excluded' 
+                                ? 'تنزيل ملف التصميم ' 
+                                : 'تنزيل ملف التصميم  '}
                             </Button>
                           </Box>
                         )}
@@ -1200,6 +1495,70 @@ const PreparerDashboard = () => {
         onSave={handleSaveNotes}
         user={user}
       />
+
+      {/* Image Dialog */}
+      <Dialog
+        open={imageDialogOpen}
+        onClose={handleCloseImageDialog}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.9)',
+            color: 'white'
+          }
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">معاينة الصورة</Typography>
+          <IconButton onClick={handleCloseImageDialog} sx={{ color: 'white' }}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ padding: 2 }}>
+          {selectedImage && selectedImage !== 'image_data_excluded' ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+              <img
+                src={selectedImage}
+                alt="معاينة الصورة"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  borderRadius: '8px'
+                }}
+              />
+              <Box sx={{
+                display: 'none',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '400px',
+                color: 'text.secondary'
+              }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
+                <Typography variant="body2">الصورة غير متوفرة</Typography>
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '400px',
+              color: 'text.secondary'
+            }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
+              <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات</Typography>
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

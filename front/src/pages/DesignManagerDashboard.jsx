@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Container,
   Box,
@@ -25,6 +25,7 @@ import {
   TextField,
   MenuItem,
   CircularProgress,
+  TablePagination,
 } from "@mui/material";
 import {
   Logout,
@@ -39,6 +40,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService } from "../services/api";
+import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
@@ -54,6 +56,12 @@ const DesignManagerDashboard = () => {
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [statusFilter, setStatusFilter] = useState(ORDER_STATUS.PENDING_PRINTING);
+  const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
+  const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
+  const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
+  const MAX_CONCURRENT_LOADS = 3; // Maximum concurrent image loads
+  const [page, setPage] = useState(0); // Current page for pagination
+  const [rowsPerPage, setRowsPerPage] = useState(5); // Number of rows per page
 
   // Fetch all orders
   const fetchOrders = async (showLoading = false) => {
@@ -105,9 +113,368 @@ const DesignManagerDashboard = () => {
     navigate("/");
   };
 
-  const handleImageClick = (imageUrl) => {
+  // Load image for display (lazy loading with queue)
+  const loadImageForDisplay = async (orderId, designId) => {
+    const cacheKey = `${orderId}-${designId}`;
+    const loadingKey = `image-${orderId}-${designId}`;
+    
+    // Check cache first
+    if (imageCache[cacheKey]) {
+      return imageCache[cacheKey];
+    }
+    
+    // Don't load if already loading
+    if (activeImageLoads.current.has(loadingKey)) {
+      return null;
+    }
+    
+    // Check if we're at max concurrent loads - wait a bit
+    if (activeImageLoads.current.size >= MAX_CONCURRENT_LOADS) {
+      // Queue this load by retrying after a short delay
+      setTimeout(() => {
+        loadImageForDisplay(orderId, designId);
+      }, 500);
+      return null;
+    }
+    
+    // Start loading
+    activeImageLoads.current.add(loadingKey);
+    setLoadingImage(loadingKey);
+    
+    try {
+      const fullOrder = await ordersService.getOrderById(orderId);
+      const design = fullOrder.orderDesigns?.find(d => d.id === designId);
+      if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
+        // Save to cache
+        setImageCache(prev => ({
+          ...prev,
+          [cacheKey]: design.mockupImageUrl
+        }));
+        return design.mockupImageUrl;
+      }
+    } catch (error) {
+      console.error('Error loading image:', error);
+    } finally {
+      activeImageLoads.current.delete(loadingKey);
+      setLoadingImage(null);
+    }
+    return null;
+  };
+
+  // Use Intersection Observer for lazy loading images
+  useEffect(() => {
+    let observer = null;
+    
+    // Wait a bit for DOM to render
+    const timer = setTimeout(() => {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const { orderId, designId } = entry.target.dataset;
+              if (orderId && designId) {
+                const key = `${orderId}-${designId}`;
+                
+                // Check if already loaded or loading
+                setImageCache(prevCache => {
+                  const loadingKey = `image-${orderId}-${designId}`;
+                  if (!prevCache[key] && !activeImageLoads.current.has(loadingKey)) {
+                    // Load image when it becomes visible
+                    loadImageForDisplay(parseInt(orderId), parseInt(designId));
+                  }
+                  return prevCache;
+                });
+                
+                // Stop observing once we've triggered the load
+                observer.unobserve(entry.target);
+              }
+            }
+          });
+        },
+        { 
+          rootMargin: '100px', // Start loading 100px before image enters viewport
+          threshold: 0.01 // Trigger when 1% of image is visible
+        }
+      );
+
+      // Observe all image placeholders
+      const imageElements = document.querySelectorAll('[data-image-placeholder="true"]');
+      imageElements.forEach((el) => observer.observe(el));
+    }, 200);
+
+    return () => {
+      clearTimeout(timer);
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOrders.length]); // Re-run only when orders count changes
+
+  const handleImageClick = async (imageUrl, orderId, designId) => {
+    const cacheKey = `${orderId}-${designId}`;
+    
+    // If image data is excluded, use cached or load it
+    if (imageUrl === 'image_data_excluded' && orderId) {
+      let imageToShow = imageCache[cacheKey];
+      
+      if (!imageToShow) {
+        imageToShow = await loadImageForDisplay(orderId, designId);
+      }
+      
+      if (imageToShow) {
+        setSelectedImage(imageToShow);
+        setImageDialogOpen(true);
+      } else {
+        alert('الصورة غير متوفرة');
+      }
+      return;
+    }
+    
+    // Don't open dialog if image data is excluded
+    if (!imageUrl || imageUrl === 'placeholder_mockup.jpg') {
+      return;
+    }
     setSelectedImage(imageUrl);
     setImageDialogOpen(true);
+  };
+
+  // Helper function to open file (handles both URLs and base64)
+  const openFile = async (fileUrl) => {
+    if (!fileUrl || fileUrl === 'placeholder_print.pdf' || fileUrl === 'image_data_excluded') {
+      return;
+    }
+
+    // Check if it's a base64 data URL
+    if (fileUrl.startsWith('data:')) {
+      // Convert base64 to blob and download
+      try {
+        // Extract base64 data (everything after comma)
+        let base64Data = '';
+        let mimeType = 'application/pdf';
+        
+        if (fileUrl.includes(',')) {
+          const parts = fileUrl.split(',');
+          base64Data = parts[1];
+          // Extract MIME type from data URL
+          const mimeMatch = fileUrl.match(/data:([^;]+);base64/);
+          if (mimeMatch) {
+            mimeType = mimeMatch[1];
+          }
+        } else {
+          // Pure base64 string without data URL prefix
+          base64Data = fileUrl;
+        }
+
+        // Clean base64 string (remove whitespace, newlines, etc.)
+        const cleanBase64 = base64Data.replace(/\s/g, '');
+        
+        console.log('Processing base64 file:', {
+          originalLength: base64Data.length,
+          cleanedLength: cleanBase64.length,
+          mimeType: mimeType
+        });
+
+        // Method 1: Try using fetch API first
+        let blob;
+        try {
+          const response = await fetch(fileUrl);
+          blob = await response.blob();
+          
+          if (blob.size === 0) {
+            throw new Error('الملف فارغ بعد التحويل');
+          }
+          
+          console.log('Blob created via fetch:', {
+            size: blob.size,
+            type: blob.type
+          });
+        } catch (fetchError) {
+          console.warn('Fetch method failed, trying manual conversion:', fetchError);
+          
+          // Method 2: Manual base64 to blob conversion (more reliable for large files)
+          try {
+            // Clean and validate base64
+            const cleanBase64ForManual = base64Data.replace(/\s/g, '');
+            
+            if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanBase64ForManual)) {
+              throw new Error('الملف ليس بصيغة base64 صحيحة');
+            }
+            
+            // Decode base64 in chunks for large files
+            const binaryString = atob(cleanBase64ForManual);
+            const bytes = new Uint8Array(binaryString.length);
+            
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            // Use detected MIME type or default to application/octet-stream
+            const blobType = mimeType || 'application/octet-stream';
+            blob = new Blob([bytes], { type: blobType });
+            
+            if (blob.size === 0) {
+              throw new Error('الملف فارغ بعد التحويل');
+            }
+            
+            console.log('Blob created via manual conversion:', {
+              size: blob.size,
+              type: blob.type
+            });
+          } catch (manualError) {
+            console.error('Both methods failed:', { fetchError, manualError });
+            throw new Error('فشل في تحويل الملف. قد يكون الملف تالفاً أو كبيراً جداً.');
+          }
+        }
+        
+        // Detect file type from MIME type or blob content
+        let fileExtension = 'pdf'; // default
+        let fileName = `order_file_${Date.now()}`;
+        
+        // Determine file extension from MIME type
+        if (mimeType) {
+          const mimeToExt = {
+            'application/pdf': 'pdf',
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/png': 'png',
+            'image/svg+xml': 'svg',
+            'image/gif': 'gif',
+            'image/webp': 'webp'
+          };
+          fileExtension = mimeToExt[mimeType.toLowerCase()] || 'bin';
+        } else {
+          // Try to detect from file signature if MIME type is not available
+          try {
+            const arrayBuffer = await blob.slice(0, 8).arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
+            
+            // PDF signature
+            if (uint8Array[0] === 0x25 && uint8Array[1] === 0x50 && uint8Array[2] === 0x44 && uint8Array[3] === 0x46) {
+              fileExtension = 'pdf';
+            }
+            // PNG signature (89 50 4E 47)
+            else if (uint8Array[0] === 0x89 && uint8Array[1] === 0x50 && uint8Array[2] === 0x4E && uint8Array[3] === 0x47) {
+              fileExtension = 'png';
+            }
+            // JPEG signature (FF D8 FF)
+            else if (uint8Array[0] === 0xFF && uint8Array[1] === 0xD8 && uint8Array[2] === 0xFF) {
+              fileExtension = 'jpg';
+            }
+            // SVG (check for <svg or <?xml)
+            else {
+              const textDecoder = new TextDecoder();
+              const text = textDecoder.decode(uint8Array);
+              if (text.includes('<svg') || (text.includes('<?xml') && text.includes('svg'))) {
+                fileExtension = 'svg';
+              }
+            }
+            
+            console.log('File type detected from signature:', fileExtension);
+          } catch (sigError) {
+            console.warn('Could not detect file type from signature, using default:', sigError);
+          }
+        }
+        
+        fileName = `${fileName}.${fileExtension}`;
+        
+        console.log('File info:', {
+          mimeType: mimeType,
+          fileExtension: fileExtension,
+          fileName: fileName,
+          blobSize: blob.size
+        });
+        
+        // Create blob URL for download
+        const blobUrl = URL.createObjectURL(blob);
+        console.log('Blob URL created:', blobUrl, 'Size:', blob.size);
+        
+        // Download file directly
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        
+        console.log('Triggering download...');
+        link.click();
+        
+        // Remove link and cleanup after download
+        setTimeout(() => {
+          document.body.removeChild(link);
+          // Give more time for download to complete before revoking
+          setTimeout(() => {
+            console.log('Revoking blob URL');
+            URL.revokeObjectURL(blobUrl);
+          }, 10000); // 10 seconds - enough time for download
+        }, 1000);
+      } catch (error) {
+        console.error('Error opening base64 file:', error);
+        alert('حدث خطأ أثناء فتح الملف.\n' + error.message + '\n\nيرجى المحاولة مرة أخرى أو الاتصال بالدعم.');
+      }
+    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
+      // Regular URL - download directly
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileUrl.split('/').pop() || 'file.pdf';
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    } else {
+      // Try to download as is
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = 'file.pdf';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    }
+  };
+
+  const handleFileClick = async (fileUrl, orderId, designId) => {
+    // If file data is excluded, fetch full order data
+    if (fileUrl === 'image_data_excluded' && orderId) {
+      setLoadingImage(`file-${orderId}-${designId}`);
+      try {
+        console.log('Fetching full order to get file...', { orderId, designId });
+        const fullOrder = await ordersService.getOrderById(orderId);
+        console.log('Full order received:', fullOrder);
+        const design = fullOrder.orderDesigns?.find(d => d.id === designId);
+        console.log('Design found:', design);
+        
+        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
+          console.log('File found, opening...', {
+            fileUrlLength: design.printFileUrl.length,
+            isBase64: design.printFileUrl.startsWith('data:'),
+            startsWith: design.printFileUrl.substring(0, 50)
+          });
+          // Open file using helper function
+          await openFile(design.printFileUrl);
+        } else {
+          console.error('File not available:', { 
+            hasPrintFileUrl: !!design?.printFileUrl, 
+            printFileUrl: design?.printFileUrl 
+          });
+          alert('الملف غير متوفر في قاعدة البيانات');
+        }
+      } catch (error) {
+        console.error('Error fetching order file:', error);
+        alert('حدث خطأ أثناء جلب الملف: ' + (error.message || 'خطأ غير معروف'));
+      } finally {
+        setLoadingImage(null);
+      }
+      return;
+    }
+    
+    // Normal file handling
+    await openFile(fileUrl);
   };
 
   const handleCloseImageDialog = () => {
@@ -174,6 +541,57 @@ const DesignManagerDashboard = () => {
   const filteredOrders = statusFilter === "all"
     ? allOrders
     : allOrders.filter((order) => order.status === parseInt(statusFilter));
+
+  // Calculate total rows (each design counts as a row)
+  const totalRows = filteredOrders.reduce((total, order) => {
+    const designs = order.orderDesigns || [];
+    return total + (designs.length > 0 ? designs.length : 1); // If no designs, count as 1 row
+  }, 0);
+
+  // Flatten orders to rows for pagination
+  const flattenedRows = filteredOrders.flatMap((order) => {
+    const designs = order.orderDesigns || [];
+    if (designs.length === 0) {
+      return [{ order, design: null, isFirstRow: true }];
+    }
+    return designs.map((design, index) => ({
+      order,
+      design,
+      isFirstRow: index === 0
+    }));
+  });
+
+  // Apply pagination
+  const paginatedRows = flattenedRows.slice(
+    page * rowsPerPage,
+    page * rowsPerPage + rowsPerPage
+  );
+
+  // Handle page change
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+    // Clear loading states when changing page
+    setLoadingImage(null);
+    activeImageLoads.current.clear();
+    // Scroll to top of table
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Handle rows per page change
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0); // Reset to first page
+    // Clear loading states when changing rows per page
+    setLoadingImage(null);
+    activeImageLoads.current.clear();
+  };
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(0);
+    setLoadingImage(null);
+    activeImageLoads.current.clear();
+  }, [statusFilter]);
 
   // Calculate stats
   const pendingPrintingCount = allOrders.filter(order => order.status === ORDER_STATUS.PENDING_PRINTING).length;
@@ -319,13 +737,13 @@ const DesignManagerDashboard = () => {
                   <TableHead>
                     <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                       <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>اسم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>رقم الهاتف</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>البائع</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>العدد</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>نوع المنتج</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>الصورة</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>ملف PDF</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>ملف التصميم</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
                       <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
@@ -333,7 +751,7 @@ const DesignManagerDashboard = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredOrders.length === 0 ? (
+                    {paginatedRows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={12} align="center">
                           <Box sx={{ padding: 4 }}>
@@ -344,12 +762,12 @@ const DesignManagerDashboard = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredOrders.flatMap((order) => {
+                      paginatedRows.map(({ order, design, isFirstRow }) => {
                       const status = getStatusLabel(order.status);
                       const designs = order.orderDesigns || [];
                       
-                      // If no designs, show at least one row with order info
-                      if (designs.length === 0) {
+                      // If no design (order has no designs)
+                      if (!design) {
                         return (
                           <TableRow
                             key={`order-${order.id}`}
@@ -359,14 +777,10 @@ const DesignManagerDashboard = () => {
                             }}
                           >
                             <TableCell>{order.orderNumber || `#${order.id}`}</TableCell>
+                            <TableCell>-</TableCell>
                             <TableCell>{order.client?.name || "-"}</TableCell>
-                            <TableCell>{order.client?.phone || "-"}</TableCell>
                             <TableCell>
                               {order.designer?.name || "غير محدد"}
-                              <br />
-                              <Typography variant="caption" color="text.secondary">
-                                ID: {order.designer?.id || "-"}
-                              </Typography>
                             </TableCell>
                             <TableCell>0</TableCell>
                             <TableCell>-</TableCell>
@@ -430,11 +844,9 @@ const DesignManagerDashboard = () => {
                         );
                       }
                       
-                      const rowCount = designs.length;
-                      
-                      // For each design in the order, create a separate row
-                      return designs.map((design, designIndex) => {
-                        const isFirstRow = designIndex === 0;
+                      // Calculate rowSpan for visible designs in current page
+                      const visibleDesignsInOrder = paginatedRows.filter(row => row.order.id === order.id);
+                      const rowCount = visibleDesignsInOrder.length;
                         
                         // Calculate count for this specific design
                         const designCount = design.orderDesignItems?.reduce((sum, item) => {
@@ -448,7 +860,7 @@ const DesignManagerDashboard = () => {
                         
                         return (
                           <TableRow
-                            key={`order-${order.id}-design-${design.id || designIndex}`}
+                            key={`order-${order.id}-design-${design.id || Math.random()}`}
                             hover
                             sx={{
                               "&:last-child td, &:last-child th": { border: 0 },
@@ -459,81 +871,138 @@ const DesignManagerDashboard = () => {
                                 <TableCell rowSpan={rowCount}>
                                   {order.orderNumber || `#${order.id}`}
                                 </TableCell>
+                              </>
+                            )}
+                            <TableCell>{design?.designName || "-"}</TableCell>
+                            {isFirstRow && (
+                              <>
                                 <TableCell rowSpan={rowCount}>
                                   {order.client?.name || "-"}
                                 </TableCell>
                                 <TableCell rowSpan={rowCount}>
-                                  {order.client?.phone || "-"}
-                                </TableCell>
-                                <TableCell rowSpan={rowCount}>
                                   {order.designer?.name || "غير محدد"}
-                                  <br />
-                                  <Typography variant="caption" color="text.secondary">
-                                    ID: {order.designer?.id || "-"}
-                                  </Typography>
                                 </TableCell>
                               </>
                             )}
                             <TableCell>{designCount}</TableCell>
                             <TableCell>{productType}</TableCell>
                             <TableCell>
-                              {design?.mockupImageUrl && design.mockupImageUrl !== 'placeholder_mockup.jpg' ? (
-                                <Box 
-                                  sx={{ 
-                                    width: 80, 
-                                    height: 80, 
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    '&:hover': {
-                                      opacity: 0.8
-                                    }
-                                  }}
-                                  onClick={() => handleImageClick(design.mockupImageUrl)}
-                                >
-                                  <img 
-                                    src={design.mockupImageUrl} 
-                                    alt={design.designName}
-                                    onError={(e) => {
-                                      e.target.src = '';
-                                      e.target.style.display = 'none';
-                                      e.target.nextSibling.style.display = 'flex';
-                                    }}
-                                    style={{ 
-                                      width: "100%", 
-                                      height: "100%", 
-                                      objectFit: "cover",
-                                      borderRadius: "4px"
-                                    }}
-                                  />
-                                  <Box 
-                                    sx={{ 
-                                      display: 'none',
-                                      width: "100%", 
-                                      height: "100%", 
-                                      justifyContent: 'center',
-                                      alignItems: 'center',
-                                      bgcolor: '#f0f0f0',
-                                      borderRadius: "4px",
-                                      fontSize: '0.75rem',
-                                      color: '#666'
-                                    }}
-                                  >
-                                    صورة غير متوفرة
-                                  </Box>
-                                </Box>
+                              {design?.mockupImageUrl && 
+                               design.mockupImageUrl !== 'placeholder_mockup.jpg' ? (
+                                (() => {
+                                  const cacheKey = `${order.id}-${design.id}`;
+                                  const isExcluded = design.mockupImageUrl === 'image_data_excluded';
+                                  const cachedImage = imageCache[cacheKey];
+                                  const isLoading = loadingImage === `image-${order.id}-${design.id}`;
+                                  const displayImage = isExcluded ? cachedImage : design.mockupImageUrl;
+                                  
+                                  return (
+                                    <Box 
+                                      sx={{ 
+                                        width: 80, 
+                                        height: 80, 
+                                        position: 'relative',
+                                        cursor: 'pointer',
+                                        bgcolor: isExcluded && !cachedImage ? '#f5f5f5' : 'transparent',
+                                        borderRadius: "4px",
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        border: isExcluded && !cachedImage ? '1px solid #e0e0e0' : 'none',
+                                        '&:hover': {
+                                          opacity: 0.8
+                                        }
+                                      }}
+                                      onClick={() => handleImageClick(design.mockupImageUrl, order.id, design.id)}
+                                      data-image-placeholder={isExcluded && !cachedImage ? "true" : "false"}
+                                      data-order-id={order.id}
+                                      data-design-id={design.id}
+                                    >
+                                      {isLoading ? (
+                                        <CircularProgress size={24} />
+                                      ) : displayImage ? (
+                                        <img 
+                                          src={displayImage} 
+                                          alt={design.designName}
+                                          onClick={() => {
+                                            if (displayImage && displayImage !== 'image_data_excluded') {
+                                              setSelectedImage(displayImage);
+                                              setImageDialogOpen(true);
+                                            }
+                                          }}
+                                          onError={(e) => {
+                                            e.target.src = '';
+                                            e.target.style.display = 'none';
+                                            e.target.nextSibling.style.display = 'flex';
+                                          }}
+                                          style={{ 
+                                            width: "100%", 
+                                            height: "100%", 
+                                            objectFit: "cover",
+                                            borderRadius: "4px",
+                                            cursor: displayImage && displayImage !== 'image_data_excluded' ? 'pointer' : 'default'
+                                          }}
+                                        />
+                                      ) : (
+                                        <Box 
+                                          sx={{ 
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            width: "100%", 
+                                            height: "100%", 
+                                            color: '#bbb',
+                                            fontSize: '0.65rem',
+                                            textAlign: 'center'
+                                          }}
+                                        >
+                                          <ImageIcon sx={{ fontSize: 20, mb: 0.5, opacity: 0.5 }} />
+                                          <span>انقر لتحميل الصورة  ...</span>
+                                        </Box>
+                                      )}
+                                      <Box 
+                                        sx={{ 
+                                          display: 'none',
+                                          width: "100%", 
+                                          height: "100%", 
+                                          justifyContent: 'center',
+                                          alignItems: 'center',
+                                          bgcolor: '#f0f0f0',
+                                          borderRadius: "4px",
+                                          fontSize: '0.75rem',
+                                          color: '#666'
+                                        }}
+                                      >
+                                        صورة غير متوفرة
+                                      </Box>
+                                    </Box>
+                                  );
+                                })()
                               ) : "-"}
                             </TableCell>
                             <TableCell>
-                              {design?.printFileUrl && design.printFileUrl !== "placeholder_print.pdf" ? (
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  href={design.printFileUrl}
-                                  target="_blank"
-                                  download
-                                >
-                                  PDF
-                                </Button>
+                              {design?.printFileUrl && 
+                               design.printFileUrl !== "placeholder_print.pdf" ? (
+                                design.printFileUrl === 'image_data_excluded' ? (
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={loadingImage === `file-${order.id}-${design.id}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
+                                    onClick={() => handleFileClick(design.printFileUrl, order.id, design.id)}
+                                    disabled={loadingImage === `file-${order.id}-${design.id}`}
+                                  >
+                                    تحميل الملف
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    onClick={() => handleFileClick(design.printFileUrl, order.id, design.id)}
+                                  >
+                                    PDF
+                                  </Button>
+                                )
                               ) : "-"}
                             </TableCell>
                             {isFirstRow && (
@@ -596,12 +1065,24 @@ const DesignManagerDashboard = () => {
                             )}
                           </TableRow>
                         );
-                      });
-                    })
+                      })
                     )}
                   </TableBody>
                 </Table>
               </TableContainer>
+              <TablePagination
+                component="div"
+                count={totalRows}
+                page={page}
+                onPageChange={handleChangePage}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                labelRowsPerPage="عدد الصفوف في الصفحة:"
+                labelDisplayedRows={({ from, to, count }) => 
+                  `${from}–${to} من ${count !== -1 ? count : `أكثر من ${to}`}`
+                }
+                rowsPerPageOptions={[5, 10, 25, 50]}
+              />
             </>
           )}
         </Paper>
@@ -621,11 +1102,15 @@ const DesignManagerDashboard = () => {
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ padding: 2 }}>
-          {selectedImage && (
+          {selectedImage && selectedImage !== 'image_data_excluded' ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
               <img 
                 src={selectedImage} 
                 alt="معاينة الصورة"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
                 style={{ 
                   maxWidth: '100%', 
                   maxHeight: '70vh', 
@@ -633,6 +1118,29 @@ const DesignManagerDashboard = () => {
                   borderRadius: '8px'
                 }}
               />
+              <Box sx={{ 
+                display: 'none',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '400px',
+                color: 'text.secondary'
+              }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
+                <Typography variant="body2">الصورة غير متوفرة في قائمة الطلبات</Typography>
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '400px',
+              color: 'text.secondary'
+            }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
+              <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات لتقليل حجم البيانات</Typography>
             </Box>
           )}
         </DialogContent>
@@ -651,4 +1159,5 @@ const DesignManagerDashboard = () => {
 };
 
 export default DesignManagerDashboard;
+
 

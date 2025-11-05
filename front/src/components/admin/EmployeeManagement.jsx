@@ -229,11 +229,13 @@ const EmployeeManagement = () => {
                       label={
                         employee.role === 'admin' ? 'أدمن' :
                         employee.role === 'designer' ? 'بائع' : 
+                        employee.role === 'designmanager' ? 'مدير التصميم' :
                         'محضر طلبات'
                       } 
                       color={
                         employee.role === 'admin' ? 'error' :
                         employee.role === 'designer' ? 'secondary' : 
+                        employee.role === 'designmanager' ? 'warning' :
                         'success'
                       }
                       size="small" 

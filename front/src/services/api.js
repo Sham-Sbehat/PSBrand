@@ -11,7 +11,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000, // 10 seconds timeout
+  timeout: 60000, // 60 seconds timeout - increased for orders with large data
 });
 
 // Helper to read token: prefer sessionStorage, fallback to localStorage (for "Remember me")
@@ -111,17 +111,39 @@ export const authService = {
   },
 };
 
+// Helper function for retry logic
+const retryRequest = async (requestFn, maxRetries = 2, delay = 1000) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      // Only retry on timeout or network errors
+      if (i === maxRetries - 1 || (!error.code?.includes('ECONNABORTED') && error.response)) {
+        throw error;
+      }
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+    }
+  }
+};
+
 // Orders Service
 export const ordersService = {
   getAllOrders: async (params = {}) => {
     // Supports backend pagination/filtering; keeps backward compatibility by returning array when possible
-    const response = await api.get("/Orders/GetOrders", { params });
+    // Use retry logic for getAllOrders as it may timeout with large datasets
+    const response = await retryRequest(async () => {
+      return await api.get("/Orders/GetOrders", { 
+        params,
+        timeout: 60000 // 60 seconds for orders endpoint specifically
+      });
+    });
     const data = response.data;
     return Array.isArray(data) ? data : (data?.data ?? []);
   },
 
   getOrderById: async (id) => {
-    const response = await api.get(`/Orders/GetOrder${id}`); // backend route is GetOrder{id}
+    const response = await api.get(`/Orders/GetOrder/${id}`);
     return response.data;
   },
 
@@ -139,7 +161,7 @@ export const ordersService = {
     console.log('Attempting to delete order with ID:', id);
     try {
       // Swagger shows: DELETE /api/Orders/DeleteOrder{id} (without / before number)
-      const response = await api.delete(`/Orders/DeleteOrder${id}`);
+      const response = await api.delete(`/Orders/DeleteOrder/${id}`);
       console.log('Delete response status:', response.status);
       console.log('Delete response:', response);
       // 204 No Content has no response body

@@ -26,7 +26,7 @@ import {
   TextField,
   CircularProgress,
 } from "@mui/material";
-import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save } from "@mui/icons-material";
+import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService } from "../services/api";
@@ -46,6 +46,10 @@ const EmployeeDashboard = () => {
   const [orderNotes, setOrderNotes] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
+  const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
+  const [selectedImage, setSelectedImage] = useState(null); // Selected image for dialog
+  const [imageDialogOpen, setImageDialogOpen] = useState(false); // Image dialog state
 
   // Fetch designer orders count on component mount
   const fetchDesignerOrdersCount = async () => {
@@ -85,11 +89,208 @@ const EmployeeDashboard = () => {
     }
   };
 
-  const handleViewDetails = (order) => {
+  // Load image for display (lazy loading)
+  const loadImageForDisplay = async (orderId, designId) => {
+    const cacheKey = `${orderId}-${designId}`;
+    
+    // Check cache first
+    if (imageCache[cacheKey]) {
+      return imageCache[cacheKey];
+    }
+    
+    // Don't load if already loading
+    if (loadingImage === `image-${orderId}-${designId}`) {
+      return null;
+    }
+    
+    // Load if not in cache
+    setLoadingImage(`image-${orderId}-${designId}`);
+    try {
+      console.log('Loading image for:', { orderId, designId });
+      const fullOrder = await ordersService.getOrderById(orderId);
+      const design = fullOrder.orderDesigns?.find(d => d.id === designId);
+      if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
+        console.log('Image loaded successfully:', design.mockupImageUrl.substring(0, 50));
+        // Save to cache
+        setImageCache(prev => ({
+          ...prev,
+          [cacheKey]: design.mockupImageUrl
+        }));
+        return design.mockupImageUrl;
+      } else {
+        console.log('Image not found or excluded:', design);
+      }
+    } catch (error) {
+      console.error('Error loading image:', error);
+    } finally {
+      setLoadingImage(null);
+    }
+    return null;
+  };
+
+  // Helper function to open file (handles both URLs and base64)
+  const openFile = async (fileUrl, orderId, designId) => {
+    if (!fileUrl || fileUrl === 'placeholder_print.pdf') {
+      return;
+    }
+
+    // If file data is excluded, fetch full order data first
+    if (fileUrl === 'image_data_excluded' && orderId) {
+      setLoadingImage(`file-${orderId}-${designId}`);
+      try {
+        const fullOrder = await ordersService.getOrderById(orderId);
+        const design = fullOrder.orderDesigns?.find(d => d.id === designId);
+        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
+          fileUrl = design.printFileUrl;
+        } else {
+          alert('الملف غير متوفر');
+          setLoadingImage(null);
+          return;
+        }
+      } catch (error) {
+        console.error('Error fetching order file:', error);
+        alert('حدث خطأ أثناء جلب الملف');
+        setLoadingImage(null);
+        return;
+      } finally {
+        setLoadingImage(null);
+      }
+    }
+
+    // Check if it's a base64 data URL
+    if (fileUrl.startsWith('data:')) {
+      try {
+        let base64Data = '';
+        let mimeType = 'application/pdf';
+        
+        if (fileUrl.includes(',')) {
+          const parts = fileUrl.split(',');
+          base64Data = parts[1];
+          const mimeMatch = fileUrl.match(/data:([^;]+);base64/);
+          if (mimeMatch) {
+            mimeType = mimeMatch[1];
+          }
+        } else {
+          base64Data = fileUrl;
+        }
+
+        const cleanBase64 = base64Data.replace(/\s/g, '');
+        
+        let blob;
+        try {
+          const response = await fetch(fileUrl);
+          blob = await response.blob();
+        } catch (fetchError) {
+          const binaryString = atob(cleanBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          blob = new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+        }
+        
+        if (blob.size === 0) {
+          throw new Error('الملف فارغ');
+        }
+
+        // Detect file type
+        let fileExtension = 'pdf';
+        if (mimeType) {
+          const mimeToExt = {
+            'application/pdf': 'pdf',
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/png': 'png',
+            'image/svg+xml': 'svg',
+            'image/gif': 'gif',
+            'image/webp': 'webp'
+          };
+          fileExtension = mimeToExt[mimeType.toLowerCase()] || 'bin';
+        }
+
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `order_file_${Date.now()}.${fileExtension}`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        
+        setTimeout(() => {
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        }, 1000);
+      } catch (error) {
+        console.error('Error opening file:', error);
+        alert('حدث خطأ أثناء فتح الملف.\n' + error.message);
+      }
+    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileUrl.split('/').pop() || 'file.pdf';
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    }
+  };
+
+  const handleViewDetails = async (order) => {
+    console.log('Opening order details:', order);
+    console.log('Order designs:', order?.orderDesigns);
+    
     setSelectedOrder(order);
     setOrderNotes(''); // Start with empty for new note
     setIsEditingNotes(false);
     setOpenDetailsModal(true);
+    
+    // Load images for all designs when modal opens
+    if (order?.orderDesigns) {
+      order.orderDesigns.forEach(design => {
+        console.log('Design:', {
+          id: design.id,
+          name: design.designName,
+          mockupImageUrl: design.mockupImageUrl,
+          printFileUrl: design.printFileUrl
+        });
+      });
+      
+      const loadPromises = order.orderDesigns.map(design => {
+        if (design.mockupImageUrl === 'image_data_excluded') {
+          console.log('Loading image for design:', design.id);
+          return loadImageForDisplay(order.id, design.id);
+        }
+        return Promise.resolve(null);
+      });
+      
+      // Wait for all images to load, then update selectedOrder to trigger re-render
+      Promise.all(loadPromises).then(() => {
+        console.log('All images loaded');
+        // Force re-render by updating selectedOrder
+        setSelectedOrder(prev => ({ ...prev }));
+      });
+    }
+  };
+
+  // Force re-render when imageCache changes
+  useEffect(() => {
+    // This effect ensures that when imageCache updates, the component re-renders
+  }, [imageCache]);
+
+  const handleImageClick = (imageUrl) => {
+    if (!imageUrl || imageUrl === 'image_data_excluded' || imageUrl === 'placeholder_mockup.jpg') {
+      return;
+    }
+    setSelectedImage(imageUrl);
+    setImageDialogOpen(true);
+  };
+
+  const handleCloseImageDialog = () => {
+    setImageDialogOpen(false);
+    setSelectedImage(null);
   };
 
   const handleCloseOrdersModal = () => {
@@ -599,7 +800,16 @@ const EmployeeDashboard = () => {
                         <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
                           اسم التصميم: {design.designName}
                         </Typography>
-                        {design.mockupImageUrl && (
+                        {/* Always show image section if mockupImageUrl exists */}
+                        {design.mockupImageUrl && design.mockupImageUrl !== 'placeholder_mockup.jpg' && (
+                          (() => {
+                            const cacheKey = `${selectedOrder?.id}-${design.id}`;
+                            const isExcluded = design.mockupImageUrl === 'image_data_excluded';
+                            const cachedImage = imageCache[cacheKey];
+                            const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}`;
+                            const displayImage = isExcluded ? cachedImage : design.mockupImageUrl;
+                            
+                            return (
                           <Box 
                             sx={{ 
                               mb: 2, 
@@ -608,26 +818,42 @@ const EmployeeDashboard = () => {
                               alignItems: "center",
                               width: "100%",
                               height: "250px",
-                              backgroundColor: "#ffffff",
+                                  backgroundColor: displayImage ? "#ffffff" : "#f5f5f5",
                               borderRadius: "8px",
-                              border: "1px solid #e0e0e0",
+                                  border: isExcluded && !cachedImage ? "1px dashed #ccc" : "1px solid #e0e0e0",
                               overflow: "hidden"
                             }}
                           >
-                            <img 
-                              src={design.mockupImageUrl} 
-                              alt={design.designName}
-                              onError={(e) => {
-                                e.target.parentElement.style.display = 'none';
-                              }}
-                              style={{ 
-                                width: "auto", 
-                                height: "100%", 
-                                maxWidth: "100%",
-                                objectFit: "contain"
-                              }}
-                            />
+                                {isLoading ? (
+                                  <CircularProgress />
+                                ) : displayImage ? (
+                                  <img 
+                                    src={displayImage} 
+                                    alt={design.designName}
+                                    onClick={() => handleImageClick(displayImage)}
+                                    onError={(e) => {
+                                      e.target.parentElement.style.display = 'none';
+                                    }}
+                                    style={{ 
+                                      width: "auto", 
+                                      height: "100%", 
+                                      maxWidth: "100%",
+                                      objectFit: "contain",
+                                      cursor: "pointer",
+                                      transition: "transform 0.2s"
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                  />
+                                ) : (
+                                  <Box sx={{ color: '#999', textAlign: 'center' }}>
+                                    <ImageIcon sx={{ fontSize: 48, mb: 1, opacity: 0.5 }} />
+                                    <Typography variant="body2">جاري التحميل...</Typography>
+                                  </Box>
+                                )}
                           </Box>
+                            );
+                          })()
                         )}
                         {design.orderDesignItems && design.orderDesignItems.length > 0 && (
                           <Box sx={{ mt: 2 }}>
@@ -685,17 +911,20 @@ const EmployeeDashboard = () => {
                             إجمالي التصميم: {design.totalPrice} ₪
                           </Typography>
                         </Box>
+                        {/* Always show file section if printFileUrl exists */}
                         {design.printFileUrl && design.printFileUrl !== "placeholder_print.pdf" && (
                           <Box sx={{ mt: 1 }}>
                             <Button
                               variant="contained"
                               color="primary"
-                              href={design.printFileUrl}
-                              target="_blank"
-                              download
+                              onClick={() => openFile(design.printFileUrl, selectedOrder?.id, design.id)}
+                              disabled={loadingImage === `file-${selectedOrder?.id}-${design.id}`}
+                              startIcon={loadingImage === `file-${selectedOrder?.id}-${design.id}` ? <CircularProgress size={16} /> : null}
                               sx={{ width: "100%" }}
                             >
-                              📄 تحميل ملف PDF
+                              {design.printFileUrl === 'image_data_excluded' 
+                                ? 'تنزبل ملف التصميم' 
+                                : 'تنزبل ملف التصميم'}
                             </Button>
                           </Box>
                         )}
@@ -710,6 +939,70 @@ const EmployeeDashboard = () => {
         <DialogActions>
           <Button onClick={handleCloseDetailsModal}>إغلاق</Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Image Dialog */}
+      <Dialog
+        open={imageDialogOpen}
+        onClose={handleCloseImageDialog}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.9)',
+            color: 'white'
+          }
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">معاينة الصورة</Typography>
+          <IconButton onClick={handleCloseImageDialog} sx={{ color: 'white' }}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ padding: 2 }}>
+          {selectedImage && selectedImage !== 'image_data_excluded' ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+              <img
+                src={selectedImage}
+                alt="معاينة الصورة"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  borderRadius: '8px'
+                }}
+              />
+              <Box sx={{
+                display: 'none',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '400px',
+                color: 'text.secondary'
+              }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
+                <Typography variant="body2">الصورة غير متوفرة</Typography>
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '400px',
+              color: 'text.secondary'
+            }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
+              <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات</Typography>
+            </Box>
+          )}
+        </DialogContent>
       </Dialog>
     </Box>
   );

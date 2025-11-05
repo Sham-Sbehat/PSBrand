@@ -28,6 +28,8 @@ import {
   ArrowUpward,
   ArrowDownward,
   Close,
+  Image as ImageIcon,
+  PictureAsPdf,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { ordersService } from "../../services/api";
@@ -47,6 +49,7 @@ const OrdersList = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [enlargedImageUrl, setEnlargedImageUrl] = useState(null);
   const [openImageDialog, setOpenImageDialog] = useState(false);
+  const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -106,9 +109,272 @@ const OrdersList = () => {
     setSelectedOrder(null);
   };
 
-  const handleImageClick = (imageUrl) => {
+  const handleImageClick = async (imageUrl, orderId, designId) => {
+    // If image data is excluded, fetch full order data
+    if (imageUrl === 'image_data_excluded' && orderId) {
+      setLoadingImage(`image-${orderId}-${designId}`);
+      try {
+        const fullOrder = await ordersService.getOrderById(orderId);
+        const design = fullOrder.orderDesigns?.find(d => d.id === designId);
+        if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
+          setEnlargedImageUrl(design.mockupImageUrl);
+          setOpenImageDialog(true);
+        } else {
+          alert('الصورة غير متوفرة');
+        }
+      } catch (error) {
+        console.error('Error fetching order image:', error);
+        alert('حدث خطأ أثناء جلب الصورة');
+      } finally {
+        setLoadingImage(null);
+      }
+      return;
+    }
+    
+    // Don't open dialog if image data is excluded
+    if (!imageUrl || imageUrl === 'placeholder_mockup.jpg') {
+      return;
+    }
     setEnlargedImageUrl(imageUrl);
     setOpenImageDialog(true);
+  };
+
+  // Helper function to open file (handles both URLs and base64)
+  const openFile = async (fileUrl) => {
+    if (!fileUrl || fileUrl === 'placeholder_print.pdf' || fileUrl === 'image_data_excluded') {
+      return;
+    }
+
+    // Check if it's a base64 data URL
+    if (fileUrl.startsWith('data:')) {
+      // Convert base64 to blob and download
+      try {
+        // Extract base64 data (everything after comma)
+        let base64Data = '';
+        let mimeType = 'application/pdf';
+        
+        if (fileUrl.includes(',')) {
+          const parts = fileUrl.split(',');
+          base64Data = parts[1];
+          // Extract MIME type from data URL
+          const mimeMatch = fileUrl.match(/data:([^;]+);base64/);
+          if (mimeMatch) {
+            mimeType = mimeMatch[1];
+          }
+        } else {
+          // Pure base64 string without data URL prefix
+          base64Data = fileUrl;
+        }
+
+        // Clean base64 string (remove whitespace, newlines, etc.)
+        const cleanBase64 = base64Data.replace(/\s/g, '');
+        
+        console.log('Processing base64 file:', {
+          originalLength: base64Data.length,
+          cleanedLength: cleanBase64.length,
+          mimeType: mimeType
+        });
+
+        // Method 1: Try using fetch API first
+        let blob;
+        try {
+          const response = await fetch(fileUrl);
+          blob = await response.blob();
+          
+          if (blob.size === 0) {
+            throw new Error('الملف فارغ بعد التحويل');
+          }
+          
+          console.log('Blob created via fetch:', {
+            size: blob.size,
+            type: blob.type
+          });
+        } catch (fetchError) {
+          console.warn('Fetch method failed, trying manual conversion:', fetchError);
+          
+          // Method 2: Manual base64 to blob conversion (more reliable for large files)
+          try {
+            // Clean and validate base64
+            const cleanBase64ForManual = base64Data.replace(/\s/g, '');
+            
+            if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanBase64ForManual)) {
+              throw new Error('الملف ليس بصيغة base64 صحيحة');
+            }
+            
+            // Decode base64 in chunks for large files
+            const binaryString = atob(cleanBase64ForManual);
+            const bytes = new Uint8Array(binaryString.length);
+            
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            // Use detected MIME type or default to application/octet-stream
+            const blobType = mimeType || 'application/octet-stream';
+            blob = new Blob([bytes], { type: blobType });
+            
+            if (blob.size === 0) {
+              throw new Error('الملف فارغ بعد التحويل');
+            }
+            
+            console.log('Blob created via manual conversion:', {
+              size: blob.size,
+              type: blob.type
+            });
+          } catch (manualError) {
+            console.error('Both methods failed:', { fetchError, manualError });
+            throw new Error('فشل في تحويل الملف. قد يكون الملف تالفاً أو كبيراً جداً.');
+          }
+        }
+        
+        // Detect file type from MIME type or blob content
+        let fileExtension = 'pdf'; // default
+        let fileName = `order_file_${Date.now()}`;
+        
+        // Determine file extension from MIME type
+        if (mimeType) {
+          const mimeToExt = {
+            'application/pdf': 'pdf',
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/png': 'png',
+            'image/svg+xml': 'svg',
+            'image/gif': 'gif',
+            'image/webp': 'webp'
+          };
+          fileExtension = mimeToExt[mimeType.toLowerCase()] || 'bin';
+        } else {
+          // Try to detect from file signature if MIME type is not available
+          try {
+            const arrayBuffer = await blob.slice(0, 8).arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
+            
+            // PDF signature
+            if (uint8Array[0] === 0x25 && uint8Array[1] === 0x50 && uint8Array[2] === 0x44 && uint8Array[3] === 0x46) {
+              fileExtension = 'pdf';
+            }
+            // PNG signature (89 50 4E 47)
+            else if (uint8Array[0] === 0x89 && uint8Array[1] === 0x50 && uint8Array[2] === 0x4E && uint8Array[3] === 0x47) {
+              fileExtension = 'png';
+            }
+            // JPEG signature (FF D8 FF)
+            else if (uint8Array[0] === 0xFF && uint8Array[1] === 0xD8 && uint8Array[2] === 0xFF) {
+              fileExtension = 'jpg';
+            }
+            // SVG (check for <svg or <?xml)
+            else {
+              const textDecoder = new TextDecoder();
+              const text = textDecoder.decode(uint8Array);
+              if (text.includes('<svg') || (text.includes('<?xml') && text.includes('svg'))) {
+                fileExtension = 'svg';
+              }
+            }
+            
+            console.log('File type detected from signature:', fileExtension);
+          } catch (sigError) {
+            console.warn('Could not detect file type from signature, using default:', sigError);
+          }
+        }
+        
+        fileName = `${fileName}.${fileExtension}`;
+        
+        console.log('File info:', {
+          mimeType: mimeType,
+          fileExtension: fileExtension,
+          fileName: fileName,
+          blobSize: blob.size
+        });
+        
+        // Create blob URL for download
+        const blobUrl = URL.createObjectURL(blob);
+        console.log('Blob URL created:', blobUrl, 'Size:', blob.size);
+        
+        // Download file directly
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        
+        console.log('Triggering download...');
+        link.click();
+        
+        // Remove link and cleanup after download
+        setTimeout(() => {
+          document.body.removeChild(link);
+          // Give more time for download to complete before revoking
+          setTimeout(() => {
+            console.log('Revoking blob URL');
+            URL.revokeObjectURL(blobUrl);
+          }, 10000); // 10 seconds - enough time for download
+        }, 1000);
+      } catch (error) {
+        console.error('Error opening base64 file:', error);
+        alert('حدث خطأ أثناء فتح الملف.\n' + error.message + '\n\nيرجى المحاولة مرة أخرى أو الاتصال بالدعم.');
+      }
+    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
+      // Regular URL - download directly
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileUrl.split('/').pop() || 'file.pdf';
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    } else {
+      // Try to download as is
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = 'file.pdf';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    }
+  };
+
+  const handleFileClick = async (fileUrl, orderId, designId) => {
+    // If file data is excluded, fetch full order data
+    if (fileUrl === 'image_data_excluded' && orderId) {
+      setLoadingImage(`file-${orderId}-${designId}`);
+      try {
+        console.log('Fetching full order to get file...', { orderId, designId });
+        const fullOrder = await ordersService.getOrderById(orderId);
+        console.log('Full order received:', fullOrder);
+        const design = fullOrder.orderDesigns?.find(d => d.id === designId);
+        console.log('Design found:', design);
+        
+        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
+          console.log('File found, opening...', {
+            fileUrlLength: design.printFileUrl.length,
+            isBase64: design.printFileUrl.startsWith('data:'),
+            startsWith: design.printFileUrl.substring(0, 50)
+          });
+          // Open file using helper function
+          await openFile(design.printFileUrl);
+        } else {
+          console.error('File not available:', { 
+            hasPrintFileUrl: !!design?.printFileUrl, 
+            printFileUrl: design?.printFileUrl 
+          });
+          alert('الملف غير متوفر في قاعدة البيانات');
+        }
+      } catch (error) {
+        console.error('Error fetching order file:', error);
+        alert('حدث خطأ أثناء جلب الملف: ' + (error.message || 'خطأ غير معروف'));
+      } finally {
+        setLoadingImage(null);
+      }
+      return;
+    }
+    
+    // Normal file handling
+    await openFile(fileUrl);
   };
 
   const handleCloseImageDialog = () => {
@@ -509,40 +775,61 @@ const OrdersList = () => {
                         <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
                           {design.designName}
                         </Typography>
-                        {design.mockupImageUrl && design.mockupImageUrl !== 'placeholder_mockup.jpg' && (
-                          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
-                            <img
-                              src={design.mockupImageUrl}
-                              alt={design.designName}
-                              onClick={() => handleImageClick(design.mockupImageUrl)}
-                              style={{
-                                maxWidth: '300px',
-                                height: 'auto',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                transition: 'transform 0.2s',
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                            />
-                          </Box>
+                        {design.mockupImageUrl && 
+                         design.mockupImageUrl !== 'placeholder_mockup.jpg' && (
+                          design.mockupImageUrl === 'image_data_excluded' ? (
+                            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'left' }}>
+                              <Button
+                                variant="outlined"
+                                startIcon={loadingImage === `image-${selectedOrder.id}-${design.id}` ? <CircularProgress size={16} /> : <ImageIcon />}
+                                onClick={() => handleImageClick(design.mockupImageUrl, selectedOrder.id, design.id)}
+                                disabled={loadingImage === `image-${selectedOrder.id}-${design.id}`}
+                              >
+                                عرض الصورة
+                              </Button>
+                            </Box>
+                          ) : (
+                            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+                              <img
+                                src={design.mockupImageUrl}
+                                alt={design.designName}
+                                onClick={() => handleImageClick(design.mockupImageUrl, selectedOrder.id, design.id)}
+                                style={{
+                                  maxWidth: '300px',
+                                  height: 'auto',
+                                  borderRadius: '8px',
+                                  cursor: 'pointer',
+                                  transition: 'transform 0.2s',
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+                                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                              />
+                            </Box>
+                          )
                         )}
-                        {design.printFileUrl && design.printFileUrl !== "placeholder_print.pdf" && (
-                          <Box sx={{ mb: 2 }}>
-                            <Button
-                              variant="contained"
-                              href={design.printFileUrl}
-                              target="_blank"
-                              download
-                            >
-                              📄 تحميل ملف PDF
-                            </Button>
-                          </Box>
-                        )}
-                        {design.orderDesignItems && design.orderDesignItems.length > 0 && (
-                          <Typography variant="body2" color="text.secondary">
-                            {design.orderDesignItems.map(item => `${item.quantity}x`).join(', ')} عنصر
-                          </Typography>
+                        {design.printFileUrl && 
+                         design.printFileUrl !== "placeholder_print.pdf" && (
+                          design.printFileUrl === 'image_data_excluded' ? (
+                            <Box sx={{ mb: 2 }}>
+                              <Button
+                                variant="outlined"
+                                startIcon={loadingImage === `file-${selectedOrder.id}-${design.id}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
+                                onClick={() => handleFileClick(design.printFileUrl, selectedOrder.id, design.id)}
+                                disabled={loadingImage === `file-${selectedOrder.id}-${design.id}`}
+                              >
+                                تحميل الملف
+                              </Button>
+                            </Box>
+                          ) : (
+                            <Box sx={{ mb: 2 }}>
+                              <Button
+                                variant="contained"
+                                onClick={() => handleFileClick(design.printFileUrl, selectedOrder.id, design.id)}
+                              >
+                                📄 تحميل الملف
+                              </Button>
+                            </Box>
+                          )
                         )}
                       </Box>
                     ))}
@@ -556,19 +843,9 @@ const OrdersList = () => {
               <Box sx={{ marginBottom: 3 }}>
                 <Typography variant="body1" gutterBottom>
                   <strong>المصمم:</strong> {selectedOrder.designer?.name || "-"}
-                  {selectedOrder.designer?.id && (
-                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                      (ID: {selectedOrder.designer.id})
-                    </Typography>
-                  )}
                 </Typography>
                 <Typography variant="body1" gutterBottom>
                   <strong>المعد:</strong> {selectedOrder.preparer?.name || "غير محدد"}
-                  {selectedOrder.preparer?.id && (
-                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                      (ID: {selectedOrder.preparer.id})
-                    </Typography>
-                  )}
                 </Typography>
               </Box>
 
@@ -640,11 +917,15 @@ const OrdersList = () => {
           alignItems: 'center',
           minHeight: '70vh'
         }}>
-          {enlargedImageUrl && (
+          {enlargedImageUrl && enlargedImageUrl !== 'image_data_excluded' ? (
             <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <img
                 src={enlargedImageUrl}
                 alt="صورة مكبّرة"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
                 style={{
                   maxWidth: '100%',
                   maxHeight: '90vh',
@@ -652,6 +933,44 @@ const OrdersList = () => {
                   borderRadius: '8px',
                 }}
               />
+              <Box sx={{ 
+                display: 'none',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '70vh',
+                color: 'white'
+              }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
+                <Typography variant="body2">الصورة غير متوفرة</Typography>
+              </Box>
+              <IconButton
+                onClick={handleCloseImageDialog}
+                sx={{
+                  position: 'absolute',
+                  top: 16,
+                  right: 16,
+                  color: 'white',
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                  },
+                }}
+              >
+                <Close />
+              </IconButton>
+            </Box>
+          ) : (
+            <Box sx={{ 
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '70vh',
+              color: 'white'
+            }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
+              <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات</Typography>
               <IconButton
                 onClick={handleCloseImageDialog}
                 sx={{
