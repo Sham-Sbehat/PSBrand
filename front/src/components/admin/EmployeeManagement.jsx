@@ -25,6 +25,7 @@ import {
   InputLabel,
   FormHelperText,
   CircularProgress,
+  InputAdornment,
 } from '@mui/material';
 import {
   Add,
@@ -32,6 +33,8 @@ import {
   Person,
   Phone,
   Work,
+  Visibility,
+  VisibilityOff,
 } from '@mui/icons-material';
 import { useApp } from '../../context/AppContext';
 import { employeesService } from '../../services/api';
@@ -42,6 +45,7 @@ const EmployeeManagement = () => {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   useEffect(() => {
     loadEmployees();
   }, []);
@@ -86,6 +90,11 @@ const EmployeeManagement = () => {
     reset();
     setError(null);
     setSubmitSuccess(false);
+    setShowPassword(false);
+  };
+
+  const handleTogglePassword = () => {
+    setShowPassword(!showPassword);
   };
 
   const onSubmit = async (data) => {
@@ -398,9 +407,22 @@ const EmployeeManagement = () => {
                   {...field}
                   fullWidth
                   label="كلمة المرور"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   error={!!errors.password}
                   helperText={errors.password?.message || 'كلمة المرور للموظف'}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={handleTogglePassword}
+                          edge="end"
+                          disabled={loading}
+                        >
+                          {!showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               )}
             />

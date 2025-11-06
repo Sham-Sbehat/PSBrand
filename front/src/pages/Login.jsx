@@ -348,7 +348,7 @@ const Login = () => {
                               edge="end"
                               disabled={isLoading}
                             >
-                              {showPassword ? (
+                              {!showPassword ? (
                                 <VisibilityOff />
                               ) : (
                                 <Visibility />
