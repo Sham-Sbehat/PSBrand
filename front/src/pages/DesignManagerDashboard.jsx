@@ -42,6 +42,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService } from "../services/api";
+import axios from "axios";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
@@ -67,6 +68,14 @@ const getFullUrl = (url) => {
     // Remove /api from base URL to get the domain
     const baseDomain = API_BASE_URL.replace('/api', '');
     return `${baseDomain}${url}`;
+  }
+  
+  // If it doesn't start with /, it might be a relative path - try to build full URL
+  // This handles cases where the URL is like "uploads/file.pdf"
+  if (!url.includes('://') && !url.startsWith('/')) {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
+    const baseDomain = API_BASE_URL.replace('/api', '');
+    return `${baseDomain}/${url}`;
   }
   
   // Return as is for other cases
@@ -454,24 +463,54 @@ const DesignManagerDashboard = () => {
     } else {
       // Regular URL - convert to full URL if needed and download
       const fullFileUrl = getFullUrl(fileUrl);
-      const link = document.createElement('a');
-      link.href = fullFileUrl;
-      link.download = fullFileUrl.split('/').pop() || 'file.pdf';
-      link.target = '_blank';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-      }, 100);
+      console.log('Downloading file:', { original: fileUrl, full: fullFileUrl });
+      
+      try {
+        // Get auth token
+        const getAuthToken = () => {
+          try {
+            const STORAGE_KEYS = { AUTH_TOKEN: 'authToken' };
+            const sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+            if (sessionToken) return sessionToken;
+            const localToken = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+            return localToken || null;
+          } catch {
+            return null;
+          }
+        };
+        
+        const token = getAuthToken();
+        
+        // CORS workaround: Use direct link download (navigation requests bypass CORS)
+        // This works because <a> tag clicks are navigation, not XHR requests
+        const link = document.createElement('a');
+        link.href = fullFileUrl;
+        link.download = fullFileUrl.split('/').pop() || `file_${Date.now()}.pdf`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        
+      } catch (error) {
+        console.error('Download error:', error);
+        // Fallback: open in new tab
+        window.open(fullFileUrl, '_blank');
+      }
     }
   };
 
   const handleFileClick = async (fileUrl, orderId, designId) => {
-    // If file data is excluded, fetch full order data
-    if (fileUrl === 'image_data_excluded' && orderId) {
-      setLoadingImage(`file-${orderId}-${designId}`);
-      try {
+    // Set loading state
+    const loadingKey = `file-${orderId}-${designId}`;
+    setLoadingImage(loadingKey);
+    
+    try {
+      // If file data is excluded, fetch full order data
+      if (fileUrl === 'image_data_excluded' && orderId) {
         console.log('Fetching full order to get file...', { orderId, designId });
         const fullOrder = await ordersService.getOrderById(orderId);
         console.log('Full order received:', fullOrder);
@@ -499,17 +538,21 @@ const DesignManagerDashboard = () => {
           });
           alert('الملف غير متوفر في قاعدة البيانات');
         }
-      } catch (error) {
-        console.error('Error fetching order file:', error);
-        alert('حدث خطأ أثناء جلب الملف: ' + (error.message || 'خطأ غير معروف'));
-      } finally {
-        setLoadingImage(null);
+      } else {
+        // Normal file handling
+        await openFile(fileUrl);
       }
-      return;
+    } catch (error) {
+      console.error('Error in handleFileClick:', error);
+      if (fileUrl === 'image_data_excluded') {
+        alert('حدث خطأ أثناء جلب الملف: ' + (error.message || 'خطأ غير معروف'));
+      } else {
+        alert('حدث خطأ أثناء تحميل الملف: ' + (error.message || 'خطأ غير معروف'));
+      }
+    } finally {
+      // Always clear loading state
+      setLoadingImage(null);
     }
-    
-    // Normal file handling
-    await openFile(fileUrl);
   };
 
   const handleCloseImageDialog = () => {
@@ -1076,11 +1119,10 @@ const DesignManagerDashboard = () => {
                                       <Button
                                         size="small"
                                         variant="contained"
-                                        startIcon={<PictureAsPdf />}
                                         onClick={() => handleFileClick(firstFile, order.id, design.id)}
                                         sx={{ fontSize: '0.75rem', py: 0.5 }}
                                       >
-                                        PDF
+                                        تنزبل
                                       </Button>
                                     )}
                                     {validFiles.length > 1 && (
