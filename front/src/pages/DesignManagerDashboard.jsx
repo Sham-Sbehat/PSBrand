@@ -36,6 +36,8 @@ import {
   Print,
   CheckCircle,
   Dashboard,
+  ArrowBack,
+  ArrowForward,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -45,12 +47,39 @@ import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 
+// Helper function to build full image/file URL
+const getFullUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+  
+  // If it's already a full URL (http/https), return as is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // If it's a data URL (base64), return as is
+  if (url.startsWith('data:')) {
+    return url;
+  }
+  
+  // If it's a relative path starting with /, build full URL
+  if (url.startsWith('/')) {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
+    // Remove /api from base URL to get the domain
+    const baseDomain = API_BASE_URL.replace('/api', '');
+    return `${baseDomain}${url}`;
+  }
+  
+  // Return as is for other cases
+  return url;
+};
+
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null); // Can be string or array
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
@@ -144,13 +173,19 @@ const DesignManagerDashboard = () => {
     try {
       const fullOrder = await ordersService.getOrderById(orderId);
       const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-      if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
-        // Save to cache
+      
+      // Support both old format (mockupImageUrl) and new format (mockupImageUrls array)
+      const imageUrls = design?.mockupImageUrls || (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
+      const firstImage = imageUrls.find(url => url && url !== 'image_data_excluded' && url !== 'placeholder_mockup.jpg');
+      
+      if (firstImage) {
+        // Convert to full URL and save to cache
+        const fullImageUrl = getFullUrl(firstImage);
         setImageCache(prev => ({
           ...prev,
-          [cacheKey]: design.mockupImageUrl
+          [cacheKey]: fullImageUrl
         }));
-        return design.mockupImageUrl;
+        return fullImageUrl;
       }
     } catch (error) {
       console.error('Error loading image:', error);
@@ -224,6 +259,7 @@ const DesignManagerDashboard = () => {
       
       if (imageToShow) {
         setSelectedImage(imageToShow);
+        setCurrentImageIndex(0);
         setImageDialogOpen(true);
       } else {
         alert('الصورة غير متوفرة');
@@ -235,7 +271,10 @@ const DesignManagerDashboard = () => {
     if (!imageUrl || imageUrl === 'placeholder_mockup.jpg') {
       return;
     }
-    setSelectedImage(imageUrl);
+    // Convert to full URL before displaying
+    const fullImageUrl = getFullUrl(imageUrl);
+    setSelectedImage(fullImageUrl);
+    setCurrentImageIndex(0);
     setImageDialogOpen(true);
   };
 
@@ -412,23 +451,13 @@ const DesignManagerDashboard = () => {
         console.error('Error opening base64 file:', error);
         alert('حدث خطأ أثناء فتح الملف.\n' + error.message + '\n\nيرجى المحاولة مرة أخرى أو الاتصال بالدعم.');
       }
-    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
-      // Regular URL - download directly
-      const link = document.createElement('a');
-      link.href = fileUrl;
-      link.download = fileUrl.split('/').pop() || 'file.pdf';
-      link.target = '_blank';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-      }, 100);
     } else {
-      // Try to download as is
+      // Regular URL - convert to full URL if needed and download
+      const fullFileUrl = getFullUrl(fileUrl);
       const link = document.createElement('a');
-      link.href = fileUrl;
-      link.download = 'file.pdf';
+      link.href = fullFileUrl;
+      link.download = fullFileUrl.split('/').pop() || 'file.pdf';
+      link.target = '_blank';
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
@@ -449,18 +478,24 @@ const DesignManagerDashboard = () => {
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
         console.log('Design found:', design);
         
-        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
+        // Support both old format (printFileUrl) and new format (printFileUrls array)
+        const fileUrls = design?.printFileUrls || (design?.printFileUrl ? [design.printFileUrl] : []);
+        const firstFile = fileUrls.find(url => url && url !== 'image_data_excluded' && url !== 'placeholder_print.pdf');
+        
+        if (firstFile) {
           console.log('File found, opening...', {
-            fileUrlLength: design.printFileUrl.length,
-            isBase64: design.printFileUrl.startsWith('data:'),
-            startsWith: design.printFileUrl.substring(0, 50)
+            fileUrlLength: firstFile.length,
+            isBase64: firstFile.startsWith('data:'),
+            startsWith: firstFile.substring(0, 50)
           });
-          // Open file using helper function
-          await openFile(design.printFileUrl);
+          // Open file using helper function (getFullUrl will be called inside openFile)
+          await openFile(firstFile);
         } else {
           console.error('File not available:', { 
-            hasPrintFileUrl: !!design?.printFileUrl, 
-            printFileUrl: design?.printFileUrl 
+            hasPrintFileUrl: !!design?.printFileUrl,
+            hasPrintFileUrls: !!design?.printFileUrls,
+            printFileUrl: design?.printFileUrl,
+            printFileUrls: design?.printFileUrls
           });
           alert('الملف غير متوفر في قاعدة البيانات');
         }
@@ -480,6 +515,7 @@ const DesignManagerDashboard = () => {
   const handleCloseImageDialog = () => {
     setImageDialogOpen(false);
     setSelectedImage(null);
+    setCurrentImageIndex(0);
   };
 
   const handleNotesClick = (order) => {
@@ -887,20 +923,26 @@ const DesignManagerDashboard = () => {
                             <TableCell>{designCount}</TableCell>
                             <TableCell>{productType}</TableCell>
                             <TableCell>
-                              {design?.mockupImageUrl && 
-                               design.mockupImageUrl !== 'placeholder_mockup.jpg' ? (
-                                (() => {
-                                  const cacheKey = `${order.id}-${design.id}`;
-                                  const isExcluded = design.mockupImageUrl === 'image_data_excluded';
-                                  const cachedImage = imageCache[cacheKey];
-                                  const isLoading = loadingImage === `image-${order.id}-${design.id}`;
-                                  const displayImage = isExcluded ? cachedImage : design.mockupImageUrl;
-                                  
-                                  return (
+                              {(() => {
+                                // Support both old format (mockupImageUrl) and new format (mockupImageUrls array)
+                                const imageUrls = design?.mockupImageUrls || (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
+                                const validImages = imageUrls.filter(url => url && url !== 'placeholder_mockup.jpg');
+                                
+                                if (validImages.length === 0) return "-";
+                                
+                                 const firstImage = validImages[0];
+                                 const cacheKey = `${order.id}-${design.id}`;
+                                 const isExcluded = firstImage === 'image_data_excluded';
+                                 const cachedImage = imageCache[cacheKey];
+                                 const isLoading = loadingImage === `image-${order.id}-${design.id}`;
+                                 const displayImage = isExcluded ? cachedImage : getFullUrl(firstImage);
+                                
+                                return (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     <Box 
                                       sx={{ 
-                                        width: 80, 
-                                        height: 80, 
+                                        width: 60, 
+                                        height: 60, 
                                         position: 'relative',
                                         cursor: 'pointer',
                                         bgcolor: isExcluded && !cachedImage ? '#f5f5f5' : 'transparent',
@@ -909,17 +951,16 @@ const DesignManagerDashboard = () => {
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         border: isExcluded && !cachedImage ? '1px solid #e0e0e0' : 'none',
-                                        '&:hover': {
-                                          opacity: 0.8
-                                        }
+                                        flexShrink: 0,
+                                        '&:hover': { opacity: 0.8 }
                                       }}
-                                      onClick={() => handleImageClick(design.mockupImageUrl, order.id, design.id)}
+                                      onClick={() => handleImageClick(firstImage, order.id, design.id)}
                                       data-image-placeholder={isExcluded && !cachedImage ? "true" : "false"}
                                       data-order-id={order.id}
                                       data-design-id={design.id}
                                     >
                                       {isLoading ? (
-                                        <CircularProgress size={24} />
+                                        <CircularProgress size={20} />
                                       ) : displayImage ? (
                                         <img 
                                           src={displayImage} 
@@ -927,13 +968,16 @@ const DesignManagerDashboard = () => {
                                           onClick={() => {
                                             if (displayImage && displayImage !== 'image_data_excluded') {
                                               setSelectedImage(displayImage);
+                                              setCurrentImageIndex(0);
                                               setImageDialogOpen(true);
                                             }
                                           }}
                                           onError={(e) => {
                                             e.target.src = '';
                                             e.target.style.display = 'none';
-                                            e.target.nextSibling.style.display = 'flex';
+                                            if (e.target.nextSibling) {
+                                              e.target.nextSibling.style.display = 'flex';
+                                            }
                                           }}
                                           style={{ 
                                             width: "100%", 
@@ -953,12 +997,13 @@ const DesignManagerDashboard = () => {
                                             width: "100%", 
                                             height: "100%", 
                                             color: '#bbb',
-                                            fontSize: '0.65rem',
-                                            textAlign: 'center'
+                                            fontSize: '0.6rem',
+                                            textAlign: 'center',
+                                            px: 0.5
                                           }}
                                         >
-                                          <ImageIcon sx={{ fontSize: 20, mb: 0.5, opacity: 0.5 }} />
-                                          <span>انقر لتحميل الصورة  ...</span>
+                                          <ImageIcon sx={{ fontSize: 16, mb: 0.3, opacity: 0.5 }} />
+                                          <span style={{ fontSize: '0.55rem' }}>تحميل...</span>
                                         </Box>
                                       )}
                                       <Box 
@@ -970,40 +1015,99 @@ const DesignManagerDashboard = () => {
                                           alignItems: 'center',
                                           bgcolor: '#f0f0f0',
                                           borderRadius: "4px",
-                                          fontSize: '0.75rem',
+                                          fontSize: '0.7rem',
                                           color: '#666'
                                         }}
                                       >
-                                        صورة غير متوفرة
+                                        غير متوفرة
                                       </Box>
                                     </Box>
-                                  );
-                                })()
-                              ) : "-"}
+                                    {validImages.length > 1 && (
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ 
+                                          minWidth: 'auto',
+                                          px: 1,
+                                          py: 0.5,
+                                          fontSize: '0.7rem',
+                                          height: 'fit-content'
+                                        }}
+                                         onClick={() => {
+                                           // Convert all image URLs to full URLs
+                                           const fullImageUrls = validImages.map(img => getFullUrl(img));
+                                           setSelectedImage(fullImageUrls);
+                                           setCurrentImageIndex(0);
+                                           setImageDialogOpen(true);
+                                         }}
+                                      >
+                                        +{validImages.length - 1}
+                                      </Button>
+                                    )}
+                                  </Box>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell>
-                              {design?.printFileUrl && 
-                               design.printFileUrl !== "placeholder_print.pdf" ? (
-                                design.printFileUrl === 'image_data_excluded' ? (
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={loadingImage === `file-${order.id}-${design.id}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
-                                    onClick={() => handleFileClick(design.printFileUrl, order.id, design.id)}
-                                    disabled={loadingImage === `file-${order.id}-${design.id}`}
-                                  >
-                                    تحميل الملف
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="small"
-                                    variant="contained"
-                                    onClick={() => handleFileClick(design.printFileUrl, order.id, design.id)}
-                                  >
-                                    PDF
-                                  </Button>
-                                )
-                              ) : "-"}
+                              {(() => {
+                                // Support both old format (printFileUrl) and new format (printFileUrls array)
+                                const fileUrls = design?.printFileUrls || (design?.printFileUrl ? [design.printFileUrl] : []);
+                                const validFiles = fileUrls.filter(url => url && url !== "placeholder_print.pdf");
+                                
+                                if (validFiles.length === 0) return "-";
+                                
+                                const firstFile = validFiles[0];
+                                const isExcluded = firstFile === 'image_data_excluded';
+                                
+                                return (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                    {isExcluded ? (
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={loadingImage === `file-${order.id}-${design.id}` ? <CircularProgress size={14} /> : <PictureAsPdf />}
+                                        onClick={() => handleFileClick(firstFile, order.id, design.id)}
+                                        disabled={loadingImage === `file-${order.id}-${design.id}`}
+                                        sx={{ fontSize: '0.75rem', py: 0.5 }}
+                                      >
+                                        تحميل
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        size="small"
+                                        variant="contained"
+                                        startIcon={<PictureAsPdf />}
+                                        onClick={() => handleFileClick(firstFile, order.id, design.id)}
+                                        sx={{ fontSize: '0.75rem', py: 0.5 }}
+                                      >
+                                        PDF
+                                      </Button>
+                                    )}
+                                    {validFiles.length > 1 && (
+                                      <Button
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ 
+                                          minWidth: 'auto',
+                                          px: 1,
+                                          py: 0.5,
+                                          fontSize: '0.7rem',
+                                          height: 'fit-content'
+                                        }}
+                                         onClick={() => {
+                                           // Open all files - convert to full URLs first
+                                           validFiles.forEach((url, idx) => {
+                                             const fullUrl = getFullUrl(url);
+                                             setTimeout(() => handleFileClick(fullUrl, order.id, design.id), idx * 200);
+                                           });
+                                         }}
+                                      >
+                                        +{validFiles.length - 1}
+                                      </Button>
+                                    )}
+                                  </Box>
+                                );
+                              })()}
                             </TableCell>
                             {isFirstRow && (
                               <>
@@ -1096,53 +1200,134 @@ const DesignManagerDashboard = () => {
         fullWidth
       >
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">معاينة الصورة</Typography>
+          <Typography variant="h6">
+            {Array.isArray(selectedImage) 
+              ? `معاينة الصور (${currentImageIndex + 1} / ${selectedImage.length})`
+              : 'معاينة الصورة'}
+          </Typography>
           <IconButton onClick={handleCloseImageDialog}>
             <Close />
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ padding: 2 }}>
-          {selectedImage && selectedImage !== 'image_data_excluded' ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-              <img 
-                src={selectedImage} 
-                alt="معاينة الصورة"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-                }}
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: '70vh', 
-                  objectFit: 'contain',
-                  borderRadius: '8px'
-                }}
-              />
-              <Box sx={{ 
-                display: 'none',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '400px',
-                color: 'text.secondary'
-              }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
-                <Typography variant="body2">الصورة غير متوفرة في قائمة الطلبات</Typography>
+           {(() => {
+             // Handle both single image (string) and multiple images (array)
+             const images = Array.isArray(selectedImage) 
+               ? selectedImage.map(img => getFullUrl(img))
+               : (selectedImage ? [getFullUrl(selectedImage)] : []);
+             const currentImage = images[currentImageIndex];
+            
+            if (!currentImage || currentImage === 'image_data_excluded') {
+              return (
+                <Box sx={{ 
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '400px',
+                  color: 'text.secondary'
+                }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
+                  <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات لتقليل حجم البيانات</Typography>
+                </Box>
+              );
+            }
+            
+            return (
+              <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+                {images.length > 1 && (
+                  <>
+                    <IconButton
+                      onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)}
+                      sx={{
+                        position: 'absolute',
+                        left: 16,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        bgcolor: 'rgba(0, 0, 0, 0.5)',
+                        color: 'white',
+                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
+                        zIndex: 1
+                      }}
+                    >
+                      <ArrowBack />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => setCurrentImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)}
+                      sx={{
+                        position: 'absolute',
+                        right: 16,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        bgcolor: 'rgba(0, 0, 0, 0.5)',
+                        color: 'white',
+                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
+                        zIndex: 1
+                      }}
+                    >
+                      <ArrowForward />
+                    </IconButton>
+                  </>
+                )}
+                <img 
+                  src={currentImage} 
+                  alt={`معاينة الصورة ${currentImageIndex + 1}`}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    if (e.target.nextSibling) {
+                      e.target.nextSibling.style.display = 'flex';
+                    }
+                  }}
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '70vh', 
+                    objectFit: 'contain',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Box sx={{ 
+                  display: 'none',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '400px',
+                  color: 'text.secondary'
+                }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
+                  <Typography variant="body2">الصورة غير متوفرة في قائمة الطلبات</Typography>
+                </Box>
+                {images.length > 1 && (
+                  <Box sx={{ 
+                    position: 'absolute', 
+                    bottom: 16, 
+                    left: '50%', 
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    gap: 1,
+                    bgcolor: 'rgba(0, 0, 0, 0.5)',
+                    borderRadius: 2,
+                    padding: '4px 8px'
+                  }}>
+                    {images.map((_, idx) => (
+                      <Box
+                        key={idx}
+                        onClick={() => setCurrentImageIndex(idx)}
+                        sx={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          bgcolor: idx === currentImageIndex ? 'white' : 'rgba(255, 255, 255, 0.5)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.8)' }
+                        }}
+                      />
+                    ))}
+                  </Box>
+                )}
               </Box>
-            </Box>
-          ) : (
-            <Box sx={{ 
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '400px',
-              color: 'text.secondary'
-            }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
-              <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات لتقليل حجم البيانات</Typography>
-            </Box>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

@@ -187,6 +187,25 @@ export const ordersService = {
     return response.data;
   },
 
+  // Upload files before creating order
+  uploadFiles: async (files) => {
+    if (!files || files.length === 0) {
+      return { success: true, uploadedCount: 0, totalCount: 0, files: [] };
+    }
+    
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+    
+    const response = await api.post("/Orders/UploadFiles", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  },
+
   getOrdersByDesigner: async (designerId) => {
     const response = await api.get(`/Orders/GetOrdersDesigner/${designerId}`);
     return response.data;

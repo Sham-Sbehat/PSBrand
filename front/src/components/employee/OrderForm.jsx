@@ -342,51 +342,134 @@ const OrderForm = ({ onSuccess }) => {
     setExpandedOrders(prev => prev.filter(id => id !== orderId));
   };
 
-  // Handle image upload
+  // Handle image upload - upload files immediately when selected
   const handleImageUpload = async (event, orderId, type) => {
     const files = Array.from(event.target.files);
     
     if (files.length === 0) return;
 
     try {
-      // For design files, store file objects with preview
-      // For blouse images, create previews as before
-      let previews;
-      
+      // For design files - upload everything (images + files) and store in printFileUrls
       if (type === 'design') {
-        // For design files (PDF, AI, etc.), create file info objects
-        previews = await Promise.all(
-          files.map(async file => {
-            // Check if it's an image
-            if (file.type.startsWith('image/')) {
-              const preview = await createImagePreview(file);
-              return { url: preview, name: file.name, type: file.type };
-            } else {
-              // For non-image files, create a data URL for icon/preview
-              return { url: null, name: file.name, type: file.type, file: file };
+        // Separate images and files for upload (but all go to printFileUrls)
+        const imageFiles = files.filter(file => file.type && file.type.startsWith('image/'));
+        const nonImageFiles = files.filter(file => !file.type || !file.type.startsWith('image/'));
+        
+        console.log('=== DESIGN FILES UPLOAD START ===');
+        console.log('Total files:', files.length, 'Images:', imageFiles.length, 'Files:', nonImageFiles.length);
+        
+        const uploadedItems = [];
+        
+        // Upload images (first API call)
+        if (imageFiles.length > 0) {
+          try {
+            console.log('🖼️ Uploading images to API...', imageFiles.map(f => f.name));
+            const uploadResponse = await ordersService.uploadFiles(imageFiles);
+            console.log('✅ Images upload response:', uploadResponse);
+            
+            if (uploadResponse && uploadResponse.success && uploadResponse.files) {
+              for (let index = 0; index < uploadResponse.files.length; index++) {
+                const uploadedFile = uploadResponse.files[index];
+                const originalFile = imageFiles[index];
+                const preview = await createImagePreview(originalFile);
+                uploadedItems.push({
+                  url: uploadedFile.url, // Server URL - goes to printFileUrls
+                  previewUrl: preview, // Local preview for display
+                  name: uploadedFile.fileName,
+                  type: originalFile.type,
+                  file: null
+                });
+              }
             }
-          })
-        );
-      } else {
-        // For blouse, only accept images
-        const imageFiles = files.filter(file => file.type.startsWith('image/'));
-        previews = await Promise.all(
-          imageFiles.map(file => createImagePreview(file))
-        );
-      }
-      
-      setOrders(prev => prev.map(order => {
-        if (order.id === orderId) {
-          if (type === 'design') {
-            return { ...order, designImages: [...order.designImages, ...previews] };
-          } else {
-            return { ...order, blouseImages: [...order.blouseImages, ...previews] };
+          } catch (uploadError) {
+            console.error('❌ Error uploading images:', uploadError);
+            setSubmitError('فشل في رفع الصور. يرجى المحاولة مرة أخرى.');
+            return;
           }
         }
-        return order;
-      }));
+        
+        // Upload non-image files (second API call)
+        if (nonImageFiles.length > 0) {
+          try {
+            console.log('📄 Uploading files to API...', nonImageFiles.map(f => f.name));
+            const uploadResponse = await ordersService.uploadFiles(nonImageFiles);
+            console.log('✅ Files upload response:', uploadResponse);
+            
+            if (uploadResponse && uploadResponse.success && uploadResponse.files) {
+              uploadResponse.files.forEach((uploadedFile, index) => {
+                const originalFile = nonImageFiles[index];
+                uploadedItems.push({
+                  url: uploadedFile.url, // Server URL - goes to printFileUrls
+                  name: uploadedFile.fileName,
+                  type: originalFile.type,
+                  file: null
+                });
+              });
+            }
+          } catch (uploadError) {
+            console.error('❌ Error uploading files:', uploadError);
+            setSubmitError('فشل في رفع الملفات. يرجى المحاولة مرة أخرى.');
+            return;
+          }
+        }
+        
+        console.log('=== DESIGN FILES UPLOAD END - Total:', uploadedItems.length, '===');
+        
+        // Add to designImages (all will go to printFileUrls in onSubmit)
+        setOrders(prev => prev.map(order => {
+          if (order.id === orderId) {
+            return { ...order, designImages: [...order.designImages, ...uploadedItems] };
+          }
+          return order;
+        }));
+      } else if (type === 'blouse') {
+        // For blouse images - upload images and store in mockupImageUrls
+        const imageFiles = files.filter(file => file.type && file.type.startsWith('image/'));
+        
+        if (imageFiles.length === 0) return;
+        
+        console.log('=== BLOUSE IMAGES UPLOAD START ===');
+        console.log('Blouse images to upload:', imageFiles.length, imageFiles.map(f => f.name));
+        
+        try {
+          console.log('🖼️ Uploading blouse images to API...', imageFiles.map(f => f.name));
+          const uploadResponse = await ordersService.uploadFiles(imageFiles);
+          console.log('✅ Blouse images upload response:', uploadResponse);
+          
+          if (uploadResponse && uploadResponse.success && uploadResponse.files) {
+            const uploadedBlouseImages = [];
+            for (let index = 0; index < uploadResponse.files.length; index++) {
+              const uploadedFile = uploadResponse.files[index];
+              const originalFile = imageFiles[index];
+              const preview = await createImagePreview(originalFile);
+              uploadedBlouseImages.push({
+                url: uploadedFile.url, // Server URL - goes to mockupImageUrls
+                previewUrl: preview, // Local preview for display
+                name: uploadedFile.fileName,
+                type: originalFile.type,
+                file: null
+              });
+            }
+            
+            console.log('=== BLOUSE IMAGES UPLOAD END - Total:', uploadedBlouseImages.length, '===');
+            
+            // Add to blouseImages (will go to mockupImageUrls in onSubmit)
+            setOrders(prev => prev.map(order => {
+              if (order.id === orderId) {
+                return { ...order, blouseImages: [...order.blouseImages, ...uploadedBlouseImages] };
+              }
+              return order;
+            }));
+          }
+        } catch (uploadError) {
+          console.error('❌ Error uploading blouse images:', uploadError);
+          setSubmitError('فشل في رفع صور البلوزة. يرجى المحاولة مرة أخرى.');
+          return;
+        }
+      }
     } catch (error) {
-      console.error('خطأ في إنشاء معاينة الصور:', error);
+      console.error('خطأ في رفع الملفات:', error);
+      setSubmitError('حدث خطأ أثناء رفع الملفات');
     }
   };
 
@@ -452,48 +535,31 @@ const OrderForm = ({ onSuccess }) => {
     setSubmitSuccess(false); // Clear any previous success message
 
     try {
-      // Helper function to convert file to data URL
-      const fileToDataURL = (file) => {
-        return new Promise((resolve, reject) => {
-          if (!file) {
-            reject(new Error('No file provided'));
-            return;
+      // Files are already uploaded when selected, so we just need to collect URLs
+      const orderDesigns = orders.map((order) => {
+        // designImages (from "ملفات التصميم") → all go to printFileUrls
+        const printFileUrls = [];
+        order.designImages.forEach((designImage) => {
+          if (designImage.url && !designImage.url.startsWith('blob:')) {
+            printFileUrls.push(designImage.url);
           }
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
         });
-      };
-
-      // Transform orders to match API structure
-      const orderDesigns = await Promise.all(orders.map(async order => {
-        // Get first image (PNG/JPG) for mockup and first PDF for print file
-        const mockupImage = order.designImages.find(img => img.type && img.type.startsWith('image/'));
-        const pdfFile = order.designImages.find(img => img.type === 'application/pdf');
-        const otherFile = order.designImages.find(img => !img.type || (!img.type.startsWith('image/') && img.type !== 'application/pdf'));
         
-        let printFileUrl = pdfFile?.url || otherFile?.url || mockupImage?.url || 'placeholder_print.pdf';
-        
-        // If printFileUrl is null/undefined but we have a file object, convert it
-        if (!pdfFile?.url && pdfFile?.file) {
-          try {
-            printFileUrl = await fileToDataURL(pdfFile.file);
-          } catch (error) {
-            console.error('Error converting PDF file:', error);
+        // blouseImages (from "صور البلوزة") → all go to mockupImageUrls
+        const mockupImageUrls = [];
+        order.blouseImages.forEach((blouseImage) => {
+          if (blouseImage.url && !blouseImage.url.startsWith('blob:')) {
+            mockupImageUrls.push(blouseImage.url);
+          } else if (typeof blouseImage === 'string' && !blouseImage.startsWith('blob:')) {
+            // Handle case where blouseImage is just a URL string
+            mockupImageUrls.push(blouseImage);
           }
-        } else if (!otherFile?.url && otherFile?.file) {
-          try {
-            printFileUrl = await fileToDataURL(otherFile.file);
-          } catch (error) {
-            console.error('Error converting file:', error);
-          }
-        }
+        });
         
         return {
-          designName: order.orderName,  // This is the design name
-          mockupImageUrl: mockupImage?.url || order.designImages[0]?.url || 'placeholder_mockup.jpg',
-          printFileUrl: printFileUrl,
+          designName: order.orderName,
+          mockupImageUrls: mockupImageUrls.length > 0 ? mockupImageUrls : [],
+          printFileUrls: printFileUrls.length > 0 ? printFileUrls : [],
           orderDesignItems: order.items.map(item => ({
             size: getSizeValueByLabel(item.size),
             color: getEnumValueFromLabel(item.color, COLOR_LABELS),
@@ -502,7 +568,7 @@ const OrderForm = ({ onSuccess }) => {
             unitPrice: parseFloat(item.unitPrice) || 0
           }))
         };
-      }));
+      });
 
       if (!clientId) {
         setSubmitError('يجب البحث عن العميل أو إضافة عميل جديد أولاً');
@@ -1075,7 +1141,7 @@ const OrderForm = ({ onSuccess }) => {
                       <Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                           <input
-                            accept=".pdf,.doc,.docx,.ai,.eps"
+                            accept="image/*,.pdf,.doc,.docx,.ai,.eps"
                             style={{ display: 'none' }}
                             id={`design-${order.id}`}
                             multiple
@@ -1109,7 +1175,7 @@ const OrderForm = ({ onSuccess }) => {
                                 borderColor: 'grey.300'
                               }}>
                                 {fileInfo.type === 'image/png' || fileInfo.type === 'image/jpeg' ? (
-                                  <img src={fileInfo.url} alt="preview" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
+                                  <img src={fileInfo.previewUrl || fileInfo.url} alt="preview" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
                                 ) : fileInfo.type === 'application/pdf' ? (
                                   <PictureAsPdf sx={{ color: 'error.main', fontSize: 40 }} />
                                 ) : (
@@ -1161,33 +1227,41 @@ const OrderForm = ({ onSuccess }) => {
                         </Box>
                         {order.blouseImages.length > 0 && (
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {order.blouseImages.map((preview, idx) => (
-                              <Box key={idx} sx={{ position: 'relative', display: 'inline-block' }}>
-                                <Card sx={{ width: 80, height: 80 }}>
-                                  <CardMedia 
-                                    component="img" 
-                                    height="80" 
-                                    image={preview}
-                                    sx={{ objectFit: 'cover' }}
-                                  />
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={() => handleDeleteImage(order.id, 'blouse', idx)}
-                                    sx={{
-                                      position: 'absolute',
-                                      top: -8,
-                                      right: -8,
-                                      bgcolor: 'white',
-                                      boxShadow: 2,
-                                      '&:hover': { bgcolor: 'error.main', color: 'white' }
-                                    }}
-                                  >
-                                    <Delete fontSize="small" />
-                                  </IconButton>
-                                </Card>
-                              </Box>
-                            ))}
+                            {order.blouseImages.map((blouseImage, idx) => {
+                              // Handle both object (with previewUrl) and string (direct URL)
+                              const imageUrl = typeof blouseImage === 'object' && blouseImage.previewUrl 
+                                ? blouseImage.previewUrl 
+                                : (typeof blouseImage === 'object' && blouseImage.url 
+                                  ? blouseImage.url 
+                                  : blouseImage);
+                              return (
+                                <Box key={idx} sx={{ position: 'relative', display: 'inline-block' }}>
+                                  <Card sx={{ width: 80, height: 80 }}>
+                                    <CardMedia 
+                                      component="img" 
+                                      height="80" 
+                                      image={imageUrl}
+                                      sx={{ objectFit: 'cover' }}
+                                    />
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => handleDeleteImage(order.id, 'blouse', idx)}
+                                      sx={{
+                                        position: 'absolute',
+                                        top: -8,
+                                        right: -8,
+                                        bgcolor: 'white',
+                                        boxShadow: 2,
+                                        '&:hover': { bgcolor: 'error.main', color: 'white' }
+                                      }}
+                                    >
+                                      <Delete fontSize="small" />
+                                    </IconButton>
+                                  </Card>
+                                </Box>
+                              );
+                            })}
                           </Box>
                         )}
                       </Box>
