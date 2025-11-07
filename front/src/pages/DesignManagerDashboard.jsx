@@ -615,6 +615,62 @@ const DesignManagerDashboard = () => {
     };
   };
 
+  const getProductDetailsForDesign = (items = []) => {
+    if (!Array.isArray(items) || items.length === 0) {
+      return [];
+    }
+
+    const aggregateMap = new Map();
+
+    items.forEach((item) => {
+      if (!item) {
+        return;
+      }
+
+      const fabricKey = typeof item.fabricType === 'number'
+        ? item.fabricType
+        : parseInt(item.fabricType, 10);
+
+      const sizeKey = typeof item.size === 'number'
+        ? item.size
+        : Number.isNaN(parseInt(item.size, 10))
+          ? item.size
+          : parseInt(item.size, 10);
+
+      const colorKey = typeof item.color === 'number'
+        ? item.color
+        : item.color;
+
+      const fabricLabel = FABRIC_TYPE_LABELS[fabricKey] || item.fabricType || '-';
+      const sizeLabel =
+        SIZE_LABELS[sizeKey] ||
+        (typeof item.size === 'string' ? item.size : '') ||
+        '';
+      const colorLabel =
+        COLOR_LABELS[colorKey] ||
+        (typeof item.color === 'string' ? item.color : '') ||
+        '';
+
+      const aggregateKey = [fabricLabel, sizeLabel, colorLabel]
+        .filter(Boolean)
+        .join('|');
+
+      if (!aggregateMap.has(aggregateKey)) {
+        aggregateMap.set(aggregateKey, {
+          fabricLabel,
+          sizeLabel,
+          colorLabel,
+          quantity: 0,
+        });
+      }
+
+      const current = aggregateMap.get(aggregateKey);
+      current.quantity += Number(item.quantity) || 0;
+    });
+
+    return Array.from(aggregateMap.values());
+  };
+
   // Filter orders by status
   const filteredOrders = statusFilter === "all"
     ? allOrders
@@ -1012,9 +1068,7 @@ const DesignManagerDashboard = () => {
                         }, 0) || 0;
                         
                         // Get product type from first item of this design
-                        const productType = design.orderDesignItems?.[0] 
-                          ? `${FABRIC_TYPE_LABELS[design.orderDesignItems[0].fabricType] || design.orderDesignItems[0].fabricType} - ${SIZE_LABELS[design.orderDesignItems[0].size] || design.orderDesignItems[0].size}`
-                          : "-";
+                        const productDetails = getProductDetailsForDesign(design.orderDesignItems);
                         
                         return (
                           <TableRow
@@ -1043,7 +1097,36 @@ const DesignManagerDashboard = () => {
                               </>
                             )}
                             <TableCell>{designCount}</TableCell>
-                            <TableCell>{productType}</TableCell>
+                            <TableCell>
+                              {productDetails.length > 0 ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                  {productDetails.map((detail, idx) => {
+                                    const parts = [
+                                      detail.fabricLabel,
+                                      detail.sizeLabel,
+                                      detail.colorLabel,
+                                    ].filter(Boolean);
+
+                                    const label = `${parts.join(' - ')} x${detail.quantity || 0}`;
+
+                                    return (
+                                      <Chip
+                                        key={`${order.id}-${design.id}-product-${idx}`}
+                                        label={label}
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{
+                                          alignSelf: 'flex-start',
+                                          direction: 'rtl',
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </Box>
+                              ) : (
+                                "-"
+                              )}
+                            </TableCell>
                             <TableCell>
                               {(() => {
                                 // Support both old format (mockupImageUrl) and new format (mockupImageUrls array)
