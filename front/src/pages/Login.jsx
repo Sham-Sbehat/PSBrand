@@ -239,7 +239,7 @@ const Login = () => {
     <Box
       sx={{
         minHeight: "100vh",
-        backgroundImage: 'url("/PsBackLight.jpg")',
+        backgroundImage: 'url("/PsbackLight.jpg")',
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
