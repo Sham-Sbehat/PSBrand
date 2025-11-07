@@ -68,55 +68,55 @@ const RoleSelection = () => {
   return (
     <Box
       sx={{
+        position: "relative",
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        backgroundImage: 'url("/PsBack.jpg")',
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 3,
       }}
     >
+      <Box
+        sx={{
+          position: "absolute",
+          top: { xs: 24, md: 40 },
+          left: "50%",
+          transform: "translateX(-50%)",
+          textAlign: "center",
+          color: "rgba(255, 255, 255, 0.9)",
+          zIndex: 1,
+          pointerEvents: "none",
+        }}
+      >
+        <Typography
+          variant="h6"
+          sx={{
+            marginTop: 10,
+            fontWeight: 500,
+            color: "rgba(255, 255, 255, 0.85)",
+            fontSize: { xs: "1.5rem", md: "2rem" },
+          }}
+        >
+          نظام إدارة المبيعات
+        </Typography>
+      </Box>
       <Container maxWidth="lg">
         <Fade in timeout={800}>
           <Box>
-            <Paper
-              elevation={0}
-              sx={{
-                padding: 4,
-                marginBottom: 4,
-                textAlign: "center",
-                background: "rgba(255, 255, 255, 0.95)",
-                backdropFilter: "blur(10px)",
-                borderRadius: 4,
-              }}
+            <Grid
+              container
+              spacing={2}
+              justifyContent="center"
+              sx={{ marginTop: 9 }}
             >
-              <Typography
-                variant="h2"
-                gutterBottom
-                sx={{
-                  fontWeight: 800,
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  marginBottom: 2,
-                }}
-              >
-                PSBrand
-              </Typography>
-              <Typography
-                variant="h5"
-                color="text.secondary"
-                sx={{ fontWeight: 500 }}
-              >
-                نظام إدارة المبيعات  
-              </Typography>
-            </Paper>
-            <Grid container spacing={4} justifyContent="center">
               {roles.map((role, index) => {
                 const Icon = role.icon;
                 return (
-                  <Grid item xs={12} sm={6} md={4} key={role.id}>
+                  <Grid item xs={12} sm={4} md={2.8} marginTop={50} key={role.id}>
                     <Fade in timeout={1000 + index * 200}>
                       <Card
                         sx={{
@@ -128,8 +128,13 @@ const RoleSelection = () => {
                               : "translateY(0) scale(1)",
                           boxShadow:
                             hoveredRole === role.id
-                              ? "0 20px 40px rgba(0,0,0,0.2)"
-                              : "0 10px 20px rgba(0,0,0,0.1)",
+                              ? "0 18px 36px rgba(6, 11, 23, 0.32)"
+                              : "0 10px 22px rgba(6, 11, 23, 0.22)",
+                          background: "rgba(255, 255, 255, 0.12)",
+                          backdropFilter: "blur(14px)",
+                          border: "1px solid rgba(255, 255, 255, 0.28)",
+                          borderRadius: 4,
+                          overflow: "hidden",
                         }}
                         onMouseEnter={() => setHoveredRole(role.id)}
                         onMouseLeave={() => setHoveredRole(null)}
@@ -138,28 +143,26 @@ const RoleSelection = () => {
                           onClick={() => handleRoleSelect(role.id)}
                           sx={{ height: "100%" }}
                         >
-                          <Box
+                          <CardContent
                             sx={{
-                              background: role.gradient,
-                              padding: 4,
+                              padding: 5,
                               textAlign: "center",
-                              color: "white",
+                              color: "rgba(255, 255, 255, 0.95)",
                             }}
                           >
-                            <Icon sx={{ fontSize: 80, marginBottom: 2 }} />
-                          </Box>
-                          <CardContent sx={{ padding: 4, textAlign: "center" }}>
                             <Typography
-                              variant="h4"
+                              variant="h5"
                               gutterBottom
-                              sx={{ fontWeight: 700 }}
+                              sx={{ fontWeight: 700, color: "white" }}
                             >
                               {role.title}
                             </Typography>
                             <Typography
                               variant="body1"
-                              color="text.secondary"
-                              sx={{ fontSize: "1.1rem" }}
+                              sx={{
+                                fontSize: "0.85rem",
+                                color: "rgba(255, 255, 255, 0.85)",
+                              }}
                             >
                               {role.description}
                             </Typography>

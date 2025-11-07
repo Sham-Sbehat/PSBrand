@@ -239,51 +239,47 @@ const Login = () => {
     <Box
       sx={{
         minHeight: "100vh",
-        background: roleDetails.gradient,
+        backgroundImage: 'url("/PsBackLight.jpg")',
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         justifyContent: "center",
-        padding: 3,
+        padding: 3 ,
+        paddingTop: { xs: 10, sm: 16 },
       }}
     >
-      <Container maxWidth="sm">
-        <Fade in timeout={800}>
+      <Container maxWidth="sm"  >
+        <Fade in timeout={800} >
           <Paper
-            elevation={10}
+            elevation={0}
+            
             sx={{
-              padding: { xs: 3, sm: 5 },
-              borderRadius: 4,
-              background: "rgba(255, 255, 255, 0.98)",
+              padding: { xs: 3, sm: 4 },
+              borderRadius: { xs: 4, sm: 8 },
+              background: "rgba(255, 255, 255, 0.08)",
+              backdropFilter: "blur(14px)",
+              boxShadow: "0 24px 50px rgba(6, 11, 23, 0.35)",
+              border: "1px solid rgba(255, 255, 255, 0.25)",
             }}
           >
-            <Box sx={{ textAlign: "center", marginBottom: 4 }}>
-              <Box
-                sx={{
-                  display: "inline-flex",
-                  padding: 3,
-                  borderRadius: "50%",
-                  background: roleDetails.gradient,
-                  marginBottom: 2,
-                }}
-              >
-                <Icon sx={{ fontSize: 60, color: "white" }} />
-              </Box>
+            <Box sx={{ textAlign: "center", marginBottom: 3 }}>
               <Typography
-                variant="h4"
+                variant="h5"
                 gutterBottom
                 sx={{
                   fontWeight: 800,
-                  background: roleDetails.gradient,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
+                  color: "#ffffff",
+                  letterSpacing: "0.02em",
                 }}
               >
                 PSBrand
               </Typography>
               <Typography
-                variant="h5"
-                color="text.secondary"
-                sx={{ fontWeight: 600 }}
+                variant="body2"
+                color="rgba(255, 255, 255, 0.75)"
+                sx={{ fontWeight: 500 }}
               >
                 {roleDetails.title}
               </Typography>
@@ -312,9 +308,33 @@ const Login = () => {
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
-                            <Person color="primary" />
+                            <Person sx={{ color: "#ffffff" }} />
                           </InputAdornment>
                         ),
+                      }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "#fff",
+                          backgroundColor: "rgba(255, 255, 255, 0.08)",
+                          "& fieldset": {
+                            borderColor: "rgba(255, 255, 255, 0.25)",
+                          },
+                          "&:hover fieldset": {
+                            borderColor: "#ffffff",
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderColor: "#ffffff",
+                          },
+                        },
+                        "& .MuiInputLabel-root": {
+                          color: "rgba(255, 255, 255, 0.85)",
+                        },
+                        "& .MuiInputLabel-root.Mui-focused": {
+                          color: "#ffffff",
+                        },
+                        "& .MuiFormHelperText-root": {
+                          color: "#ffb4b4",
+                        },
                       }}
                     />
                   )}
@@ -338,7 +358,7 @@ const Login = () => {
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
-                            <Lock color="primary" />
+                            <Lock sx={{ color: "#ffffff" }} />
                           </InputAdornment>
                         ),
                         endAdornment: (
@@ -347,6 +367,7 @@ const Login = () => {
                               onClick={handleTogglePassword}
                               edge="end"
                               disabled={isLoading}
+                              sx={{ color: "#ffffff" }}
                             >
                               {!showPassword ? (
                                 <VisibilityOff />
@@ -356,6 +377,30 @@ const Login = () => {
                             </IconButton>
                           </InputAdornment>
                         ),
+                      }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "#fff",
+                          backgroundColor: "rgba(255, 255, 255, 0.08)",
+                          "& fieldset": {
+                            borderColor: "rgba(255, 255, 255, 0.25)",
+                          },
+                          "&:hover fieldset": {
+                            borderColor: "#ffffff",
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderColor: "#ffffff",
+                          },
+                        },
+                        "& .MuiInputLabel-root": {
+                          color: "rgba(255, 255, 255, 0.85)",
+                        },
+                        "& .MuiInputLabel-root.Mui-focused": {
+                          color: "#ffffff",
+                        },
+                        "& .MuiFormHelperText-root": {
+                          color: "#ffb4b4",
+                        },
                       }}
                     />
                   )}
@@ -368,14 +413,20 @@ const Login = () => {
                     <Checkbox
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      color="primary"
+                      color="default"
+                      sx={{
+                        color: "rgba(255, 255, 255, 0.6)",
+                        "&.Mui-checked": {
+                          color: "#fff",
+                        },
+                      }}
                     />
                   }
                   label="تذكرني"
                   sx={{ 
-                    color: "text.secondary",
+                    color: "rgba(255, 255, 255, 0.75)",
                     "& .MuiFormControlLabel-label": {
-                      fontSize: "0.9rem"
+                      fontSize: "0.85rem"
                     }
                   }}
                 />
@@ -385,15 +436,18 @@ const Login = () => {
                 type="submit"
                 fullWidth
                 variant="contained"
-                size="large"
+                size="medium"
                 disabled={isLoading}
                 sx={{
-                  padding: 2,
-                  fontSize: "1.1rem",
-                  fontWeight: 700,
-                  background: roleDetails.gradient,
+                  paddingY: 1.4,
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  background: "rgba(255, 255, 255, 0.92)",
+                  color: "#111928",
+                  borderRadius: 3,
+                  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.28)",
                   "&:hover": {
-                    opacity: 0.9,
+                    background: "#ffffff",
                   },
                 }}
               >
@@ -401,11 +455,12 @@ const Login = () => {
               </Button>
             </form>
 
-            <Box sx={{ textAlign: "center", marginTop: 3 }}>
+            <Box sx={{ textAlign: "center", marginTop: 2.5 }}>
                <Button
                 variant="text"
                 onClick={() => navigate('/')}
                 disabled={isLoading}
+                sx={{ color: "rgba(255, 255, 255, 0.75)" }}
               >
                 العودة للصفحة الرئيسية
               </Button>
@@ -422,7 +477,11 @@ const Login = () => {
                     setRememberMe(false);
                   }}
                   disabled={isLoading}
-                  sx={{ marginTop: 1, fontSize: '0.8rem' }}
+                  sx={{
+                    marginTop: 1,
+                    fontSize: '0.8rem',
+                    color: "rgba(255, 255, 255, 0.8)",
+                  }}
                 >
                   مسح البيانات المحفوظة
                 </Button>

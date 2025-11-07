@@ -11,10 +11,6 @@ import {
   TableRow,
   Chip,
   Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   TextField,
   MenuItem,
   TablePagination,
@@ -27,7 +23,6 @@ import {
   Note,
   ArrowUpward,
   ArrowDownward,
-  Close,
   Image as ImageIcon,
   PictureAsPdf,
 } from "@mui/icons-material";
@@ -36,6 +31,7 @@ import { ordersService } from "../../services/api";
 import { subscribeToOrderUpdates } from "../../services/realtime";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../../constants";
 import NotesDialog from "../common/NotesDialog";
+import GlassDialog from "../common/GlassDialog";
 
 const OrdersList = () => {
   const { orders, user } = useApp();
@@ -708,16 +704,21 @@ const OrdersList = () => {
       )}
 
       {/* Details Dialog */}
-      <Dialog
+      <GlassDialog
         open={openDialog}
         onClose={handleCloseDialog}
         maxWidth="md"
-        fullWidth
+        title="تفاصيل الطلب"
+        subtitle={selectedOrder?.orderNumber}
+        contentSx={{ padding: 0 }}
+        actions={
+          <Button onClick={handleCloseDialog} variant="contained">
+            إغلاق
+          </Button>
+        }
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>تفاصيل الطلب</DialogTitle>
-        <DialogContent dividers>
-          {selectedOrder && (
-            <Box>
+        {selectedOrder && (
+          <Box sx={{ padding: 3 }}>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 معلومات الطلب
               </Typography>
@@ -922,137 +923,95 @@ const OrdersList = () => {
                   عرض/تعديل الملاحظات
                 </Button>
               </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>إغلاق</Button>
-        </DialogActions>
-      </Dialog>
+          </Box>
+        )}
+      </GlassDialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog
+      <GlassDialog
         open={openDeleteDialog}
         onClose={handleCloseDeleteDialog}
+        maxWidth="sm"
+        title="تأكيد الحذف"
+        actions={
+          <>
+            <Button onClick={handleCloseDeleteDialog} disabled={deleteLoading}>
+              إلغاء
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
+              color="error"
+              variant="contained"
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? <CircularProgress size={20} /> : "حذف"}
+            </Button>
+          </>
+        }
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>تأكيد الحذف</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body1">
-            هل أنت متأكد من رغبتك في حذف الطلب{" "}
-            <strong>{orderToDelete?.orderNumber || `#${orderToDelete?.id}`}</strong>؟
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            هذا الإجراء لا يمكن التراجع عنه.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDeleteDialog} disabled={deleteLoading}>
-            إلغاء
-          </Button>
-          <Button
-            onClick={handleConfirmDelete}
-            color="error"
-            variant="contained"
-            disabled={deleteLoading}
-          >
-            {deleteLoading ? <CircularProgress size={20} /> : "حذف"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        <Typography variant="body1">
+          هل أنت متأكد من رغبتك في حذف الطلب{" "}
+          <strong>{orderToDelete?.orderNumber || `#${orderToDelete?.id}`}</strong>؟
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          هذا الإجراء لا يمكن التراجع عنه.
+        </Typography>
+      </GlassDialog>
 
       {/* Enlarged Image Dialog */}
-      <Dialog
+      <GlassDialog
         open={openImageDialog}
         onClose={handleCloseImageDialog}
         maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: {
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            boxShadow: 'none',
-          }
+        title="معاينة التصميم"
+        contentSx={{
+          padding: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.95)",
         }}
       >
-        <DialogContent sx={{
-          padding: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '70vh'
-        }}>
-          {enlargedImageUrl && enlargedImageUrl !== 'image_data_excluded' ? (
-            <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <img
-                src={enlargedImageUrl}
-                alt="صورة مكبّرة"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-                }}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '90vh',
-                  objectFit: 'contain',
-                  borderRadius: '8px',
-                }}
-              />
-              <Box sx={{ 
-                display: 'none',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '70vh',
-                color: 'white'
-              }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
-                <Typography variant="body2">الصورة غير متوفرة</Typography>
-              </Box>
-              <IconButton
-                onClick={handleCloseImageDialog}
-                sx={{
-                  position: 'absolute',
-                  top: 16,
-                  right: 16,
-                  color: 'white',
-                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                  },
-                }}
-              >
-                <Close />
-              </IconButton>
-            </Box>
-          ) : (
-            <Box sx={{ 
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '70vh',
-              color: 'white'
-            }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
-              <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات</Typography>
-              <IconButton
-                onClick={handleCloseImageDialog}
-                sx={{
-                  position: 'absolute',
-                  top: 16,
-                  right: 16,
-                  color: 'white',
-                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                  },
-                }}
-              >
-                <Close />
-              </IconButton>
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
+        {enlargedImageUrl && enlargedImageUrl !== "image_data_excluded" ? (
+          <Box
+            sx={{
+              padding: 3,
+              minHeight: "70vh",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <img
+              src={enlargedImageUrl}
+              alt="صورة مكبّرة"
+              onError={(e) => {
+                e.target.style.display = "none";
+              }}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "70vh",
+                objectFit: "contain",
+                borderRadius: "12px",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
+              }}
+            />
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              minHeight: "70vh",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              color: "rgba(255,255,255,0.85)",
+              gap: 1,
+              padding: 4,
+            }}
+          >
+            <Typography variant="h6">الصورة غير متوفرة</Typography>
+            <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات</Typography>
+          </Box>
+        )}
+      </GlassDialog>
 
       {/* Notes Dialog */}
       <NotesDialog

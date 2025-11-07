@@ -13,10 +13,6 @@ import {
   CardContent,
   Chip,
   Avatar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Table,
   TableBody,
   TableCell,
@@ -29,9 +25,11 @@ import {
 import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService } from "../services/api";
-import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS } from "../constants";
+import { ordersService, orderStatusService } from "../services/api";
+import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS } from "../constants";
 import OrderForm from "../components/employee/OrderForm";
+import GlassDialog from "../components/common/GlassDialog";
+import calmPalette from "../theme/calmPalette";
 
 // Helper function to build full image/file URL
 const getFullUrl = (url) => {
@@ -88,6 +86,7 @@ const EmployeeDashboard = () => {
   const [orderNotes, setOrderNotes] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [cancelLoadingId, setCancelLoadingId] = useState(null);
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const [selectedImage, setSelectedImage] = useState(null); // Selected image for dialog
@@ -406,13 +405,33 @@ const EmployeeDashboard = () => {
     }
   };
 
-  const getStatusLabel = (status) => {
-    const statusMap = {
-      0: { label: "قيد الانتظار", color: "warning" },
-      1: { label: "قيد التصميم", color: "info" },
-      2: { label: "مكتمل", color: "success" },
-    };
-    return statusMap[status] || { label: "غير معروف", color: "default" };
+  const getStatusLabel = (status) => ({
+    label: ORDER_STATUS_LABELS[status] || "غير معروف",
+    color: ORDER_STATUS_COLORS[status] || "default",
+  });
+
+  const handleCancelOrder = async (order) => {
+    if (!order) return;
+    setCancelLoadingId(order.id);
+    try {
+      await orderStatusService.setCancelled(order.id);
+      setOrdersList((prev) =>
+        prev.map((item) =>
+          item.id === order.id ? { ...item, status: ORDER_STATUS.CANCELLED } : item
+        )
+      );
+      if (selectedOrder?.id === order.id) {
+        setSelectedOrder((prev) =>
+          prev ? { ...prev, status: ORDER_STATUS.CANCELLED } : prev
+        );
+      }
+      fetchDesignerOrdersCount(); // refresh counts if designer
+    } catch (error) {
+      console.error("Error cancelling order:", error);
+      alert("حدث خطأ أثناء إلغاء الطلب. الرجاء المحاولة مرة أخرى.");
+    } finally {
+      setCancelLoadingId(null);
+    }
   };
 
   const employeeOrders = orders.filter(
@@ -430,58 +449,105 @@ const EmployeeDashboard = () => {
       title: "إجمالي الطلبات",
       value: user?.role === USER_ROLES.DESIGNER ? totalOrdersCount : employeeOrders.length,
       icon: Assignment,
-      color: "#1976d2",
     },
     {
       title: "قيد الانتظار",
       value: pendingOrders.length,
       icon: Pending,
-      color: "#ed6c02",
     },
     {
       title: "مكتملة",
       value: completedOrders.length,
       icon: CheckCircle,
-      color: "#2e7d32",
     },
   ];
 
   return (
-    <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
-      <AppBar position="static" elevation={2}>
-        <Toolbar>
-          <Typography variant="h5" sx={{ flexGrow: 1, fontWeight: 700 }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        backgroundImage: calmPalette.background,
+        paddingBottom: 6,
+      }}
+    >
+      <AppBar
+        position="static"
+        elevation={0}
+        sx={{
+          background: calmPalette.appBar,
+          boxShadow: "0 12px 30px rgba(34, 26, 21, 0.25)",
+          backdropFilter: "blur(10px)",
+        }}
+      >
+        <Toolbar sx={{ minHeight: 72 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              flexGrow: 1,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+            }}
+          >
             PSBrand - لوحة الموظف
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Avatar sx={{ bgcolor: "secondary.main" }}>
+            <Avatar
+              sx={{
+                bgcolor: "rgba(255, 255, 255, 0.22)",
+                color: "#ffffff",
+                backdropFilter: "blur(6px)",
+              }}
+            >
               {user?.name?.charAt(0) || "م"}
             </Avatar>
-            <Typography variant="body1" sx={{ fontWeight: 500 }}>
+            <Typography variant="body1" sx={{ fontWeight: 500, color: "#f6f1eb" }}>
               {user?.name || "موظف"}
             </Typography>
-            <IconButton color="inherit" onClick={handleLogout}>
+            <IconButton
+              color="inherit"
+              onClick={handleLogout}
+              sx={{
+                color: "#f6f1eb",
+                border: "1px solid rgba(255,255,255,0.25)",
+                borderRadius: 2,
+              }}
+            >
               <Logout />
             </IconButton>
           </Box>
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ paddingY: 4 }}>
+      <Container maxWidth="lg" sx={{ paddingY: 5 }}>
         <Grid container spacing={3} sx={{ marginBottom: 4 }}>
           {stats.map((stat, index) => {
             const Icon = stat.icon;
+            const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
             return (
               <Grid item xs={12} sm={4} key={index}>
                 <Card
                   onClick={() => handleCardClick(index)}
                   sx={{
-                    background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}dd 100%)`,
-                    color: "white",
-                    transition: "transform 0.2s",
+                    position: "relative",
+                    background: cardStyle.background,
+                    color: cardStyle.highlight,
+                    borderRadius: 4,
+                    boxShadow: calmPalette.shadow,
+                    overflow: "hidden",
+                    transition: "transform 0.2s, box-shadow 0.2s",
+                    backdropFilter: "blur(6px)",
                     cursor: index === 0 && user?.role === USER_ROLES.DESIGNER ? "pointer" : "default",
+                    "&::after": {
+                      content: '""',
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
+                      pointerEvents: "none",
+                    },
                     "&:hover": {
                       transform: "translateY(-5px)",
+                      boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
                     },
                   }}
                 >
@@ -494,14 +560,23 @@ const EmployeeDashboard = () => {
                       }}
                     >
                       <Box>
-                        <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                        <Typography
+                          variant="h3"
+                          sx={{ fontWeight: 700, color: cardStyle.highlight }}
+                        >
                           {stat.value}
                         </Typography>
-                        <Typography variant="body1" sx={{ marginTop: 1 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            marginTop: 1,
+                            color: "rgba(255, 255, 255, 0.8)",
+                          }}
+                        >
                           {stat.title}
                         </Typography>
                       </Box>
-                      <Icon sx={{ fontSize: 60, opacity: 0.8 }} />
+                      <Icon sx={{ fontSize: 56, color: cardStyle.highlight }} />
                     </Box>
                   </CardContent>
                 </Card>
@@ -509,7 +584,16 @@ const EmployeeDashboard = () => {
             );
           })}
         </Grid>
-        <Box sx={{ marginBottom: 4 }}>
+        <Box
+          sx={{
+            marginBottom: 4,
+            background: calmPalette.surface,
+            borderRadius: 4,
+            boxShadow: calmPalette.shadow,
+            backdropFilter: "blur(8px)",
+            padding: 3,
+          }}
+        >
           <OrderForm onSuccess={() => {
             setShowForm(false);
             fetchDesignerOrdersCount(); // Refresh orders count after creating new order
@@ -517,7 +601,16 @@ const EmployeeDashboard = () => {
         </Box>
 
         {employeeOrders.length > 0 && (
-          <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              padding: 4,
+              borderRadius: 4,
+              background: calmPalette.surface,
+              boxShadow: calmPalette.shadow,
+              backdropFilter: "blur(8px)",
+            }}
+          >
             <Typography
               variant="h5"
               gutterBottom
@@ -531,10 +624,11 @@ const EmployeeDashboard = () => {
                 <Grid item xs={12} md={6} key={order.id}>
                   <Card
                     sx={{
+                      background: calmPalette.surfaceHover,
                       transition: "all 0.2s",
                       "&:hover": {
                         transform: "translateY(-3px)",
-                        boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                        boxShadow: "0 18px 36px rgba(46, 38, 31, 0.18)",
                       },
                     }}
                   >
@@ -614,100 +708,122 @@ const EmployeeDashboard = () => {
       </Container>
 
       {/* Orders Modal */}
-      <Dialog
+      <GlassDialog
         open={openOrdersModal}
         onClose={handleCloseOrdersModal}
         maxWidth="xl"
-        fullWidth
+        title="اجمالي الطلبات"
+        actions={
+          <Button onClick={handleCloseOrdersModal} variant="contained">
+            إغلاق
+          </Button>
+        }
       >
-        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography variant="h6"> اجمالي الطلبات</Typography>
-          <IconButton onClick={handleCloseOrdersModal}>
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
-          {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
-              <Typography>جاري التحميل...</Typography>
-            </Box>
-          ) : ordersList.length === 0 ? (
-            <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
-              <Typography>لا توجد طلبات</Typography>
-            </Box>
-          ) : (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الرقم</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الإجمالي</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {ordersList.map((order) => {
-                    const status = getStatusLabel(order.status);
-                    return (
-                      <TableRow key={order.id} hover>
-                        <TableCell>{order.orderNumber}</TableCell>
-                        <TableCell>{order.client?.name || "-"}</TableCell>
-                        <TableCell>{order.client?.phone || "-"}</TableCell>
-                        <TableCell>{order.totalAmount} ₪</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={status.label}
-                            color={status.color}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {order.orderDate 
-                            ? new Date(order.orderDate).toLocaleDateString("ar-SA", { calendar: "gregory" })
-                            : "-"
-                          }
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<Visibility />}
-                            onClick={() => handleViewDetails(order)}
-                          >
-                            عرض التفاصيل
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseOrdersModal}>إغلاق</Button>
-        </DialogActions>
-      </Dialog>
+        {loading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
+            <Typography>جاري التحميل...</Typography>
+          </Box>
+        ) : ordersList.length === 0 ? (
+          <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
+            <Typography>لا توجد طلبات</Typography>
+          </Box>
+        ) : (
+          <TableContainer
+            sx={{
+              borderRadius: 3,
+              border: "1px solid rgba(94, 78, 62, 0.18)",
+              backgroundColor: "rgba(255,255,255,0.4)",
+            }}
+          >
+            <Table>
+              <TableHead
+                sx={{
+                  backgroundColor: "rgba(94, 78, 62, 0.08)",
+                  "& th": { fontWeight: 700, color: calmPalette.textPrimary },
+                }}
+              >
+                <TableRow>
+                  <TableCell>رقم الطلب</TableCell>
+                  <TableCell>اسم العميل</TableCell>
+                  <TableCell>الرقم</TableCell>
+                  <TableCell>الإجمالي</TableCell>
+                  <TableCell>الحالة</TableCell>
+                  <TableCell>التاريخ</TableCell>
+                  <TableCell>الإجراءات</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {ordersList.map((order) => {
+                  const status = getStatusLabel(order.status);
+                  return (
+                    <TableRow
+                      key={order.id}
+                      hover
+                      sx={{
+                        "&:nth-of-type(even)": { backgroundColor: "rgba(255,255,255,0.3)" },
+                      }}
+                    >
+                      <TableCell>{order.orderNumber}</TableCell>
+                      <TableCell>{order.client?.name || "-"}</TableCell>
+                      <TableCell>{order.client?.phone || "-"}</TableCell>
+                      <TableCell>{order.totalAmount} ₪</TableCell>
+                      <TableCell>
+                        <Chip label={status.label} color={status.color} size="small" />
+                      </TableCell>
+                      <TableCell>
+                        {order.orderDate
+                          ? new Date(order.orderDate).toLocaleDateString("ar-SA", { calendar: "gregory" })
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<Visibility />}
+                          onClick={() => handleViewDetails(order)}
+                        >
+                          عرض التفاصيل
+                        </Button>
+                    {order.status !== ORDER_STATUS.CANCELLED &&
+                      order.status !== ORDER_STATUS.COMPLETED && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          sx={{ ml: 1 }}
+                          onClick={() => handleCancelOrder(order)}
+                          disabled={cancelLoadingId === order.id}
+                        >
+                          {cancelLoadingId === order.id ? (
+                            <CircularProgress size={16} />
+                          ) : (
+                            "إلغاء الطلب"
+                          )}
+                        </Button>
+                      )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </GlassDialog>
 
       {/* Order Details Modal */}
-      <Dialog
+      <GlassDialog
         open={openDetailsModal}
         onClose={handleCloseDetailsModal}
         maxWidth="md"
-        fullWidth
+        title="تفاصيل الطلب"
+        subtitle={selectedOrder?.orderNumber}
+        actions={
+          <Button onClick={handleCloseDetailsModal} variant="contained">
+            إغلاق
+          </Button>
+        }
       >
-        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography variant="h6">تفاصيل الطلب</Typography>
-          <IconButton onClick={handleCloseDetailsModal}>
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent>
           {selectedOrder && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <Grid container spacing={2}>
@@ -860,7 +976,7 @@ const EmployeeDashboard = () => {
                       التصاميم:
                     </Typography>
                     {selectedOrder.orderDesigns.map((design, idx) => (
-                      <Paper key={idx} sx={{ p: 2, mb: 2, bgcolor: "#f5f5f5" }}>
+                      <Paper key={idx} sx={{ p: 2, mb: 2, bgcolor: "rgba(255,255,255,0.5)", borderRadius: 2 }}>
                         <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
                           اسم التصميم: {design.designName}
                         </Typography>
@@ -946,13 +1062,13 @@ const EmployeeDashboard = () => {
                               عناصر التصميم:
                             </Typography>
                             {design.orderDesignItems.map((item, itemIdx) => (
-                              <Paper 
+                              <Paper
                                 key={itemIdx} 
                                 sx={{ 
                                   p: 1.5, 
                                   mb: 1.5, 
-                                  backgroundColor: "#ffffff",
-                                  border: "1px solid #e0e0e0"
+                                  backgroundColor: "rgba(255,255,255,0.7)",
+                                  border: "1px solid rgba(94, 78, 62, 0.12)"
                                 }}
                               >
                                 <Grid container spacing={1}>
@@ -991,7 +1107,7 @@ const EmployeeDashboard = () => {
                             ))}
                           </Box>
                         )}
-                        <Box sx={{ mt: 1, p: 1, backgroundColor: "#e3f2fd", borderRadius: 1 }}>
+                        <Box sx={{ mt: 1, p: 1, backgroundColor: "rgba(94, 131, 158, 0.18)", borderRadius: 2 }}>
                           <Typography variant="body1" sx={{ fontWeight: 700 }}>
                             إجمالي التصميم: {design.totalPrice} ₪
                           </Typography>
@@ -1041,77 +1157,70 @@ const EmployeeDashboard = () => {
               </Grid>
             </Box>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDetailsModal}>إغلاق</Button>
-        </DialogActions>
-      </Dialog>
+      </GlassDialog>
 
       {/* Image Dialog */}
-      <Dialog
+      <GlassDialog
         open={imageDialogOpen}
         onClose={handleCloseImageDialog}
         maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: 'rgba(0, 0, 0, 0.9)',
-            color: 'white'
-          }
-        }}
+        title="معاينة الصورة"
+        contentSx={{ padding: 0 }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">معاينة الصورة</Typography>
-          <IconButton onClick={handleCloseImageDialog} sx={{ color: 'white' }}>
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ padding: 2 }}>
-          {selectedImage ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-              <img
-                src={selectedImage}
-                alt="معاينة الصورة"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  if (e.target.nextSibling) {
-                    e.target.nextSibling.style.display = 'flex';
-                  }
-                }}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '70vh',
-                  objectFit: 'contain',
-                  borderRadius: '8px'
-                }}
-              />
-              <Box sx={{
-                display: 'none',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '400px',
-                color: 'text.secondary'
-              }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
-                <Typography variant="body2">الصورة غير متوفرة</Typography>
-              </Box>
+        {selectedImage ? (
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400, padding: 3 }}>
+            <img
+              src={selectedImage}
+              alt="معاينة الصورة"
+              onError={(e) => {
+                e.target.style.display = "none";
+                if (e.target.nextSibling) {
+                  e.target.nextSibling.style.display = "flex";
+                }
+              }}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "70vh",
+                objectFit: "contain",
+                borderRadius: "12px",
+                boxShadow: "0 24px 65px rgba(15, 23, 42, 0.35)",
+              }}
+            />
+            <Box
+              sx={{
+                display: "none",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: "400px",
+                color: "text.secondary",
+              }}
+            >
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                لا يمكن عرض الصورة
+              </Typography>
+              <Typography variant="body2">الصورة غير متوفرة</Typography>
             </Box>
-          ) : (
-            <Box sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '400px',
-              color: 'text.secondary'
-            }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
-              <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات</Typography>
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "400px",
+              color: "text.secondary",
+              padding: 4,
+            }}
+          >
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              الصورة غير متوفرة
+            </Typography>
+            <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات</Typography>
+          </Box>
+        )}
+      </GlassDialog>
     </Box>
   );
 };

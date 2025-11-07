@@ -19,9 +19,7 @@ import {
   Paper,
   Chip,
   Button,
-  Dialog,
   DialogContent,
-  DialogTitle,
   TextField,
   MenuItem,
   CircularProgress,
@@ -42,11 +40,12 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService } from "../services/api";
-import axios from "axios";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
+import calmPalette from "../theme/calmPalette";
+import GlassDialog from "../components/common/GlassDialog";
 
 // Helper function to build full image/file URL
 const getFullUrl = (url) => {
@@ -93,7 +92,7 @@ const DesignManagerDashboard = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const [statusFilter, setStatusFilter] = useState(ORDER_STATUS.PENDING_PRINTING);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
@@ -683,69 +682,109 @@ const DesignManagerDashboard = () => {
       title: "إجمالي الطلبات",
       value: totalOrdersCount,
       icon: Dashboard,
-      color: "#1976d2",
     },
     {
       title: "بانتظار الطباعة",
       value: pendingPrintingCount,
       icon: Schedule,
-      color: "#ed6c02",
     },
     {
       title: "في مرحلة الطباعة",
       value: inPrintingCount,
       icon: Print,
-      color: "#2e7d32",
     },
     {
       title: "مكتملة",
       value: completedCount,
       icon: CheckCircle,
-      color: "#9c27b0",
     },
   ];
 
   return (
-    <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        backgroundImage: calmPalette.background,
+        paddingBottom: 6,
+      }}
+    >
       <AppBar
         position="static"
-        elevation={2}
+        elevation={0}
         sx={{
-          background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+          background: calmPalette.appBar,
+          boxShadow: "0 12px 30px rgba(34, 26, 21, 0.25)",
+          backdropFilter: "blur(10px)",
         }}
       >
-        <Toolbar>
-          <Typography variant="h5" sx={{ flexGrow: 1, fontWeight: 700 }}>
+        <Toolbar sx={{ minHeight: 72 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              flexGrow: 1,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+            }}
+          >
             PSBrand - لوحة مدير التصميم
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Avatar sx={{ bgcolor: "white", color: "#f5576c" }}>
+            <Avatar
+              sx={{
+                bgcolor: "rgba(255, 255, 255, 0.22)",
+                color: "#ffffff",
+                backdropFilter: "blur(6px)",
+              }}
+            >
               {user?.name?.charAt(0) || "م"}
             </Avatar>
-            <Typography variant="body1" sx={{ fontWeight: 500 }}>
+            <Typography variant="body1" sx={{ fontWeight: 500, color: "#f6f1eb" }}>
               {user?.name || "مدير التصميم"}
             </Typography>
-            <IconButton color="inherit" onClick={handleLogout}>
+            <IconButton
+              color="inherit"
+              onClick={handleLogout}
+              sx={{
+                color: "#f6f1eb",
+                border: "1px solid rgba(255,255,255,0.25)",
+                borderRadius: 2,
+              }}
+            >
               <Logout />
             </IconButton>
           </Box>
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ paddingY: 4 }}>
+      <Container maxWidth="xl" sx={{ paddingY: 5 }}>
         {/* Stats Cards */}
         <Grid container spacing={3} sx={{ marginBottom: 4 }}>
           {stats.map((stat, index) => {
             const Icon = stat.icon;
+            const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
             return (
               <Grid item xs={12} sm={6} md={3} key={index}>
                 <Card
                   sx={{
-                    background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}dd 100%)`,
-                    color: "white",
-                    transition: "transform 0.2s",
+                    position: "relative",
+                    background: cardStyle.background,
+                    color: cardStyle.highlight,
+                    borderRadius: 4,
+                    boxShadow: calmPalette.shadow,
+                    overflow: "hidden",
+                    transition: "transform 0.2s, box-shadow 0.2s",
+                    backdropFilter: "blur(6px)",
+                    "&::after": {
+                      content: '""',
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
+                      pointerEvents: "none",
+                    },
                     "&:hover": {
                       transform: "translateY(-5px)",
+                      boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
                     },
                   }}
                 >
@@ -758,14 +797,23 @@ const DesignManagerDashboard = () => {
                       }}
                     >
                       <Box>
-                        <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                        <Typography
+                          variant="h3"
+                          sx={{ fontWeight: 700, color: cardStyle.highlight }}
+                        >
                           {stat.value}
                         </Typography>
-                        <Typography variant="body1" sx={{ marginTop: 1 }}>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            marginTop: 1,
+                            color: "rgba(255, 255, 255, 0.8)",
+                          }}
+                        >
                           {stat.title}
                         </Typography>
                       </Box>
-                      <Icon sx={{ fontSize: 60, opacity: 0.8 }} />
+                      <Icon sx={{ fontSize: 56, color: cardStyle.highlight }} />
                     </Box>
                   </CardContent>
                 </Card>
@@ -774,7 +822,16 @@ const DesignManagerDashboard = () => {
           })}
         </Grid>
 
-        <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            padding: 4,
+            borderRadius: 4,
+            background: calmPalette.surface,
+            boxShadow: calmPalette.shadow,
+            backdropFilter: "blur(8px)",
+          }}
+        >
           <Box
             sx={{
               display: "flex",
@@ -793,9 +850,23 @@ const DesignManagerDashboard = () => {
               size="small"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              sx={{ minWidth: 150 }}
+              sx={{
+                minWidth: 150,
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "rgba(255,255,255,0.4)",
+                  "& fieldset": {
+                    borderColor: "rgba(94, 78, 62, 0.25)",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "rgba(94, 78, 62, 0.45)",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "rgba(94, 78, 62, 0.7)",
+                  },
+                },
+              }}
             >
-              <MenuItem value="all">جميع الطلبات</MenuItem>
+              <MenuItem value="all" >جميع الطلبات</MenuItem>
               <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
               <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
               <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
@@ -814,7 +885,14 @@ const DesignManagerDashboard = () => {
               <TableContainer>
                 <Table>
                   <TableHead>
-                    <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                    <TableRow
+                      sx={{
+                        backgroundColor: "rgba(94, 78, 62, 0.08)",
+                        "& th": {
+                          color: calmPalette.textPrimary,
+                        },
+                      }}
+                    >
                       <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
@@ -852,6 +930,7 @@ const DesignManagerDashboard = () => {
                             key={`order-${order.id}`}
                             hover
                             sx={{
+                              backgroundColor: "rgba(255, 255, 255, 0.35)",
                               "&:last-child td, &:last-child th": { border: 0 },
                             }}
                           >
@@ -1186,7 +1265,7 @@ const DesignManagerDashboard = () => {
                                   </IconButton>
                                 </TableCell>
                                 <TableCell rowSpan={rowCount}>
-                                  <Button
+                                      <Button
                                     size="small"
                                     variant="contained"
                                     color="primary"
@@ -1235,143 +1314,160 @@ const DesignManagerDashboard = () => {
       </Container>
 
       {/* Image Dialog */}
-      <Dialog
+      <GlassDialog
         open={imageDialogOpen}
         onClose={handleCloseImageDialog}
         maxWidth="lg"
-        fullWidth
+        title={
+          Array.isArray(selectedImage)
+            ? `معاينة الصور (${currentImageIndex + 1} / ${selectedImage.length})`
+            : "معاينة الصورة"
+        }
+        contentSx={{ padding: 0 }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">
-            {Array.isArray(selectedImage) 
-              ? `معاينة الصور (${currentImageIndex + 1} / ${selectedImage.length})`
-              : 'معاينة الصورة'}
-          </Typography>
-          <IconButton onClick={handleCloseImageDialog}>
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ padding: 2 }}>
-           {(() => {
-             // Handle both single image (string) and multiple images (array)
-             const images = Array.isArray(selectedImage) 
-               ? selectedImage.map(img => getFullUrl(img))
-               : (selectedImage ? [getFullUrl(selectedImage)] : []);
-             const currentImage = images[currentImageIndex];
-            
-            if (!currentImage || currentImage === 'image_data_excluded') {
-              return (
-                <Box sx={{ 
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '400px',
-                  color: 'text.secondary'
-                }}>
-                  <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
-                  <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات لتقليل حجم البيانات</Typography>
-                </Box>
-              );
-            }
-            
+        {(() => {
+          const images = Array.isArray(selectedImage)
+            ? selectedImage.map((img) => getFullUrl(img))
+            : selectedImage
+            ? [getFullUrl(selectedImage)]
+            : [];
+          const currentImage = images[currentImageIndex];
+
+          if (!currentImage || currentImage === "image_data_excluded") {
             return (
-              <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-                {images.length > 1 && (
-                  <>
-                    <IconButton
-                      onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)}
-                      sx={{
-                        position: 'absolute',
-                        left: 16,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        bgcolor: 'rgba(0, 0, 0, 0.5)',
-                        color: 'white',
-                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
-                        zIndex: 1
-                      }}
-                    >
-                      <ArrowBack />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => setCurrentImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)}
-                      sx={{
-                        position: 'absolute',
-                        right: 16,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        bgcolor: 'rgba(0, 0, 0, 0.5)',
-                        color: 'white',
-                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
-                        zIndex: 1
-                      }}
-                    >
-                      <ArrowForward />
-                    </IconButton>
-                  </>
-                )}
-                <img 
-                  src={currentImage} 
-                  alt={`معاينة الصورة ${currentImageIndex + 1}`}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    if (e.target.nextSibling) {
-                      e.target.nextSibling.style.display = 'flex';
-                    }
-                  }}
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '70vh', 
-                    objectFit: 'contain',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Box sx={{ 
-                  display: 'none',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '400px',
-                  color: 'text.secondary'
-                }}>
-                  <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
-                  <Typography variant="body2">الصورة غير متوفرة في قائمة الطلبات</Typography>
-                </Box>
-                {images.length > 1 && (
-                  <Box sx={{ 
-                    position: 'absolute', 
-                    bottom: 16, 
-                    left: '50%', 
-                    transform: 'translateX(-50%)',
-                    display: 'flex',
-                    gap: 1,
-                    bgcolor: 'rgba(0, 0, 0, 0.5)',
-                    borderRadius: 2,
-                    padding: '4px 8px'
-                  }}>
-                    {images.map((_, idx) => (
-                      <Box
-                        key={idx}
-                        onClick={() => setCurrentImageIndex(idx)}
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          bgcolor: idx === currentImageIndex ? 'white' : 'rgba(255, 255, 255, 0.5)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.8)' }
-                        }}
-                      />
-                    ))}
-                  </Box>
-                )}
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: 400,
+                  color: "text.secondary",
+                  padding: 4,
+                }}
+              >
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  الصورة غير متوفرة
+                </Typography>
+                <Typography variant="body2">
+                  لم يتم تضمين بيانات الصورة في قائمة الطلبات لتقليل حجم البيانات
+                </Typography>
               </Box>
             );
-          })()}
-        </DialogContent>
-      </Dialog>
+          }
+
+          return (
+            <Box
+              sx={{
+                position: "relative",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                minHeight: 400,
+                padding: 3,
+              }}
+            >
+              {images.length > 1 && (
+                <>
+                  <IconButton
+                    onClick={() => setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1))}
+                    sx={{
+                      position: "absolute",
+                      left: 24,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      bgcolor: "rgba(0, 0, 0, 0.5)",
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(0, 0, 0, 0.7)" },
+                      zIndex: 1,
+                    }}
+                  >
+                    <ArrowBack />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0))}
+                    sx={{
+                      position: "absolute",
+                      right: 24,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      bgcolor: "rgba(0, 0, 0, 0.5)",
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(0, 0, 0, 0.7)" },
+                      zIndex: 1,
+                    }}
+                  >
+                    <ArrowForward />
+                  </IconButton>
+                </>
+              )}
+              <img
+                src={currentImage}
+                alt={`معاينة الصورة ${currentImageIndex + 1}`}
+                onError={(e) => {
+                  e.target.style.display = "none";
+                  if (e.target.nextSibling) {
+                    e.target.nextSibling.style.display = "flex";
+                  }
+                }}
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "70vh",
+                  objectFit: "contain",
+                  borderRadius: "12px",
+                  boxShadow: "0 24px 65px rgba(15, 23, 42, 0.35)",
+                }}
+              />
+              <Box
+                sx={{
+                  display: "none",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minHeight: "400px",
+                  color: "text.secondary",
+                }}
+              >
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  لا يمكن عرض الصورة
+                </Typography>
+                <Typography variant="body2">الصورة غير متوفرة في قائمة الطلبات</Typography>
+              </Box>
+              {images.length > 1 && (
+                <Box
+                  sx={{
+                    position: "absolute",
+                    bottom: 24,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    display: "flex",
+                    gap: 1,
+                    bgcolor: "rgba(0, 0, 0, 0.45)",
+                    borderRadius: 999,
+                    padding: "6px 10px",
+                  }}
+                >
+                  {images.map((_, idx) => (
+                    <Box
+                      key={idx}
+                      onClick={() => setCurrentImageIndex(idx)}
+                      sx={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        bgcolor: idx === currentImageIndex ? "white" : "rgba(255, 255, 255, 0.4)",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        "&:hover": { bgcolor: "rgba(255, 255, 255, 0.75)" },
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+            </Box>
+          );
+        })()}
+      </GlassDialog>
 
       {/* Notes Dialog */}
       <NotesDialog

@@ -6,10 +6,6 @@ import {
   Box,
   Button,
   TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Table,
   TableBody,
   TableCell,
@@ -38,6 +34,7 @@ import {
 } from '@mui/icons-material';
 import { useApp } from '../../context/AppContext';
 import { employeesService } from '../../services/api';
+import GlassDialog from '../common/GlassDialog';
 
 const EmployeeManagement = () => {
   const { employees, addEmployee, deleteEmployee, setEmployees } = useApp();
@@ -269,179 +266,177 @@ const EmployeeManagement = () => {
       )}
 
       {/* نافذة إضافة موظف */}
-      <Dialog
+      <GlassDialog
         open={openDialog}
         onClose={handleCloseDialog}
         maxWidth="sm"
-        fullWidth
+        title="إضافة موظف جديد"
+        actions={
+          <>
+            <Button onClick={handleCloseDialog} disabled={loading}>
+              إغلاق
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSubmit(onSubmit)}
+              disabled={submitSuccess || loading}
+              startIcon={loading ? <CircularProgress size={16} /> : null}
+            >
+              {loading ? 'جاري الإضافة...' : 'إضافة'}
+            </Button>
+          </>
+        }
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>إضافة موظف جديد</DialogTitle>
-        <DialogContent>
-          {submitSuccess && (
-            <Alert severity="success" sx={{ marginBottom: 2 }}>
-              ✅ تم إضافة الموظف بنجاح! 
-            </Alert>
-          )}
-          
-          {error && (
-            <Alert severity="error" sx={{ marginBottom: 2 }}>
-              {error}
-            </Alert>
-          )}
+        {submitSuccess && (
+          <Alert severity="success" sx={{ marginBottom: 2 }}>
+            ✅ تم إضافة الموظف بنجاح! 
+          </Alert>
+        )}
+        
+        {error && (
+          <Alert severity="error" sx={{ marginBottom: 2 }}>
+            {error}
+          </Alert>
+        )}
 
-          <Box
-            component="form"
-            onSubmit={handleSubmit(onSubmit)}
-            sx={{ marginTop: 2 }}
-          >
-            <Controller
-              name="name"
-              control={control}
-              rules={{ required: 'الاسم مطلوب' }}
-              render={({ field }) => (
-                <TextField
+        <Box
+          component="form"
+          onSubmit={handleSubmit(onSubmit)}
+          sx={{ marginTop: 2 }}
+        >
+          <Controller
+            name="name"
+            control={control}
+            rules={{ required: 'الاسم مطلوب' }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                fullWidth
+                label="اسم الموظف"
+                error={!!errors.name}
+                helperText={errors.name?.message}
+                sx={{ marginBottom: 2 }}
+                InputProps={{
+                  startAdornment: <Person sx={{ marginRight: 1 }} />,
+                }}
+              />
+            )}
+          />
+
+          <Controller
+            name="phone"
+            control={control}
+            rules={{
+              required: 'رقم الهاتف مطلوب',
+              pattern: {
+                value: /^[0-9+\-\s()]+$/,
+                message: 'رقم هاتف غير صحيح',
+              },
+            }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                fullWidth
+                label="رقم الهاتف"
+                error={!!errors.phone}
+                helperText={errors.phone?.message}
+                sx={{ marginBottom: 2 }}
+                InputProps={{
+                  startAdornment: <Phone sx={{ marginRight: 1 }} />,
+                }}
+              />
+            )}
+          />
+
+          <Controller
+            name="role"
+            control={control}
+            rules={{ required: 'الوظيفة مطلوبة' }}
+            render={({ field }) => (
+              <FormControl fullWidth sx={{ marginBottom: 2 }} error={!!errors.role}>
+                <InputLabel>الوظيفة</InputLabel>
+                <Select
                   {...field}
-                  fullWidth
-                  label="اسم الموظف"
-                  error={!!errors.name}
-                  helperText={errors.name?.message}
-                  sx={{ marginBottom: 2 }}
-                  InputProps={{
-                    startAdornment: <Person sx={{ marginRight: 1 }} />,
-                  }}
-                />
-              )}
-            />
+                  label="الوظيفة"
+                  startAdornment={<Work sx={{ marginRight: 1, marginLeft: 1 }} />}
+                >
+                  <MenuItem value="admin">أدمن</MenuItem>
+                  <MenuItem value="designer">بائع</MenuItem>
+                  <MenuItem value="preparer">محضر طلبات</MenuItem>
+                  <MenuItem value="designmanager">مدير التصميم</MenuItem>
+                </Select>
+                {errors.role && (
+                  <FormHelperText>{errors.role.message}</FormHelperText>
+                )}
+              </FormControl>
+            )}
+          />
 
-            <Controller
-              name="phone"
-              control={control}
-              rules={{
-                required: 'رقم الهاتف مطلوب',
-                pattern: {
-                  value: /^[0-9+\-\s()]+$/,
-                  message: 'رقم هاتف غير صحيح',
-                },
-              }}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  fullWidth
-                  label="رقم الهاتف"
-                  error={!!errors.phone}
-                  helperText={errors.phone?.message}
-                  sx={{ marginBottom: 2 }}
-                  InputProps={{
-                    startAdornment: <Phone sx={{ marginRight: 1 }} />,
-                  }}
-                />
-              )}
-            />
+          <Controller
+            name="username"
+            control={control}
+            rules={{ 
+              required: 'اسم المستخدم مطلوب',
+              minLength: {
+                value: 3,
+                message: 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل',
+              },
+              pattern: {
+                value: /^[a-zA-Z0-9_]+$/,
+                message: 'فقط أحرف إنجليزية وأرقام و _',
+              },
+            }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                fullWidth
+                label="اسم المستخدم (للدخول)"
+                error={!!errors.username}
+                helperText={errors.username?.message || 'سيستخدمه الموظف لتسجيل الدخول'}
+                sx={{ marginBottom: 2 }}
+                InputProps={{
+                  startAdornment: <Person sx={{ marginRight: 1 }} />,
+                }}
+              />
+            )}
+          />
 
-            <Controller
-              name="role"
-              control={control}
-              rules={{ required: 'الوظيفة مطلوبة' }}
-              render={({ field }) => (
-                <FormControl fullWidth sx={{ marginBottom: 2 }} error={!!errors.role}>
-                  <InputLabel>الوظيفة</InputLabel>
-                  <Select
-                    {...field}
-                    label="الوظيفة"
-                    startAdornment={<Work sx={{ marginRight: 1, marginLeft: 1 }} />}
-                  >
-                    
-                    <MenuItem value="admin">أدمن</MenuItem>
-                    <MenuItem value="designer">بائع</MenuItem>
-                    <MenuItem value="preparer">محضر طلبات</MenuItem>
-                    <MenuItem value="designmanager">مدير التصميم</MenuItem>
-                  </Select>
-                  {errors.role && (
-                    <FormHelperText>{errors.role.message}</FormHelperText>
-                  )}
-                </FormControl>
-              )}
-            />
-
-            <Controller
-              name="username"
-              control={control}
-              rules={{ 
-                required: 'اسم المستخدم مطلوب',
-                minLength: {
-                  value: 3,
-                  message: 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل',
-                },
-                pattern: {
-                  value: /^[a-zA-Z0-9_]+$/,
-                  message: 'فقط أحرف إنجليزية وأرقام و _',
-                },
-              }}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  fullWidth
-                  label="اسم المستخدم (للدخول)"
-                  error={!!errors.username}
-                  helperText={errors.username?.message || 'سيستخدمه الموظف لتسجيل الدخول'}
-                  sx={{ marginBottom: 2 }}
-                  InputProps={{
-                    startAdornment: <Person sx={{ marginRight: 1 }} />,
-                  }}
-                />
-              )}
-            />
-
-            <Controller
-              name="password"
-              control={control}
-              rules={{
-                required: 'كلمة المرور مطلوبة',
-                minLength: {
-                  value: 6,
-                  message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
-                },
-              }}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  fullWidth
-                  label="كلمة المرور"
-                  type={showPassword ? "text" : "password"}
-                  error={!!errors.password}
-                  helperText={errors.password?.message || 'كلمة المرور للموظف'}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={handleTogglePassword}
-                          edge="end"
-                          disabled={loading}
-                        >
-                          {!showPassword ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              )}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ padding: 3 }}>
-          <Button onClick={handleCloseDialog} disabled={loading}>
-            إغلاق
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSubmit(onSubmit)}
-            disabled={submitSuccess || loading}
-            startIcon={loading ? <CircularProgress size={16} /> : null}
-          >
-            {loading ? 'جاري الإضافة...' : 'إضافة'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          <Controller
+            name="password"
+            control={control}
+            rules={{
+              required: 'كلمة المرور مطلوبة',
+              minLength: {
+                value: 6,
+                message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
+              },
+            }}
+            render={({ field }) => (
+              <TextField
+                {...field}
+                fullWidth
+                label="كلمة المرور"
+                type={showPassword ? "text" : "password"}
+                error={!!errors.password}
+                helperText={errors.password?.message || 'كلمة المرور للموظف'}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={handleTogglePassword}
+                        edge="end"
+                        disabled={loading}
+                      >
+                        {!showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            )}
+          />
+        </Box>
+      </GlassDialog>
     </Paper>
   );
 };
