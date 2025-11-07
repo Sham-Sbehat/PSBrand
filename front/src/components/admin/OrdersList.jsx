@@ -37,32 +37,6 @@ import { subscribeToOrderUpdates } from "../../services/realtime";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../../constants";
 import NotesDialog from "../common/NotesDialog";
 
-// Helper function to build full image/file URL
-const getFullUrl = (url) => {
-  if (!url || typeof url !== 'string') return url;
-  
-  // If it's already a full URL (http/https), return as is
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-  
-  // If it's a data URL (base64), return as is
-  if (url.startsWith('data:')) {
-    return url;
-  }
-  
-  // If it's a relative path starting with /, build full URL
-  if (url.startsWith('/')) {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
-    // Remove /api from base URL to get the domain
-    const baseDomain = API_BASE_URL.replace('/api', '');
-    return `${baseDomain}${url}`;
-  }
-  
-  // Return as is for other cases
-  return url;
-};
-
 const OrdersList = () => {
   const { orders, user } = useApp();
   const [allOrders, setAllOrders] = useState([]);
@@ -80,6 +54,23 @@ const OrdersList = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortByState, setSortByState] = useState('asc'); // 'asc', 'desc', or null
+
+  const getFullUrl = (url) => {
+    if (!url || typeof url !== 'string') return url;
+
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
+    const baseDomain = API_BASE_URL.replace('/api', '');
+
+    if (url.startsWith('/')) {
+      return `${baseDomain}${url}`;
+    }
+
+    return `${baseDomain}/${url}`;
+  };
 
   // Fetch all orders from API + subscribe to realtime updates
   useEffect(() => {
@@ -142,14 +133,8 @@ const OrdersList = () => {
       try {
         const fullOrder = await ordersService.getOrderById(orderId);
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-        
-        // Support both old format (mockupImageUrl) and new format (mockupImageUrls array)
-        const imageUrls = design?.mockupImageUrls || (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
-        const firstImage = imageUrls.find(url => url && url !== 'image_data_excluded' && url !== 'placeholder_mockup.jpg');
-        
-        if (firstImage) {
-          const fullImageUrl = getFullUrl(firstImage);
-          setEnlargedImageUrl(fullImageUrl);
+        if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
+          setEnlargedImageUrl(getFullUrl(design.mockupImageUrl));
           setOpenImageDialog(true);
         } else {
           alert('الصورة غير متوفرة');
@@ -167,9 +152,7 @@ const OrdersList = () => {
     if (!imageUrl || imageUrl === 'placeholder_mockup.jpg') {
       return;
     }
-    // Convert to full URL before displaying
-    const fullImageUrl = getFullUrl(imageUrl);
-    setEnlargedImageUrl(fullImageUrl);
+    setEnlargedImageUrl(getFullUrl(imageUrl));
     setOpenImageDialog(true);
   };
 
@@ -346,13 +329,23 @@ const OrdersList = () => {
         console.error('Error opening base64 file:', error);
         alert('حدث خطأ أثناء فتح الملف.\n' + error.message + '\n\nيرجى المحاولة مرة أخرى أو الاتصال بالدعم.');
       }
+    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
+      // Regular URL - download directly
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileUrl.split('/').pop() || 'file.pdf';
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
     } else {
-      // Regular URL - convert to full URL if needed and download
       const fullFileUrl = getFullUrl(fileUrl);
       const link = document.createElement('a');
       link.href = fullFileUrl;
       link.download = fullFileUrl.split('/').pop() || 'file.pdf';
-      link.target = '_blank';
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
@@ -373,24 +366,18 @@ const OrdersList = () => {
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
         console.log('Design found:', design);
         
-        // Support both old format (printFileUrl) and new format (printFileUrls array)
-        const fileUrls = design?.printFileUrls || (design?.printFileUrl ? [design.printFileUrl] : []);
-        const firstFile = fileUrls.find(url => url && url !== 'image_data_excluded' && url !== 'placeholder_print.pdf');
-        
-        if (firstFile) {
+        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
           console.log('File found, opening...', {
-            fileUrlLength: firstFile.length,
-            isBase64: firstFile.startsWith('data:'),
-            startsWith: firstFile.substring(0, 50)
+            fileUrlLength: design.printFileUrl.length,
+            isBase64: design.printFileUrl.startsWith('data:'),
+            startsWith: design.printFileUrl.substring(0, 50)
           });
-          // Open file using helper function (getFullUrl will be called inside openFile)
-          await openFile(firstFile);
+          // Open file using helper function
+          await openFile(getFullUrl(design.printFileUrl));
         } else {
           console.error('File not available:', { 
-            hasPrintFileUrl: !!design?.printFileUrl,
-            hasPrintFileUrls: !!design?.printFileUrls,
-            printFileUrl: design?.printFileUrl,
-            printFileUrls: design?.printFileUrls
+            hasPrintFileUrl: !!design?.printFileUrl, 
+            printFileUrl: design?.printFileUrl 
           });
           alert('الملف غير متوفر في قاعدة البيانات');
         }
@@ -404,7 +391,7 @@ const OrdersList = () => {
     }
     
     // Normal file handling
-    await openFile(fileUrl);
+    await openFile(getFullUrl(fileUrl));
   };
 
   const handleCloseImageDialog = () => {
@@ -831,6 +818,9 @@ const OrdersList = () => {
                                       عرض الصورة {idx + 1}
                                     </Button>
                                   ) : (
+                                    (() => {
+                                      const displayUrl = getFullUrl(imageUrl);
+                                      return (
                                     <Box
                                       key={idx}
                                       sx={{
@@ -840,7 +830,7 @@ const OrdersList = () => {
                                       }}
                                     >
                                       <img
-                                        src={getFullUrl(imageUrl)}
+                                        src={displayUrl}
                                         alt={`${design.designName} - صورة ${idx + 1}`}
                                         onClick={() => handleImageClick(imageUrl, selectedOrder.id, design.id)}
                                         style={{
@@ -855,6 +845,8 @@ const OrdersList = () => {
                                         onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                                       />
                                     </Box>
+                                      );
+                                    })()
                                   )
                                 ))}
                               </Box>
@@ -892,7 +884,7 @@ const OrdersList = () => {
                                       variant="contained"
                                       size="small"
                                       startIcon={<PictureAsPdf />}
-                                      onClick={() => handleFileClick(getFullUrl(fileUrl), selectedOrder.id, design.id)}
+                                      onClick={() => handleFileClick(fileUrl, selectedOrder.id, design.id)}
                                     >
                                       📄 ملف {idx + 1}
                                     </Button>

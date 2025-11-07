@@ -26,12 +26,54 @@ import {
   TextField,
   CircularProgress,
 } from "@mui/material";
-import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon } from "@mui/icons-material";
+import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService } from "../services/api";
 import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS } from "../constants";
 import OrderForm from "../components/employee/OrderForm";
+
+// Helper function to build full image/file URL
+const getFullUrl = (url) => {
+  if (!url || typeof url !== "string") return url;
+
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
+  const baseDomain = API_BASE_URL.replace("/api", "");
+
+  if (url.startsWith("/")) {
+    return `${baseDomain}${url}`;
+  }
+
+  return `${baseDomain}/${url}`;
+};
+
+const getMockupImages = (design) => {
+  if (!design) return [];
+  const images = [];
+  if (Array.isArray(design.mockupImageUrls)) {
+    images.push(...design.mockupImageUrls);
+  }
+  if (design.mockupImageUrl) {
+    images.push(design.mockupImageUrl);
+  }
+  return images.filter((url) => url && url !== "placeholder_mockup.jpg");
+};
+
+const getPrintFiles = (design) => {
+  if (!design) return [];
+  const files = [];
+  if (Array.isArray(design.printFileUrls)) {
+    files.push(...design.printFileUrls);
+  }
+  if (design.printFileUrl) {
+    files.push(design.printFileUrl);
+  }
+  return files.filter((url) => url && url !== "placeholder_print.pdf");
+};
 
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
@@ -92,36 +134,33 @@ const EmployeeDashboard = () => {
   // Load image for display (lazy loading)
   const loadImageForDisplay = async (orderId, designId) => {
     const cacheKey = `${orderId}-${designId}`;
-    
-    // Check cache first
+
     if (imageCache[cacheKey]) {
       return imageCache[cacheKey];
     }
-    
-    // Don't load if already loading
+
     if (loadingImage === `image-${orderId}-${designId}`) {
       return null;
     }
-    
-    // Load if not in cache
+
     setLoadingImage(`image-${orderId}-${designId}`);
     try {
-      console.log('Loading image for:', { orderId, designId });
       const fullOrder = await ordersService.getOrderById(orderId);
-      const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-      if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
-        console.log('Image loaded successfully:', design.mockupImageUrl.substring(0, 50));
-        // Save to cache
-        setImageCache(prev => ({
+      const design = fullOrder.orderDesigns?.find((d) => d.id === designId);
+
+      const imageUrls = getMockupImages(design);
+      const firstImage = imageUrls.find((url) => url && url !== "image_data_excluded" && url !== "placeholder_mockup.jpg");
+
+      if (firstImage) {
+        const fullImageUrl = getFullUrl(firstImage);
+        setImageCache((prev) => ({
           ...prev,
-          [cacheKey]: design.mockupImageUrl
+          [cacheKey]: fullImageUrl,
         }));
-        return design.mockupImageUrl;
-      } else {
-        console.log('Image not found or excluded:', design);
+        return fullImageUrl;
       }
     } catch (error) {
-      console.error('Error loading image:', error);
+      console.error("Error loading image:", error);
     } finally {
       setLoadingImage(null);
     }
@@ -140,9 +179,15 @@ const EmployeeDashboard = () => {
       try {
         const fullOrder = await ordersService.getOrderById(orderId);
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
-          fileUrl = design.printFileUrl;
-        } else {
+        const files = getPrintFiles(design);
+        const firstValidFile = files.find(url => url !== 'image_data_excluded');
+        if (firstValidFile) {
+          fileUrl = firstValidFile;
+        } else if (files.includes('image_data_excluded')) {
+          fileUrl = null;
+        }
+
+        if (!fileUrl) {
           alert('الملف غير متوفر');
           setLoadingImage(null);
           return;
@@ -224,10 +269,11 @@ const EmployeeDashboard = () => {
         console.error('Error opening file:', error);
         alert('حدث خطأ أثناء فتح الملف.\n' + error.message);
       }
-    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
+    } else {
+      const fullFileUrl = getFullUrl(fileUrl);
       const link = document.createElement('a');
-      link.href = fileUrl;
-      link.download = fileUrl.split('/').pop() || 'file.pdf';
+      link.href = fullFileUrl;
+      link.download = fullFileUrl.split('/').pop() || 'file.pdf';
       link.target = '_blank';
       link.style.display = 'none';
       document.body.appendChild(link);
@@ -253,13 +299,15 @@ const EmployeeDashboard = () => {
         console.log('Design:', {
           id: design.id,
           name: design.designName,
-          mockupImageUrl: design.mockupImageUrl,
-          printFileUrl: design.printFileUrl
+          mockupImageUrls: design.mockupImageUrls,
+          printFileUrls: design.printFileUrls
         });
       });
       
       const loadPromises = order.orderDesigns.map(design => {
-        if (design.mockupImageUrl === 'image_data_excluded') {
+        const images = getMockupImages(design);
+        const hasExcludedImage = images.includes('image_data_excluded');
+        if (hasExcludedImage) {
           console.log('Loading image for design:', design.id);
           return loadImageForDisplay(order.id, design.id);
         }
@@ -280,11 +328,27 @@ const EmployeeDashboard = () => {
     // This effect ensures that when imageCache updates, the component re-renders
   }, [imageCache]);
 
-  const handleImageClick = (imageUrl) => {
-    if (!imageUrl || imageUrl === 'image_data_excluded' || imageUrl === 'placeholder_mockup.jpg') {
+  const handleImageClick = async (imageUrl, orderId, designId) => {
+    if (!imageUrl || imageUrl === 'placeholder_mockup.jpg') {
       return;
     }
-    setSelectedImage(imageUrl);
+
+    if (imageUrl === 'image_data_excluded' && orderId) {
+      const cacheKey = `${orderId}-${designId}`;
+      let imageToShow = imageCache[cacheKey];
+      if (!imageToShow) {
+        imageToShow = await loadImageForDisplay(orderId, designId);
+      }
+      if (imageToShow) {
+        setSelectedImage(imageToShow);
+        setImageDialogOpen(true);
+      } else {
+        alert('الصورة غير متوفرة');
+      }
+      return;
+    }
+
+    setSelectedImage(getFullUrl(imageUrl));
     setImageDialogOpen(true);
   };
 
@@ -800,61 +864,82 @@ const EmployeeDashboard = () => {
                         <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
                           اسم التصميم: {design.designName}
                         </Typography>
-                        {/* Always show image section if mockupImageUrl exists */}
-                        {design.mockupImageUrl && design.mockupImageUrl !== 'placeholder_mockup.jpg' && (
-                          (() => {
-                            const cacheKey = `${selectedOrder?.id}-${design.id}`;
-                            const isExcluded = design.mockupImageUrl === 'image_data_excluded';
-                            const cachedImage = imageCache[cacheKey];
-                            const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}`;
-                            const displayImage = isExcluded ? cachedImage : design.mockupImageUrl;
-                            
-                            return (
-                          <Box 
-                            sx={{ 
-                              mb: 2, 
-                              display: "flex", 
-                              justifyContent: "center",
-                              alignItems: "center",
-                              width: "100%",
-                              height: "250px",
-                                  backgroundColor: displayImage ? "#ffffff" : "#f5f5f5",
-                              borderRadius: "8px",
-                                  border: isExcluded && !cachedImage ? "1px dashed #ccc" : "1px solid #e0e0e0",
-                              overflow: "hidden"
-                            }}
-                          >
-                                {isLoading ? (
-                                  <CircularProgress />
-                                ) : displayImage ? (
-                                  <img 
-                                    src={displayImage} 
-                                    alt={design.designName}
-                                    onClick={() => handleImageClick(displayImage)}
-                                    onError={(e) => {
-                                      e.target.parentElement.style.display = 'none';
-                                    }}
-                                    style={{ 
-                                      width: "auto", 
-                                      height: "100%", 
-                                      maxWidth: "100%",
-                                      objectFit: "contain",
-                                      cursor: "pointer",
-                                      transition: "transform 0.2s"
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                  />
-                                ) : (
-                                  <Box sx={{ color: '#999', textAlign: 'center' }}>
-                                    <ImageIcon sx={{ fontSize: 48, mb: 1, opacity: 0.5 }} />
-                                    <Typography variant="body2">جاري التحميل...</Typography>
-                                  </Box>
-                                )}
-                          </Box>
-                            );
-                          })()
-                        )}
+                        {(() => {
+                          const cacheKey = `${selectedOrder?.id}-${design.id}`;
+                          const images = getMockupImages(design);
+                          const validImages = images.filter(url => url && url !== 'placeholder_mockup.jpg');
+
+                          if (validImages.length === 0) return null;
+
+                          return (
+                            <Box sx={{ mb: 2 }}>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                الصور ({validImages.length})
+                              </Typography>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                {validImages.map((imageUrl, imgIdx) => {
+                                  if (imageUrl === 'image_data_excluded') {
+                                    const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}`;
+                                    return (
+                                      <Button
+                                        key={`img-btn-${imgIdx}`}
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={isLoading ? <CircularProgress size={16} /> : <ImageIcon />}
+                                        onClick={() => handleImageClick(imageUrl, selectedOrder?.id, design.id)}
+                                        disabled={isLoading}
+                                      >
+                                        عرض الصورة {imgIdx + 1}
+                                      </Button>
+                                    );
+                                  }
+
+                                  const displayUrl = getFullUrl(imageUrl);
+                                  const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}` && !imageCache[cacheKey];
+
+                                  return (
+                                    <Box
+                                      key={`img-${imgIdx}`}
+                                      sx={{
+                                        position: 'relative',
+                                        cursor: 'pointer',
+                                        '&:hover': { opacity: 0.85 }
+                                      }}
+                                    >
+                                      {isLoading ? (
+                                        <Box sx={{
+                                          width: 120,
+                                          height: 120,
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          borderRadius: '8px',
+                                          bgcolor: 'grey.100'
+                                        }}>
+                                          <CircularProgress size={20} />
+                                        </Box>
+                                      ) : (
+                                        <img
+                                          src={displayUrl}
+                                          alt={`${design.designName} - صورة ${imgIdx + 1}`}
+                                          onClick={() => handleImageClick(imageUrl, selectedOrder?.id, design.id)}
+                                          style={{
+                                            maxWidth: '140px',
+                                            maxHeight: '140px',
+                                            borderRadius: '8px',
+                                            transition: 'transform 0.2s'
+                                          }}
+                                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.03)'}
+                                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                        />
+                                      )}
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            </Box>
+                          );
+                        })()}
                         {design.orderDesignItems && design.orderDesignItems.length > 0 && (
                           <Box sx={{ mt: 2 }}>
                             <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700, mb: 1.5 }}>
@@ -911,23 +996,44 @@ const EmployeeDashboard = () => {
                             إجمالي التصميم: {design.totalPrice} ₪
                           </Typography>
                         </Box>
-                        {/* Always show file section if printFileUrl exists */}
-                        {design.printFileUrl && design.printFileUrl !== "placeholder_print.pdf" && (
-                          <Box sx={{ mt: 1 }}>
-                            <Button
-                              variant="contained"
-                              color="primary"
-                              onClick={() => openFile(design.printFileUrl, selectedOrder?.id, design.id)}
-                              disabled={loadingImage === `file-${selectedOrder?.id}-${design.id}`}
-                              startIcon={loadingImage === `file-${selectedOrder?.id}-${design.id}` ? <CircularProgress size={16} /> : null}
-                              sx={{ width: "100%" }}
-                            >
-                              {design.printFileUrl === 'image_data_excluded' 
-                                ? 'تنزبل ملف التصميم' 
-                                : 'تنزبل ملف التصميم'}
-                            </Button>
-                          </Box>
-                        )}
+                        {(() => {
+                          const files = getPrintFiles(design);
+                          if (files.length === 0) return null;
+
+                          return (
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                ملفات التصميم ({files.length})
+                              </Typography>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                {files.map((fileUrl, fileIdx) => (
+                                  fileUrl === 'image_data_excluded' ? (
+                                    <Button
+                                      key={`file-btn-${fileIdx}`}
+                                      variant="outlined"
+                                      size="small"
+                                      startIcon={loadingImage === `file-${selectedOrder?.id}-${design.id}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
+                                      onClick={() => openFile(fileUrl, selectedOrder?.id, design.id)}
+                                      disabled={loadingImage === `file-${selectedOrder?.id}-${design.id}`}
+                                    >
+                                      تحميل الملف {fileIdx + 1}
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      key={`file-${fileIdx}`}
+                                      variant="contained"
+                                      size="small"
+                                      startIcon={<PictureAsPdf />}
+                                      onClick={() => openFile(fileUrl, selectedOrder?.id, design.id)}
+                                    >
+                                      ملف {fileIdx + 1}
+                                    </Button>
+                                  )
+                                ))}
+                              </Box>
+                            </Box>
+                          );
+                        })()}
                       </Paper>
                     ))}
                   </Grid>
@@ -961,14 +1067,16 @@ const EmployeeDashboard = () => {
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ padding: 2 }}>
-          {selectedImage && selectedImage !== 'image_data_excluded' ? (
+          {selectedImage ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
               <img
                 src={selectedImage}
                 alt="معاينة الصورة"
                 onError={(e) => {
                   e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
+                  if (e.target.nextSibling) {
+                    e.target.nextSibling.style.display = 'flex';
+                  }
                 }}
                 style={{
                   maxWidth: '100%',

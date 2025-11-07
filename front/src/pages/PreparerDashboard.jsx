@@ -27,13 +27,54 @@ import {
   Tabs,
   Tab,
 } from "@mui/material";
-import { Logout, Visibility, Close, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, ShoppingBag, Note, Image as ImageIcon } from "@mui/icons-material";
+import { Logout, Visibility, Close, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, ShoppingBag, Note, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
+
+const getFullUrl = (url) => {
+  if (!url || typeof url !== "string") return url;
+
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+    return url;
+  }
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
+  const baseDomain = API_BASE_URL.replace("/api", "");
+
+  if (url.startsWith("/")) {
+    return `${baseDomain}${url}`;
+  }
+
+  return `${baseDomain}/${url}`;
+};
+
+const getMockupImages = (design) => {
+  if (!design) return [];
+  const images = [];
+  if (Array.isArray(design.mockupImageUrls)) {
+    images.push(...design.mockupImageUrls);
+  }
+  if (design.mockupImageUrl) {
+    images.push(design.mockupImageUrl);
+  }
+  return images.filter((url) => url && url !== "placeholder_mockup.jpg");
+};
+
+const getPrintFiles = (design) => {
+  if (!design) return [];
+  const files = [];
+  if (Array.isArray(design.printFileUrls)) {
+    files.push(...design.printFileUrls);
+  }
+  if (design.printFileUrl) {
+    files.push(design.printFileUrl);
+  }
+  return files.filter((url) => url && url !== "placeholder_print.pdf");
+};
 
 const PreparerDashboard = () => {
   const navigate = useNavigate();
@@ -276,16 +317,16 @@ const PreparerDashboard = () => {
       console.log('Loading image for:', { orderId, designId });
       const fullOrder = await ordersService.getOrderById(orderId);
       const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-      if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
-        console.log('Image loaded successfully:', design.mockupImageUrl.substring(0, 50));
-        // Save to cache
+      const images = getMockupImages(design);
+      const firstImage = images.find(url => url && url !== 'image_data_excluded');
+
+      if (firstImage) {
+        const fullImageUrl = getFullUrl(firstImage);
         setImageCache(prev => ({
           ...prev,
-          [cacheKey]: design.mockupImageUrl
+          [cacheKey]: fullImageUrl
         }));
-        return design.mockupImageUrl;
-      } else {
-        console.log('Image not found or excluded:', design);
+        return fullImageUrl;
       }
     } catch (error) {
       console.error('Error loading image:', error);
@@ -361,9 +402,15 @@ const PreparerDashboard = () => {
       try {
         const fullOrder = await ordersService.getOrderById(orderId);
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
-          fileUrl = design.printFileUrl;
-        } else {
+        const files = getPrintFiles(design);
+        const firstValidFile = files.find(url => url !== 'image_data_excluded');
+        if (firstValidFile) {
+          fileUrl = firstValidFile;
+        } else if (files.includes('image_data_excluded')) {
+          fileUrl = null;
+        }
+
+        if (!fileUrl) {
           alert('الملف غير متوفر');
           setLoadingImage(null);
           return;
@@ -445,10 +492,11 @@ const PreparerDashboard = () => {
         console.error('Error opening file:', error);
         alert('حدث خطأ أثناء فتح الملف.\n' + error.message);
       }
-    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
+    } else {
+      const fullFileUrl = getFullUrl(fileUrl);
       const link = document.createElement('a');
-      link.href = fileUrl;
-      link.download = fileUrl.split('/').pop() || 'file.pdf';
+      link.href = fullFileUrl;
+      link.download = fullFileUrl.split('/').pop() || 'file.pdf';
       link.target = '_blank';
       link.style.display = 'none';
       document.body.appendChild(link);
@@ -472,13 +520,14 @@ const PreparerDashboard = () => {
         console.log('Design:', {
           id: design.id,
           name: design.designName,
-          mockupImageUrl: design.mockupImageUrl,
-          printFileUrl: design.printFileUrl
+          mockupImageUrls: design.mockupImageUrls,
+          printFileUrls: design.printFileUrls
         });
       });
       
       const loadPromises = order.orderDesigns.map(design => {
-        if (design.mockupImageUrl === 'image_data_excluded') {
+        const images = getMockupImages(design);
+        if (images.includes('image_data_excluded')) {
           console.log('Loading image for design:', design.id);
           return loadImageForDisplay(order.id, design.id);
         }
@@ -499,11 +548,27 @@ const PreparerDashboard = () => {
     setSelectedOrder(null);
   };
 
-  const handleImageClick = (imageUrl) => {
-    if (!imageUrl || imageUrl === 'image_data_excluded' || imageUrl === 'placeholder_mockup.jpg') {
+  const handleImageClick = async (imageUrl, orderId, designId) => {
+    if (!imageUrl || imageUrl === 'placeholder_mockup.jpg') {
       return;
     }
-    setSelectedImage(imageUrl);
+
+    if (imageUrl === 'image_data_excluded' && orderId) {
+      const cacheKey = `${orderId}-${designId}`;
+      let imageToShow = imageCache[cacheKey];
+      if (!imageToShow) {
+        imageToShow = await loadImageForDisplay(orderId, designId);
+      }
+      if (imageToShow) {
+        setSelectedImage(imageToShow);
+        setImageDialogOpen(true);
+      } else {
+        alert('الصورة غير متوفرة');
+      }
+      return;
+    }
+
+    setSelectedImage(getFullUrl(imageUrl));
     setImageDialogOpen(true);
   };
 
@@ -1359,61 +1424,90 @@ const PreparerDashboard = () => {
                         )}
                       </Box>
                       
-                      {/* Always show image section if mockupImageUrl exists */}
-                      {design.mockupImageUrl && design.mockupImageUrl !== 'placeholder_mockup.jpg' && (
-                        (() => {
-                          const cacheKey = `${selectedOrder?.id}-${design.id}`;
-                          const isExcluded = design.mockupImageUrl === 'image_data_excluded';
-                          const cachedImage = imageCache[cacheKey];
-                          const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}`;
-                          const displayImage = isExcluded ? cachedImage : design.mockupImageUrl;
-                          
-                          return (
-                            <Box 
-                              sx={{ 
-                                mb: 2.5, 
-                                textAlign: "center", 
-                                p: 2, 
-                                bgcolor: displayImage ? "grey.50" : "grey.100",
-                                borderRadius: 2,
-                                minHeight: "200px",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                border: isExcluded && !cachedImage ? '1px dashed #ccc' : 'none'
+                      {(() => {
+                        const cacheKey = `${selectedOrder?.id}-${design.id}`;
+                        const images = getMockupImages(design);
+                        const validImages = images.filter(url => url && url !== 'placeholder_mockup.jpg');
+
+                        if (validImages.length === 0) return null;
+
+                        return (
+                          <Box sx={{ mb: 2.5 }}>
+                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                              الصور ({validImages.length})
+                            </Typography>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 1
                               }}
-                              data-image-placeholder={isExcluded && !cachedImage ? "true" : "false"}
-                              data-order-id={selectedOrder?.id}
-                              data-design-id={design.id}
                             >
-                              {isLoading ? (
-                                <CircularProgress />
-                              ) : displayImage ? (
-                                <img 
-                                  src={displayImage} 
-                                  alt={design.designName}
-                                  onClick={() => handleImageClick(displayImage)}
-                                  style={{ 
-                                    maxWidth: "100%",
-                                    maxHeight: "300px",
-                                    objectFit: "contain",
-                                    borderRadius: "8px",
-                                    cursor: "pointer",
-                                    transition: "transform 0.2s"
-                                  }}
-                                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                />
-                              ) : (
-                                <Box sx={{ color: '#999', textAlign: 'center' }}>
-                                  <ImageIcon sx={{ fontSize: 48, mb: 1, opacity: 0.5 }} />
-                                  <Typography variant="body2">جاري التحميل...</Typography>
-                                </Box>
-                              )}
+                              {validImages.map((imageUrl, imgIdx) => {
+                                if (imageUrl === 'image_data_excluded') {
+                                  const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}`;
+                                  return (
+                                    <Button
+                                      key={`img-btn-${imgIdx}`}
+                                      variant="outlined"
+                                      size="small"
+                                      startIcon={isLoading ? <CircularProgress size={16} /> : <ImageIcon />}
+                                      onClick={() => handleImageClick(imageUrl, selectedOrder?.id, design.id)}
+                                      disabled={isLoading}
+                                    >
+                                      عرض الصورة {imgIdx + 1}
+                                    </Button>
+                                  );
+                                }
+
+                                const displayUrl = getFullUrl(imageUrl);
+                                const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}` && !imageCache[cacheKey];
+
+                                return (
+                                  <Box
+                                    key={`img-${imgIdx}`}
+                                    sx={{
+                                      position: 'relative',
+                                      cursor: 'pointer',
+                                      '&:hover': { opacity: 0.85 }
+                                    }}
+                                  >
+                                    {isLoading ? (
+                                      <Box
+                                        sx={{
+                                          width: 120,
+                                          height: 120,
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          borderRadius: '8px',
+                                          bgcolor: 'grey.100'
+                                        }}
+                                      >
+                                        <CircularProgress size={20} />
+                                      </Box>
+                                    ) : (
+                                      <img
+                                        src={displayUrl}
+                                        alt={`${design.designName} - صورة ${imgIdx + 1}`}
+                                        onClick={() => handleImageClick(imageUrl, selectedOrder?.id, design.id)}
+                                        style={{
+                                          maxWidth: '140px',
+                                          maxHeight: '140px',
+                                          borderRadius: '8px',
+                                          transition: 'transform 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.03)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                      />
+                                    )}
+                                  </Box>
+                                );
+                              })}
                             </Box>
-                          );
-                        })()
-                        )}
+                          </Box>
+                        );
+                      })()}
 
                         {design.orderDesignItems && design.orderDesignItems.length > 0 && (
                         <Box>
@@ -1451,24 +1545,44 @@ const PreparerDashboard = () => {
                         </Box>
                       )}
 
-                        {/* Always show file section if printFileUrl exists */}
-                        {design.printFileUrl && (
-                        <Box sx={{ mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
-                            <Button
-                              variant="contained"
-                              color="primary"
-                              onClick={() => openFile(design.printFileUrl, selectedOrder?.id, design.id)}
-                              disabled={loadingImage === `file-${selectedOrder?.id}-${design.id}`}
-                              fullWidth
-                              startIcon={loadingImage === `file-${selectedOrder?.id}-${design.id}` ? <CircularProgress size={16} /> : null}
-                              sx={{ py: 1.2, fontWeight: 600 }}
-                            >
-                              {design.printFileUrl === 'image_data_excluded' 
-                                ? 'تنزيل ملف التصميم ' 
-                                : 'تنزيل ملف التصميم  '}
-                            </Button>
-                          </Box>
-                        )}
+                        {(() => {
+                          const files = getPrintFiles(design);
+                          if (files.length === 0) return null;
+
+                          return (
+                            <Box sx={{ mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
+                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                ملفات التصميم ({files.length})
+                              </Typography>
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                {files.map((fileUrl, fileIdx) => (
+                                  fileUrl === 'image_data_excluded' ? (
+                                    <Button
+                                      key={`file-btn-${fileIdx}`}
+                                      variant="outlined"
+                                      size="small"
+                                      startIcon={loadingImage === `file-${selectedOrder?.id}-${design.id}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
+                                      onClick={() => openFile(fileUrl, selectedOrder?.id, design.id)}
+                                      disabled={loadingImage === `file-${selectedOrder?.id}-${design.id}`}
+                                    >
+                                      تحميل الملف {fileIdx + 1}
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      key={`file-${fileIdx}`}
+                                      variant="contained"
+                                      size="small"
+                                      startIcon={<PictureAsPdf />}
+                                      onClick={() => openFile(fileUrl, selectedOrder?.id, design.id)}
+                                    >
+                                      ملف {fileIdx + 1}
+                                    </Button>
+                                  )
+                                ))}
+                              </Box>
+                            </Box>
+                          );
+                        })()}
                       </Paper>
                     ))}
                 </Box>
@@ -1516,14 +1630,16 @@ const PreparerDashboard = () => {
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ padding: 2 }}>
-          {selectedImage && selectedImage !== 'image_data_excluded' ? (
+          {selectedImage ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
               <img
                 src={selectedImage}
                 alt="معاينة الصورة"
                 onError={(e) => {
                   e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
+                  if (e.target.nextSibling) {
+                    e.target.nextSibling.style.display = 'flex';
+                  }
                 }}
                 style={{
                   maxWidth: '100%',
