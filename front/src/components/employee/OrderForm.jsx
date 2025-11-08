@@ -44,6 +44,7 @@ import {
   Add,
   AddCircle,
   CheckCircle,
+  Save,
   Search,
   InsertDriveFile,
   PictureAsPdf,
@@ -51,10 +52,17 @@ import {
 import { Autocomplete } from '@mui/material';
 import { useApp } from '../../context/AppContext';
 import { ordersService, clientsService, deliveryService } from '../../services/api';
-import { ORDER_STATUS, USER_ROLES, FABRIC_TYPE_ENUM, FABRIC_TYPE_LABELS, SIZE_ENUM, SIZE_LABELS, COLOR_ENUM, COLOR_LABELS, getSizeValueByLabel } from '../../constants';
+import { ORDER_STATUS, USER_ROLES, FABRIC_TYPE_ENUM, FABRIC_TYPE_LABELS, SIZE_ENUM, SIZE_LABELS, COLOR_ENUM, COLOR_LABELS, getSizeValueByLabel, getSizeLabelByValue } from '../../constants';
 import { generateOrderNumber, calculateTotal, createImagePreview } from '../../utils';
 
-const OrderForm = ({ onSuccess }) => {
+const OrderForm = ({
+  onSuccess,
+  mode = 'create',
+  initialOrder = null,
+  onCancel,
+  onUpdate,
+}) => {
+  const isEditMode = mode === 'edit';
   const { addOrder, user, loadUsersByRole } = useApp();
   const [searchParams] = useSearchParams();
   
@@ -68,12 +76,14 @@ const OrderForm = ({ onSuccess }) => {
   const [orders, setOrders] = useState([
     {
       id: 1,
+      serverId: null,
       orderName: '',
       designImages: [],
       blouseImages: [],
       items: [
         {
           id: 1,
+          serverId: null,
           fabricType: '',
           color: '',
           size: '',
@@ -114,6 +124,7 @@ const OrderForm = ({ onSuccess }) => {
   const {
     control: customerControl,
     handleSubmit: handleCustomerSubmit,
+    setValue,
     formState: { errors: customerErrors }
   } = useForm({
     defaultValues: {
@@ -134,6 +145,147 @@ const OrderForm = ({ onSuccess }) => {
   useEffect(() => {
     checkIfFormIsDirty();
   }, [orders, clientId, deliveryPrice, discount, discountType, employeeIdFromUrl]);
+
+  useEffect(() => {
+    if (!isEditMode || !initialOrder) return;
+
+    const getFabricLabel = (value) => {
+      if (value === null || value === undefined) return '';
+      return FABRIC_TYPE_LABELS[value] || value || '';
+    };
+
+    const getColorLabel = (value) => {
+      if (value === null || value === undefined) return '';
+      return COLOR_LABELS[value] || value || '';
+    };
+
+    const getSizeLabel = (value) => {
+      if (value === null || value === undefined) return '';
+      const label = getSizeLabelByValue(value);
+      if (label && label !== 'Unknown') return label;
+      if (SIZE_LABELS[value]) return SIZE_LABELS[value];
+      return value || '';
+    };
+
+    const mappedOrders = (initialOrder.orderDesigns || []).map((design, index) => {
+      const mappedItems = (design.orderDesignItems || []).map((item, itemIdx) => ({
+        id: itemIdx + 1,
+        serverId: item?.id || null,
+        fabricType: getFabricLabel(item?.fabricType),
+        color: getColorLabel(item?.color),
+        size: getSizeLabel(item?.size),
+        quantity: item?.quantity || 1,
+        unitPrice: item?.unitPrice || 0,
+        totalPrice:
+          item?.totalPrice ||
+          ((item?.quantity || 0) * (item?.unitPrice || 0)),
+      }));
+
+      return {
+        id: index + 1,
+        serverId: design?.id || null,
+        orderName: design?.designName || '',
+        designImages: (design?.printFileUrls || []).map((url) => ({ url })),
+        blouseImages: (design?.mockupImageUrls || []).map((url) => url),
+        items:
+          mappedItems.length > 0
+            ? mappedItems
+            : [
+                {
+                  id: 1,
+                  serverId: null,
+                  fabricType: '',
+                  color: '',
+                  size: '',
+                  quantity: 1,
+                  unitPrice: 0,
+                  totalPrice: 0,
+                },
+              ],
+      };
+    });
+
+    const preparedOrders =
+      mappedOrders.length > 0
+        ? mappedOrders
+        : [
+            {
+              id: 1,
+              serverId: null,
+              orderName: '',
+              designImages: [],
+              blouseImages: [],
+              items: [
+                {
+                  id: 1,
+                  serverId: null,
+                  fabricType: '',
+                  color: '',
+                  size: '',
+                  quantity: 1,
+                  unitPrice: 0,
+                  totalPrice: 0,
+                },
+              ],
+            },
+          ];
+
+    setOrders(preparedOrders);
+    setExpandedOrders(preparedOrders.map((order) => order.id));
+    setCustomerData({
+      customerName: initialOrder.client?.name || '',
+      customerPhone: initialOrder.client?.phone || '',
+      country: initialOrder.country || initialOrder.client?.country || '',
+      province: initialOrder.province || initialOrder.client?.province || '',
+      district: initialOrder.district || initialOrder.client?.district || '',
+    });
+    setClientId(initialOrder.clientId || initialOrder.client?.id || null);
+    setDeliveryPrice(initialOrder.deliveryFee || 0);
+    if (initialOrder.discountPercentage && initialOrder.discountPercentage > 0) {
+      setDiscountType('percentage');
+      setDiscount(initialOrder.discountPercentage);
+    } else if (initialOrder.discountAmount && initialOrder.discountAmount > 0) {
+      setDiscountType('fixed');
+      setDiscount(initialOrder.discountAmount);
+    } else {
+      setDiscountType('percentage');
+      setDiscount(0);
+    }
+    setNotes(initialOrder.notes || '');
+    setSelectedRegion(initialOrder.district || '');
+    setCustomerNotFound(false);
+    setValue('customerName', initialOrder.client?.name || '');
+    setValue('customerPhone', initialOrder.client?.phone || '');
+    setValue('country', initialOrder.country || initialOrder.client?.country || '');
+    setValue('province', initialOrder.province || initialOrder.client?.province || '');
+    setValue('district', initialOrder.district || initialOrder.client?.district || '');
+    const hashData = {
+      orders: preparedOrders,
+      clientId: initialOrder.clientId || initialOrder.client?.id || null,
+      deliveryPrice: initialOrder.deliveryFee || 0,
+      discount:
+        initialOrder.discountPercentage && initialOrder.discountPercentage > 0
+          ? initialOrder.discountPercentage
+          : initialOrder.discountAmount || 0,
+      discountType:
+        initialOrder.discountPercentage && initialOrder.discountPercentage > 0
+          ? 'percentage'
+          : initialOrder.discountAmount && initialOrder.discountAmount > 0
+          ? 'fixed'
+          : 'percentage',
+      designerId:
+        initialOrder.designerId ||
+        initialOrder.designer?.id ||
+        (employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0),
+    };
+    setLastSubmittedData(generateFormHash(hashData));
+    setIsDirty(false);
+  }, [
+    isEditMode,
+    initialOrder,
+    setValue,
+    employeeIdFromUrl,
+  ]);
 
   const loadAllClients = async () => {
     setLoadingClients(true);
@@ -279,6 +431,7 @@ const OrderForm = ({ onSuccess }) => {
         const lastItem = order.items[order.items.length - 1];
         const newItem = {
           id: maxItemId + 1,
+          serverId: null,
           fabricType: '',
           color: '',
           size: '',
@@ -298,12 +451,14 @@ const OrderForm = ({ onSuccess }) => {
     const newOrderId = maxOrderId + 1;
     const newOrder = {
       id: newOrderId,
+      serverId: null,
       orderName: '',
       designImages: [],
       blouseImages: [],
       items: [
         {
           id: 1,
+          serverId: null,
           fabricType: '',
           color: '',
           size: '',
@@ -540,7 +695,13 @@ const OrderForm = ({ onSuccess }) => {
         // designImages (from "ملفات التصميم") → all go to printFileUrls
         const printFileUrls = [];
         order.designImages.forEach((designImage) => {
-          if (designImage.url && !designImage.url.startsWith('blob:')) {
+          if (typeof designImage === 'string') {
+            if (!designImage.startsWith('blob:')) {
+              printFileUrls.push(designImage);
+            }
+            return;
+          }
+          if (designImage?.url && !designImage.url.startsWith('blob:')) {
             printFileUrls.push(designImage.url);
           }
         });
@@ -548,26 +709,49 @@ const OrderForm = ({ onSuccess }) => {
         // blouseImages (from "صور البلوزة") → all go to mockupImageUrls
         const mockupImageUrls = [];
         order.blouseImages.forEach((blouseImage) => {
-          if (blouseImage.url && !blouseImage.url.startsWith('blob:')) {
+          if (typeof blouseImage === 'string') {
+            if (!blouseImage.startsWith('blob:')) {
+              mockupImageUrls.push(blouseImage);
+            }
+            return;
+          }
+          if (blouseImage?.url && !blouseImage.url.startsWith('blob:')) {
             mockupImageUrls.push(blouseImage.url);
-          } else if (typeof blouseImage === 'string' && !blouseImage.startsWith('blob:')) {
-            // Handle case where blouseImage is just a URL string
-            mockupImageUrls.push(blouseImage);
           }
         });
         
-        return {
+        const designPayload = {
           designName: order.orderName,
           mockupImageUrls: mockupImageUrls.length > 0 ? mockupImageUrls : [],
           printFileUrls: printFileUrls.length > 0 ? printFileUrls : [],
-          orderDesignItems: order.items.map(item => ({
+        };
+
+        if (initialOrder?.id) {
+          designPayload.orderId = initialOrder.id;
+        }
+ 
+         if (isEditMode && order?.serverId) {
+           designPayload.id = order.serverId;
+         }
+
+        designPayload.orderDesignItems = order.items.map(item => {
+          const itemPayload = {
             size: getSizeValueByLabel(item.size),
             color: getEnumValueFromLabel(item.color, COLOR_LABELS),
             fabricType: getEnumValueFromLabel(item.fabricType, FABRIC_TYPE_LABELS),
             quantity: parseInt(item.quantity) || 1,
             unitPrice: parseFloat(item.unitPrice) || 0
-          }))
-        };
+          };
+
+          if (isEditMode && item?.serverId) {
+            itemPayload.id = item.serverId;
+            itemPayload.orderDesignId = order?.serverId || 0;
+          }
+
+          return itemPayload;
+        });
+
+        return designPayload;
       });
 
       if (!clientId) {
@@ -576,7 +760,21 @@ const OrderForm = ({ onSuccess }) => {
         return;
       }
 
-      const resolvedDesignerId = employeeIdFromUrl ? parseInt(employeeIdFromUrl) : (user?.id || 0);
+      const resolvedDesignerId = (() => {
+        if (isEditMode) {
+          return (
+            initialOrder?.designerId ||
+            initialOrder?.designer?.id ||
+            (employeeIdFromUrl ? parseInt(employeeIdFromUrl) : 0) ||
+            user?.id ||
+            0
+          );
+        }
+        if (employeeIdFromUrl) {
+          return parseInt(employeeIdFromUrl);
+        }
+        return user?.id || 0;
+      })();
       if (!resolvedDesignerId || resolvedDesignerId <= 0) {
         setSubmitError('يجب تحديد مصمم صحيح قبل إنشاء الطلب');
         setIsSubmitting(false);
@@ -585,7 +783,9 @@ const OrderForm = ({ onSuccess }) => {
 
       // Format notes with timestamp and author if provided
       let formattedNotes = '';
-      if (notes && notes.trim()) {
+      if (isEditMode) {
+        formattedNotes = notes || '';
+      } else if (notes && notes.trim()) {
         const currentDate = new Date();
         const dateTime = currentDate.toLocaleString("ar-SA", {
           year: "numeric",
@@ -599,19 +799,68 @@ const OrderForm = ({ onSuccess }) => {
         formattedNotes = `[${dateTime}] ${authorName}: ${notes.trim()}`;
       }
 
+      const computedDiscountNotes =
+        discount > 0
+          ? `خصم ${discountType === 'percentage' ? `${discount}%` : `${discount}$`}`
+          : (isEditMode ? initialOrder?.discountNotes || '' : '');
+
       const orderData = {
         clientId: clientId,
         country: customerData.country,
         province: customerData.province,
         district: customerData.district,
         designerId: resolvedDesignerId,
-        preparerId: null, // Set to 0 as requested
+        preparerId: isEditMode ? (initialOrder?.preparerId ?? null) : null,
         discountPercentage: discountType === 'percentage' ? discount : 0,
+        discountAmount: discountType === 'fixed' ? discount : (isEditMode ? initialOrder?.discountAmount || 0 : 0),
         deliveryFee: deliveryPrice,
-        discountNotes: discount > 0 ? `خصم ${discountType === 'percentage' ? discount + '%' : discount + '$'}` : '',
+        discountNotes: computedDiscountNotes,
         notes: formattedNotes,
         orderDesigns: orderDesigns
       };
+
+      if (isEditMode) {
+        const payload = {
+          ...(initialOrder || {}),
+          ...orderData,
+          id: initialOrder?.id,
+          status: initialOrder?.status ?? ORDER_STATUS.PENDING_PRINTING,
+          orderNumber: initialOrder?.orderNumber || initialOrder?.id,
+          orderDate: initialOrder?.orderDate || null,
+          subTotal: initialOrder?.subTotal ?? 0,
+          totalAmount: initialOrder?.totalAmount ?? 0,
+        };
+
+        if (payload.client) {
+          payload.client = {
+            ...payload.client,
+            name: customerData.customerName || payload.client.name,
+            phone: customerData.customerPhone || payload.client.phone,
+            country: customerData.country || payload.client.country,
+            province: customerData.province || payload.client.province,
+            district: customerData.district || payload.client.district,
+          };
+        }
+
+        payload.orderDesigns = orderDesigns;
+
+        try {
+          await onUpdate?.(payload);
+          setSubmitSuccess(true);
+          setTimeout(() => {
+            setSubmitSuccess(false);
+            if (onSuccess) onSuccess();
+          }, 1500);
+          setIsSubmitting(false);
+          return;
+        } catch (error) {
+          console.error('خطأ في تحديث الطلب:', error);
+          setSubmitError(error.message || 'حدث خطأ أثناء تحديث الطلب');
+          setSubmitSuccess(false);
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
       console.log('Sending order data:', JSON.stringify(orderData, null, 2));
       console.log('Employee ID from URL:', employeeIdFromUrl);
@@ -701,21 +950,23 @@ const OrderForm = ({ onSuccess }) => {
     return (
     <Box>
       {/* Add Customer Button - Outside the form */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button
-          variant="contained"
-          startIcon={<Person />}
-          onClick={() => setCustomerDialogOpen(true)}
-          size="large"
-        >
-          إضافة عميل جديد
-        </Button>
-      </Box>
+      {!isEditMode && (
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="contained"
+            startIcon={<Person />}
+            onClick={() => setCustomerDialogOpen(true)}
+            size="large"
+          >
+            إضافة عميل جديد
+          </Button>
+        </Box>
+      )}
 
       <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
         <Typography variant="h5" gutterBottom sx={{ textAlign: 'center', mb: 3 }}>
           <Assignment sx={{ mr: 1, verticalAlign: 'middle' }} />
-          إنشاء طلب جديد
+          {isEditMode ? 'تعديل الطلب' : 'إنشاء طلب جديد'}
         </Typography>
       
         {submitError && (
@@ -726,7 +977,7 @@ const OrderForm = ({ onSuccess }) => {
 
         {submitSuccess && (
           <Alert severity="success" sx={{ mb: 2 }}>
-            تم إنشاء الطلب بنجاح!
+            {isEditMode ? 'تم تحديث الطلب بنجاح!' : 'تم إنشاء الطلب بنجاح!'}
           </Alert>
         )}
 
@@ -1218,7 +1469,7 @@ const OrderForm = ({ onSuccess }) => {
                               <CloudUpload />
                             </IconButton>
                           </label>
-                          <Typography variant="body2" fontWeight={600}>صور البلوزة</Typography>
+                          <Typography variant="body2" fontWeight={600}> صور ال Mockup</Typography>
                           {order.blouseImages.length > 0 && (
                             <Typography variant="caption" color="text.secondary">
                               ({order.blouseImages.length} صورة)
@@ -1574,16 +1825,37 @@ const OrderForm = ({ onSuccess }) => {
             </Grid>
 
             <Grid item xs={12}>
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, gap: 2, flexWrap: 'wrap' }}>
+                {isEditMode && onCancel && (
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    onClick={onCancel}
+                    disabled={isSubmitting}
+                    sx={{ minWidth: 160, py: 1.5 }}
+                  >
+                    إلغاء
+                  </Button>
+                )}
                 <Button
                   variant="contained"
                   size="large"
                   onClick={onSubmit}
-                  disabled={isSubmitting || !isDirty}
-                  startIcon={isSubmitting ? <CircularProgress size={20} /> : <Assignment />}
+                  disabled={isSubmitting || (!isEditMode && !isDirty)}
+                  startIcon={
+                    isSubmitting ? (
+                      <CircularProgress size={20} />
+                    ) : (
+                      isEditMode ? <Save /> : <Assignment />
+                    )
+                  }
                   sx={{ minWidth: 200, py: 1.5 }}
                 >
-                  {isSubmitting ? 'جاري الإرسال...' : 'إنشاء الطلب'}
+                  {isSubmitting
+                    ? 'جاري الإرسال...'
+                    : isEditMode
+                    ? 'حفظ التعديلات'
+                    : 'إنشاء الطلب'}
                 </Button>
               </Box>
             </Grid>

@@ -157,6 +157,11 @@ export const ordersService = {
     return response.data;
   },
 
+  updateOrder: async (id, orderData) => {
+    const response = await api.put(`/Orders/UpdateOrder/${id}`, orderData);
+    return response.data;
+  },
+
   deleteOrder: async (id) => {
     console.log('Attempting to delete order with ID:', id);
     try {

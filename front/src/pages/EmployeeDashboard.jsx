@@ -91,6 +91,9 @@ const EmployeeDashboard = () => {
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const [selectedImage, setSelectedImage] = useState(null); // Selected image for dialog
   const [imageDialogOpen, setImageDialogOpen] = useState(false); // Image dialog state
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [orderToEdit, setOrderToEdit] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   // Fetch designer orders count on component mount
   const fetchDesignerOrdersCount = async () => {
@@ -319,6 +322,79 @@ const EmployeeDashboard = () => {
         // Force re-render by updating selectedOrder
         setSelectedOrder(prev => ({ ...prev }));
       });
+    }
+  };
+
+  const handleOpenEditOrder = async (order) => {
+    setEditLoading(true);
+    try {
+      const fullOrder = await ordersService.getOrderById(order.id);
+      setOrderToEdit(fullOrder || order);
+      setOpenEditDialog(true);
+    } catch (error) {
+      console.error("Error loading order for edit:", error);
+      alert("حدث خطأ أثناء جلب بيانات الطلب للتعديل");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleCloseEditOrder = () => {
+    if (editLoading) return;
+    setOpenEditDialog(false);
+    setOrderToEdit(null);
+  };
+
+  const handleSubmitEditOrder = async (updatedOrder) => {
+    if (!orderToEdit || !updatedOrder) return;
+
+    setEditLoading(true);
+    try {
+      const payloadToSend = {
+        ...orderToEdit,
+        ...updatedOrder,
+        id: orderToEdit.id,
+      };
+
+      if (Array.isArray(payloadToSend.orderDesigns)) {
+        payloadToSend.orderDesigns = payloadToSend.orderDesigns.map((design) => ({
+          ...design,
+          orderId: payloadToSend.id,
+        }));
+      }
+
+      await ordersService.updateOrder(orderToEdit.id, payloadToSend);
+
+      let refreshed = [];
+      try {
+        if (user?.role === USER_ROLES.DESIGNER && user?.id) {
+          refreshed = await ordersService.getOrdersByDesigner(user.id);
+        } else {
+          refreshed = await ordersService.getAllOrders();
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing orders after update:", refreshError);
+      }
+
+      if (Array.isArray(refreshed)) {
+        setOrdersList(refreshed);
+        setTotalOrdersCount(refreshed.length);
+      }
+
+      const updatedSelected =
+        refreshed?.find?.((order) => order.id === orderToEdit.id) || payloadToSend;
+
+      if (selectedOrder?.id === orderToEdit.id && updatedSelected) {
+        setSelectedOrder(updatedSelected);
+      }
+
+      setOrderToEdit(updatedSelected);
+      fetchDesignerOrdersCount();
+    } catch (error) {
+      console.error("Error updating order:", error);
+      alert("حدث خطأ أثناء تحديث الطلب. الرجاء المحاولة مرة أخرى.");
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -784,23 +860,40 @@ const EmployeeDashboard = () => {
                         >
                           عرض التفاصيل
                         </Button>
-                    {order.status !== ORDER_STATUS.CANCELLED &&
-                      order.status !== ORDER_STATUS.COMPLETED && (
                         <Button
                           size="small"
-                          variant="outlined"
-                          color="error"
-                          sx={{ ml: 1 }}
-                          onClick={() => handleCancelOrder(order)}
-                          disabled={cancelLoadingId === order.id}
+                          variant="contained"
+                          sx={{ ml: 1, minWidth: 100 }}
+                          onClick={() => handleOpenEditOrder(order)}
+                          
                         >
-                          {cancelLoadingId === order.id ? (
-                            <CircularProgress size={16} />
-                          ) : (
-                            "إلغاء الطلب"
-                          )}
+                          تعديل
                         </Button>
-                      )}
+                        {order.status !== ORDER_STATUS.CANCELLED &&
+                          order.status !== ORDER_STATUS.COMPLETED && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="error"
+                              sx={{
+                                ml: 1,
+                                minWidth: 120,
+                                '&.Mui-disabled': {
+                                  color: '#777777',
+                                  borderColor: 'rgba(0,0,0,0.12)',
+                                  backgroundColor: 'rgba(0,0,0,0.03)',
+                                },
+                              }}
+                              onClick={() => handleCancelOrder(order)}
+                              disabled={cancelLoadingId === order.id}
+                            >
+                              {cancelLoadingId === order.id ? (
+                                <CircularProgress size={16} />
+                              ) : (
+                                "إلغاء الطلب"
+                              )}
+                            </Button>
+                          )}
                       </TableCell>
                     </TableRow>
                   );
@@ -819,9 +912,18 @@ const EmployeeDashboard = () => {
         title="تفاصيل الطلب"
         subtitle={selectedOrder?.orderNumber}
         actions={
-          <Button onClick={handleCloseDetailsModal} variant="contained">
-            إغلاق
-          </Button>
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={() => selectedOrder && handleOpenEditOrder(selectedOrder)}
+              disabled={!selectedOrder || editLoading}
+            >
+              تعديل
+            </Button>
+            <Button onClick={handleCloseDetailsModal} variant="contained">
+              إغلاق
+            </Button>
+          </Box>
         }
       >
           {selectedOrder && (
@@ -1157,6 +1259,25 @@ const EmployeeDashboard = () => {
               </Grid>
             </Box>
           )}
+      </GlassDialog>
+
+      <GlassDialog
+        open={openEditDialog}
+        onClose={handleCloseEditOrder}
+        maxWidth="xl"
+        title="تعديل الطلب"
+        contentSx={{ padding: 0 }}
+        actions={null}
+      >
+        {orderToEdit && (
+          <OrderForm
+            mode="edit"
+            initialOrder={orderToEdit}
+            onUpdate={handleSubmitEditOrder}
+            onCancel={handleCloseEditOrder}
+            onSuccess={handleCloseEditOrder}
+          />
+        )}
       </GlassDialog>
 
       {/* Image Dialog */}

@@ -19,7 +19,9 @@ import {
   Paper,
   Chip,
   Button,
+  Dialog,
   DialogContent,
+  DialogTitle,
   TextField,
   MenuItem,
   CircularProgress,
@@ -44,42 +46,6 @@ import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
-import calmPalette from "../theme/calmPalette";
-import GlassDialog from "../components/common/GlassDialog";
-
-// Helper function to build full image/file URL
-const getFullUrl = (url) => {
-  if (!url || typeof url !== 'string') return url;
-  
-  // If it's already a full URL (http/https), return as is
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-  
-  // If it's a data URL (base64), return as is
-  if (url.startsWith('data:')) {
-    return url;
-  }
-  
-  // If it's a relative path starting with /, build full URL
-  if (url.startsWith('/')) {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
-    // Remove /api from base URL to get the domain
-    const baseDomain = API_BASE_URL.replace('/api', '');
-    return `${baseDomain}${url}`;
-  }
-  
-  // If it doesn't start with /, it might be a relative path - try to build full URL
-  // This handles cases where the URL is like "uploads/file.pdf"
-  if (!url.includes('://') && !url.startsWith('/')) {
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
-    const baseDomain = API_BASE_URL.replace('/api', '');
-    return `${baseDomain}/${url}`;
-  }
-  
-  // Return as is for other cases
-  return url;
-};
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
@@ -92,7 +58,7 @@ const DesignManagerDashboard = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(ORDER_STATUS.PENDING_PRINTING);
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
@@ -181,19 +147,13 @@ const DesignManagerDashboard = () => {
     try {
       const fullOrder = await ordersService.getOrderById(orderId);
       const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-      
-      // Support both old format (mockupImageUrl) and new format (mockupImageUrls array)
-      const imageUrls = design?.mockupImageUrls || (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
-      const firstImage = imageUrls.find(url => url && url !== 'image_data_excluded' && url !== 'placeholder_mockup.jpg');
-      
-      if (firstImage) {
-        // Convert to full URL and save to cache
-        const fullImageUrl = getFullUrl(firstImage);
+      if (design?.mockupImageUrl && design.mockupImageUrl !== 'image_data_excluded') {
+        // Save to cache
         setImageCache(prev => ({
           ...prev,
-          [cacheKey]: fullImageUrl
+          [cacheKey]: design.mockupImageUrl
         }));
-        return fullImageUrl;
+        return design.mockupImageUrl;
       }
     } catch (error) {
       console.error('Error loading image:', error);
@@ -279,9 +239,7 @@ const DesignManagerDashboard = () => {
     if (!imageUrl || imageUrl === 'placeholder_mockup.jpg') {
       return;
     }
-    // Convert to full URL before displaying
-    const fullImageUrl = getFullUrl(imageUrl);
-    setSelectedImage(fullImageUrl);
+    setSelectedImage(imageUrl);
     setCurrentImageIndex(0);
     setImageDialogOpen(true);
   };
@@ -459,99 +417,69 @@ const DesignManagerDashboard = () => {
         console.error('Error opening base64 file:', error);
         alert('حدث خطأ أثناء فتح الملف.\n' + error.message + '\n\nيرجى المحاولة مرة أخرى أو الاتصال بالدعم.');
       }
+    } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
+      // Regular URL - download directly
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileUrl.split('/').pop() || 'file.pdf';
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
     } else {
-      // Regular URL - convert to full URL if needed and download
-      const fullFileUrl = getFullUrl(fileUrl);
-      console.log('Downloading file:', { original: fileUrl, full: fullFileUrl });
-      
-      try {
-        // Get auth token
-        const getAuthToken = () => {
-          try {
-            const STORAGE_KEYS = { AUTH_TOKEN: 'authToken' };
-            const sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
-            if (sessionToken) return sessionToken;
-            const localToken = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
-            return localToken || null;
-          } catch {
-            return null;
-          }
-        };
-        
-        const token = getAuthToken();
-        
-        // CORS workaround: Use direct link download (navigation requests bypass CORS)
-        // This works because <a> tag clicks are navigation, not XHR requests
-        const link = document.createElement('a');
-        link.href = fullFileUrl;
-        link.download = fullFileUrl.split('/').pop() || `file_${Date.now()}.pdf`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        
-        // Cleanup
-        setTimeout(() => {
-          document.body.removeChild(link);
-        }, 100);
-        
-      } catch (error) {
-        console.error('Download error:', error);
-        // Fallback: open in new tab
-        window.open(fullFileUrl, '_blank');
-      }
+      // Try to download as is
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = 'file.pdf';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
     }
   };
 
   const handleFileClick = async (fileUrl, orderId, designId) => {
-    // Set loading state
-    const loadingKey = `file-${orderId}-${designId}`;
-    setLoadingImage(loadingKey);
-    
-    try {
-      // If file data is excluded, fetch full order data
-      if (fileUrl === 'image_data_excluded' && orderId) {
+    // If file data is excluded, fetch full order data
+    if (fileUrl === 'image_data_excluded' && orderId) {
+      setLoadingImage(`file-${orderId}-${designId}`);
+      try {
         console.log('Fetching full order to get file...', { orderId, designId });
         const fullOrder = await ordersService.getOrderById(orderId);
         console.log('Full order received:', fullOrder);
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
         console.log('Design found:', design);
         
-        // Support both old format (printFileUrl) and new format (printFileUrls array)
-        const fileUrls = design?.printFileUrls || (design?.printFileUrl ? [design.printFileUrl] : []);
-        const firstFile = fileUrls.find(url => url && url !== 'image_data_excluded' && url !== 'placeholder_print.pdf');
-        
-        if (firstFile) {
+        if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
           console.log('File found, opening...', {
-            fileUrlLength: firstFile.length,
-            isBase64: firstFile.startsWith('data:'),
-            startsWith: firstFile.substring(0, 50)
+            fileUrlLength: design.printFileUrl.length,
+            isBase64: design.printFileUrl.startsWith('data:'),
+            startsWith: design.printFileUrl.substring(0, 50)
           });
-          // Open file using helper function (getFullUrl will be called inside openFile)
-          await openFile(firstFile);
+          // Open file using helper function
+          await openFile(design.printFileUrl);
         } else {
           console.error('File not available:', { 
-            hasPrintFileUrl: !!design?.printFileUrl,
-            hasPrintFileUrls: !!design?.printFileUrls,
-            printFileUrl: design?.printFileUrl,
-            printFileUrls: design?.printFileUrls
+            hasPrintFileUrl: !!design?.printFileUrl, 
+            printFileUrl: design?.printFileUrl 
           });
           alert('الملف غير متوفر في قاعدة البيانات');
         }
-      } else {
-        // Normal file handling
-        await openFile(fileUrl);
-      }
-    } catch (error) {
-      console.error('Error in handleFileClick:', error);
-      if (fileUrl === 'image_data_excluded') {
+      } catch (error) {
+        console.error('Error fetching order file:', error);
         alert('حدث خطأ أثناء جلب الملف: ' + (error.message || 'خطأ غير معروف'));
-      } else {
-        alert('حدث خطأ أثناء تحميل الملف: ' + (error.message || 'خطأ غير معروف'));
+      } finally {
+        setLoadingImage(null);
       }
-    } finally {
-      // Always clear loading state
-      setLoadingImage(null);
+      return;
     }
+    
+    // Normal file handling
+    await openFile(fileUrl);
   };
 
   const handleCloseImageDialog = () => {
@@ -613,62 +541,6 @@ const DesignManagerDashboard = () => {
       label: ORDER_STATUS_LABELS[numericStatus] || "غير معروف",
       color: ORDER_STATUS_COLORS[numericStatus] || "default"
     };
-  };
-
-  const getProductDetailsForDesign = (items = []) => {
-    if (!Array.isArray(items) || items.length === 0) {
-      return [];
-    }
-
-    const aggregateMap = new Map();
-
-    items.forEach((item) => {
-      if (!item) {
-        return;
-      }
-
-      const fabricKey = typeof item.fabricType === 'number'
-        ? item.fabricType
-        : parseInt(item.fabricType, 10);
-
-      const sizeKey = typeof item.size === 'number'
-        ? item.size
-        : Number.isNaN(parseInt(item.size, 10))
-          ? item.size
-          : parseInt(item.size, 10);
-
-      const colorKey = typeof item.color === 'number'
-        ? item.color
-        : item.color;
-
-      const fabricLabel = FABRIC_TYPE_LABELS[fabricKey] || item.fabricType || '-';
-      const sizeLabel =
-        SIZE_LABELS[sizeKey] ||
-        (typeof item.size === 'string' ? item.size : '') ||
-        '';
-      const colorLabel =
-        COLOR_LABELS[colorKey] ||
-        (typeof item.color === 'string' ? item.color : '') ||
-        '';
-
-      const aggregateKey = [fabricLabel, sizeLabel, colorLabel]
-        .filter(Boolean)
-        .join('|');
-
-      if (!aggregateMap.has(aggregateKey)) {
-        aggregateMap.set(aggregateKey, {
-          fabricLabel,
-          sizeLabel,
-          colorLabel,
-          quantity: 0,
-        });
-      }
-
-      const current = aggregateMap.get(aggregateKey);
-      current.quantity += Number(item.quantity) || 0;
-    });
-
-    return Array.from(aggregateMap.values());
   };
 
   // Filter orders by status
@@ -738,109 +610,69 @@ const DesignManagerDashboard = () => {
       title: "إجمالي الطلبات",
       value: totalOrdersCount,
       icon: Dashboard,
+      color: "#1976d2",
     },
     {
       title: "بانتظار الطباعة",
       value: pendingPrintingCount,
       icon: Schedule,
+      color: "#ed6c02",
     },
     {
       title: "في مرحلة الطباعة",
       value: inPrintingCount,
       icon: Print,
+      color: "#2e7d32",
     },
     {
       title: "مكتملة",
       value: completedCount,
       icon: CheckCircle,
+      color: "#9c27b0",
     },
   ];
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        backgroundImage: calmPalette.background,
-        paddingBottom: 6,
-      }}
-    >
+    <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
       <AppBar
         position="static"
-        elevation={0}
+        elevation={2}
         sx={{
-          background: calmPalette.appBar,
-          boxShadow: "0 12px 30px rgba(34, 26, 21, 0.25)",
-          backdropFilter: "blur(10px)",
+          background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
         }}
       >
-        <Toolbar sx={{ minHeight: 72 }}>
-          <Typography
-            variant="h5"
-            sx={{
-              flexGrow: 1,
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-            }}
-          >
+        <Toolbar>
+          <Typography variant="h5" sx={{ flexGrow: 1, fontWeight: 700 }}>
             PSBrand - لوحة مدير التصميم
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Avatar
-              sx={{
-                bgcolor: "rgba(255, 255, 255, 0.22)",
-                color: "#ffffff",
-                backdropFilter: "blur(6px)",
-              }}
-            >
+            <Avatar sx={{ bgcolor: "white", color: "#f5576c" }}>
               {user?.name?.charAt(0) || "م"}
             </Avatar>
-            <Typography variant="body1" sx={{ fontWeight: 500, color: "#f6f1eb" }}>
+            <Typography variant="body1" sx={{ fontWeight: 500 }}>
               {user?.name || "مدير التصميم"}
             </Typography>
-            <IconButton
-              color="inherit"
-              onClick={handleLogout}
-              sx={{
-                color: "#f6f1eb",
-                border: "1px solid rgba(255,255,255,0.25)",
-                borderRadius: 2,
-              }}
-            >
+            <IconButton color="inherit" onClick={handleLogout}>
               <Logout />
             </IconButton>
           </Box>
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ paddingY: 5 }}>
+      <Container maxWidth="xl" sx={{ paddingY: 4 }}>
         {/* Stats Cards */}
         <Grid container spacing={3} sx={{ marginBottom: 4 }}>
           {stats.map((stat, index) => {
             const Icon = stat.icon;
-            const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
             return (
               <Grid item xs={12} sm={6} md={3} key={index}>
                 <Card
                   sx={{
-                    position: "relative",
-                    background: cardStyle.background,
-                    color: cardStyle.highlight,
-                    borderRadius: 4,
-                    boxShadow: calmPalette.shadow,
-                    overflow: "hidden",
-                    transition: "transform 0.2s, box-shadow 0.2s",
-                    backdropFilter: "blur(6px)",
-                    "&::after": {
-                      content: '""',
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
-                      pointerEvents: "none",
-                    },
+                    background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}dd 100%)`,
+                    color: "white",
+                    transition: "transform 0.2s",
                     "&:hover": {
                       transform: "translateY(-5px)",
-                      boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
                     },
                   }}
                 >
@@ -853,23 +685,14 @@ const DesignManagerDashboard = () => {
                       }}
                     >
                       <Box>
-                        <Typography
-                          variant="h3"
-                          sx={{ fontWeight: 700, color: cardStyle.highlight }}
-                        >
+                        <Typography variant="h3" sx={{ fontWeight: 700 }}>
                           {stat.value}
                         </Typography>
-                        <Typography
-                          variant="body1"
-                          sx={{
-                            marginTop: 1,
-                            color: "rgba(255, 255, 255, 0.8)",
-                          }}
-                        >
+                        <Typography variant="body1" sx={{ marginTop: 1 }}>
                           {stat.title}
                         </Typography>
                       </Box>
-                      <Icon sx={{ fontSize: 56, color: cardStyle.highlight }} />
+                      <Icon sx={{ fontSize: 60, opacity: 0.8 }} />
                     </Box>
                   </CardContent>
                 </Card>
@@ -878,16 +701,7 @@ const DesignManagerDashboard = () => {
           })}
         </Grid>
 
-        <Paper
-          elevation={0}
-          sx={{
-            padding: 4,
-            borderRadius: 4,
-            background: calmPalette.surface,
-            boxShadow: calmPalette.shadow,
-            backdropFilter: "blur(8px)",
-          }}
-        >
+        <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
           <Box
             sx={{
               display: "flex",
@@ -906,23 +720,9 @@ const DesignManagerDashboard = () => {
               size="small"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              sx={{
-                minWidth: 150,
-                "& .MuiOutlinedInput-root": {
-                  backgroundColor: "rgba(255,255,255,0.4)",
-                  "& fieldset": {
-                    borderColor: "rgba(94, 78, 62, 0.25)",
-                  },
-                  "&:hover fieldset": {
-                    borderColor: "rgba(94, 78, 62, 0.45)",
-                  },
-                  "&.Mui-focused fieldset": {
-                    borderColor: "rgba(94, 78, 62, 0.7)",
-                  },
-                },
-              }}
+              sx={{ minWidth: 150 }}
             >
-              <MenuItem value="all" >جميع الطلبات</MenuItem>
+              <MenuItem value="all">جميع الطلبات</MenuItem>
               <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
               <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
               <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
@@ -941,14 +741,7 @@ const DesignManagerDashboard = () => {
               <TableContainer>
                 <Table>
                   <TableHead>
-                    <TableRow
-                      sx={{
-                        backgroundColor: "rgba(94, 78, 62, 0.08)",
-                        "& th": {
-                          color: calmPalette.textPrimary,
-                        },
-                      }}
-                    >
+                    <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                       <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
@@ -986,7 +779,6 @@ const DesignManagerDashboard = () => {
                             key={`order-${order.id}`}
                             hover
                             sx={{
-                              backgroundColor: "rgba(255, 255, 255, 0.35)",
                               "&:last-child td, &:last-child th": { border: 0 },
                             }}
                           >
@@ -1068,7 +860,9 @@ const DesignManagerDashboard = () => {
                         }, 0) || 0;
                         
                         // Get product type from first item of this design
-                        const productDetails = getProductDetailsForDesign(design.orderDesignItems);
+                        const productType = design.orderDesignItems?.[0] 
+                          ? `${FABRIC_TYPE_LABELS[design.orderDesignItems[0].fabricType] || design.orderDesignItems[0].fabricType} - ${SIZE_LABELS[design.orderDesignItems[0].size] || design.orderDesignItems[0].size}`
+                          : "-";
                         
                         return (
                           <TableRow
@@ -1097,36 +891,7 @@ const DesignManagerDashboard = () => {
                               </>
                             )}
                             <TableCell>{designCount}</TableCell>
-                            <TableCell>
-                              {productDetails.length > 0 ? (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                  {productDetails.map((detail, idx) => {
-                                    const parts = [
-                                      detail.fabricLabel,
-                                      detail.sizeLabel,
-                                      detail.colorLabel,
-                                    ].filter(Boolean);
-
-                                    const label = `${parts.join(' - ')} x${detail.quantity || 0}`;
-
-                                    return (
-                                      <Chip
-                                        key={`${order.id}-${design.id}-product-${idx}`}
-                                        label={label}
-                                        size="small"
-                                        variant="outlined"
-                                        sx={{
-                                          alignSelf: 'flex-start',
-                                          direction: 'rtl',
-                                        }}
-                                      />
-                                    );
-                                  })}
-                                </Box>
-                              ) : (
-                                "-"
-                              )}
-                            </TableCell>
+                            <TableCell>{productType}</TableCell>
                             <TableCell>
                               {(() => {
                                 // Support both old format (mockupImageUrl) and new format (mockupImageUrls array)
@@ -1135,12 +900,12 @@ const DesignManagerDashboard = () => {
                                 
                                 if (validImages.length === 0) return "-";
                                 
-                                 const firstImage = validImages[0];
-                                 const cacheKey = `${order.id}-${design.id}`;
-                                 const isExcluded = firstImage === 'image_data_excluded';
-                                 const cachedImage = imageCache[cacheKey];
-                                 const isLoading = loadingImage === `image-${order.id}-${design.id}`;
-                                 const displayImage = isExcluded ? cachedImage : getFullUrl(firstImage);
+                                const firstImage = validImages[0];
+                                const cacheKey = `${order.id}-${design.id}`;
+                                const isExcluded = firstImage === 'image_data_excluded';
+                                const cachedImage = imageCache[cacheKey];
+                                const isLoading = loadingImage === `image-${order.id}-${design.id}`;
+                                const displayImage = isExcluded ? cachedImage : firstImage;
                                 
                                 return (
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -1238,13 +1003,11 @@ const DesignManagerDashboard = () => {
                                           fontSize: '0.7rem',
                                           height: 'fit-content'
                                         }}
-                                         onClick={() => {
-                                           // Convert all image URLs to full URLs
-                                           const fullImageUrls = validImages.map(img => getFullUrl(img));
-                                           setSelectedImage(fullImageUrls);
-                                           setCurrentImageIndex(0);
-                                           setImageDialogOpen(true);
-                                         }}
+                                        onClick={() => {
+                                          setSelectedImage(validImages);
+                                          setCurrentImageIndex(0);
+                                          setImageDialogOpen(true);
+                                        }}
                                       >
                                         +{validImages.length - 1}
                                       </Button>
@@ -1281,10 +1044,11 @@ const DesignManagerDashboard = () => {
                                       <Button
                                         size="small"
                                         variant="contained"
+                                        startIcon={<PictureAsPdf />}
                                         onClick={() => handleFileClick(firstFile, order.id, design.id)}
                                         sx={{ fontSize: '0.75rem', py: 0.5 }}
                                       >
-                                        تنزبل
+                                        PDF
                                       </Button>
                                     )}
                                     {validFiles.length > 1 && (
@@ -1298,13 +1062,12 @@ const DesignManagerDashboard = () => {
                                           fontSize: '0.7rem',
                                           height: 'fit-content'
                                         }}
-                                         onClick={() => {
-                                           // Open all files - convert to full URLs first
-                                           validFiles.forEach((url, idx) => {
-                                             const fullUrl = getFullUrl(url);
-                                             setTimeout(() => handleFileClick(fullUrl, order.id, design.id), idx * 200);
-                                           });
-                                         }}
+                                        onClick={() => {
+                                          // Open all files - could show a dialog or download all
+                                          validFiles.forEach((url, idx) => {
+                                            setTimeout(() => handleFileClick(url, order.id, design.id), idx * 200);
+                                          });
+                                        }}
                                       >
                                         +{validFiles.length - 1}
                                       </Button>
@@ -1348,7 +1111,7 @@ const DesignManagerDashboard = () => {
                                   </IconButton>
                                 </TableCell>
                                 <TableCell rowSpan={rowCount}>
-                                      <Button
+                                  <Button
                                     size="small"
                                     variant="contained"
                                     color="primary"
@@ -1397,160 +1160,141 @@ const DesignManagerDashboard = () => {
       </Container>
 
       {/* Image Dialog */}
-      <GlassDialog
+      <Dialog
         open={imageDialogOpen}
         onClose={handleCloseImageDialog}
         maxWidth="lg"
-        title={
-          Array.isArray(selectedImage)
-            ? `معاينة الصور (${currentImageIndex + 1} / ${selectedImage.length})`
-            : "معاينة الصورة"
-        }
-        contentSx={{ padding: 0 }}
+        fullWidth
       >
-        {(() => {
-          const images = Array.isArray(selectedImage)
-            ? selectedImage.map((img) => getFullUrl(img))
-            : selectedImage
-            ? [getFullUrl(selectedImage)]
-            : [];
-          const currentImage = images[currentImageIndex];
-
-          if (!currentImage || currentImage === "image_data_excluded") {
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">
+            {Array.isArray(selectedImage) 
+              ? `معاينة الصور (${currentImageIndex + 1} / ${selectedImage.length})`
+              : 'معاينة الصورة'}
+          </Typography>
+          <IconButton onClick={handleCloseImageDialog}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ padding: 2 }}>
+          {(() => {
+            // Handle both single image (string) and multiple images (array)
+            const images = Array.isArray(selectedImage) ? selectedImage : (selectedImage ? [selectedImage] : []);
+            const currentImage = images[currentImageIndex];
+            
+            if (!currentImage || currentImage === 'image_data_excluded') {
+              return (
+                <Box sx={{ 
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '400px',
+                  color: 'text.secondary'
+                }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
+                  <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات لتقليل حجم البيانات</Typography>
+                </Box>
+              );
+            }
+            
             return (
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minHeight: 400,
-                  color: "text.secondary",
-                  padding: 4,
-                }}
-              >
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  الصورة غير متوفرة
-                </Typography>
-                <Typography variant="body2">
-                  لم يتم تضمين بيانات الصورة في قائمة الطلبات لتقليل حجم البيانات
-                </Typography>
+              <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+                {images.length > 1 && (
+                  <>
+                    <IconButton
+                      onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)}
+                      sx={{
+                        position: 'absolute',
+                        left: 16,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        bgcolor: 'rgba(0, 0, 0, 0.5)',
+                        color: 'white',
+                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
+                        zIndex: 1
+                      }}
+                    >
+                      <ArrowBack />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => setCurrentImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)}
+                      sx={{
+                        position: 'absolute',
+                        right: 16,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        bgcolor: 'rgba(0, 0, 0, 0.5)',
+                        color: 'white',
+                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
+                        zIndex: 1
+                      }}
+                    >
+                      <ArrowForward />
+                    </IconButton>
+                  </>
+                )}
+                <img 
+                  src={currentImage} 
+                  alt={`معاينة الصورة ${currentImageIndex + 1}`}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    if (e.target.nextSibling) {
+                      e.target.nextSibling.style.display = 'flex';
+                    }
+                  }}
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '70vh', 
+                    objectFit: 'contain',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Box sx={{ 
+                  display: 'none',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '400px',
+                  color: 'text.secondary'
+                }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
+                  <Typography variant="body2">الصورة غير متوفرة في قائمة الطلبات</Typography>
+                </Box>
+                {images.length > 1 && (
+                  <Box sx={{ 
+                    position: 'absolute', 
+                    bottom: 16, 
+                    left: '50%', 
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    gap: 1,
+                    bgcolor: 'rgba(0, 0, 0, 0.5)',
+                    borderRadius: 2,
+                    padding: '4px 8px'
+                  }}>
+                    {images.map((_, idx) => (
+                      <Box
+                        key={idx}
+                        onClick={() => setCurrentImageIndex(idx)}
+                        sx={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          bgcolor: idx === currentImageIndex ? 'white' : 'rgba(255, 255, 255, 0.5)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.8)' }
+                        }}
+                      />
+                    ))}
+                  </Box>
+                )}
               </Box>
             );
-          }
-
-          return (
-            <Box
-              sx={{
-                position: "relative",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                minHeight: 400,
-                padding: 3,
-              }}
-            >
-              {images.length > 1 && (
-                <>
-                  <IconButton
-                    onClick={() => setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1))}
-                    sx={{
-                      position: "absolute",
-                      left: 24,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      bgcolor: "rgba(0, 0, 0, 0.5)",
-                      color: "white",
-                      "&:hover": { bgcolor: "rgba(0, 0, 0, 0.7)" },
-                      zIndex: 1,
-                    }}
-                  >
-                    <ArrowBack />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0))}
-                    sx={{
-                      position: "absolute",
-                      right: 24,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      bgcolor: "rgba(0, 0, 0, 0.5)",
-                      color: "white",
-                      "&:hover": { bgcolor: "rgba(0, 0, 0, 0.7)" },
-                      zIndex: 1,
-                    }}
-                  >
-                    <ArrowForward />
-                  </IconButton>
-                </>
-              )}
-              <img
-                src={currentImage}
-                alt={`معاينة الصورة ${currentImageIndex + 1}`}
-                onError={(e) => {
-                  e.target.style.display = "none";
-                  if (e.target.nextSibling) {
-                    e.target.nextSibling.style.display = "flex";
-                  }
-                }}
-                style={{
-                  maxWidth: "100%",
-                  maxHeight: "70vh",
-                  objectFit: "contain",
-                  borderRadius: "12px",
-                  boxShadow: "0 24px 65px rgba(15, 23, 42, 0.35)",
-                }}
-              />
-              <Box
-                sx={{
-                  display: "none",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minHeight: "400px",
-                  color: "text.secondary",
-                }}
-              >
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  لا يمكن عرض الصورة
-                </Typography>
-                <Typography variant="body2">الصورة غير متوفرة في قائمة الطلبات</Typography>
-              </Box>
-              {images.length > 1 && (
-                <Box
-                  sx={{
-                    position: "absolute",
-                    bottom: 24,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    display: "flex",
-                    gap: 1,
-                    bgcolor: "rgba(0, 0, 0, 0.45)",
-                    borderRadius: 999,
-                    padding: "6px 10px",
-                  }}
-                >
-                  {images.map((_, idx) => (
-                    <Box
-                      key={idx}
-                      onClick={() => setCurrentImageIndex(idx)}
-                      sx={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        bgcolor: idx === currentImageIndex ? "white" : "rgba(255, 255, 255, 0.4)",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                        "&:hover": { bgcolor: "rgba(255, 255, 255, 0.75)" },
-                      }}
-                    />
-                  ))}
-                </Box>
-              )}
-            </Box>
-          );
-        })()}
-      </GlassDialog>
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Notes Dialog */}
       <NotesDialog

@@ -3,6 +3,7 @@ import {
   Paper,
   Typography,
   Box,
+  Grid,
   Table,
   TableBody,
   TableCell,
@@ -16,6 +17,7 @@ import {
   TablePagination,
   CircularProgress,
   IconButton,
+  Divider,
 } from "@mui/material";
 import {
   Visibility,
@@ -27,11 +29,19 @@ import {
   PictureAsPdf,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
-import { ordersService } from "../../services/api";
+import { ordersService, orderStatusService } from "../../services/api";
 import { subscribeToOrderUpdates } from "../../services/realtime";
-import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../../constants";
+import {
+  ORDER_STATUS,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_COLORS,
+  FABRIC_TYPE_LABELS,
+  SIZE_LABELS,
+  COLOR_LABELS,
+} from "../../constants";
 import NotesDialog from "../common/NotesDialog";
 import GlassDialog from "../common/GlassDialog";
+import OrderForm from "../employee/OrderForm";
 
 const OrdersList = () => {
   const { orders, user } = useApp();
@@ -50,6 +60,12 @@ const OrdersList = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortByState, setSortByState] = useState('asc'); // 'asc', 'desc', or null
+  const [openCancelDialog, setOpenCancelDialog] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [orderToEdit, setOrderToEdit] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const getFullUrl = (url) => {
     if (!url || typeof url !== 'string') return url;
@@ -409,9 +425,39 @@ const OrdersList = () => {
     setOpenDeleteDialog(true);
   };
 
+  const handleCancelClick = (order) => {
+    setOrderToCancel(order);
+    setOpenCancelDialog(true);
+  };
+
+  const handleEditClick = async (order) => {
+    setEditLoading(true);
+    try {
+      const fullOrder = await ordersService.getOrderById(order.id);
+      setOrderToEdit(fullOrder || order);
+      setOpenEditDialog(true);
+    } catch (error) {
+      console.error('Error loading order for edit:', error);
+      alert('حدث خطأ أثناء جلب بيانات الطلب للتعديل');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleCloseDeleteDialog = () => {
     setOpenDeleteDialog(false);
     setOrderToDelete(null);
+  };
+
+  const handleCloseCancelDialog = () => {
+    setOpenCancelDialog(false);
+    setOrderToCancel(null);
+  };
+
+  const handleCloseEditDialog = () => {
+    if (editLoading) return;
+    setOpenEditDialog(false);
+    setOrderToEdit(null);
   };
 
   const handleConfirmDelete = async () => {
@@ -461,6 +507,78 @@ const OrdersList = () => {
     }
   };
 
+  const handleConfirmCancel = async () => {
+    if (!orderToCancel) return;
+
+    setCancelLoading(true);
+    try {
+      await orderStatusService.setCancelled(orderToCancel.id);
+
+      setAllOrders(prev =>
+        prev.map(order =>
+          order.id === orderToCancel.id ? { ...order, status: ORDER_STATUS.CANCELLED } : order
+        )
+      );
+
+      handleCloseCancelDialog();
+
+      try {
+        const updatedOrders = await ordersService.getAllOrders();
+        setAllOrders(updatedOrders || []);
+      } catch (refreshError) {
+        console.error('Error refreshing orders after cancellation:', refreshError);
+      }
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      alert(`حدث خطأ أثناء إلغاء الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleConfirmEdit = async (updatedOrder) => {
+    if (!orderToEdit || !updatedOrder) return;
+
+    setEditLoading(true);
+    try {
+      const payloadToSend = {
+        ...orderToEdit,
+        ...updatedOrder,
+        id: orderToEdit.id,
+      };
+
+      if (Array.isArray(payloadToSend.orderDesigns)) {
+        payloadToSend.orderDesigns = payloadToSend.orderDesigns.map((design) => ({
+          ...design,
+          orderId: payloadToSend.id,
+        }));
+      }
+
+      await ordersService.updateOrder(orderToEdit.id, payloadToSend);
+
+      const refreshed = await ordersService.getAllOrders();
+      setAllOrders(refreshed || []);
+
+      const updatedSelected =
+        refreshed?.find?.((order) => order.id === orderToEdit.id) || payloadToSend;
+
+      if (selectedOrder?.id === orderToEdit.id && updatedSelected) {
+        setSelectedOrder(updatedSelected);
+      }
+
+      setOrderToEdit(updatedSelected);
+    } catch (error) {
+      console.error("Error updating order:", error);
+      alert(
+        `حدث خطأ أثناء تحديث الطلب: ${
+          error.response?.data?.message || error.message || "خطأ غير معروف"
+        }`
+      );
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
   };
@@ -479,6 +597,104 @@ const OrdersList = () => {
     const numericStatus = typeof status === 'number' ? status : parseInt(status);
     return ORDER_STATUS_COLORS[numericStatus] || 'default';
   };
+
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined || value === "") return "-";
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue)) return value;
+    return `${numericValue.toLocaleString("ar-EG", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    })} ₪`;
+  };
+
+  const formatDateTime = (dateValue) => {
+    if (!dateValue) return "-";
+    try {
+      return new Date(dateValue).toLocaleString("ar-SA", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+        calendar: "gregory",
+      });
+    } catch {
+      return dateValue;
+    }
+  };
+
+  const getFabricLabel = (fabricType) => {
+    if (fabricType === null || fabricType === undefined) return "-";
+    const numeric = typeof fabricType === "number" ? fabricType : parseInt(fabricType, 10);
+    return FABRIC_TYPE_LABELS[numeric] || fabricType || "-";
+  };
+
+  const getSizeLabel = (size) => {
+    if (size === null || size === undefined) return "-";
+    if (typeof size === "string" && !size.trim()) return "-";
+    if (typeof size === "number") {
+      return SIZE_LABELS[size] || size;
+    }
+    const numeric = parseInt(size, 10);
+    if (!Number.isNaN(numeric) && SIZE_LABELS[numeric]) {
+      return SIZE_LABELS[numeric];
+    }
+    return size;
+  };
+
+  const getColorLabel = (color) => {
+    if (color === null || color === undefined) return "-";
+    const numeric = typeof color === "number" ? color : parseInt(color, 10);
+    return COLOR_LABELS[numeric] || color || "-";
+  };
+
+  const InfoItem = ({ label, value }) => (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 0.5,
+        py: 0.5,
+      }}
+    >
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Box sx={{ typography: "body1", fontWeight: 600, color: "text.primary" }}>
+        {value ?? "-"}
+      </Box>
+    </Box>
+  );
+
+  const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
+  const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
+    const designCount =
+      design?.orderDesignItems?.reduce((itemSum, item) => itemSum + (item?.quantity || 0), 0) || 0;
+    return sum + designCount;
+  }, 0);
+
+  const discountDisplay = (() => {
+    if (!selectedOrder) return "-";
+    const parts = [];
+    if (selectedOrder.discountAmount !== null && selectedOrder.discountAmount !== undefined) {
+      parts.push(formatCurrency(selectedOrder.discountAmount));
+    }
+    if (
+      selectedOrder.discountPercentage !== null &&
+      selectedOrder.discountPercentage !== undefined &&
+      selectedOrder.discountPercentage !== ""
+    ) {
+      parts.push(`${selectedOrder.discountPercentage}%`);
+    }
+    return parts.length > 0 ? parts.join(" / ") : "-";
+  })();
+
+  const orderNotes =
+    typeof selectedOrder?.notes === "string" ? selectedOrder.notes.trim() : "";
+  const discountNotes =
+    typeof selectedOrder?.discountNotes === "string" ? selectedOrder.discountNotes.trim() : "";
 
   const filteredOrders =
     statusFilter === "all"
@@ -668,7 +884,27 @@ const OrdersList = () => {
                             >
                               عرض
                             </Button>
-                           
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="primary"
+                              onClick={() => handleEditClick(order)}
+                              
+                            >
+                              تعديل
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="warning"
+                              disabled={
+                                order.status === ORDER_STATUS.CANCELLED ||
+                                order.status === ORDER_STATUS.COMPLETED
+                              }
+                              onClick={() => handleCancelClick(order)}
+                            >
+                              إلغاء الطلب
+                            </Button>
                           </Box>
                         </TableCell>
                         <TableCell>
@@ -718,211 +954,384 @@ const OrdersList = () => {
         }
       >
         {selectedOrder && (
-          <Box sx={{ padding: 3 }}>
+          <Box sx={{ padding: 3, display: "flex", flexDirection: "column", gap: 3 }}>
+            <Box>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 معلومات الطلب
               </Typography>
-              <Box sx={{ marginBottom: 3 }}>
-                <Typography variant="body1" gutterBottom>
-                  <strong>رقم الطلب:</strong> {selectedOrder.orderNumber || `#${selectedOrder.id}`}
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>التاريخ:</strong>{" "}
-                  {selectedOrder.orderDate 
-                    ? new Date(selectedOrder.orderDate).toLocaleDateString("ar-SA", { 
-                        year: "numeric", 
-                        month: "long", 
-                        day: "numeric",
-                        calendar: "gregory" 
-                      })
-                    : "-"}
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>الحالة:</strong> <Chip
-                    label={getStatusLabel(selectedOrder.status)}
-                    color={getStatusColor(selectedOrder.status)}
-                    size="small"
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="رقم الطلب"
+                    value={selectedOrder.orderNumber || `#${selectedOrder.id}`}
                   />
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>المجموع الفرعي:</strong> {selectedOrder.subTotal} ₪
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>التخفيض:</strong> {selectedOrder.discountAmount} ₪
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>رسوم التوصيل:</strong> {selectedOrder.deliveryFee} ₪
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>المبلغ الإجمالي:</strong> {selectedOrder.totalAmount} ₪
-                </Typography>
-              </Box>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="الحالة"
+                    value={
+                      <Chip
+                        label={getStatusLabel(selectedOrder.status)}
+                        color={getStatusColor(selectedOrder.status)}
+                        size="small"
+                      />
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="إجمالي الكمية"
+                    value={
+                      totalOrderQuantity || totalOrderQuantity === 0 ? totalOrderQuantity : "-"
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المجموع الفرعي" value={formatCurrency(selectedOrder.subTotal)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="التخفيض" value={discountDisplay} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="رسوم التوصيل"
+                    value={formatCurrency(selectedOrder.deliveryFee)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="المبلغ الإجمالي"
+                    value={formatCurrency(selectedOrder.totalAmount)}
+                  />
+                </Grid>
+              </Grid>
+              {discountNotes && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    ملاحظات التخفيض
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {discountNotes}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
 
+            <Divider />
+
+            <Box>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 معلومات العميل
               </Typography>
-              <Box sx={{ marginBottom: 3 }}>
-                <Typography variant="body1" gutterBottom>
-                  <strong>الاسم:</strong> {selectedOrder.client?.name || "-"}
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>الهاتف:</strong> {selectedOrder.client?.phone || "-"}
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>المنطقة:</strong> {selectedOrder.district || "-"}
-                </Typography>
-              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الاسم" value={selectedOrder.client?.name || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الهاتف" value={selectedOrder.client?.phone || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المدينة" value={selectedOrder.province || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المنطقة" value={selectedOrder.district || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الدولة" value={selectedOrder.country || "-"} />
+                </Grid>
+              </Grid>
+            </Box>
 
-              {/* Designs */}
-              {selectedOrder.orderDesigns && selectedOrder.orderDesigns.length > 0 && (
-                <>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                    التصاميم ({selectedOrder.orderDesigns.length})
-                  </Typography>
-                  <Box sx={{ marginBottom: 3 }}>
-                    {selectedOrder.orderDesigns.map((design, index) => (
-                      <Box
-                        key={design.id || index}
-                        sx={{
-                          border: "1px solid #e0e0e0",
-                          borderRadius: 2,
-                          padding: 2,
-                          marginBottom: 2,
-                        }}
-                      >
-                        <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 600 }}>
-                          {design.designName}
-                        </Typography>
-                        {(() => {
-                          // Support both old format (mockupImageUrl) and new format (mockupImageUrls array)
-                          const imageUrls = design?.mockupImageUrls || (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
-                          const validImages = imageUrls.filter(url => url && url !== 'placeholder_mockup.jpg');
-                          
-                          if (validImages.length === 0) return null;
-                          
-                          return (
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                الصور ({validImages.length})
-                              </Typography>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {validImages.map((imageUrl, idx) => (
-                                  imageUrl === 'image_data_excluded' ? (
-                                    <Button
-                                      key={idx}
-                                      variant="outlined"
-                                      size="small"
-                                      startIcon={loadingImage === `image-${selectedOrder.id}-${design.id}` ? <CircularProgress size={16} /> : <ImageIcon />}
-                                      onClick={() => handleImageClick(imageUrl, selectedOrder.id, design.id)}
-                                      disabled={loadingImage === `image-${selectedOrder.id}-${design.id}`}
-                                    >
-                                      عرض الصورة {idx + 1}
-                                    </Button>
-                                  ) : (
-                                    (() => {
-                                      const displayUrl = getFullUrl(imageUrl);
-                                      return (
-                                    <Box
-                                      key={idx}
-                                      sx={{
-                                        position: 'relative',
-                                        cursor: 'pointer',
-                                        '&:hover': { opacity: 0.8 }
-                                      }}
-                                    >
-                                      <img
-                                        src={displayUrl}
-                                        alt={`${design.designName} - صورة ${idx + 1}`}
-                                        onClick={() => handleImageClick(imageUrl, selectedOrder.id, design.id)}
-                                        style={{
-                                          maxWidth: '150px',
-                                          maxHeight: '150px',
-                                          height: 'auto',
-                                          borderRadius: '8px',
-                                          cursor: 'pointer',
-                                          transition: 'transform 0.2s',
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                      />
-                                    </Box>
-                                      );
-                                    })()
-                                  )
-                                ))}
-                              </Box>
-                            </Box>
-                          );
-                        })()}
-                        {(() => {
-                          // Support both old format (printFileUrl) and new format (printFileUrls array)
-                          const fileUrls = design?.printFileUrls || (design?.printFileUrl ? [design.printFileUrl] : []);
-                          const validFiles = fileUrls.filter(url => url && url !== "placeholder_print.pdf");
-                          
-                          if (validFiles.length === 0) return null;
-                          
-                          return (
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                ملفات التصميم ({validFiles.length})
-                              </Typography>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {validFiles.map((fileUrl, idx) => (
-                                  fileUrl === 'image_data_excluded' ? (
-                                    <Button
-                                      key={idx}
-                                      variant="outlined"
-                                      size="small"
-                                      startIcon={loadingImage === `file-${selectedOrder.id}-${design.id}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
-                                      onClick={() => handleFileClick(fileUrl, selectedOrder.id, design.id)}
-                                      disabled={loadingImage === `file-${selectedOrder.id}-${design.id}`}
-                                    >
-                                      تحميل الملف {idx + 1}
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      key={idx}
-                                      variant="contained"
-                                      size="small"
-                                      startIcon={<PictureAsPdf />}
-                                      onClick={() => handleFileClick(fileUrl, selectedOrder.id, design.id)}
-                                    >
-                                      📄 ملف {idx + 1}
-                                    </Button>
-                                  )
-                                ))}
-                              </Box>
-                            </Box>
-                          );
-                        })()}
-                      </Box>
-                    ))}
-                  </Box>
-                </>
-              )}
+            <Divider />
 
+            <Box>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 الموظفون
               </Typography>
-              <Box sx={{ marginBottom: 3 }}>
-                <Typography variant="body1" gutterBottom>
-                  <strong>المصمم:</strong> {selectedOrder.designer?.name || "-"}
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  <strong>المعد:</strong> {selectedOrder.preparer?.name || "غير محدد"}
-                </Typography>
-              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <InfoItem label="المصمم" value={selectedOrder.designer?.name || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <InfoItem label="المعد" value={selectedOrder.preparer?.name || "غير محدد"} />
+                </Grid>
+              </Grid>
+            </Box>
 
-              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-                <Button
-                  variant="contained"
-                  startIcon={<Note />}
-                  onClick={() => handleNotesClick(selectedOrder)}
-                  sx={{ minWidth: 200 }}
-                >
-                  عرض/تعديل الملاحظات
-                </Button>
-              </Box>
+            {orderNotes && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                    ملاحظات الطلب
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {orderNotes}
+                  </Typography>
+                </Box>
+              </>
+            )}
+
+            {selectedOrderDesigns.length > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                    التصاميم ({selectedOrderDesigns.length})
+                  </Typography>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {selectedOrderDesigns.map((design, index) => {
+                      const designItems = design?.orderDesignItems || [];
+                      const designQuantity =
+                        designItems.reduce(
+                          (sum, item) => sum + (item?.quantity || 0),
+                          0
+                        ) || 0;
+
+                      return (
+                        <Box
+                          key={design.id || index}
+                          sx={{
+                            border: "1px solid",
+                            borderColor: "divider",
+                            borderRadius: 2,
+                            padding: 2,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                              gap: 1,
+                            }}
+                          >
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                              {design.designName || `تصميم ${index + 1}`}
+                            </Typography>
+                            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                              <Chip
+                                label={`الكمية: ${designQuantity}`}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                              />
+                              {design.totalPrice !== undefined && design.totalPrice !== null && (
+                                <Chip
+                                  label={`قيمة التصميم: ${formatCurrency(design.totalPrice)}`}
+                                  size="small"
+                                  color="secondary"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          </Box>
+
+                          {designItems.length > 0 && (
+                            <TableContainer
+                              sx={{
+                                borderRadius: 2,
+                                border: "1px solid",
+                                borderColor: "divider",
+                              }}
+                            >
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>نوع القماش</TableCell>
+                                    <TableCell>اللون</TableCell>
+                                    <TableCell align="center">المقاس</TableCell>
+                                    <TableCell align="center">الكمية</TableCell>
+                                    <TableCell align="center">السعر الفردي</TableCell>
+                                    <TableCell align="center">الإجمالي</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {designItems.map((item, idx) => (
+                                    <TableRow key={item?.id || idx}>
+                                      <TableCell>{getFabricLabel(item?.fabricType)}</TableCell>
+                                      <TableCell>{getColorLabel(item?.color)}</TableCell>
+                                      <TableCell align="center">
+                                        {getSizeLabel(item?.size)}
+                                      </TableCell>
+                                      <TableCell align="center">
+                                        {item?.quantity ?? "-"}
+                                      </TableCell>
+                                      <TableCell align="center">
+                                        {formatCurrency(item?.unitPrice)}
+                                      </TableCell>
+                                      <TableCell align="center">
+                                        {formatCurrency(item?.totalPrice)}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          )}
+
+                          {(() => {
+                            const imageUrls =
+                              design?.mockupImageUrls ||
+                              (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
+                            const validImages = imageUrls.filter(
+                              (url) => url && url !== "placeholder_mockup.jpg"
+                            );
+
+                            if (validImages.length === 0) return null;
+
+                            return (
+                              <Box>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                  الصور ({validImages.length})
+                                </Typography>
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                                  {validImages.map((imageUrl, idx) =>
+                                    imageUrl === "image_data_excluded" ? (
+                                      <Button
+                                        key={idx}
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={
+                                          loadingImage === `image-${selectedOrder.id}-${design.id}` ? (
+                                            <CircularProgress size={16} />
+                                          ) : (
+                                            <ImageIcon />
+                                          )
+                                        }
+                                        onClick={() =>
+                                          handleImageClick(imageUrl, selectedOrder.id, design.id)
+                                        }
+                                        disabled={
+                                          loadingImage === `image-${selectedOrder.id}-${design.id}`
+                                        }
+                                      >
+                                        عرض الصورة {idx + 1}
+                                      </Button>
+                                    ) : (
+                                      (() => {
+                                        const displayUrl = getFullUrl(imageUrl);
+                                        return (
+                                          <Box
+                                            key={idx}
+                                            sx={{
+                                              position: "relative",
+                                              cursor: "pointer",
+                                              "&:hover": { opacity: 0.8 },
+                                            }}
+                                          >
+                                            <img
+                                              src={displayUrl}
+                                              alt={`${design.designName} - صورة ${idx + 1}`}
+                                              onClick={() =>
+                                                handleImageClick(imageUrl, selectedOrder.id, design.id)
+                                              }
+                                              style={{
+                                                maxWidth: "150px",
+                                                maxHeight: "150px",
+                                                height: "auto",
+                                                borderRadius: "8px",
+                                                cursor: "pointer",
+                                                transition: "transform 0.2s",
+                                              }}
+                                              onMouseEnter={(e) =>
+                                                (e.currentTarget.style.transform = "scale(1.05)")
+                                              }
+                                              onMouseLeave={(e) =>
+                                                (e.currentTarget.style.transform = "scale(1)")
+                                              }
+                                            />
+                                          </Box>
+                                        );
+                                      })()
+                                    )
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          })()}
+
+                          {(() => {
+                            const fileUrls =
+                              design?.printFileUrls ||
+                              (design?.printFileUrl ? [design.printFileUrl] : []);
+                            const validFiles = fileUrls.filter(
+                              (url) => url && url !== "placeholder_print.pdf"
+                            );
+
+                            if (validFiles.length === 0) return null;
+
+                            return (
+                              <Box>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                  ملفات التصميم ({validFiles.length})
+                                </Typography>
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                                  {validFiles.map((fileUrl, idx) =>
+                                    fileUrl === "image_data_excluded" ? (
+                                      <Button
+                                        key={idx}
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={
+                                          loadingImage === `file-${selectedOrder.id}-${design.id}` ? (
+                                            <CircularProgress size={16} />
+                                          ) : (
+                                            <PictureAsPdf />
+                                          )
+                                        }
+                                        onClick={() =>
+                                          handleFileClick(fileUrl, selectedOrder.id, design.id)
+                                        }
+                                        disabled={
+                                          loadingImage === `file-${selectedOrder.id}-${design.id}`
+                                        }
+                                      >
+                                        تحميل الملف {idx + 1}
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        key={idx}
+                                        variant="contained"
+                                        size="small"
+                                        startIcon={<PictureAsPdf />}
+                                        onClick={() =>
+                                          handleFileClick(fileUrl, selectedOrder.id, design.id)
+                                        }
+                                      >
+                                        📄 ملف {idx + 1}
+                                      </Button>
+                                    )
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          })()}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              </>
+            )}
+
+            <Box sx={{ mt: 1, display: "flex", justifyContent: "center" }}>
+              <Button
+                variant="contained"
+                startIcon={<Note />}
+                onClick={() => handleNotesClick(selectedOrder)}
+                sx={{ minWidth: 200 }}
+              >
+                عرض/تعديل الملاحظات
+              </Button>
+            </Box>
           </Box>
         )}
       </GlassDialog>
@@ -956,6 +1365,56 @@ const OrdersList = () => {
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           هذا الإجراء لا يمكن التراجع عنه.
         </Typography>
+      </GlassDialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <GlassDialog
+        open={openCancelDialog}
+        onClose={handleCloseCancelDialog}
+        maxWidth="sm"
+        title="تأكيد الإلغاء"
+        actions={
+          <>
+            <Button onClick={handleCloseCancelDialog} disabled={cancelLoading}>
+              تراجع
+            </Button>
+            <Button
+              onClick={handleConfirmCancel}
+              color="warning"
+              variant="contained"
+              disabled={cancelLoading}
+            >
+              {cancelLoading ? <CircularProgress size={20} /> : "تأكيد الإلغاء"}
+            </Button>
+          </>
+        }
+      >
+        <Typography variant="body1">
+          هل ترغب في إلغاء الطلب{" "}
+          <strong>{orderToCancel?.orderNumber || `#${orderToCancel?.id}`}</strong>؟
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          سيتم تغيير حالة الطلب إلى ملغي ويمكن للموظفين رؤيتها في السجل.
+        </Typography>
+      </GlassDialog>
+
+      <GlassDialog
+        open={openEditDialog}
+        onClose={handleCloseEditDialog}
+        maxWidth="xl"
+        title="تعديل الطلب"
+        contentSx={{ padding: 0 }}
+        actions={null}
+      >
+        {orderToEdit && (
+          <OrderForm
+            mode="edit"
+            initialOrder={orderToEdit}
+            onUpdate={handleConfirmEdit}
+            onCancel={handleCloseEditDialog}
+            onSuccess={handleCloseEditDialog}
+          />
+        )}
       </GlassDialog>
 
       {/* Enlarged Image Dialog */}
