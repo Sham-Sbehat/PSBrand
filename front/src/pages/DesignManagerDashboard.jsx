@@ -46,6 +46,7 @@ import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
+import calmPalette from "../theme/calmPalette";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
@@ -58,13 +59,46 @@ const DesignManagerDashboard = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const [statusFilter, setStatusFilter] = useState(ORDER_STATUS.PENDING_PRINTING);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
   const MAX_CONCURRENT_LOADS = 3; // Maximum concurrent image loads
   const [page, setPage] = useState(0); // Current page for pagination
   const [rowsPerPage, setRowsPerPage] = useState(5); // Number of rows per page
+
+  const getFullUrl = (inputUrl) => {
+    if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
+
+    const trimmed = inputUrl.trim();
+    if (!trimmed) return trimmed;
+
+    if (
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("data:")
+    ) {
+      return trimmed;
+    }
+
+    const normalizedPath = trimmed.replace(/\\/g, "/");
+    const API_BASE_URL =
+      import.meta.env.VITE_API_BASE_URL ||
+      "https://psbrand-backend-production.up.railway.app/api";
+
+    let baseDomain;
+    try {
+      baseDomain = new URL(API_BASE_URL).origin;
+    } catch {
+      baseDomain = API_BASE_URL.replace(/\/api.*$/i, "");
+    }
+
+    if (normalizedPath.startsWith("/")) {
+      return `${baseDomain}${normalizedPath}`;
+    }
+
+    return `${baseDomain}/${normalizedPath}`;
+  };
 
   // Fetch all orders
   const fetchOrders = async (showLoading = false) => {
@@ -226,7 +260,7 @@ const DesignManagerDashboard = () => {
       }
       
       if (imageToShow) {
-        setSelectedImage(imageToShow);
+        setSelectedImage(getFullUrl(imageToShow));
         setCurrentImageIndex(0);
         setImageDialogOpen(true);
       } else {
@@ -239,7 +273,7 @@ const DesignManagerDashboard = () => {
     if (!imageUrl || imageUrl === 'placeholder_mockup.jpg') {
       return;
     }
-    setSelectedImage(imageUrl);
+      setSelectedImage(getFullUrl(imageUrl));
     setCurrentImageIndex(0);
     setImageDialogOpen(true);
   };
@@ -610,98 +644,148 @@ const DesignManagerDashboard = () => {
       title: "إجمالي الطلبات",
       value: totalOrdersCount,
       icon: Dashboard,
-      color: "#1976d2",
     },
     {
       title: "بانتظار الطباعة",
       value: pendingPrintingCount,
       icon: Schedule,
-      color: "#ed6c02",
     },
     {
       title: "في مرحلة الطباعة",
       value: inPrintingCount,
       icon: Print,
-      color: "#2e7d32",
     },
     {
       title: "مكتملة",
       value: completedCount,
       icon: CheckCircle,
-      color: "#9c27b0",
     },
   ];
 
-  return (
-    <Box sx={{ minHeight: "100vh", backgroundColor: "#f5f5f5" }}>
-      <AppBar
-        position="static"
-        elevation={2}
+    return (
+      <Box
         sx={{
-          background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+          minHeight: "100vh",
+          backgroundImage: calmPalette.background,
+          paddingBottom: 6,
         }}
       >
-        <Toolbar>
-          <Typography variant="h5" sx={{ flexGrow: 1, fontWeight: 700 }}>
-            PSBrand - لوحة مدير التصميم
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <Avatar sx={{ bgcolor: "white", color: "#f5576c" }}>
-              {user?.name?.charAt(0) || "م"}
-            </Avatar>
-            <Typography variant="body1" sx={{ fontWeight: 500 }}>
-              {user?.name || "مدير التصميم"}
+        <AppBar
+          position="static"
+          elevation={0}
+          sx={{
+            background: calmPalette.appBar,
+            boxShadow: "0 12px 30px rgba(34, 26, 21, 0.25)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <Toolbar sx={{ minHeight: 72 }}>
+            <Typography
+              variant="h5"
+              sx={{
+                flexGrow: 1,
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                color: "#f6f1eb",
+              }}
+            >
+              PSBrand - لوحة مدير التصميم
             </Typography>
-            <IconButton color="inherit" onClick={handleLogout}>
-              <Logout />
-            </IconButton>
-          </Box>
-        </Toolbar>
-      </AppBar>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Avatar
+                sx={{
+                  bgcolor: "rgba(255, 255, 255, 0.22)",
+                  color: "#ffffff",
+                  backdropFilter: "blur(6px)",
+                }}
+              >
+                {user?.name?.charAt(0) || "م"}
+              </Avatar>
+              <Typography variant="body1" sx={{ fontWeight: 500, color: "#f6f1eb" }}>
+                {user?.name || "مدير التصميم"}
+              </Typography>
+              <IconButton
+                color="inherit"
+                onClick={handleLogout}
+                sx={{
+                  color: "#f6f1eb",
+                  border: "1px solid rgba(255,255,255,0.25)",
+                  borderRadius: 2,
+                }}
+              >
+                <Logout />
+              </IconButton>
+            </Box>
+          </Toolbar>
+        </AppBar>
 
-      <Container maxWidth="xl" sx={{ paddingY: 4 }}>
+        <Container maxWidth="xl" sx={{ paddingY: 5 }}>
         {/* Stats Cards */}
-        <Grid container spacing={3} sx={{ marginBottom: 4 }}>
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <Grid item xs={12} sm={6} md={3} key={index}>
-                <Card
-                  sx={{
-                    background: `linear-gradient(135deg, ${stat.color} 0%, ${stat.color}dd 100%)`,
-                    color: "white",
-                    transition: "transform 0.2s",
-                    "&:hover": {
-                      transform: "translateY(-5px)",
-                    },
-                  }}
-                >
-                  <CardContent>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Box>
-                        <Typography variant="h3" sx={{ fontWeight: 700 }}>
-                          {stat.value}
-                        </Typography>
-                        <Typography variant="body1" sx={{ marginTop: 1 }}>
-                          {stat.title}
-                        </Typography>
+          <Grid container spacing={3} sx={{ marginBottom: 4 }}>
+            {stats.map((stat, index) => {
+              const Icon = stat.icon;
+              const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
+              return (
+                <Grid item xs={12} sm={6} md={3} key={index}>
+                  <Card
+                    sx={{
+                      position: "relative",
+                      background: cardStyle.background,
+                      color: cardStyle.highlight,
+                      borderRadius: 4,
+                      boxShadow: calmPalette.shadow,
+                      overflow: "hidden",
+                      transition: "transform 0.2s, box-shadow 0.2s",
+                      backdropFilter: "blur(6px)",
+                      "&::after": {
+                        content: '""',
+                        position: "absolute",
+                        inset: 0,
+                        background:
+                          "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
+                        pointerEvents: "none",
+                      },
+                      "&:hover": {
+                        transform: "translateY(-5px)",
+                        boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
+                      },
+                    }}
+                  >
+                    <CardContent>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                            {stat.value}
+                          </Typography>
+                          <Typography variant="body1" sx={{ marginTop: 1 }}>
+                            {stat.title}
+                          </Typography>
+                        </Box>
+                        <Icon sx={{ fontSize: 60, opacity: 0.8 }} />
                       </Box>
-                      <Icon sx={{ fontSize: 60, opacity: 0.8 }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
 
-        <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              padding: 4,
+              borderRadius: 3,
+              background: calmPalette.surface,
+              boxShadow: calmPalette.shadow,
+              backdropFilter: "blur(8px)",
+            }}
+          >
           <Box
             sx={{
               display: "flex",
@@ -741,7 +825,7 @@ const DesignManagerDashboard = () => {
               <TableContainer>
                 <Table>
                   <TableHead>
-                    <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                    <TableRow sx={{ backgroundColor: calmPalette.surfaceHover }}>
                       <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
@@ -905,7 +989,7 @@ const DesignManagerDashboard = () => {
                                 const isExcluded = firstImage === 'image_data_excluded';
                                 const cachedImage = imageCache[cacheKey];
                                 const isLoading = loadingImage === `image-${order.id}-${design.id}`;
-                                const displayImage = isExcluded ? cachedImage : firstImage;
+                                const displayImage = getFullUrl(isExcluded ? cachedImage : firstImage);
                                 
                                 return (
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -915,14 +999,14 @@ const DesignManagerDashboard = () => {
                                         height: 60, 
                                         position: 'relative',
                                         cursor: 'pointer',
-                                        bgcolor: isExcluded && !cachedImage ? '#f5f5f5' : 'transparent',
+                                          bgcolor: isExcluded && !cachedImage ? calmPalette.surface : 'transparent',
                                         borderRadius: "4px",
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        border: isExcluded && !cachedImage ? '1px solid #e0e0e0' : 'none',
-                                        flexShrink: 0,
-                                        '&:hover': { opacity: 0.8 }
+                                          border: isExcluded && !cachedImage ? '1px solid rgba(34, 28, 24, 0.1)' : 'none',
+                                          flexShrink: 0,
+                                          '&:hover': { opacity: 0.85 }
                                       }}
                                       onClick={() => handleImageClick(firstImage, order.id, design.id)}
                                       data-image-placeholder={isExcluded && !cachedImage ? "true" : "false"}
@@ -966,7 +1050,7 @@ const DesignManagerDashboard = () => {
                                             justifyContent: 'center',
                                             width: "100%", 
                                             height: "100%", 
-                                            color: '#bbb',
+                                            color: calmPalette.textMuted,
                                             fontSize: '0.6rem',
                                             textAlign: 'center',
                                             px: 0.5
@@ -983,10 +1067,10 @@ const DesignManagerDashboard = () => {
                                           height: "100%", 
                                           justifyContent: 'center',
                                           alignItems: 'center',
-                                          bgcolor: '#f0f0f0',
+                                            bgcolor: calmPalette.surfaceHover,
                                           borderRadius: "4px",
                                           fontSize: '0.7rem',
-                                          color: '#666'
+                                            color: calmPalette.textPrimary
                                         }}
                                       >
                                         غير متوفرة
