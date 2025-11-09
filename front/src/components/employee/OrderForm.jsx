@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -62,6 +62,7 @@ const OrderForm = ({
   onCancel,
   onUpdate,
 }) => {
+  const formInstanceId = useId();
   const isEditMode = mode === 'edit';
   const { addOrder, user, loadUsersByRole } = useApp();
   const [searchParams] = useSearchParams();
@@ -1394,13 +1395,13 @@ const OrderForm = ({
                           <input
                             accept="image/*,.pdf,.doc,.docx,.ai,.eps"
                             style={{ display: 'none' }}
-                            id={`design-${order.id}`}
+                            id={`${formInstanceId}-design-${order.id}`}
                             multiple
                             type="file"
                             onChange={(e) => handleImageUpload(e, order.id, 'design')}
                             disabled={isSubmitting}
                           />
-                          <label htmlFor={`design-${order.id}`}>
+                          <label htmlFor={`${formInstanceId}-design-${order.id}`}>
                             <IconButton color="primary" component="span">
                               <CloudUpload />
                             </IconButton>
@@ -1458,13 +1459,13 @@ const OrderForm = ({
                           <input
                             accept="image/*"
                             style={{ display: 'none' }}
-                            id={`blouse-${order.id}`}
+                            id={`${formInstanceId}-blouse-${order.id}`}
                             multiple
                             type="file"
                             onChange={(e) => handleImageUpload(e, order.id, 'blouse')}
                             disabled={isSubmitting}
                           />
-                          <label htmlFor={`blouse-${order.id}`}>
+                          <label htmlFor={`${formInstanceId}-blouse-${order.id}`}>
                             <IconButton color="primary" component="span">
                               <CloudUpload />
                             </IconButton>
