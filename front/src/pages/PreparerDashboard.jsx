@@ -22,8 +22,9 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  Divider,
 } from "@mui/material";
-import { Logout, Visibility, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, ShoppingBag, Note, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
+import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService } from "../services/api";
@@ -652,6 +653,106 @@ const PreparerDashboard = () => {
     };
   };
 
+const getStatusChipColor = (status) => {
+  const info = getStatusLabel(status);
+  return info.color || "default";
+};
+
+const getStatusText = (status) => {
+  const info = getStatusLabel(status);
+  return info.label || "غير معروف";
+};
+
+const normalizeDateValue = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(trimmed);
+    const isoReady = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
+    return new Date(hasTimezone ? isoReady : `${isoReady}Z`);
+  }
+
+  if (typeof value === "number") {
+    return new Date(value);
+  }
+
+  return null;
+};
+
+const formatDateTime = (dateValue) => {
+  const normalized = normalizeDateValue(dateValue);
+  if (!normalized || Number.isNaN(normalized.getTime())) return "-";
+
+  try {
+    return normalized.toLocaleString("ar-SA", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      calendar: "gregory",
+    });
+  } catch {
+    return normalized.toString();
+  }
+};
+
+const formatCurrency = (value) => {
+  if (value === null || value === undefined || value === "") return "-";
+  const numericValue = Number(value);
+  if (Number.isNaN(numericValue)) return value;
+  return `${numericValue.toLocaleString("ar-EG", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })} ₪`;
+};
+
+const getFabricLabel = (fabricType) => {
+  if (fabricType === null || fabricType === undefined) return "-";
+  const numeric = typeof fabricType === "number" ? fabricType : parseInt(fabricType, 10);
+  return FABRIC_TYPE_LABELS[numeric] || fabricType || "-";
+};
+
+const getSizeLabel = (size) => {
+  if (size === null || size === undefined) return "-";
+  if (typeof size === "number") {
+    return SIZE_LABELS[size] || size;
+  }
+  const numeric = parseInt(size, 10);
+  if (!Number.isNaN(numeric) && SIZE_LABELS[numeric]) {
+    return SIZE_LABELS[numeric];
+  }
+  return size;
+};
+
+const getColorLabel = (color) => {
+  if (color === null || color === undefined) return "-";
+  const numeric = typeof color === "number" ? color : parseInt(color, 10);
+  return COLOR_LABELS[numeric] || color || "-";
+};
+
+const InfoItem = ({ label, value }) => (
+  <Box
+    sx={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 0.5,
+      py: 0.5,
+    }}
+  >
+    <Typography variant="caption" color="text.secondary">
+      {label}
+    </Typography>
+    <Box sx={{ typography: "body1", fontWeight: 600, color: "text.primary" }}>
+      {value ?? "-"}
+    </Box>
+  </Box>
+);
+
   const stats = [
     {
       title: "الطلبات المتاحة للتحضير",
@@ -680,6 +781,34 @@ const PreparerDashboard = () => {
       fetchMyOpenOrders(false);
     }
   };
+
+  const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
+  const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
+    const designCount =
+      design?.orderDesignItems?.reduce((itemSum, item) => itemSum + (item?.quantity || 0), 0) || 0;
+    return sum + designCount;
+  }, 0);
+
+  const discountDisplay = (() => {
+    if (!selectedOrder) return "-";
+    const parts = [];
+    if (selectedOrder.discountAmount !== null && selectedOrder.discountAmount !== undefined) {
+      parts.push(formatCurrency(selectedOrder.discountAmount));
+    }
+    if (
+      selectedOrder.discountPercentage !== null &&
+      selectedOrder.discountPercentage !== undefined &&
+      selectedOrder.discountPercentage !== ""
+    ) {
+      parts.push(`${selectedOrder.discountPercentage}%`);
+    }
+    return parts.length > 0 ? parts.join(" / ") : "-";
+  })();
+
+  const orderNotes =
+    typeof selectedOrder?.notes === "string" ? selectedOrder.notes.trim() : "";
+  const discountNotes =
+    typeof selectedOrder?.discountNotes === "string" ? selectedOrder.discountNotes.trim() : "";
 
   const handleCloseCompletedOrdersModal = () => {
     setOpenCompletedOrdersModal(false);
@@ -921,9 +1050,7 @@ const PreparerDashboard = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>رقم الطلب</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>اسم العميل</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>رقم الهاتف</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>البلد</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>المحافظة</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>المجموع الفرعي</TableCell>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>الإجمالي</TableCell>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>تاريخ الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem', minWidth: 80 }}>الملاحظات</TableCell>
@@ -966,11 +1093,7 @@ const PreparerDashboard = () => {
                         {order.client?.name || "-"}
                       </TableCell>
                       <TableCell>{order.client?.phone || "-"}</TableCell>
-                      <TableCell>{order.country || "-"}</TableCell>
                       <TableCell>{order.province || "-"}</TableCell>
-                      <TableCell sx={{ color: "text.secondary" }}>
-                        {order.subTotal || 0} ₪
-                      </TableCell>
                       <TableCell sx={{ fontWeight: 700, color: "primary.main", fontSize: '1rem' }}>
                         {order.totalAmount || 0} ₪
                       </TableCell>
@@ -1104,9 +1227,7 @@ const PreparerDashboard = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>رقم الطلب</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>اسم العميل</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>رقم الهاتف</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>البلد</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>المحافظة</TableCell>
-                      <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>المجموع الفرعي</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>الإجمالي</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>تاريخ الطلب</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem', minWidth: 80 }}>الملاحظات</TableCell>
@@ -1131,11 +1252,7 @@ const PreparerDashboard = () => {
                         {order.client?.name || "-"}
                       </TableCell>
                       <TableCell>{order.client?.phone || "-"}</TableCell>
-                      <TableCell>{order.country || "-"}</TableCell>
                       <TableCell>{order.province || "-"}</TableCell>
-                      <TableCell sx={{ color: "text.secondary" }}>
-                        {order.subTotal || 0} ₪
-                      </TableCell>
                       <TableCell sx={{ fontWeight: 700, color: "primary.main", fontSize: '1rem' }}>
                         {order.totalAmount || 0} ₪
                       </TableCell>
@@ -1252,7 +1369,6 @@ const PreparerDashboard = () => {
                   <TableCell>رقم الطلب</TableCell>
                   <TableCell>اسم العميل</TableCell>
                   <TableCell>رقم الهاتف</TableCell>
-                  <TableCell>البلد</TableCell>
                   <TableCell>المحافظة</TableCell>
                   <TableCell>الإجمالي</TableCell>
                   <TableCell>الحالة</TableCell>
@@ -1277,7 +1393,6 @@ const PreparerDashboard = () => {
                         {order.client?.name || "-"}
                       </TableCell>
                       <TableCell>{order.client?.phone || "-"}</TableCell>
-                      <TableCell>{order.country || "-"}</TableCell>
                       <TableCell>{order.province || "-"}</TableCell>
                       <TableCell sx={{ fontWeight: 700, color: "primary.main" }}>
                         {order.totalAmount || 0} ₪
@@ -1344,350 +1459,357 @@ const PreparerDashboard = () => {
         }
       >
         {selectedOrder && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-              {/* Order Basic Info */}
-              <Paper elevation={2} sx={{ p: 2.5, borderRadius: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, pb: 1.5, borderBottom: "2px solid", borderColor: "divider" }}>
-                  <Receipt color="primary" fontSize="small" />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    معلومات الطلب
-                  </Typography>
-                </Box>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={4}>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        رقم الطلب
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
-                        {selectedOrder.orderNumber}
-                      </Typography>
-                    </Box>
+          <Box sx={{ padding: 3, display: "flex", flexDirection: "column", gap: 3 }}>
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                معلومات الطلب
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="رقم الطلب"
+                    value={selectedOrder.orderNumber || `#${selectedOrder.id}`}
+                  />
                 </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        التاريخ
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
-                   {selectedOrder.orderDate 
-                    ? new Date(selectedOrder.orderDate).toLocaleDateString("ar-SA", { 
-                        year: "numeric", 
-                        month: "long", 
-                        day: "numeric",
-                        calendar: "gregory" 
-                      })
-                    : "-"}
-                  </Typography>
-                    </Box>
-                </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        الحالة
-                      </Typography>
-                  <Chip
-                    label={getStatusLabel(selectedOrder.status).label}
-                    color={getStatusLabel(selectedOrder.status).color}
-                        size="medium"
-                        sx={{ fontWeight: 600 }}
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="الحالة"
+                    value={
+                      <Chip
+                        label={getStatusText(selectedOrder.status)}
+                        color={getStatusChipColor(selectedOrder.status)}
+                        size="small"
                       />
-                    </Box>
-                  </Grid>
+                    }
+                  />
                 </Grid>
-              </Paper>
-
-              {/* Client Info */}
-              <Paper elevation={2} sx={{ p: 2.5, borderRadius: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, pb: 1.5, borderBottom: "2px solid", borderColor: "divider" }}>
-                  <Person color="primary" fontSize="small" />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    معلومات العميل
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="إجمالي الكمية"
+                    value={
+                      totalOrderQuantity || totalOrderQuantity === 0 ? totalOrderQuantity : "-"
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المجموع الفرعي" value={formatCurrency(selectedOrder.subTotal)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="التخفيض" value={discountDisplay} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="رسوم التوصيل"
+                    value={formatCurrency(selectedOrder.deliveryFee ?? selectedOrder.deliveryPrice)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="المبلغ الإجمالي"
+                    value={formatCurrency(selectedOrder.totalAmount)}
+                  />
+                </Grid>
+              </Grid>
+              {discountNotes && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    ملاحظات التخفيض
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {discountNotes}
                   </Typography>
                 </Box>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={4}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                      <Person fontSize="small" color="action" />
-                      <Typography variant="body2" color="text.secondary">
-                        الاسم
-                      </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ fontWeight: 600, fontSize: "1.1rem", pr: 3 }}>
-                      {selectedOrder.client?.name || "-"}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                      <Phone fontSize="small" color="action" />
-                      <Typography variant="body2" color="text.secondary">
-                        رقم الهاتف
-                      </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ fontWeight: 600, fontSize: "1.1rem", pr: 3 }}>
-                      {selectedOrder.client?.phone || "-"}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                      <LocationOn fontSize="small" color="action" />
-                      <Typography variant="body2" color="text.secondary">
-                        العنوان
-                      </Typography>
-                    </Box>
-                    <Typography variant="body1" sx={{ fontWeight: 600, fontSize: "1.1rem", pr: 3 }}>
-                      {selectedOrder.district && `${selectedOrder.district}, `}
-                      {selectedOrder.province && `${selectedOrder.province}, `}
-                      {selectedOrder.country || "-"}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
+              )}
+            </Box>
 
-              {/* Financial Summary */}
-              <Paper elevation={3} sx={{ p: 2.5, borderRadius: 2, bgcolor: "rgba(96, 78, 62, 0.75)", color: "white" }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, pb: 1.5, borderBottom: "2px solid rgba(255,255,255,0.3)" }}>
-                  <Receipt sx={{ color: "white" }} fontSize="small" />
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: "white" }}>
-                    الملخص المالي
-                  </Typography>
-                </Box>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} sm={4}>
-                    <Box sx={{ textAlign: "center", p: 2, bgcolor: "rgba(255,255,255,0.1)", borderRadius: 2 }}>
-                      <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
-                        المجموع الفرعي
-                      </Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {selectedOrder.subTotal || 0} ₪
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Box sx={{ textAlign: "center", p: 2, bgcolor: "rgba(255,255,255,0.1)", borderRadius: 2 }}>
-                      <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
-                        رسوم التوصيل
-                      </Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                        {selectedOrder.deliveryFee || 0} ₪
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Box sx={{ textAlign: "center", p: 2, bgcolor: "rgba(255,255,255,0.2)", borderRadius: 2 }}>
-                      <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
-                        الإجمالي الكلي
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                        {selectedOrder.totalAmount || 0} ₪
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </Paper>
+            <Divider />
 
-              {/* Notes Section */}
-              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-                <Button
-                  variant="contained"
-                  startIcon={<Note />}
-                  onClick={() => handleNotesClick(selectedOrder)}
-                  sx={{ minWidth: 200 }}
-                >
-                  عرض/تعديل الملاحظات
-                </Button>
-              </Box>
-                
-              {/* Designs Section */}
-                {selectedOrder.orderDesigns && selectedOrder.orderDesigns.length > 0 && (
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                معلومات العميل
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الاسم" value={selectedOrder.client?.name || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الهاتف" value={selectedOrder.client?.phone || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المدينة" value={selectedOrder.province || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المنطقة" value={selectedOrder.district || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الدولة" value={selectedOrder.country || "-"} />
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Divider />
+
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                الموظفون
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <InfoItem label="البائع" value={selectedOrder.designer?.name || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <InfoItem label="المعد" value={selectedOrder.preparer?.name || "غير محدد"} />
+                </Grid>
+              </Grid>
+            </Box>
+
+            {orderNotes && (
+              <>
+                <Divider />
                 <Box>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                    <ShoppingBag color="primary" fontSize="small" />
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      التصاميم والمنتجات ({selectedOrder.orderDesigns.length})
-                    </Typography>
-                  </Box>
-                    {selectedOrder.orderDesigns.map((design, idx) => (
-                    <Paper key={idx} elevation={2} sx={{ p: 2.5, mb: 2.5, borderRadius: 2, border: "1px solid", borderColor: "divider" }}>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, pb: 1.5, borderBottom: "2px solid", borderColor: "divider" }}>
-                        <Typography variant="h6" sx={{ fontWeight: 600, color: "primary.main" }}>
-                          {design.designName || `التصميم ${idx + 1}`}
-                        </Typography>
-                        {design.totalPrice && (
-                          <Chip 
-                            label={`إجمالي: ${design.totalPrice} ₪`}
-                            color="primary"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        )}
-                      </Box>
-                      
-                      {(() => {
-                        const cacheKey = `${selectedOrder?.id}-${design.id}`;
-                        const images = getMockupImages(design);
-                        const validImages = images.filter(url => url && url !== 'placeholder_mockup.jpg');
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                    ملاحظات الطلب
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {orderNotes}
+                  </Typography>
+                </Box>
+              </>
+            )}
 
-                        if (validImages.length === 0) return null;
+            {selectedOrderDesigns.length > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                    التصاميم ({selectedOrderDesigns.length})
+                  </Typography>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {selectedOrderDesigns.map((design, index) => {
+                      const designItems = design?.orderDesignItems || [];
+                      const designQuantity =
+                        designItems.reduce(
+                          (sum, item) => sum + (item?.quantity || 0),
+                          0
+                        ) || 0;
+                      const orderId = selectedOrder?.id || 0;
+                      const designId = design?.id || index;
 
-                        return (
-                          <Box sx={{ mb: 2.5 }}>
-                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                              الصور ({validImages.length})
+                      return (
+                        <Box
+                          key={designId}
+                          sx={{
+                            border: "1px solid",
+                            borderColor: "divider",
+                            borderRadius: 2,
+                            padding: 2,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                              gap: 1,
+                            }}
+                          >
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                              {design.designName || `تصميم ${index + 1}`}
                             </Typography>
-                            <Box
-                              sx={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: 1
-                              }}
-                            >
-                              {validImages.map((imageUrl, imgIdx) => {
-                                if (imageUrl === 'image_data_excluded') {
-                                  const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}`;
-                                  return (
-                                    <Button
-                                      key={`img-btn-${imgIdx}`}
-                                      variant="outlined"
-                                      size="small"
-                                      startIcon={isLoading ? <CircularProgress size={16} /> : <ImageIcon />}
-                                      onClick={() => handleImageClick(imageUrl, selectedOrder?.id, design.id)}
-                                      disabled={isLoading}
-                                    >
-                                      عرض الصورة {imgIdx + 1}
-                                    </Button>
-                                  );
-                                }
-
-                                const displayUrl = getFullUrl(imageUrl);
-                                const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}` && !imageCache[cacheKey];
-
-                                return (
-                                  <Box
-                                    key={`img-${imgIdx}`}
-                                    sx={{
-                                      position: 'relative',
-                                      cursor: 'pointer',
-                                      '&:hover': { opacity: 0.85 }
-                                    }}
-                                  >
-                                    {isLoading ? (
-                                      <Box
-                                        sx={{
-                                          width: 120,
-                                          height: 120,
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          borderRadius: '8px',
-                                          bgcolor: 'grey.100'
-                                        }}
-                                      >
-                                        <CircularProgress size={20} />
-                                      </Box>
-                                    ) : (
-                                      <img
-                                        src={displayUrl}
-                                        alt={`${design.designName} - صورة ${imgIdx + 1}`}
-                                        onClick={() => handleImageClick(imageUrl, selectedOrder?.id, design.id)}
-                                        style={{
-                                          maxWidth: '140px',
-                                          maxHeight: '140px',
-                                          borderRadius: '8px',
-                                          transition: 'transform 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.03)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                      />
-                                    )}
-                                  </Box>
-                                );
-                              })}
+                            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                              <Chip
+                                label={`الكمية: ${designQuantity}`}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                              />
+                              {design.totalPrice !== undefined && design.totalPrice !== null && (
+                                <Chip
+                                  label={`قيمة التصميم: ${formatCurrency(design.totalPrice)}`}
+                                  size="small"
+                                  color="secondary"
+                                  variant="outlined"
+                                />
+                              )}
                             </Box>
                           </Box>
-                        );
-                      })()}
 
-                        {design.orderDesignItems && design.orderDesignItems.length > 0 && (
-                        <Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5, color: "text.secondary" }}>
-                            عناصر التصميم ({design.orderDesignItems.length})
-                          </Typography>
-                          <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow sx={{ bgcolor: "grey.100" }}>
-                                  <TableCell sx={{ fontWeight: 700 }}>المقاس</TableCell>
-                                  <TableCell sx={{ fontWeight: 700 }}>اللون</TableCell>
-                                  <TableCell sx={{ fontWeight: 700 }}>نوع القماش</TableCell>
-                                  <TableCell align="center" sx={{ fontWeight: 700 }}>الكمية</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 700 }}>سعر الوحدة</TableCell>
-                                  <TableCell align="right" sx={{ fontWeight: 700 }}>المجموع</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {design.orderDesignItems.map((item, itemIdx) => (
-                                  <TableRow key={itemIdx} hover>
-                                    <TableCell>{SIZE_LABELS[item.size] || item.size}</TableCell>
-                                    <TableCell>{COLOR_LABELS[item.color] || item.color}</TableCell>
-                                    <TableCell>{FABRIC_TYPE_LABELS[item.fabricType] || item.fabricType}</TableCell>
-                                    <TableCell align="center">{item.quantity}</TableCell>
-                                    <TableCell align="right">{item.unitPrice} ₪</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 600, color: "primary.main" }}>
-                                      {item.totalPrice || (item.unitPrice * item.quantity)} ₪
-                                    </TableCell>
+                          {designItems.length > 0 && (
+                            <TableContainer
+                              sx={{
+                                borderRadius: 2,
+                                border: "1px solid",
+                                borderColor: "divider",
+                              }}
+                            >
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>نوع القماش</TableCell>
+                                    <TableCell>اللون</TableCell>
+                                    <TableCell align="center">المقاس</TableCell>
+                                    <TableCell align="center">الكمية</TableCell>
+                                    <TableCell align="center">السعر الفردي</TableCell>
+                                    <TableCell align="center">الإجمالي</TableCell>
                                   </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </Box>
-                      )}
+                                </TableHead>
+                                <TableBody>
+                                  {designItems.map((item, idx) => (
+                                    <TableRow key={item?.id || idx}>
+                                      <TableCell>{getFabricLabel(item?.fabricType)}</TableCell>
+                                      <TableCell>{getColorLabel(item?.color)}</TableCell>
+                                      <TableCell align="center">{getSizeLabel(item?.size)}</TableCell>
+                                      <TableCell align="center">{item?.quantity ?? "-"}</TableCell>
+                                      <TableCell align="center">{formatCurrency(item?.unitPrice)}</TableCell>
+                                      <TableCell align="center">{formatCurrency(item?.totalPrice)}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          )}
 
-                        {(() => {
-                          const files = getPrintFiles(design);
-                          if (files.length === 0) return null;
+                          {(() => {
+                            const imageUrls =
+                              design?.mockupImageUrls ||
+                              (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
+                            const validImages = imageUrls.filter(
+                              (url) => url && url !== "placeholder_mockup.jpg"
+                            );
 
-                          return (
-                            <Box sx={{ mt: 2.5, pt: 2, borderTop: "1px solid", borderColor: "divider" }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                ملفات التصميم ({files.length})
-                              </Typography>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {files.map((fileUrl, fileIdx) => (
-                                  fileUrl === 'image_data_excluded' ? (
-                                    <Button
-                                      key={`file-btn-${fileIdx}`}
-                                      variant="outlined"
-                                      size="small"
-                                      startIcon={loadingImage === `file-${selectedOrder?.id}-${design.id}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
-                                      onClick={() => openFile(fileUrl, selectedOrder?.id, design.id)}
-                                      disabled={loadingImage === `file-${selectedOrder?.id}-${design.id}`}
-                                    >
-                                      تحميل الملف {fileIdx + 1}
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      key={`file-${fileIdx}`}
-                                      variant="contained"
-                                      size="small"
-                                      startIcon={<PictureAsPdf />}
-                                      onClick={() => openFile(fileUrl, selectedOrder?.id, design.id)}
-                                    >
-                                      ملف {fileIdx + 1}
-                                    </Button>
-                                  )
-                                ))}
+                            if (validImages.length === 0) return null;
+
+                            return (
+                              <Box>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                  الصور ({validImages.length})
+                                </Typography>
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                  {validImages.map((imageUrl, idx) =>
+                                    imageUrl === "image_data_excluded" ? (
+                                      <Button
+                                        key={idx}
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={loadingImage === `image-${orderId}-${designId}` ? <CircularProgress size={16} /> : <ImageIcon />}
+                                        onClick={() => handleImageClick(imageUrl, orderId, designId)}
+                                        disabled={loadingImage === `image-${orderId}-${designId}`}
+                                      >
+                                        عرض الصورة {idx + 1}
+                                      </Button>
+                                    ) : (
+                                      (() => {
+                                        const displayUrl = getFullUrl(imageUrl);
+                                        return (
+                                          <Box
+                                            key={idx}
+                                            sx={{
+                                              position: "relative",
+                                              cursor: "pointer",
+                                              "&:hover": { opacity: 0.8 },
+                                            }}
+                                          >
+                                            <img
+                                              src={displayUrl}
+                                              alt={`${design.designName} - صورة ${idx + 1}`}
+                                              onClick={() => handleImageClick(imageUrl, orderId, designId)}
+                                              style={{
+                                                maxWidth: "150px",
+                                                maxHeight: "150px",
+                                                height: "auto",
+                                                borderRadius: "8px",
+                                                cursor: "pointer",
+                                                transition: "transform 0.2s",
+                                              }}
+                                              onMouseEnter={(e) =>
+                                                (e.currentTarget.style.transform = "scale(1.05)")
+                                              }
+                                              onMouseLeave={(e) =>
+                                                (e.currentTarget.style.transform = "scale(1)")
+                                              }
+                                            />
+                                          </Box>
+                                        );
+                                      })()
+                                    )
+                                  )}
+                                </Box>
                               </Box>
-                            </Box>
-                          );
-                        })()}
-                      </Paper>
-                    ))}
+                            );
+                          })()}
+
+                          {(() => {
+                            const fileUrls =
+                              design?.printFileUrls ||
+                              (design?.printFileUrl ? [design.printFileUrl] : []);
+                            const validFiles = fileUrls.filter(
+                              (url) => url && url !== "placeholder_print.pdf"
+                            );
+
+                            if (validFiles.length === 0) return null;
+
+                            return (
+                              <Box>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                  ملفات التصميم ({validFiles.length})
+                                </Typography>
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                  {validFiles.map((fileUrl, idx) =>
+                                    fileUrl === "image_data_excluded" ? (
+                                      <Button
+                                        key={idx}
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={loadingImage === `file-${orderId}-${designId}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
+                                        onClick={() => openFile(fileUrl, orderId, designId)}
+                                        disabled={loadingImage === `file-${orderId}-${designId}`}
+                                      >
+                                        تحميل الملف {idx + 1}
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        key={idx}
+                                        variant="contained"
+                                        size="small"
+                                        startIcon={<PictureAsPdf />}
+                                        onClick={() => openFile(fileUrl, orderId, designId)}
+                                      >
+                                        📄 ملف {idx + 1}
+                                      </Button>
+                                    )
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          })()}
+                        </Box>
+                      );
+                    })}
+                  </Box>
                 </Box>
-                )}
+              </>
+            )}
+
+            <Box sx={{ mt: 1, display: "flex", justifyContent: "center" }}>
+              <Button
+                variant="contained"
+                startIcon={<Note />}
+                onClick={() => handleNotesClick(selectedOrder)}
+                sx={{ minWidth: 200 }}
+              >
+                عرض/تعديل الملاحظات
+              </Button>
             </Box>
-          )}
-        </GlassDialog>
+          </Box>
+        )}
+      </GlassDialog>
 
       {/* Notes Dialog */}
       <NotesDialog

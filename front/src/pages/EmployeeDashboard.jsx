@@ -21,6 +21,7 @@ import {
   TableRow,
   TextField,
   CircularProgress,
+  Divider,
 } from "@mui/material";
 import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -73,6 +74,106 @@ const getPrintFiles = (design) => {
   return files.filter((url) => url && url !== "placeholder_print.pdf");
 };
 
+const getStatusChipColor = (status) => {
+  const numericStatus = typeof status === "number" ? status : parseInt(status, 10);
+  return ORDER_STATUS_COLORS[numericStatus] || "default";
+};
+
+const getStatusText = (status) => {
+  const numericStatus = typeof status === "number" ? status : parseInt(status, 10);
+  return ORDER_STATUS_LABELS[numericStatus] || "غير معروف";
+};
+
+const normalizeDateValue = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(trimmed);
+    const isoReady = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
+    return new Date(hasTimezone ? isoReady : `${isoReady}Z`);
+  }
+
+  if (typeof value === "number") {
+    return new Date(value);
+  }
+
+  return null;
+};
+
+const formatDateTime = (dateValue) => {
+  const normalized = normalizeDateValue(dateValue);
+  if (!normalized || Number.isNaN(normalized.getTime())) return "-";
+
+  try {
+    return normalized.toLocaleString("ar-SA", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      calendar: "gregory",
+    });
+  } catch {
+    return normalized.toString();
+  }
+};
+
+const formatCurrency = (value) => {
+  if (value === null || value === undefined || value === "") return "-";
+  const numericValue = Number(value);
+  if (Number.isNaN(numericValue)) return value;
+  return `${numericValue.toLocaleString("ar-EG", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })} ₪`;
+};
+
+const getFabricLabel = (fabricType) => {
+  if (fabricType === null || fabricType === undefined) return "-";
+  const numeric = typeof fabricType === "number" ? fabricType : parseInt(fabricType, 10);
+  return FABRIC_TYPE_LABELS[numeric] || fabricType || "-";
+};
+
+const getSizeLabel = (size) => {
+  if (size === null || size === undefined) return "-";
+  if (typeof size === "number") {
+    return SIZE_LABELS[size] || size;
+  }
+  const numeric = parseInt(size, 10);
+  if (!Number.isNaN(numeric) && SIZE_LABELS[numeric]) {
+    return SIZE_LABELS[numeric];
+  }
+  return size;
+};
+
+const getColorLabel = (color) => {
+  if (color === null || color === undefined) return "-";
+  const numeric = typeof color === "number" ? color : parseInt(color, 10);
+  return COLOR_LABELS[numeric] || color || "-";
+};
+
+const InfoItem = ({ label, value }) => (
+  <Box
+    sx={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 0.5,
+      py: 0.5,
+    }}
+  >
+    <Typography variant="caption" color="text.secondary">
+      {label}
+    </Typography>
+    <Box sx={{ typography: "body1", fontWeight: 600, color: "text.primary" }}>
+      {value ?? "-"}
+    </Box>
+  </Box>
+);
+
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
   const { user, logout, orders } = useApp();
@@ -94,6 +195,43 @@ const EmployeeDashboard = () => {
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
+
+  const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
+  const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
+    const designCount =
+      design?.orderDesignItems?.reduce((itemSum, item) => itemSum + (item?.quantity || 0), 0) || 0;
+    return sum + designCount;
+  }, 0);
+
+  const discountDisplay = (() => {
+    if (!selectedOrder) return "-";
+    const parts = [];
+    if (selectedOrder.discountAmount !== null && selectedOrder.discountAmount !== undefined) {
+      parts.push(formatCurrency(selectedOrder.discountAmount));
+    }
+    if (
+      selectedOrder.discountPercentage !== null &&
+      selectedOrder.discountPercentage !== undefined &&
+      selectedOrder.discountPercentage !== ""
+    ) {
+      parts.push(`${selectedOrder.discountPercentage}%`);
+    }
+    return parts.length > 0 ? parts.join(" / ") : "-";
+  })();
+
+  const discountNotes =
+    typeof selectedOrder?.discountNotes === "string"
+      ? selectedOrder.discountNotes.trim()
+      : "";
+
+  const selectedOrderNotes =
+    typeof selectedOrder?.notes === "string" ? selectedOrder.notes.trim() : "";
+
+  const sellerName =
+    selectedOrder?.employee?.name ||
+    selectedOrder?.employeeName ||
+    selectedOrder?.salesRep?.name ||
+    "-";
 
   // Fetch designer orders count on component mount
   const fetchDesignerOrdersCount = async () => {
@@ -908,9 +1046,10 @@ const EmployeeDashboard = () => {
       <GlassDialog
         open={openDetailsModal}
         onClose={handleCloseDetailsModal}
-        maxWidth="md"
+        maxWidth="lg"
         title="تفاصيل الطلب"
         subtitle={selectedOrder?.orderNumber}
+        contentSx={{ padding: 3, maxHeight: "85vh", overflowY: "auto" }}
         actions={
           <Box sx={{ display: "flex", gap: 2 }}>
             <Button
@@ -926,339 +1065,442 @@ const EmployeeDashboard = () => {
           </Box>
         }
       >
-          {selectedOrder && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {selectedOrder && (
+          <Box sx={{ padding: 3, display: "flex", flexDirection: "column", gap: 3 }}>
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                معلومات الطلب
+              </Typography>
               <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">رقم الطلب:</Typography>
-                  <Typography variant="body1">{selectedOrder.orderNumber}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">اسم العميل:</Typography>
-                  <Typography variant="body1">{selectedOrder.client?.name || "-"}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">رقم الهاتف:</Typography>
-                  <Typography variant="body1">{selectedOrder.client?.phone || "-"}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">البلد:</Typography>
-                  <Typography variant="body1">{selectedOrder.country || "-"}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">المحافظة:</Typography>
-                  <Typography variant="body1">{selectedOrder.province || "-"}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">المنطقة:</Typography>
-                  <Typography variant="body1">{selectedOrder.district || "-"}</Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="text.secondary">الفرعي:</Typography>
-                  <Typography variant="body1">{selectedOrder.subTotal} ₪</Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="subtitle2" color="text.secondary">الإجمالي:</Typography>
-                  <Typography variant="body1">{selectedOrder.totalAmount} ₪</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">التاريخ:</Typography>
-                  <Typography variant="body1">
-                    {selectedOrder.orderDate 
-                      ? new Date(selectedOrder.orderDate).toLocaleDateString("ar-SA", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                          calendar: "gregory"
-                        })
-                      : "-"
-                    }
-                  </Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="text.secondary">الحالة:</Typography>
-                  <Chip
-                    label={getStatusLabel(selectedOrder.status).label}
-                    color={getStatusLabel(selectedOrder.status).color}
-                    size="small"
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="رقم الطلب"
+                    value={selectedOrder.orderNumber || `#${selectedOrder.id}`}
                   />
                 </Grid>
-                <Grid item xs={12}>
-                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Note color="primary" fontSize="small" />
-                      <Typography variant="subtitle2" color="text.secondary">الملاحظات:</Typography>
-                    </Box>
-                    {!isEditingNotes ? (
-                      <IconButton size="small" onClick={() => setIsEditingNotes(true)}>
-                        <Edit fontSize="small" />
-                      </IconButton>
-                    ) : (
-                      <Box sx={{ display: "flex", gap: 1 }}>
-                        <IconButton 
-                          size="small" 
-                          color="primary" 
-                          onClick={handleSaveNotes}
-                          disabled={savingNotes}
-                        >
-                          {savingNotes ? <CircularProgress size={16} /> : <Save fontSize="small" />}
-                        </IconButton>
-                        <IconButton 
-                          size="small" 
-                          onClick={() => {
-                            setIsEditingNotes(false);
-                            setOrderNotes('');
-                          }}
-                        >
-                          <Close fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    )}
-                  </Box>
-                  {isEditingNotes ? (
-                    <TextField
-                      fullWidth
-                      multiline
-                      rows={4}
-                      value={orderNotes}
-                      onChange={(e) => setOrderNotes(e.target.value)}
-                      placeholder="أضف ملاحظاتك هنا..."
-                      variant="outlined"
-                    />
-                  ) : (
-                    <Box sx={{ 
-                      p: 2,
-                      bgcolor: "grey.50",
-                      borderRadius: 1,
-                      minHeight: 60,
-                      maxHeight: 300,
-                      overflowY: 'auto'
-                    }}>
-                      {selectedOrder.notes ? (
-                        selectedOrder.notes.split('\n\n').map((note, idx) => {
-                          // Parse note format: [DateTime] Author: Text
-                          const match = note.match(/^\[([^\]]+)\]\s+(.+?):\s*(.*)$/);
-                          if (match) {
-                            const [, datetime, author, text] = match;
-                            return (
-                              <Box key={idx} sx={{ mb: 2, pb: 2, borderBottom: idx < selectedOrder.notes.split('\n\n').length - 1 ? '1px solid' : 'none', borderColor: 'divider' }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                                    {author}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {datetime}
-                                  </Typography>
-                                </Box>
-                                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}>
-                                  {text}
-                                </Typography>
-                              </Box>
-                            );
-                          }
-                          // Fallback for old format
-                          return (
-                            <Typography key={idx} variant="body2" sx={{ mb: 1, whiteSpace: "pre-wrap" }}>
-                              {note}
-                            </Typography>
-                          );
-                        })
-                      ) : (
-                        <Typography variant="body1" color="text.secondary">
-                          لا توجد ملاحظات
-                        </Typography>
-                      )}
-                    </Box>
-                  )}
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="الحالة"
+                    value={
+                      <Chip
+                        label={getStatusText(selectedOrder.status)}
+                        color={getStatusChipColor(selectedOrder.status)}
+                        size="small"
+                      />
+                    }
+                  />
                 </Grid>
-                
-                {selectedOrder.orderDesigns && selectedOrder.orderDesigns.length > 0 && (
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                      التصاميم:
-                    </Typography>
-                    {selectedOrder.orderDesigns.map((design, idx) => (
-                      <Paper key={idx} sx={{ p: 2, mb: 2, bgcolor: "rgba(255,255,255,0.5)", borderRadius: 2 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
-                          اسم التصميم: {design.designName}
-                        </Typography>
-                        {(() => {
-                          const cacheKey = `${selectedOrder?.id}-${design.id}`;
-                          const images = getMockupImages(design);
-                          const validImages = images.filter(url => url && url !== 'placeholder_mockup.jpg');
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="إجمالي الكمية"
+                    value={
+                      totalOrderQuantity || totalOrderQuantity === 0 ? totalOrderQuantity : "-"
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المجموع الفرعي" value={formatCurrency(selectedOrder.subTotal)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="التخفيض" value={discountDisplay} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="رسوم التوصيل"
+                    value={formatCurrency(selectedOrder.deliveryFee ?? selectedOrder.deliveryPrice)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="المبلغ الإجمالي"
+                    value={formatCurrency(selectedOrder.totalAmount)}
+                  />
+                </Grid>
+              </Grid>
+              {discountNotes && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    ملاحظات التخفيض
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {discountNotes}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
 
-                          if (validImages.length === 0) return null;
+            <Divider />
 
-                          return (
-                            <Box sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                الصور ({validImages.length})
-                              </Typography>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {validImages.map((imageUrl, imgIdx) => {
-                                  if (imageUrl === 'image_data_excluded') {
-                                    const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}`;
-                                    return (
-                                      <Button
-                                        key={`img-btn-${imgIdx}`}
-                                        variant="outlined"
-                                        size="small"
-                                        startIcon={isLoading ? <CircularProgress size={16} /> : <ImageIcon />}
-                                        onClick={() => handleImageClick(imageUrl, selectedOrder?.id, design.id)}
-                                        disabled={isLoading}
-                                      >
-                                        عرض الصورة {imgIdx + 1}
-                                      </Button>
-                                    );
-                                  }
-
-                                  const displayUrl = getFullUrl(imageUrl);
-                                  const isLoading = loadingImage === `image-${selectedOrder?.id}-${design.id}` && !imageCache[cacheKey];
-
-                                  return (
-                                    <Box
-                                      key={`img-${imgIdx}`}
-                                      sx={{
-                                        position: 'relative',
-                                        cursor: 'pointer',
-                                        '&:hover': { opacity: 0.85 }
-                                      }}
-                                    >
-                                      {isLoading ? (
-                                        <Box sx={{
-                                          width: 120,
-                                          height: 120,
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          borderRadius: '8px',
-                                          bgcolor: 'grey.100'
-                                        }}>
-                                          <CircularProgress size={20} />
-                                        </Box>
-                                      ) : (
-                                        <img
-                                          src={displayUrl}
-                                          alt={`${design.designName} - صورة ${imgIdx + 1}`}
-                                          onClick={() => handleImageClick(imageUrl, selectedOrder?.id, design.id)}
-                                          style={{
-                                            maxWidth: '140px',
-                                            maxHeight: '140px',
-                                            borderRadius: '8px',
-                                            transition: 'transform 0.2s'
-                                          }}
-                                          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.03)'}
-                                          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                        />
-                                      )}
-                                    </Box>
-                                  );
-                                })}
-                              </Box>
-                            </Box>
-                          );
-                        })()}
-                        {design.orderDesignItems && design.orderDesignItems.length > 0 && (
-                          <Box sx={{ mt: 2 }}>
-                            <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700, mb: 1.5 }}>
-                              عناصر التصميم:
-                            </Typography>
-                            {design.orderDesignItems.map((item, itemIdx) => (
-                              <Paper
-                                key={itemIdx} 
-                                sx={{ 
-                                  p: 1.5, 
-                                  mb: 1.5, 
-                                  backgroundColor: "rgba(255,255,255,0.7)",
-                                  border: "1px solid rgba(94, 78, 62, 0.12)"
-                                }}
-                              >
-                                <Grid container spacing={1}>
-                                  <Grid item xs={6}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                      حجم: {SIZE_LABELS[item.size] || item.size}
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={6}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                      لون: {COLOR_LABELS[item.color] || item.color}
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={6}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                      نوع القماش: {FABRIC_TYPE_LABELS[item.fabricType] || item.fabricType}
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={6}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                      الكمية: {item.quantity}
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={6}>
-                                    <Typography variant="body2" color="text.secondary">
-                                      سعر الوحدة: {item.unitPrice} ₪
-                                    </Typography>
-                                  </Grid>
-                                  <Grid item xs={6}>
-                                    <Typography variant="body2" color="primary" sx={{ fontWeight: 700 }}>
-                                      المجموع: {item.totalPrice} ₪
-                                    </Typography>
-                                  </Grid>
-                                </Grid>
-                              </Paper>
-                            ))}
-                          </Box>
-                        )}
-                        <Box sx={{ mt: 1, p: 1, backgroundColor: "rgba(94, 131, 158, 0.18)", borderRadius: 2 }}>
-                          <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                            إجمالي التصميم: {design.totalPrice} ₪
-                          </Typography>
-                        </Box>
-                        {(() => {
-                          const files = getPrintFiles(design);
-                          if (files.length === 0) return null;
-
-                          return (
-                            <Box sx={{ mt: 1 }}>
-                              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                ملفات التصميم ({files.length})
-                              </Typography>
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {files.map((fileUrl, fileIdx) => (
-                                  fileUrl === 'image_data_excluded' ? (
-                                    <Button
-                                      key={`file-btn-${fileIdx}`}
-                                      variant="outlined"
-                                      size="small"
-                                      startIcon={loadingImage === `file-${selectedOrder?.id}-${design.id}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
-                                      onClick={() => openFile(fileUrl, selectedOrder?.id, design.id)}
-                                      disabled={loadingImage === `file-${selectedOrder?.id}-${design.id}`}
-                                    >
-                                      تحميل الملف {fileIdx + 1}
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      key={`file-${fileIdx}`}
-                                      variant="contained"
-                                      size="small"
-                                      startIcon={<PictureAsPdf />}
-                                      onClick={() => openFile(fileUrl, selectedOrder?.id, design.id)}
-                                    >
-                                      ملف {fileIdx + 1}
-                                    </Button>
-                                  )
-                                ))}
-                              </Box>
-                            </Box>
-                          );
-                        })()}
-                      </Paper>
-                    ))}
-                  </Grid>
-                )}
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                معلومات العميل
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الاسم" value={selectedOrder.client?.name || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الهاتف" value={selectedOrder.client?.phone || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المدينة" value={selectedOrder.province || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="المنطقة" value={selectedOrder.district || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem label="الدولة" value={selectedOrder.country || "-"} />
+                </Grid>
               </Grid>
             </Box>
-          )}
+
+            <Divider />
+
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                الموظفون
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={4}>
+                  <InfoItem label="البائع" value={selectedOrder.designer?.name || "-"} />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <InfoItem label="المعد" value={selectedOrder.preparer?.name || "غير محدد"} />
+                </Grid>
+              </Grid>
+            </Box>
+
+            <Divider />
+
+            <Box>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Note color="primary" fontSize="small" />
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    الملاحظات
+                  </Typography>
+                </Box>
+                {!isEditingNotes ? (
+                  <IconButton size="small" onClick={() => setIsEditingNotes(true)}>
+                    <Edit fontSize="small" />
+                  </IconButton>
+                ) : (
+                  <Box sx={{ display: "flex", gap: 1 }}>
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      onClick={handleSaveNotes}
+                      disabled={savingNotes}
+                    >
+                      {savingNotes ? <CircularProgress size={16} /> : <Save fontSize="small" />}
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setIsEditingNotes(false);
+                        setOrderNotes("");
+                      }}
+                    >
+                      <Close fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
+              </Box>
+              {isEditingNotes ? (
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                  placeholder="أضف ملاحظاتك هنا..."
+                  variant="outlined"
+                />
+              ) : (
+                <Box
+                  sx={{
+                    p: 2,
+                    bgcolor: "grey.50",
+                    borderRadius: 1,
+                    minHeight: 80,
+                    maxHeight: 320,
+                    overflowY: "auto",
+                  }}
+                >
+                  {selectedOrderNotes ? (
+                    selectedOrderNotes.split("\n\n").map((note, idx, arr) => {
+                      const match = note.match(/^\[([^\]]+)\]\s+(.+?):\s*(.*)$/);
+                      if (match) {
+                        const [, datetime, author, text] = match;
+                        return (
+                          <Box
+                            key={idx}
+                            sx={{
+                              mb: 2,
+                              pb: 2,
+                              borderBottom: idx < arr.length - 1 ? "1px solid" : "none",
+                              borderColor: "divider",
+                            }}
+                          >
+                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                              <Typography variant="caption" sx={{ fontWeight: 600, color: "primary.main" }}>
+                                {author}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {datetime}
+                              </Typography>
+                            </Box>
+                            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                              {text}
+                            </Typography>
+                          </Box>
+                        );
+                      }
+                      return (
+                        <Typography key={idx} variant="body2" sx={{ mb: 1, whiteSpace: "pre-wrap" }}>
+                          {note}
+                        </Typography>
+                      );
+                    })
+                  ) : (
+                    <Typography variant="body1" color="text.secondary">
+                      لا توجد ملاحظات
+                    </Typography>
+                  )}
+                </Box>
+              )}
+            </Box>
+
+            {selectedOrderDesigns.length > 0 && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                    التصاميم ({selectedOrderDesigns.length})
+                  </Typography>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {selectedOrderDesigns.map((design, index) => {
+                      const designItems = design?.orderDesignItems || [];
+                      const designQuantity =
+                        designItems.reduce(
+                          (sum, item) => sum + (item?.quantity || 0),
+                          0
+                        ) || 0;
+                      const orderId = selectedOrder?.id || 0;
+                      const designId = design?.id || index;
+
+                      return (
+                        <Box
+                          key={designId}
+                          sx={{
+                            border: "1px solid",
+                            borderColor: "divider",
+                            borderRadius: 2,
+                            padding: 2,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                              gap: 1,
+                            }}
+                          >
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                              {design.designName || `تصميم ${index + 1}`}
+                            </Typography>
+                            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                              <Chip
+                                label={`الكمية: ${designQuantity}`}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                              />
+                              {design.totalPrice !== undefined && design.totalPrice !== null && (
+                                <Chip
+                                  label={`قيمة التصميم: ${formatCurrency(design.totalPrice)}`}
+                                  size="small"
+                                  color="secondary"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          </Box>
+
+                          {designItems.length > 0 && (
+                            <TableContainer
+                              sx={{
+                                borderRadius: 2,
+                                border: "1px solid",
+                                borderColor: "divider",
+                              }}
+                            >
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>نوع القماش</TableCell>
+                                    <TableCell>اللون</TableCell>
+                                    <TableCell align="center">المقاس</TableCell>
+                                    <TableCell align="center">الكمية</TableCell>
+                                    <TableCell align="center">السعر الفردي</TableCell>
+                                    <TableCell align="center">الإجمالي</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {designItems.map((item, idx) => (
+                                    <TableRow key={item?.id || idx}>
+                                      <TableCell>{getFabricLabel(item?.fabricType)}</TableCell>
+                                      <TableCell>{getColorLabel(item?.color)}</TableCell>
+                                      <TableCell align="center">{getSizeLabel(item?.size)}</TableCell>
+                                      <TableCell align="center">{item?.quantity ?? "-"}</TableCell>
+                                      <TableCell align="center">{formatCurrency(item?.unitPrice)}</TableCell>
+                                      <TableCell align="center">
+                                        {formatCurrency(item?.totalPrice ?? item?.unitPrice * item?.quantity)}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          )}
+
+                          {(() => {
+                            const imageUrls =
+                              design?.mockupImageUrls ||
+                              (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
+                            const validImages = imageUrls.filter(
+                              (url) => url && url !== "placeholder_mockup.jpg"
+                            );
+
+                            if (validImages.length === 0) return null;
+
+                            return (
+                              <Box>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                  الصور ({validImages.length})
+                                </Typography>
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                  {validImages.map((imageUrl, idx) =>
+                                    imageUrl === "image_data_excluded" ? (
+                                      <Button
+                                        key={idx}
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={loadingImage === `image-${orderId}-${designId}` ? <CircularProgress size={16} /> : <ImageIcon />}
+                                        onClick={() => handleImageClick(imageUrl, orderId, designId)}
+                                        disabled={loadingImage === `image-${orderId}-${designId}`}
+                                      >
+                                        عرض الصورة {idx + 1}
+                                      </Button>
+                                    ) : (
+                                      (() => {
+                                        const displayUrl = getFullUrl(imageUrl);
+                                        return (
+                                          <Box
+                                            key={idx}
+                                            sx={{
+                                              position: "relative",
+                                              cursor: "pointer",
+                                              "&:hover": { opacity: 0.8 },
+                                            }}
+                                          >
+                                            <img
+                                              src={displayUrl}
+                                              alt={`${design.designName} - صورة ${idx + 1}`}
+                                              onClick={() => handleImageClick(imageUrl, orderId, designId)}
+                                              style={{
+                                                maxWidth: "150px",
+                                                maxHeight: "150px",
+                                                height: "auto",
+                                                borderRadius: "8px",
+                                                cursor: "pointer",
+                                                transition: "transform 0.2s",
+                                              }}
+                                              onMouseEnter={(e) =>
+                                                (e.currentTarget.style.transform = "scale(1.05)")
+                                              }
+                                              onMouseLeave={(e) =>
+                                                (e.currentTarget.style.transform = "scale(1)")
+                                              }
+                                            />
+                                          </Box>
+                                        );
+                                      })()
+                                    )
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          })()}
+
+                          {(() => {
+                            const fileUrls =
+                              design?.printFileUrls ||
+                              (design?.printFileUrl ? [design.printFileUrl] : []);
+                            const validFiles = fileUrls.filter(
+                              (url) => url && url !== "placeholder_print.pdf"
+                            );
+
+                            if (validFiles.length === 0) return null;
+
+                            return (
+                              <Box>
+                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                                  ملفات التصميم ({validFiles.length})
+                                </Typography>
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                  {validFiles.map((fileUrl, idx) =>
+                                    fileUrl === "image_data_excluded" ? (
+                                      <Button
+                                        key={idx}
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={loadingImage === `file-${orderId}-${designId}` ? <CircularProgress size={16} /> : <PictureAsPdf />}
+                                        onClick={() => openFile(fileUrl, orderId, designId)}
+                                        disabled={loadingImage === `file-${orderId}-${designId}`}
+                                      >
+                                        تحميل الملف {idx + 1}
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        key={idx}
+                                        variant="contained"
+                                        size="small"
+                                        startIcon={<PictureAsPdf />}
+                                        onClick={() => openFile(fileUrl, orderId, designId)}
+                                      >
+                                        📄 ملف {idx + 1}
+                                      </Button>
+                                    )
+                                  )}
+                                </Box>
+                              </Box>
+                            );
+                          })()}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </Box>
+              </>
+            )}
+          </Box>
+        )}
       </GlassDialog>
 
       <GlassDialog

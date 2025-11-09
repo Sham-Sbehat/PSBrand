@@ -52,27 +52,30 @@ export const SIZE_ENUM = {
   Size14: 14,
   Size16: 16,
   Size18: 18,
-  XS: 1,
-  S: 2,        // Note: Same value as Size2
-  M: 3,
-  L: 4,        // Note: Same value as Size4
-  XL: 5,
-  XXL: 6,      // Note: Same value as Size6
-  Size3XL: 7,
-  Size4XL: 8,
-  Size5XL: 9,
-  Size6XL: 10,
-  Size7XL: 11
+  XS: 101,
+  S: 102,
+  M: 103,
+  L: 104,
+  XL: 105,
+  XXL: 106,
+  Size3XL: 107,
+  Size4XL: 108,
+  Size5XL: 109,
+  Size6XL: 110,
+  Size7XL: 111
 };
 
 // Size Labels (Arabic) - Handling conflicts by prioritizing letter sizes
 export const SIZE_LABELS = {
+  [SIZE_ENUM.Size2]: '2',
+  [SIZE_ENUM.Size4]: '4',
+  [SIZE_ENUM.Size6]: '6',
   [SIZE_ENUM.XS]: 'XS',
-  [SIZE_ENUM.S]: 'S',           // Prioritizing S over Size2 for value 2
+  [SIZE_ENUM.S]: 'S',
   [SIZE_ENUM.M]: 'M',
-  [SIZE_ENUM.L]: 'L',           // Prioritizing L over Size4 for value 4
+  [SIZE_ENUM.L]: 'L',
   [SIZE_ENUM.XL]: 'XL',
-  [SIZE_ENUM.XXL]: 'XXL',       // Prioritizing XXL over Size6 for value 6
+  [SIZE_ENUM.XXL]: 'XXL',
   [SIZE_ENUM.Size3XL]: '3XL',
   [SIZE_ENUM.Size4XL]: '4XL',
   [SIZE_ENUM.Size5XL]: '5XL',
@@ -151,12 +154,6 @@ export const FABRIC_TYPES = Object.values(FABRIC_TYPE_LABELS);
 export const SIZES = Object.values(SIZE_LABELS);
 export const COLORS = Object.values(COLOR_LABELS);
 
-// Size conflict resolution helper
-export const SIZE_CONFLICTS = {
-  2: { primary: 'S', secondary: 'Size2' },
-  4: { primary: 'L', secondary: 'Size4' },
-  6: { primary: 'XXL', secondary: 'Size6' }
-};
 
 // Helper function to get size label by value (handles conflicts)
 export const getSizeLabelByValue = (value) => {

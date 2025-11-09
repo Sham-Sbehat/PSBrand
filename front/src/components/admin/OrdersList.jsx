@@ -598,6 +598,25 @@ const OrdersList = () => {
     return ORDER_STATUS_COLORS[numericStatus] || 'default';
   };
 
+  const normalizeDateValue = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(trimmed);
+      const isoReady = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
+      return new Date(hasTimezone ? isoReady : `${isoReady}Z`);
+    }
+
+    if (typeof value === "number") {
+      return new Date(value);
+    }
+
+    return null;
+  };
+
   const formatCurrency = (value) => {
     if (value === null || value === undefined || value === "") return "-";
     const numericValue = Number(value);
@@ -609,9 +628,10 @@ const OrdersList = () => {
   };
 
   const formatDateTime = (dateValue) => {
-    if (!dateValue) return "-";
+    const normalized = normalizeDateValue(dateValue);
+    if (!normalized || Number.isNaN(normalized.getTime())) return "-";
     try {
-      return new Date(dateValue).toLocaleString("ar-SA", {
+      return normalized.toLocaleString("ar-SA", {
         year: "numeric",
         month: "long",
         day: "numeric",
@@ -621,7 +641,7 @@ const OrdersList = () => {
         calendar: "gregory",
       });
     } catch {
-      return dateValue;
+      return normalized.toString();
     }
   };
 
@@ -778,7 +798,7 @@ const OrdersList = () => {
                 <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                   <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>المصمم</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>البائع</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>المعد</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>
@@ -1053,7 +1073,7 @@ const OrdersList = () => {
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
-                  <InfoItem label="المصمم" value={selectedOrder.designer?.name || "-"} />
+                  <InfoItem label="البائع" value={selectedOrder.designer?.name || "-"} />
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <InfoItem label="المعد" value={selectedOrder.preparer?.name || "غير محدد"} />

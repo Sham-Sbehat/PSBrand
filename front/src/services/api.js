@@ -130,16 +130,54 @@ const retryRequest = async (requestFn, maxRetries = 2, delay = 1000) => {
 // Orders Service
 export const ordersService = {
   getAllOrders: async (params = {}) => {
-    // Supports backend pagination/filtering; keeps backward compatibility by returning array when possible
-    // Use retry logic for getAllOrders as it may timeout with large datasets
-    const response = await retryRequest(async () => {
-      return await api.get("/Orders/GetOrders", { 
-        params,
-        timeout: 60000 // 60 seconds for orders endpoint specifically
+    const userSpecifiedPage = params.page !== undefined;
+    const baseParams = {
+      page: userSpecifiedPage ? params.page : 1,
+      pageSize: params.pageSize ?? 100,
+    };
+    const otherParams = { ...params, ...baseParams };
+
+    const accumulatedOrders = [];
+    let currentPage = baseParams.page;
+    let keepFetching = true;
+
+    while (keepFetching) {
+      const response = await retryRequest(async () => {
+        return await api.get("/Orders/GetOrders", {
+          params: { ...otherParams, page: currentPage },
+          timeout: 60000,
+        });
       });
-    });
-    const data = response.data;
-    return Array.isArray(data) ? data : (data?.data ?? []);
+
+      const payload = response.data;
+
+      if (Array.isArray(payload)) {
+        accumulatedOrders.push(...payload);
+        break;
+      }
+
+      const pageData = Array.isArray(payload?.data) ? payload.data : [];
+
+      if (userSpecifiedPage) {
+        return pageData;
+      }
+
+      accumulatedOrders.push(...pageData);
+
+      const hasNext =
+        payload?.hasNextPage ??
+        (typeof payload?.totalPages === "number"
+          ? currentPage < payload.totalPages
+          : false);
+
+      if (!hasNext) {
+        keepFetching = false;
+      } else {
+        currentPage += 1;
+      }
+    }
+
+    return accumulatedOrders;
   },
 
   getOrderById: async (id) => {

@@ -1561,7 +1561,7 @@ const OrderForm = ({
                             <MenuItem value="جكيت فوتر">جكيت فوتر</MenuItem>
                             <MenuItem value="سويت شيرت">سويت شيرت</MenuItem>
                             <MenuItem value="نص سحاب">نص سحاب</MenuItem>
-                            <MenuItem value="ترنح انولع القماش">ترنح انولع القماش</MenuItem>
+                            <MenuItem value="ترنج">ترنج</MenuItem>
                           </Select>
                         </FormControl>
                       </Grid>
@@ -1577,7 +1577,7 @@ const OrderForm = ({
                             <MenuItem value="أسود">أسود</MenuItem>
                             <MenuItem value="أبيض">أبيض</MenuItem>
                             <MenuItem value="سكني">سكني</MenuItem>
-                            <MenuItem value="ازرق">أزرق</MenuItem>
+                            <MenuItem value="أزرق">أزرق</MenuItem>
                             <MenuItem value="بني">بني</MenuItem>
                             <MenuItem value="بنفسجي">بنفسجي</MenuItem>
                             <MenuItem value="زهري">زهري</MenuItem>

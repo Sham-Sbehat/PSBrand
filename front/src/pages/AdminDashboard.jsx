@@ -23,6 +23,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService } from "../services/api";
+import { subscribeToOrderUpdates } from "../services/realtime";
 import OrdersList from "../components/admin/OrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
 import { ORDER_STATUS } from "../constants";
@@ -35,17 +36,42 @@ const AdminDashboard = () => {
   const [allOrders, setAllOrders] = useState([]);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchOrders = async () => {
       try {
         const response = await ordersService.getAllOrders();
-        setAllOrders(response || []);
+        if (isMounted) {
+          setAllOrders(response || []);
+        }
       } catch (error) {
-        console.error('Error fetching orders:', error);
-        setAllOrders([]);
+        console.error("Error fetching orders:", error);
+        if (isMounted) {
+          setAllOrders([]);
+        }
       }
     };
 
     fetchOrders();
+
+    let unsubscribe;
+    (async () => {
+      try {
+        unsubscribe = await subscribeToOrderUpdates({
+          onOrderCreated: () => fetchOrders(),
+          onOrderStatusChanged: () => fetchOrders(),
+        });
+      } catch (err) {
+        console.error("Failed to subscribe to order updates:", err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const handleLogout = () => {
