@@ -399,5 +399,25 @@ export const deliveryService = {
   }
 };
 
+// Shipments Service
+export const shipmentsService = {
+  getCities: async () => {
+    const response = await api.get('/Shipments/GetCities');
+    return response.data;
+  },
+  getAreas: async (cityId) => {
+    const response = await api.get('/Shipments/GetAreas', {
+      params: { cityId }
+    });
+    return response.data;
+  },
+  createShipment: async (orderId, shippingNotes = '') => {
+    const response = await api.post(`/Shipments/Create/${orderId}`, {
+      shippingNotes: shippingNotes || ''
+    });
+    return response.data;
+  }
+};
+
 // Export constants for use in components
 export { USER_ROLES, ROLE_STRINGS };

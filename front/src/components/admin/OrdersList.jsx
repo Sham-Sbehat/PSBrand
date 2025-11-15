@@ -18,6 +18,7 @@ import {
   CircularProgress,
   IconButton,
   Divider,
+  Tooltip,
 } from "@mui/material";
 import {
   Visibility,
@@ -27,9 +28,10 @@ import {
   ArrowDownward,
   Image as ImageIcon,
   PictureAsPdf,
+  LocalShipping,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
-import { ordersService, orderStatusService } from "../../services/api";
+import { ordersService, orderStatusService, shipmentsService } from "../../services/api";
 import { subscribeToOrderUpdates } from "../../services/realtime";
 import {
   ORDER_STATUS,
@@ -66,6 +68,10 @@ const OrdersList = () => {
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
+  const [openShippingDialog, setOpenShippingDialog] = useState(false);
+  const [orderToShip, setOrderToShip] = useState(null);
+  const [shippingNotes, setShippingNotes] = useState('');
+  const [shippingLoading, setShippingLoading] = useState(false);
 
   const getFullUrl = (url) => {
     if (!url || typeof url !== 'string') return url;
@@ -458,6 +464,46 @@ const OrdersList = () => {
     if (editLoading) return;
     setOpenEditDialog(false);
     setOrderToEdit(null);
+  };
+
+  const handleShippingClick = (order) => {
+    setOrderToShip(order);
+    setShippingNotes('');
+    setOpenShippingDialog(true);
+  };
+
+  const handleCloseShippingDialog = () => {
+    if (shippingLoading) return;
+    setOpenShippingDialog(false);
+    setOrderToShip(null);
+    setShippingNotes('');
+  };
+
+  const handleConfirmShipping = async () => {
+    if (!orderToShip) return;
+
+    setShippingLoading(true);
+    try {
+      await shipmentsService.createShipment(orderToShip.id, shippingNotes);
+      
+      // Show success message
+      alert(`تم إرسال الطلب ${orderToShip.orderNumber || `#${orderToShip.id}`} إلى شركة التوصيل بنجاح`);
+      
+      handleCloseShippingDialog();
+      
+      // Refresh orders list
+      try {
+        const updatedOrders = await ordersService.getAllOrders();
+        setAllOrders(updatedOrders || []);
+      } catch (refreshError) {
+        console.error('Error refreshing orders after shipping:', refreshError);
+      }
+    } catch (error) {
+      console.error('Error creating shipment:', error);
+      alert(`حدث خطأ أثناء إرسال الطلب إلى شركة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+    } finally {
+      setShippingLoading(false);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -925,6 +971,25 @@ const OrdersList = () => {
                             >
                               إلغاء الطلب
                             </Button>
+                            <Tooltip title="إرسال الطلب لشركة التوصيل" arrow placement="top">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleShippingClick(order)}
+                                sx={{
+                                  color: '#2e7d32',
+                                  backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(46, 125, 50, 0.2)',
+                                    color: '#1b5e20',
+                                  },
+                                  border: '1px solid rgba(46, 125, 50, 0.3)',
+                                  borderRadius: 1,
+                                  padding: '6px 18px',
+                                }}
+                              >
+                                <LocalShipping fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           </Box>
                         </TableCell>
                         <TableCell>
@@ -1416,6 +1481,60 @@ const OrdersList = () => {
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           سيتم تغيير حالة الطلب إلى ملغي ويمكن للموظفين رؤيتها في السجل.
         </Typography>
+      </GlassDialog>
+
+      {/* Shipping Dialog */}
+      <GlassDialog
+        open={openShippingDialog}
+        onClose={handleCloseShippingDialog}
+        maxWidth="sm"
+        title="إرسال إلى شركة التوصيل"
+        actions={
+          <>
+            <Button 
+              onClick={handleCloseShippingDialog} 
+              disabled={shippingLoading}
+              variant="outlined"
+            >
+              إلغاء
+            </Button>
+            <Button
+              onClick={handleConfirmShipping}
+              color="success"
+              variant="contained"
+              disabled={shippingLoading}
+              startIcon={shippingLoading ? <CircularProgress size={20} /> : <LocalShipping />}
+              sx={{
+                backgroundColor: '#2e7d32',
+                '&:hover': {
+                  backgroundColor: '#1b5e20',
+                }
+              }}
+            >
+              {shippingLoading ? 'جاري الإرسال...' : 'إرسال'}
+            </Button>
+          </>
+        }
+      >
+        <Box sx={{ padding: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            إرسال الطلب <strong>{orderToShip?.orderNumber || `#${orderToShip?.id}`}</strong> إلى شركة التوصيل
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            يمكنك إضافة ملاحظات خاصة بشركة التوصيل (اختياري)
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="ملاحظات شركة التوصيل"
+            value={shippingNotes}
+            onChange={(e) => setShippingNotes(e.target.value)}
+            placeholder="أدخل أي ملاحظات خاصة بشركة التوصيل..."
+            disabled={shippingLoading}
+            sx={{ mt: 2 }}
+          />
+        </Box>
       </GlassDialog>
 
       <GlassDialog

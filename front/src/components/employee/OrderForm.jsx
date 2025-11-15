@@ -51,7 +51,7 @@ import {
 } from '@mui/icons-material';
 import { Autocomplete } from '@mui/material';
 import { useApp } from '../../context/AppContext';
-import { ordersService, clientsService, deliveryService } from '../../services/api';
+import { ordersService, clientsService, deliveryService, shipmentsService } from '../../services/api';
 import { ORDER_STATUS, USER_ROLES, FABRIC_TYPE_ENUM, FABRIC_TYPE_LABELS, SIZE_ENUM, SIZE_LABELS, COLOR_ENUM, COLOR_LABELS, getSizeValueByLabel, getSizeLabelByValue } from '../../constants';
 import { generateOrderNumber, calculateTotal, createImagePreview } from '../../utils';
 
@@ -113,6 +113,24 @@ const OrderForm = ({
   const [allClients, setAllClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [notes, setNotes] = useState('');
+  
+  // Shipping company information
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [cities, setCities] = useState([]);
+  const [areas, setAreas] = useState([]);
+  const [selectedCityId, setSelectedCityId] = useState(null);
+  const [selectedAreaId, setSelectedAreaId] = useState(null);
+  const [loadingCities, setLoadingCities] = useState(false);
+  const [loadingAreas, setLoadingAreas] = useState(false);
+  
+  // Customer dialog shipping info (separate from main form)
+  const [dialogShippingAddress, setDialogShippingAddress] = useState('');
+  const [dialogCities, setDialogCities] = useState([]);
+  const [dialogAreas, setDialogAreas] = useState([]);
+  const [dialogSelectedCityId, setDialogSelectedCityId] = useState(null);
+  const [dialogSelectedAreaId, setDialogSelectedAreaId] = useState(null);
+  const [dialogLoadingCities, setDialogLoadingCities] = useState(false);
+  const [dialogLoadingAreas, setDialogLoadingAreas] = useState(false);
 
   // Dirty state management to prevent duplicate submissions
   const [isDirty, setIsDirty] = useState(false);
@@ -134,13 +152,102 @@ const OrderForm = ({
       country: '',
       province: '',
       district: '',
+      address: '',
+      roadFnCityId: null,
+      roadFnAreaId: null,
     }
   });
 
   // Load clients on component mount
   useEffect(() => {
     loadAllClients();
+    loadCities();
+    loadDialogCities(); // Load cities for dialog too
   }, []);
+  
+  // Load dialog cities
+  const loadDialogCities = async () => {
+    setDialogLoadingCities(true);
+    try {
+      const citiesData = await shipmentsService.getCities();
+      setDialogCities(Array.isArray(citiesData) ? citiesData : []);
+    } catch (error) {
+      console.error('Error loading dialog cities:', error);
+      setDialogCities([]);
+    } finally {
+      setDialogLoadingCities(false);
+    }
+  };
+  
+  // Load dialog areas when city is selected
+  useEffect(() => {
+    if (dialogSelectedCityId) {
+      loadDialogAreas(dialogSelectedCityId);
+    } else {
+      setDialogAreas([]);
+      setDialogSelectedAreaId(null);
+    }
+  }, [dialogSelectedCityId]);
+  
+  // Load dialog areas from API
+  const loadDialogAreas = async (cityId) => {
+    if (!cityId) {
+      setDialogAreas([]);
+      return;
+    }
+    setDialogLoadingAreas(true);
+    try {
+      const areasData = await shipmentsService.getAreas(cityId);
+      setDialogAreas(Array.isArray(areasData) ? areasData : []);
+    } catch (error) {
+      console.error('Error loading dialog areas:', error);
+      setDialogAreas([]);
+    } finally {
+      setDialogLoadingAreas(false);
+    }
+  };
+
+  // Load areas when city is selected
+  useEffect(() => {
+    if (selectedCityId) {
+      loadAreas(selectedCityId);
+    } else {
+      setAreas([]);
+      setSelectedAreaId(null);
+    }
+  }, [selectedCityId]);
+
+  // Load cities from API
+  const loadCities = async () => {
+    setLoadingCities(true);
+    try {
+      const citiesData = await shipmentsService.getCities();
+      setCities(Array.isArray(citiesData) ? citiesData : []);
+    } catch (error) {
+      console.error('Error loading cities:', error);
+      setCities([]);
+    } finally {
+      setLoadingCities(false);
+    }
+  };
+
+  // Load areas from API based on selected city
+  const loadAreas = async (cityId) => {
+    if (!cityId) {
+      setAreas([]);
+      return;
+    }
+    setLoadingAreas(true);
+    try {
+      const areasData = await shipmentsService.getAreas(cityId);
+      setAreas(Array.isArray(areasData) ? areasData : []);
+    } catch (error) {
+      console.error('Error loading areas:', error);
+      setAreas([]);
+    } finally {
+      setLoadingAreas(false);
+    }
+  };
 
   // Track form changes to update dirty state
   useEffect(() => {
@@ -255,6 +362,13 @@ const OrderForm = ({
     setNotes(initialOrder.notes || '');
     setSelectedRegion(initialOrder.district || '');
     setCustomerNotFound(false);
+    
+    // Load shipping company information if available
+    if (initialOrder.client) {
+      setShippingAddress(initialOrder.client.address || '');
+      setSelectedCityId(initialOrder.client.roadFnCityId || null);
+      setSelectedAreaId(initialOrder.client.roadFnAreaId || null);
+    }
     setValue('customerName', initialOrder.client?.name || '');
     setValue('customerPhone', initialOrder.client?.phone || '');
     setValue('country', initialOrder.country || initialOrder.client?.country || '');
@@ -310,6 +424,9 @@ const OrderForm = ({
         country: data.country,
         province: data.province,
         district: data.district,
+        address: dialogShippingAddress || data.address || '',
+        roadFnCityId: dialogSelectedCityId || data.roadFnCityId || null,
+        roadFnAreaId: dialogSelectedAreaId || data.roadFnAreaId || null,
       };
 
       // Call API to create client
@@ -320,8 +437,23 @@ const OrderForm = ({
       await loadAllClients();
 
       // Update local state with client data
-      setCustomerData(data);
+      setCustomerData({
+        ...data,
+        address: dialogShippingAddress,
+      });
       setClientId(response.id);  // Store the new client ID
+      
+      // Update shipping info in main form
+      setShippingAddress(dialogShippingAddress);
+      setSelectedCityId(dialogSelectedCityId);
+      setSelectedAreaId(dialogSelectedAreaId);
+      
+      // Reset dialog fields
+      setDialogShippingAddress('');
+      setDialogSelectedCityId(null);
+      setDialogSelectedAreaId(null);
+      setDialogAreas([]);
+      
       setCustomerDialogOpen(false);
       setSubmitSuccess(true);
       
@@ -333,6 +465,9 @@ const OrderForm = ({
         country: data.country,
         province: data.province,
         district: data.district,
+        address: dialogShippingAddress,
+        roadFnCityId: dialogSelectedCityId,
+        roadFnAreaId: dialogSelectedAreaId,
       };
       handleCustomerSelect(newClient);
       
@@ -352,13 +487,28 @@ const OrderForm = ({
         country: client.country || '',
         province: client.province || '',
         district: client.district || '',
+        address: client.address || '',
       });
       setClientId(client.id);
       setCustomerNotFound(false);
+      
+      // Update shipping company information from client
+      setShippingAddress(client.address || '');
+      setSelectedCityId(client.roadFnCityId || null);
+      setSelectedAreaId(client.roadFnAreaId || null);
+      
+      // Load areas if city is selected
+      if (client.roadFnCityId) {
+        loadAreas(client.roadFnCityId);
+      }
     } else {
       setCustomerData(null);
       setClientId(null);
       setCustomerNotFound(false);
+      setShippingAddress('');
+      setSelectedCityId(null);
+      setSelectedAreaId(null);
+      setAreas([]);
     }
   };
 
@@ -805,6 +955,32 @@ const OrderForm = ({
           ? `خصم ${discountType === 'percentage' ? `${discount}%` : `${discount}$`}`
           : (isEditMode ? initialOrder?.discountNotes || '' : '');
 
+      // Get current client data
+      const currentClient = allClients.find(c => c.id === clientId);
+      
+      // Prepare client object with shipping company information
+      const clientWithShippingInfo = currentClient ? {
+        ...currentClient,
+        name: customerData.customerName || currentClient.name,
+        phone: customerData.customerPhone || currentClient.phone,
+        country: customerData.country || currentClient.country,
+        province: customerData.province || currentClient.province,
+        district: customerData.district || currentClient.district,
+        address: shippingAddress || currentClient.address || '',
+        roadFnCityId: selectedCityId || currentClient.roadFnCityId || null,
+        roadFnAreaId: selectedAreaId || currentClient.roadFnAreaId || null
+      } : {
+        id: clientId,
+        name: customerData.customerName,
+        phone: customerData.customerPhone,
+        country: customerData.country,
+        province: customerData.province,
+        district: customerData.district,
+        address: shippingAddress || '',
+        roadFnCityId: selectedCityId || null,
+        roadFnAreaId: selectedAreaId || null
+      };
+
       const orderData = {
         clientId: clientId,
         country: customerData.country,
@@ -817,7 +993,9 @@ const OrderForm = ({
         deliveryFee: deliveryPrice,
         discountNotes: computedDiscountNotes,
         notes: formattedNotes,
-        orderDesigns: orderDesigns
+        orderDesigns: orderDesigns,
+        // Send client object with shipping info directly in orderData
+        client: clientWithShippingInfo
       };
 
       if (isEditMode) {
@@ -840,8 +1018,16 @@ const OrderForm = ({
             country: customerData.country || payload.client.country,
             province: customerData.province || payload.client.province,
             district: customerData.district || payload.client.district,
+            address: shippingAddress || payload.client.address || '',
+            roadFnCityId: selectedCityId || payload.client.roadFnCityId || null,
+            roadFnAreaId: selectedAreaId || payload.client.roadFnAreaId || null,
           };
         }
+        
+        // Also add to main payload
+        payload.address = shippingAddress || payload.address || '';
+        payload.roadFnCityId = selectedCityId || payload.roadFnCityId || null;
+        payload.roadFnAreaId = selectedAreaId || payload.roadFnAreaId || null;
 
         payload.orderDesigns = orderDesigns;
 
@@ -866,8 +1052,41 @@ const OrderForm = ({
       console.log('Sending order data:', JSON.stringify(orderData, null, 2));
       console.log('Employee ID from URL:', employeeIdFromUrl);
       console.log('Designer ID being sent:', resolvedDesignerId);
+      console.log('Client with shipping info:', JSON.stringify(clientWithShippingInfo, null, 2));
       const response = await ordersService.createOrder(orderData);
       console.log('Order created successfully:', response);
+      console.log('Response client data:', response?.client);
+      
+      // Update client with shipping info AFTER creating order (in case backend didn't save it)
+      if (clientId && (shippingAddress || selectedCityId || selectedAreaId)) {
+        try {
+          const clientUpdateData = {
+            address: shippingAddress || '',
+            roadFnCityId: selectedCityId || null,
+            roadFnAreaId: selectedAreaId || null
+          };
+          
+          // Only update if values are different from what's in response
+          const responseClient = response?.client;
+          const needsUpdate = 
+            (shippingAddress && responseClient?.address !== shippingAddress) ||
+            (selectedCityId && responseClient?.roadFnCityId !== selectedCityId) ||
+            (selectedAreaId && responseClient?.roadFnAreaId !== selectedAreaId);
+          
+          if (needsUpdate) {
+            console.log('Updating client shipping info after order creation:', clientUpdateData);
+            await clientsService.updateClient(clientId, clientUpdateData);
+            console.log('Client updated successfully after order creation');
+            
+            // Reload clients to get updated data
+            await loadAllClients();
+          }
+        } catch (error) {
+          console.error('Error updating client shipping info after order creation:', error);
+          // Don't show error to user - order was created successfully
+        }
+      }
+      
       addOrder(response);
 
       // Mark form as clean after successful submission
@@ -907,6 +1126,10 @@ const OrderForm = ({
       setNotes('');
       setCustomerData(null);
       setClientId(null);
+      setShippingAddress('');
+      setSelectedCityId(null);
+      setSelectedAreaId(null);
+      setAreas([]);
 
       setSubmitSuccess(true);
       setTimeout(() => {
@@ -986,7 +1209,14 @@ const OrderForm = ({
         {/* Customer Dialog */}
         <Dialog 
           open={customerDialogOpen} 
-          onClose={() => setCustomerDialogOpen(false)}
+          onClose={() => {
+            setCustomerDialogOpen(false);
+            // Reset dialog fields when closing
+            setDialogShippingAddress('');
+            setDialogSelectedCityId(null);
+            setDialogSelectedAreaId(null);
+            setDialogAreas([]);
+          }}
           maxWidth="md"
           fullWidth
         >
@@ -1129,10 +1359,111 @@ const OrderForm = ({
                   />
                 </Grid>
               </Grid>
+
+              <Box sx={{ mt: 3, mb: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: 'text.secondary' }}>
+                  معلومات شركة التوصيل
+                </Typography>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="العنوان"
+                    value={dialogShippingAddress}
+                    onChange={(e) => setDialogShippingAddress(e.target.value)}
+                    placeholder="أدخل عنوان شركة التوصيل"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LocationOn />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>المدينة</InputLabel>
+                    <Select
+                      value={dialogSelectedCityId || ''}
+                      label="المدينة"
+                      onChange={(e) => {
+                        setDialogSelectedCityId(e.target.value);
+                        setDialogSelectedAreaId(null); // Reset area when city changes
+                      }}
+                      disabled={dialogLoadingCities}
+                    >
+                      {dialogLoadingCities ? (
+                        <MenuItem disabled>
+                          <CircularProgress size={20} sx={{ mr: 1 }} />
+                          جاري التحميل...
+                        </MenuItem>
+                      ) : dialogCities.length === 0 ? (
+                        <MenuItem disabled>لا توجد مدن متاحة</MenuItem>
+                      ) : (
+                        dialogCities.map((city) => (
+                          <MenuItem key={city.id || city.cityId} value={city.id || city.cityId}>
+                            {city.name || city.cityName || `المدينة ${city.id || city.cityId}`}
+                          </MenuItem>
+                        ))
+                      )}
+                    </Select>
+                    {dialogLoadingCities && (
+                      <FormHelperText>
+                        <CircularProgress size={16} sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        جاري تحميل المدن...
+                      </FormHelperText>
+                    )}
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>المنطقة</InputLabel>
+                    <Select
+                      value={dialogSelectedAreaId || ''}
+                      label="المنطقة"
+                      onChange={(e) => setDialogSelectedAreaId(e.target.value)}
+                      disabled={!dialogSelectedCityId || dialogLoadingAreas}
+                    >
+                      {!dialogSelectedCityId ? (
+                        <MenuItem disabled>يرجى اختيار المدينة أولاً</MenuItem>
+                      ) : dialogLoadingAreas ? (
+                        <MenuItem disabled>
+                          <CircularProgress size={20} sx={{ mr: 1 }} />
+                          جاري التحميل...
+                        </MenuItem>
+                      ) : dialogAreas.length === 0 ? (
+                        <MenuItem disabled>لا توجد مناطق متاحة</MenuItem>
+                      ) : (
+                        dialogAreas.map((area) => (
+                          <MenuItem key={area.id || area.areaId} value={area.id || area.areaId}>
+                            {area.name || area.areaName || `المنطقة ${area.id || area.areaId}`}
+                          </MenuItem>
+                        ))
+                      )}
+                    </Select>
+                    {dialogLoadingAreas && (
+                      <FormHelperText>
+                        <CircularProgress size={16} sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        جاري تحميل المناطق...
+                      </FormHelperText>
+                    )}
+                  </FormControl>
+                </Grid>
+              </Grid>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
               <Button 
-                onClick={() => setCustomerDialogOpen(false)}
+                onClick={() => {
+                  setCustomerDialogOpen(false);
+                  // Reset dialog fields when canceling
+                  setDialogShippingAddress('');
+                  setDialogSelectedCityId(null);
+                  setDialogSelectedAreaId(null);
+                  setDialogAreas([]);
+                }}
                 variant="outlined"
               >
                 إلغاء
@@ -1275,6 +1606,102 @@ const OrderForm = ({
                     ),
                   }}
                 />
+              </Grid>
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* Shipping Company Information Section */}
+        <Grid item xs={12}>
+          <Paper elevation={2} sx={{ p: 3, bgcolor: 'grey.50' }}>
+            <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+              معلومات شركة التوصيل
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="العنوان"
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                  placeholder="أدخل عنوان شركة التوصيل"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LocationOn />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>المدينة</InputLabel>
+                  <Select
+                    value={selectedCityId || ''}
+                    label="المدينة"
+                    onChange={(e) => {
+                      setSelectedCityId(e.target.value);
+                      setSelectedAreaId(null); // Reset area when city changes
+                    }}
+                    disabled={loadingCities}
+                  >
+                    {loadingCities ? (
+                      <MenuItem disabled>
+                        <CircularProgress size={20} sx={{ mr: 1 }} />
+                        جاري التحميل...
+                      </MenuItem>
+                    ) : cities.length === 0 ? (
+                      <MenuItem disabled>لا توجد مدن متاحة</MenuItem>
+                    ) : (
+                      cities.map((city) => (
+                        <MenuItem key={city.id || city.cityId} value={city.id || city.cityId}>
+                          {city.name || city.cityName || `المدينة ${city.id || city.cityId}`}
+                        </MenuItem>
+                      ))
+                    )}
+                  </Select>
+                  {loadingCities && (
+                    <FormHelperText>
+                      <CircularProgress size={16} sx={{ mr: 1, verticalAlign: 'middle' }} />
+                      جاري تحميل المدن...
+                    </FormHelperText>
+                  )}
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>المنطقة</InputLabel>
+                  <Select
+                    value={selectedAreaId || ''}
+                    label="المنطقة"
+                    onChange={(e) => setSelectedAreaId(e.target.value)}
+                    disabled={!selectedCityId || loadingAreas}
+                  >
+                    {!selectedCityId ? (
+                      <MenuItem disabled>يرجى اختيار المدينة أولاً</MenuItem>
+                    ) : loadingAreas ? (
+                      <MenuItem disabled>
+                        <CircularProgress size={20} sx={{ mr: 1 }} />
+                        جاري التحميل...
+                      </MenuItem>
+                    ) : areas.length === 0 ? (
+                      <MenuItem disabled>لا توجد مناطق متاحة</MenuItem>
+                    ) : (
+                      areas.map((area) => (
+                        <MenuItem key={area.id || area.areaId} value={area.id || area.areaId}>
+                          {area.name || area.areaName || `المنطقة ${area.id || area.areaId}`}
+                        </MenuItem>
+                      ))
+                    )}
+                  </Select>
+                  {loadingAreas && (
+                    <FormHelperText>
+                      <CircularProgress size={16} sx={{ mr: 1, verticalAlign: 'middle' }} />
+                      جاري تحميل المناطق...
+                    </FormHelperText>
+                  )}
+                </FormControl>
               </Grid>
             </Grid>
           </Paper>
