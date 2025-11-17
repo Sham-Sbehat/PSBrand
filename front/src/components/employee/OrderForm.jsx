@@ -994,6 +994,11 @@ const OrderForm = ({
         discountNotes: computedDiscountNotes,
         notes: formattedNotes,
         orderDesigns: orderDesigns,
+        // Send client shipping company information in order payload
+        clientAddress: shippingAddress || currentClient?.address || '',
+        clientRoadFnCityId: selectedCityId ?? currentClient?.roadFnCityId ?? null,
+        clientRoadFnAreaId: selectedAreaId ?? currentClient?.roadFnAreaId ?? null,
+        clientPhone2: currentClient?.phone2 || null,
         // Send client object with shipping info directly in orderData
         client: clientWithShippingInfo
       };
@@ -1024,10 +1029,11 @@ const OrderForm = ({
           };
         }
         
-        // Also add to main payload
-        payload.address = shippingAddress || payload.address || '';
-        payload.roadFnCityId = selectedCityId || payload.roadFnCityId || null;
-        payload.roadFnAreaId = selectedAreaId || payload.roadFnAreaId || null;
+        // Also add client shipping company information to main payload with correct field names
+        payload.clientAddress = shippingAddress || payload.clientAddress || currentClient?.address || '';
+        payload.clientRoadFnCityId = selectedCityId ?? payload.clientRoadFnCityId ?? currentClient?.roadFnCityId ?? null;
+        payload.clientRoadFnAreaId = selectedAreaId ?? payload.clientRoadFnAreaId ?? currentClient?.roadFnAreaId ?? null;
+        payload.clientPhone2 = payload.clientPhone2 ?? currentClient?.phone2 ?? null;
 
         payload.orderDesigns = orderDesigns;
 
@@ -1049,10 +1055,28 @@ const OrderForm = ({
         }
       }
 
-      console.log('Sending order data:', JSON.stringify(orderData, null, 2));
-      console.log('Employee ID from URL:', employeeIdFromUrl);
-      console.log('Designer ID being sent:', resolvedDesignerId);
-      console.log('Client with shipping info:', JSON.stringify(clientWithShippingInfo, null, 2));
+      console.log('=== Order Data Being Sent ===');
+      console.log('📦 Full Order Data:', JSON.stringify(orderData, null, 2));
+      console.log('📍 Shipping Info Details:');
+      console.log('  - shippingAddress:', shippingAddress);
+      console.log('  - selectedCityId:', selectedCityId, '(type:', typeof selectedCityId, ')');
+      console.log('  - selectedAreaId:', selectedAreaId, '(type:', typeof selectedAreaId, ')');
+      console.log('  - currentClient?.roadFnCityId:', currentClient?.roadFnCityId);
+      console.log('  - currentClient?.roadFnAreaId:', currentClient?.roadFnAreaId);
+      console.log('📤 Final Payload Values:');
+      console.log('  - clientAddress:', orderData.clientAddress);
+      console.log('  - clientRoadFnCityId:', orderData.clientRoadFnCityId, '(type:', typeof orderData.clientRoadFnCityId, ')');
+      console.log('  - clientRoadFnAreaId:', orderData.clientRoadFnAreaId, '(type:', typeof orderData.clientRoadFnAreaId, ')');
+      console.log('  - clientPhone2:', orderData.clientPhone2);
+      
+      // Validate that values are being sent
+      if (orderData.clientRoadFnCityId === null || orderData.clientRoadFnCityId === undefined) {
+        console.warn('⚠️ WARNING: clientRoadFnCityId is null/undefined!');
+      }
+      if (orderData.clientRoadFnAreaId === null || orderData.clientRoadFnAreaId === undefined) {
+        console.warn('⚠️ WARNING: clientRoadFnAreaId is null/undefined!');
+      }
+      
       const response = await ordersService.createOrder(orderData);
       console.log('Order created successfully:', response);
       console.log('Response client data:', response?.client);
