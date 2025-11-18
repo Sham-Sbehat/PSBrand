@@ -958,6 +958,7 @@ const DesignManagerDashboard = () => {
               <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
               <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
               <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
+              <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
             </TextField>
           </Box>
 

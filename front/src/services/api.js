@@ -310,6 +310,12 @@ export const orderStatusService = {
     const response = await api.post(`/OrderStatus/SetOpenOrder/${orderId}`);
     return response.data;
   },
+
+  // New: mark order as sent to delivery company
+  setSentToDeliveryCompany: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetSentToDeliveryCompany/${orderId}`);
+    return response.data;
+  },
 };
 
 // Employees Service

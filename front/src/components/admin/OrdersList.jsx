@@ -19,6 +19,8 @@ import {
   IconButton,
   Divider,
   Tooltip,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import {
   Visibility,
@@ -72,6 +74,7 @@ const OrdersList = () => {
   const [orderToShip, setOrderToShip] = useState(null);
   const [shippingNotes, setShippingNotes] = useState('');
   const [shippingLoading, setShippingLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const getFullUrl = (url) => {
     if (!url || typeof url !== 'string') return url;
@@ -486,10 +489,23 @@ const OrdersList = () => {
     try {
       await shipmentsService.createShipment(orderToShip.id, shippingNotes);
       
-      // Show success message
-      alert(`تم إرسال الطلب ${orderToShip.orderNumber || `#${orderToShip.id}`} إلى شركة التوصيل بنجاح`);
+      // Set order status to sent to delivery company after successful shipment
+      try {
+        await orderStatusService.setSentToDeliveryCompany(orderToShip.id);
+      } catch (statusError) {
+        console.error('Error setting order status to sent to delivery company:', statusError);
+        // Don't show error to user - shipment was created successfully
+      }
       
+      // Close dialog first
       handleCloseShippingDialog();
+      
+      // Show success toast
+      setSnackbar({
+        open: true,
+        message: `تم إرسال الطلب ${orderToShip.orderNumber || `#${orderToShip.id}`} إلى شركة التوصيل بنجاح`,
+        severity: 'success'
+      });
       
       // Refresh orders list
       try {
@@ -499,8 +515,17 @@ const OrdersList = () => {
         console.error('Error refreshing orders after shipping:', refreshError);
       }
     } catch (error) {
-      console.error('Error creating shipment:', error);
-      alert(`حدث خطأ أثناء إرسال الطلب إلى شركة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+      console.error('Error sending order to delivery company:', error);
+      
+      // Close dialog first even on error
+      handleCloseShippingDialog();
+      
+      // Show error toast
+      setSnackbar({
+        open: true,
+        message: `حدث خطأ أثناء إرسال الطلب إلى شركة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
+        severity: 'error'
+      });
     } finally {
       setShippingLoading(false);
     }
@@ -829,6 +854,7 @@ const OrdersList = () => {
           <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
           <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
           <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
+          <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
         </TextField>
       </Box>
 
@@ -971,24 +997,43 @@ const OrdersList = () => {
                             >
                               إلغاء الطلب
                             </Button>
-                            <Tooltip title="إرسال الطلب لشركة التوصيل" arrow placement="top">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleShippingClick(order)}
-                                sx={{
-                                  color: '#2e7d32',
-                                  backgroundColor: 'rgba(46, 125, 50, 0.1)',
-                                  '&:hover': {
-                                    backgroundColor: 'rgba(46, 125, 50, 0.2)',
-                                    color: '#1b5e20',
-                                  },
-                                  border: '1px solid rgba(46, 125, 50, 0.3)',
-                                  borderRadius: 1,
-                                  padding: '6px 18px',
-                                }}
-                              >
-                                <LocalShipping fontSize="small" />
-                              </IconButton>
+                            <Tooltip 
+                              title={
+                                order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY 
+                                  ? "تم الإرسال لشركة التوصيل مسبقاً" 
+                                  : "إرسال الطلب لشركة التوصيل"
+                              } 
+                              arrow 
+                              placement="top"
+                            >
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleShippingClick(order)}
+                                  disabled={
+                                    order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ||
+                                    order.status === ORDER_STATUS.CANCELLED 
+                                  }
+                                  sx={{
+                                    color: '#2e7d32',
+                                    backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                                    height: '90px',
+                                    '&:hover': {
+                                      backgroundColor: 'rgba(46, 125, 50, 0.2)',
+                                      color: '#1b5e20',
+                                    },
+                                    '&:disabled': {
+                                      color: '#9e9e9e',
+                                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                                    },
+                                    border: '1px solid rgba(46, 125, 50, 0.3)',
+                                    borderRadius: 1,
+                                    padding: '6px 18px',
+                                  }}
+                                >
+                                  <LocalShipping fontSize="small" />
+                                </IconButton>
+                              </span>
                             </Tooltip>
                           </Box>
                         </TableCell>
@@ -1619,6 +1664,22 @@ const OrdersList = () => {
         onSave={handleSaveNotes}
         user={user}
       />
+
+      {/* Snackbar Toast */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Paper>
   );
 };

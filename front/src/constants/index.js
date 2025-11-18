@@ -6,6 +6,7 @@ export const ORDER_STATUS = {
   COMPLETED: 4,           // مكتمل
   CANCELLED: 5,           // ملغي
   OPEN_ORDER: 6,          // الطلب مفتوح (المحضّر أخذ الطلب)
+  SENT_TO_DELIVERY_COMPANY: 7,  // تم الإرسال لشركة التوصيل
 };
 
 export const ORDER_STATUS_LABELS = {
@@ -15,6 +16,7 @@ export const ORDER_STATUS_LABELS = {
   [ORDER_STATUS.COMPLETED]: 'مكتمل',
   [ORDER_STATUS.CANCELLED]: 'ملغي',
   [ORDER_STATUS.OPEN_ORDER]: 'الطلب مفتوح',
+  [ORDER_STATUS.SENT_TO_DELIVERY_COMPANY]: 'تم الإرسال لشركة التوصيل',
 };
 
 export const ORDER_STATUS_COLORS = {
@@ -24,6 +26,7 @@ export const ORDER_STATUS_COLORS = {
   [ORDER_STATUS.COMPLETED]: 'success',
   [ORDER_STATUS.CANCELLED]: 'error',
   [ORDER_STATUS.OPEN_ORDER]: 'primary',
+  [ORDER_STATUS.SENT_TO_DELIVERY_COMPANY]: 'info',
 };
 
 // User Role Constants
