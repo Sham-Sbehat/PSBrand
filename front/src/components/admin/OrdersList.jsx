@@ -260,7 +260,7 @@ const OrdersList = () => {
               type: blob.type
             });
           } catch (manualError) {
-            console.error('Both methods failed:', { fetchError, manualError });
+           
             throw new Error('فشل في تحويل الملف. قد يكون الملف تالفاً أو كبيراً جداً.');
           }
         }
