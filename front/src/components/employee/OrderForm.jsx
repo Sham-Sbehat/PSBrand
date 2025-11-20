@@ -1513,93 +1513,250 @@ const OrderForm = ({
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>المدينة</InputLabel>
-                      <Select
-                        value={dialogSelectedCityId || ""}
-                        label="المدينة"
-                        onChange={(e) => {
-                          setDialogSelectedCityId(e.target.value);
-                          setDialogSelectedAreaId(null); // Reset area when city changes
-                        }}
-                        disabled={dialogLoadingCities}
-                      >
-                        {dialogLoadingCities ? (
-                          <MenuItem disabled>
-                            <CircularProgress size={20} sx={{ mr: 1 }} />
-                            جاري التحميل...
-                          </MenuItem>
-                        ) : dialogCities.length === 0 ? (
-                          <MenuItem disabled>لا توجد مدن متاحة</MenuItem>
-                        ) : (
-                          dialogCities.map((city) => (
-                            <MenuItem
-                              key={city.id || city.cityId}
-                              value={city.id || city.cityId}
-                            >
-                              {city.name ||
-                                city.cityName ||
-                                `المدينة ${city.id || city.cityId}`}
-                            </MenuItem>
-                          ))
-                        )}
-                      </Select>
-                      {dialogLoadingCities && (
-                        <FormHelperText>
-                          <CircularProgress
-                            size={16}
-                            sx={{ mr: 1, verticalAlign: "middle" }}
-                          />
-                          جاري تحميل المدن...
-                        </FormHelperText>
+                    <Autocomplete
+                      fullWidth
+                      options={dialogCities}
+                      getOptionLabel={(option) =>
+                        option.name ||
+                        option.cityName ||
+                        `المدينة ${option.id || option.cityId}`
+                      }
+                      value={
+                        dialogCities.find(
+                          (city) =>
+                            (city.id || city.cityId) === dialogSelectedCityId
+                        ) || null
+                      }
+                      onChange={(event, newValue) => {
+                        setDialogSelectedCityId(
+                          newValue ? newValue.id || newValue.cityId : null
+                        );
+                        setDialogSelectedAreaId(null); // Reset area when city changes
+                      }}
+                      loading={dialogLoadingCities}
+                      disabled={dialogLoadingCities}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="المدينة"
+                          placeholder="ابحث عن المدينة..."
+                          variant="outlined"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              backgroundColor: '#f5f5f5',
+                              '&:hover': {
+                                backgroundColor: '#eeeeee',
+                              },
+                              '&.Mui-focused': {
+                                backgroundColor: '#ffffff',
+                              },
+                              '& fieldset': {
+                                borderColor: '#e0e0e0',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#bdbdbd',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#1976d2',
+                                borderWidth: '2px',
+                              },
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: '#616161',
+                              '&.Mui-focused': {
+                                color: '#1976d2',
+                              },
+                            },
+                          }}
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {dialogLoadingCities ? (
+                                  <CircularProgress size={20} />
+                                ) : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
                       )}
-                    </FormControl>
+                      renderOption={(props, option) => (
+                        <Box
+                          component="li"
+                          {...props}
+                          sx={{
+                            padding: '14px 40px',
+                            fontSize: '1rem',
+                            minHeight: '48px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            '&:hover': {
+                              backgroundColor: '#f5f5f5',
+                            },
+                            '&[aria-selected="true"]': {
+                              backgroundColor: '#e3f2fd',
+                            },
+                          }}
+                        >
+                          {option.name ||
+                            option.cityName ||
+                            `المدينة ${option.id || option.cityId}`}
+                        </Box>
+                      )}
+                      ListboxProps={{
+                        style: {
+                          maxHeight: '350px',
+                          padding: '8px 0',
+                        },
+                      }}
+                      PaperComponent={({ children, ...other }) => (
+                        <Paper
+                          {...other}
+                          sx={{
+                            boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+                            borderRadius: '4px',
+                            marginTop: '4px',
+                            border: '1px solid #e0e0e0',
+                            '& .MuiAutocomplete-listbox': {
+                              padding: 0,
+                            },
+                          }}
+                        >
+                          {children}
+                        </Paper>
+                      )}
+                      noOptionsText="لا توجد مدن متاحة"
+                      loadingText="جاري التحميل..."
+                    />
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>المنطقة</InputLabel>
-                      <Select
-                        value={dialogSelectedAreaId || ""}
-                        label="المنطقة"
-                        onChange={(e) =>
-                          setDialogSelectedAreaId(e.target.value)
-                        }
-                        disabled={!dialogSelectedCityId || dialogLoadingAreas}
-                      >
-                        {!dialogSelectedCityId ? (
-                          <MenuItem disabled>
-                            يرجى اختيار المدينة أولاً
-                          </MenuItem>
-                        ) : dialogLoadingAreas ? (
-                          <MenuItem disabled>
-                            <CircularProgress size={20} sx={{ mr: 1 }} />
-                            جاري التحميل...
-                          </MenuItem>
-                        ) : dialogAreas.length === 0 ? (
-                          <MenuItem disabled>لا توجد مناطق متاحة</MenuItem>
-                        ) : (
-                          dialogAreas.map((area) => (
-                            <MenuItem
-                              key={area.id || area.areaId}
-                              value={area.id || area.areaId}
-                            >
-                              {area.name ||
-                                area.areaName ||
-                                `المنطقة ${area.id || area.areaId}`}
-                            </MenuItem>
-                          ))
-                        )}
-                      </Select>
-                      {dialogLoadingAreas && (
-                        <FormHelperText>
-                          <CircularProgress
-                            size={16}
-                            sx={{ mr: 1, verticalAlign: "middle" }}
-                          />
-                          جاري تحميل المناطق...
-                        </FormHelperText>
+                    <Autocomplete
+                      fullWidth
+                      sx={{ minWidth: '350px' }}
+                      options={dialogAreas}
+                      getOptionLabel={(option) =>
+                        option.name ||
+                        option.areaName ||
+                        `المنطقة ${option.id || option.areaId}`
+                      }
+                      value={
+                        dialogAreas.find(
+                          (area) =>
+                            (area.id || area.areaId) === dialogSelectedAreaId
+                        ) || null
+                      }
+                      onChange={(event, newValue) => {
+                        setDialogSelectedAreaId(
+                          newValue ? newValue.id || newValue.areaId : null
+                        );
+                      }}
+                      loading={dialogLoadingAreas}
+                      disabled={!dialogSelectedCityId || dialogLoadingAreas}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="المنطقة"
+                          placeholder={
+                            !dialogSelectedCityId
+                              ? "يرجى اختيار المدينة أولاً"
+                              : "ابحث عن المنطقة..."
+                          }
+                          variant="outlined"
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              backgroundColor: '#f5f5f5',
+                              '&:hover': {
+                                backgroundColor: '#eeeeee',
+                              },
+                              '&.Mui-focused': {
+                                backgroundColor: '#ffffff',
+                              },
+                              '& fieldset': {
+                                borderColor: '#e0e0e0',
+                              },
+                              '&:hover fieldset': {
+                                borderColor: '#bdbdbd',
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#1976d2',
+                                borderWidth: '2px',
+                              },
+                            },
+                            '& .MuiInputLabel-root': {
+                              color: '#616161',
+                              '&.Mui-focused': {
+                                color: '#1976d2',
+                              },
+                            },
+                          }}
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {dialogLoadingAreas ? (
+                                  <CircularProgress size={20} />
+                                ) : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
                       )}
-                    </FormControl>
+                      renderOption={(props, option) => (
+                        <Box
+                          component="li"
+                          {...props}
+                          sx={{
+                            padding: '14px 20px',
+                            fontSize: '1rem',
+                            minHeight: '48px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            whiteSpace: 'normal',
+                            wordWrap: 'break-word',
+                            '&:hover': {
+                              backgroundColor: '#f5f5f5',
+                            },
+                            '&[aria-selected="true"]': {
+                              backgroundColor: '#e3f2fd',
+                            },
+                          }}
+                        >
+                          {option.name ||
+                            option.areaName ||
+                            `المنطقة ${option.id || option.areaId}`}
+                        </Box>
+                      )}
+                      ListboxProps={{
+                        style: {
+                          maxHeight: '350px',
+                          padding: '8px 0',
+                        },
+                      }}
+                      PaperComponent={({ children, ...other }) => (
+                        <Paper
+                          {...other}
+                          sx={{
+                            boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+                            borderRadius: '4px',
+                            marginTop: '4px',
+                            border: '1px solid #e0e0e0',
+                            '& .MuiAutocomplete-listbox': {
+                              padding: 0,
+                            },
+                          }}
+                        >
+                          {children}
+                        </Paper>
+                      )}
+                      noOptionsText={
+                        !dialogSelectedCityId
+                          ? "يرجى اختيار المدينة أولاً"
+                          : "لا توجد مناطق متاحة"
+                      }
+                      loadingText="جاري التحميل..."
+                    />
                   </Grid>
                 </Grid>
               </DialogContent>
@@ -1815,6 +1972,7 @@ const OrderForm = ({
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
+                    sx={{ minWidth: '250px' }}
                     fullWidth
                     label="العنوان"
                     value={shippingAddress}
@@ -1829,90 +1987,248 @@ const OrderForm = ({
                     }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6} width={100}>
-                  <FormControl fullWidth>
-                    <InputLabel>المدينة</InputLabel>
-                    <Select
-                      value={selectedCityId || ""}
-                      label="المدينة"
-                      onChange={(e) => {
-                        setSelectedCityId(e.target.value);
-                        setSelectedAreaId(null); // Reset area when city changes
-                      }}
-                      disabled={loadingCities}
-                    >
-                      {loadingCities ? (
-                        <MenuItem disabled>
-                          <CircularProgress size={20} sx={{ mr: 1 }} />
-                          جاري التحميل...
-                        </MenuItem>
-                      ) : cities.length === 0 ? (
-                        <MenuItem disabled>لا توجد مدن متاحة</MenuItem>
-                      ) : (
-                        cities.map((city) => (
-                          <MenuItem
-                            key={city.id || city.cityId}
-                            value={city.id || city.cityId}
-                          >
-                            {city.name ||
-                              city.cityName ||
-                              `المدينة ${city.id || city.cityId}`}
-                          </MenuItem>
-                        ))
-                      )}
-                    </Select>
-                    {loadingCities && (
-                      <FormHelperText>
-                        <CircularProgress
-                          size={16}
-                          sx={{ mr: 1, verticalAlign: "middle" }}
-                        />
-                        جاري تحميل المدن...
-                      </FormHelperText>
+                <Grid item xs={12} sm={8} md={6}>
+                  <Autocomplete
+                    fullWidth
+                    sx={{ minWidth: '250px' }}
+                    options={cities}
+                    getOptionLabel={(option) =>
+                      option.name ||
+                      option.cityName ||
+                      `المدينة ${option.id || option.cityId}`
+                    }
+                    value={
+                      cities.find(
+                        (city) => (city.id || city.cityId) === selectedCityId
+                      ) || null
+                    }
+                    onChange={(event, newValue) => {
+                      setSelectedCityId(
+                        newValue ? newValue.id || newValue.cityId : null
+                      );
+                      setSelectedAreaId(null); // Reset area when city changes
+                    }}
+                    loading={loadingCities}
+                    disabled={loadingCities}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="المدينة"
+                        placeholder="ابحث عن المدينة..."
+                        variant="outlined"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f5f5f5',
+                            '&:hover': {
+                              backgroundColor: '#eeeeee',
+                            },
+                            '&.Mui-focused': {
+                              backgroundColor: '#ffffff',
+                            },
+                            '& fieldset': {
+                              borderColor: '#e0e0e0',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#bdbdbd',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#1976d2',
+                              borderWidth: '2px',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: '#616161',
+                            '&.Mui-focused': {
+                              color: '#1976d2',
+                            },
+                          },
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingCities ? (
+                                <CircularProgress size={20} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
                     )}
-                  </FormControl>
+                    renderOption={(props, option) => (
+                      <Box
+                        component="li"
+                        {...props}
+                        sx={{
+                          padding: '14px 20px',
+                          fontSize: '1rem',
+                          minHeight: '48px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          '&:hover': {
+                            backgroundColor: '#f5f5f5',
+                          },
+                          '&[aria-selected="true"]': {
+                            backgroundColor: '#e3f2fd',
+                          },
+                        }}
+                      >
+                        {option.name ||
+                          option.cityName ||
+                          `المدينة ${option.id || option.cityId}`}
+                      </Box>
+                    )}
+                    ListboxProps={{
+                      style: {
+                        maxHeight: '350px',
+                        padding: '8px 0',
+                      },
+                    }}
+                    PaperComponent={({ children, ...other }) => (
+                      <Paper
+                        {...other}
+                        sx={{
+                          boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+                          borderRadius: '4px',
+                          marginTop: '4px',
+                          border: '1px solid #e0e0e0',
+                          '& .MuiAutocomplete-listbox': {
+                            padding: 0,
+                          },
+                        }}
+                      >
+                        {children}
+                      </Paper>
+                    )}
+                    noOptionsText="لا توجد مدن متاحة"
+                    loadingText="جاري التحميل..."
+                  />
                 </Grid>
-                <Grid item xs={12} sm={6} width={100}>
-                  <FormControl fullWidth>
-                    <InputLabel>المنطقة</InputLabel>
-                    <Select
-                      value={selectedAreaId || ""}
-                      label="المنطقة"
-                      onChange={(e) => setSelectedAreaId(e.target.value)}
-                      disabled={!selectedCityId || loadingAreas}
-                    >
-                      {!selectedCityId ? (
-                        <MenuItem disabled>يرجى اختيار المدينة أولاً</MenuItem>
-                      ) : loadingAreas ? (
-                        <MenuItem disabled>
-                          <CircularProgress size={20} sx={{ mr: 1 }} />
-                          جاري التحميل...
-                        </MenuItem>
-                      ) : areas.length === 0 ? (
-                        <MenuItem disabled>لا توجد مناطق متاحة</MenuItem>
-                      ) : (
-                        areas.map((area) => (
-                          <MenuItem
-                            key={area.id || area.areaId}
-                            value={area.id || area.areaId}
-                          >
-                            {area.name ||
-                              area.areaName ||
-                              `المنطقة ${area.id || area.areaId}`}
-                          </MenuItem>
-                        ))
-                      )}
-                    </Select>
-                    {loadingAreas && (
-                      <FormHelperText>
-                        <CircularProgress
-                          size={16}
-                          sx={{ mr: 1, verticalAlign: "middle" }}
-                        />
-                        جاري تحميل المناطق...
-                      </FormHelperText>
+                <Grid item xs={12} sm={8} md={6}>
+                  <Autocomplete
+                    fullWidth
+                    sx={{ minWidth: '350px' }}
+                    options={areas}
+                    getOptionLabel={(option) =>
+                      option.name ||
+                      option.areaName ||
+                      `المنطقة ${option.id || option.areaId}`
+                    }
+                    value={
+                      areas.find(
+                        (area) => (area.id || area.areaId) === selectedAreaId
+                      ) || null
+                    }
+                    onChange={(event, newValue) => {
+                      setSelectedAreaId(
+                        newValue ? newValue.id || newValue.areaId : null
+                      );
+                    }}
+                    loading={loadingAreas}
+                    disabled={!selectedCityId || loadingAreas}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="المنطقة"
+                        placeholder={
+                          !selectedCityId
+                            ? "يرجى اختيار المدينة أولاً"
+                            : "ابحث عن المنطقة..."
+                        }
+                        variant="outlined"
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: '#f5f5f5',
+                            '&:hover': {
+                              backgroundColor: '#eeeeee',
+                            },
+                            '&.Mui-focused': {
+                              backgroundColor: '#ffffff',
+                            },
+                            '& fieldset': {
+                              borderColor: '#e0e0e0',
+                            },
+                            '&:hover fieldset': {
+                              borderColor: '#bdbdbd',
+                            },
+                            '&.Mui-focused fieldset': {
+                              borderColor: '#1976d2',
+                              borderWidth: '2px',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: '#616161',
+                            '&.Mui-focused': {
+                              color: '#1976d2',
+                            },
+                          },
+                        }}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingAreas ? (
+                                <CircularProgress size={20} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
                     )}
-                  </FormControl>
+                    renderOption={(props, option) => (
+                      <Box
+                        component="li"
+                        {...props}
+                        sx={{
+                          padding: '14px 20px',
+                          fontSize: '1rem',
+                          minHeight: '48px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          '&:hover': {
+                            backgroundColor: '#f5f5f5',
+                          },
+                          '&[aria-selected="true"]': {
+                            backgroundColor: '#e3f2fd',
+                          },
+                        }}
+                      >
+                        {option.name ||
+                          option.areaName ||
+                          `المنطقة ${option.id || option.areaId}`}
+                      </Box>
+                    )}
+                    ListboxProps={{
+                      style: {
+                        maxHeight: '350px',
+                        padding: '8px 0',
+                      },
+                    }}
+                    PaperComponent={({ children, ...other }) => (
+                      <Paper
+                        {...other}
+                        sx={{
+                          boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
+                          borderRadius: '4px',
+                          marginTop: '4px',
+                          border: '1px solid #e0e0e0',
+                          '& .MuiAutocomplete-listbox': {
+                            padding: 0,
+                          },
+                        }}
+                      >
+                        {children}
+                      </Paper>
+                    )}
+                    noOptionsText={
+                      !selectedCityId
+                        ? "يرجى اختيار المدينة أولاً"
+                        : "لا توجد مناطق متاحة"
+                    }
+                    loadingText="جاري التحميل..."
+                  />
                 </Grid>
               </Grid>
             </Paper>

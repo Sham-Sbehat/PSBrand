@@ -422,6 +422,10 @@ export const shipmentsService = {
       shippingNotes: shippingNotes || ''
     });
     return response.data;
+  },
+  getDeliveryStatus: async (orderId) => {
+    const response = await api.get(`/Shipments/GetDeliveryStatus/${orderId}`);
+    return response.data;
   }
 };
 

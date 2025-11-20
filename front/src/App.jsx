@@ -13,11 +13,8 @@ import PreparerDashboard from './pages/PreparerDashboard';
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useApp();
 
-  console.log('ProtectedRoute check:', { user, allowedRole });
-
   // Check if user is authenticated
   if (!user) {
-    console.log('No user found, redirecting to home');
     return <Navigate to="/" replace />;
   }
 
@@ -36,14 +33,10 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     ? allowedRole.includes(userRoleString)
     : userRoleString === allowedRole;
   
-  console.log('Role check:', { userRoleString, allowedRole, isRoleAllowed });
-  
   if (allowedRole && !isRoleAllowed) {
-    console.log('Role not allowed, redirecting to home');
     return <Navigate to="/" replace />;
   }
 
-  console.log('Access granted');
   return children;
 };
 

@@ -189,7 +189,6 @@ const PreparerDashboard = () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
           onOrderCreated: (newOrder) => {
-            console.log('SignalR: New order created event received', newOrder);
             if (newOrder && typeof newOrder === 'object' && newOrder.id) {
               if (newOrder.status === ORDER_STATUS.IN_PREPARATION) {
                 // Add to available orders
@@ -214,12 +213,10 @@ const PreparerDashboard = () => {
                 }
               }
             } else {
-              console.log('No order data received, refreshing list');
               fetchAllOrders(false);
             }
           },
           onOrderStatusChanged: (updatedOrder) => {
-            console.log('SignalR: Order status changed', updatedOrder);
             if (updatedOrder) {
               const orderPreparerId = updatedOrder.preparer?.id || updatedOrder.preparerId || (typeof updatedOrder.preparer === 'number' ? updatedOrder.preparer : null);
               const currentUserId = user?.id;
@@ -280,7 +277,6 @@ const PreparerDashboard = () => {
             fetchAllOrders(false);
           },
         });
-        console.log('SignalR: Successfully subscribed to order updates');
       } catch (err) {
         console.error('Failed to connect to updates hub:', err);
       }
@@ -313,7 +309,6 @@ const PreparerDashboard = () => {
     // Load if not in cache
     setLoadingImage(`image-${orderId}-${designId}`);
     try {
-      console.log('Loading image for:', { orderId, designId });
       const fullOrder = await ordersService.getOrderById(orderId);
       const design = fullOrder.orderDesigns?.find(d => d.id === designId);
       const images = getMockupImages(design);
@@ -488,7 +483,6 @@ const PreparerDashboard = () => {
           setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
         }, 1000);
       } catch (error) {
-        console.error('Error opening file:', error);
         alert('حدث خطأ أثناء فتح الملف.\n' + error.message);
       }
     } else {
@@ -507,8 +501,6 @@ const PreparerDashboard = () => {
   };
 
   const handleViewDetails = async (order) => {
-    console.log('Opening order details:', order);
-    console.log('Order designs:', order?.orderDesigns);
     
     setSelectedOrder(order);
     setOpenDetailsModal(true);
@@ -516,18 +508,11 @@ const PreparerDashboard = () => {
     // Load images for all designs when modal opens
     if (order?.orderDesigns) {
       order.orderDesigns.forEach(design => {
-        console.log('Design:', {
-          id: design.id,
-          name: design.designName,
-          mockupImageUrls: design.mockupImageUrls,
-          printFileUrls: design.printFileUrls
-        });
       });
       
       const loadPromises = order.orderDesigns.map(design => {
         const images = getMockupImages(design);
         if (images.includes('image_data_excluded')) {
-          console.log('Loading image for design:', design.id);
           return loadImageForDisplay(order.id, design.id);
         }
         return Promise.resolve(null);
@@ -535,7 +520,6 @@ const PreparerDashboard = () => {
       
       // Wait for all images to load, then update selectedOrder to trigger re-render
       Promise.all(loadPromises).then(() => {
-        console.log('All images loaded');
         // Force re-render by updating selectedOrder
         setSelectedOrder(prev => ({ ...prev }));
       });

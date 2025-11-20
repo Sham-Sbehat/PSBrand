@@ -149,9 +149,7 @@ const Login = () => {
       
       const result = await authService.login(credentials);
       
-      if (result.success) {
-        console.log('Login successful, saving data:', { token: result.token, user: result.user });
-        
+      if (result.success) {      
         if (rememberMe) {
           // Persist across app restarts
           localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
@@ -160,13 +158,7 @@ const Login = () => {
           // Session-only login: cleared when app/window closes
           sessionStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
           sessionStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
-        }
-        
-        console.log('Data saved to localStorage:', {
-          token: localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN),
-          user: localStorage.getItem(STORAGE_KEYS.USER_DATA)
-        });
-        
+        }  
         // Save credentials if "Remember Me" is checked (per role)
         const credKey = `savedCredentials_${selectedRole}`;
         const rememberKey = `rememberMe_${selectedRole}`;

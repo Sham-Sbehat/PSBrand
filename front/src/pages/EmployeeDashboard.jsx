@@ -333,7 +333,6 @@ const EmployeeDashboard = () => {
           return;
         }
       } catch (error) {
-        console.error('Error fetching order file:', error);
         alert('حدث خطأ أثناء جلب الملف');
         setLoadingImage(null);
         return;
@@ -425,9 +424,6 @@ const EmployeeDashboard = () => {
   };
 
   const handleViewDetails = async (order) => {
-    console.log('Opening order details:', order);
-    console.log('Order designs:', order?.orderDesigns);
-    
     setSelectedOrder(order);
     setOrderNotes(''); // Start with empty for new note
     setIsEditingNotes(false);
@@ -436,12 +432,6 @@ const EmployeeDashboard = () => {
     // Load images for all designs when modal opens
     if (order?.orderDesigns) {
       order.orderDesigns.forEach(design => {
-        console.log('Design:', {
-          id: design.id,
-          name: design.designName,
-          mockupImageUrls: design.mockupImageUrls,
-          printFileUrls: design.printFileUrls
-        });
       });
       
       const loadPromises = order.orderDesigns.map(design => {
@@ -456,7 +446,6 @@ const EmployeeDashboard = () => {
       
       // Wait for all images to load, then update selectedOrder to trigger re-render
       Promise.all(loadPromises).then(() => {
-        console.log('All images loaded');
         // Force re-render by updating selectedOrder
         setSelectedOrder(prev => ({ ...prev }));
       });
@@ -470,7 +459,6 @@ const EmployeeDashboard = () => {
       setOrderToEdit(fullOrder || order);
       setOpenEditDialog(true);
     } catch (error) {
-      console.error("Error loading order for edit:", error);
       alert("حدث خطأ أثناء جلب بيانات الطلب للتعديل");
     } finally {
       setEditLoading(false);
@@ -641,8 +629,6 @@ const EmployeeDashboard = () => {
       }
       fetchDesignerOrdersCount(); // refresh counts if designer
     } catch (error) {
-      console.error("Error cancelling order:", error);
-      alert("حدث خطأ أثناء إلغاء الطلب. الرجاء المحاولة مرة أخرى.");
     } finally {
       setCancelLoadingId(null);
     }

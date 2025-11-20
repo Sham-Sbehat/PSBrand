@@ -31,6 +31,7 @@ import {
   Image as ImageIcon,
   PictureAsPdf,
   LocalShipping,
+  TrackChanges,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../../services/api";
@@ -61,6 +62,7 @@ const OrdersList = () => {
   const [openImageDialog, setOpenImageDialog] = useState(false);
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortByState, setSortByState] = useState('asc'); // 'asc', 'desc', or null
@@ -75,6 +77,10 @@ const OrdersList = () => {
   const [shippingNotes, setShippingNotes] = useState('');
   const [shippingLoading, setShippingLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [openDeliveryStatusDialog, setOpenDeliveryStatusDialog] = useState(false);
+  const [deliveryStatusData, setDeliveryStatusData] = useState(null);
+  const [deliveryStatusLoading, setDeliveryStatusLoading] = useState(false);
+  const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
 
   const getFullUrl = (url) => {
     if (!url || typeof url !== 'string') return url;
@@ -531,6 +537,33 @@ const OrdersList = () => {
     }
   };
 
+  const handleDeliveryStatusClick = async (order) => {
+    setOrderForDeliveryStatus(order);
+    setDeliveryStatusLoading(true);
+    setOpenDeliveryStatusDialog(true);
+    setDeliveryStatusData(null);
+    
+    try {
+      const statusData = await shipmentsService.getDeliveryStatus(order.id);
+      setDeliveryStatusData(statusData);
+    } catch (error) {
+      console.error('Error fetching delivery status:', error);
+      setSnackbar({
+        open: true,
+        message: `حدث خطأ أثناء جلب حالة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
+        severity: 'error'
+      });
+    } finally {
+      setDeliveryStatusLoading(false);
+    }
+  };
+
+  const handleCloseDeliveryStatusDialog = () => {
+    setOpenDeliveryStatusDialog(false);
+    setDeliveryStatusData(null);
+    setOrderForDeliveryStatus(null);
+  };
+
   const handleConfirmDelete = async () => {
     if (!orderToDelete) return;
     
@@ -787,10 +820,21 @@ const OrdersList = () => {
   const discountNotes =
     typeof selectedOrder?.discountNotes === "string" ? selectedOrder.discountNotes.trim() : "";
 
-  const filteredOrders =
+  // Filter by status
+  const statusFilteredOrders =
     statusFilter === "all"
       ? allOrders
       : allOrders.filter((order) => order.status === parseInt(statusFilter));
+
+  // Filter by client name or phone search
+  const filteredOrders = searchQuery.trim()
+    ? statusFilteredOrders.filter((order) => {
+        const clientName = order.client?.name || "";
+        const clientPhone = order.client?.phone || "";
+        const query = searchQuery.toLowerCase().trim();
+        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+      })
+    : statusFilteredOrders;
 
   // Sort by state if sortByState is set
   const sortedOrders = sortByState 
@@ -834,28 +878,45 @@ const OrdersList = () => {
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: 3,
+          flexWrap: "wrap",
+          gap: 2,
         }}
       >
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           جميع الطلبات ({sortedOrders.length})
         </Typography>
 
-        <TextField
-          select
-          size="small"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          sx={{ minWidth: 150 }}
-        >
-          <MenuItem value="all">جميع الطلبات</MenuItem>
-          <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
-          <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
-          <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
-          <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
-          <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
-          <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
-          <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
-        </TextField>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+          <TextField
+            size="small"
+            placeholder="بحث باسم العميل أو رقم الهاتف..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(0); // Reset to first page when searching
+            }}
+            sx={{ minWidth: 250 }}
+          />
+          <TextField
+            select
+            size="small"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(0); // Reset to first page when filtering
+            }}
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="all">جميع الطلبات</MenuItem>
+            <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
+            <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
+            <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
+            <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
+            <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
+            <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
+            <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
+          </TextField>
+        </Box>
       </Box>
 
       {loading ? (
@@ -973,6 +1034,12 @@ const OrdersList = () => {
                               variant="outlined"
                               startIcon={<Visibility />}
                               onClick={() => handleViewOrder(order)}
+                              sx={{ 
+                                fontSize: '0.85rem',
+                                padding: '6px 12px',
+                                minHeight: '36px',
+                                height: '50px',
+                              }}
                             >
                               عرض
                             </Button>
@@ -981,7 +1048,12 @@ const OrdersList = () => {
                               variant="contained"
                               color="primary"
                               onClick={() => handleEditClick(order)}
-                              
+                              sx={{ 
+                                fontSize: '0.85rem',
+                                padding: '6px 12px',
+                                minHeight: '36px',
+                                height: '50px',
+                              }}
                             >
                               تعديل
                             </Button>
@@ -994,8 +1066,14 @@ const OrdersList = () => {
                                 order.status === ORDER_STATUS.COMPLETED
                               }
                               onClick={() => handleCancelClick(order)}
+                              sx={{ 
+                                fontSize: '0.85rem',
+                                padding: '6px 12px',
+                                minHeight: '36px',
+                                height: '50px',
+                              }}
                             >
-                              إلغاء الطلب
+                              إلغاء
                             </Button>
                             <Tooltip 
                               title={
@@ -1017,7 +1095,10 @@ const OrdersList = () => {
                                   sx={{
                                     color: '#2e7d32',
                                     backgroundColor: 'rgba(46, 125, 50, 0.1)',
-                                    height: '90px',
+                                    width: '36px',
+                                    height: '36px',
+                                    minWidth: '36px',
+                                    minHeight: '50px',
                                     '&:hover': {
                                       backgroundColor: 'rgba(46, 125, 50, 0.2)',
                                       color: '#1b5e20',
@@ -1028,13 +1109,44 @@ const OrdersList = () => {
                                     },
                                     border: '1px solid rgba(46, 125, 50, 0.3)',
                                     borderRadius: 1,
-                                    padding: '6px 18px',
+                                    padding: '8px',
                                   }}
                                 >
                                   <LocalShipping fontSize="small" />
                                 </IconButton>
                               </span>
                             </Tooltip>
+                            {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY && (
+                              <Tooltip 
+                                title="عرض حالة التوصيل من شركة التوصيل"
+                                arrow 
+                                placement="top"
+                              >
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleDeliveryStatusClick(order)}
+                                    sx={{
+                                      color: '#1976d2',
+                                      backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                                      width: '36px',
+                                      height: '36px',
+                                      minWidth: '36px',
+                                      minHeight: '50px',
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(25, 118, 210, 0.2)',
+                                        color: '#1565c0',
+                                      },
+                                      border: '1px solid rgba(25, 118, 210, 0.3)',
+                                      borderRadius: 1,
+                                      padding: '8px',
+                                    }}
+                                  >
+                                    <TrackChanges fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
                           </Box>
                         </TableCell>
                         <TableCell>
@@ -1042,8 +1154,15 @@ const OrdersList = () => {
                               size="small"
                               color="error"
                               onClick={() => handleDeleteClick(order)}
+                              sx={{ 
+                                width: '36px',
+                                height: '36px',
+                                minWidth: '36px',
+                                minHeight: '36px',
+                                padding: '8px',
+                              }}
                             >
-                              <Delete />
+                              <Delete fontSize="small" />
                             </IconButton>
                         </TableCell>
                       </TableRow>
@@ -1133,6 +1252,12 @@ const OrdersList = () => {
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem
+                    label="سعر إضافي"
+                    value={formatCurrency(selectedOrder.additionalPrice)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
                     label="المبلغ الإجمالي"
                     value={formatCurrency(selectedOrder.totalAmount)}
                   />
@@ -1170,7 +1295,7 @@ const OrdersList = () => {
                   <InfoItem label="المنطقة" value={selectedOrder.district || "-"} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="الدولة" value={selectedOrder.country || "-"} />
+                  <InfoItem label="البلد" value={selectedOrder.country || "-"} />
                 </Grid>
               </Grid>
             </Box>
@@ -1664,6 +1789,168 @@ const OrdersList = () => {
         onSave={handleSaveNotes}
         user={user}
       />
+
+      {/* Delivery Status Dialog */}
+      <GlassDialog
+        open={openDeliveryStatusDialog}
+        onClose={handleCloseDeliveryStatusDialog}
+        maxWidth="md"
+        title="حالة التوصيل من شركة التوصيل"
+        subtitle={orderForDeliveryStatus?.orderNumber ? `طلب رقم: ${orderForDeliveryStatus.orderNumber}` : undefined}
+        actions={
+          <Button onClick={handleCloseDeliveryStatusDialog} variant="contained">
+            إغلاق
+          </Button>
+        }
+      >
+        <Box sx={{ padding: 3 }}>
+          {deliveryStatusLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+              <CircularProgress />
+            </Box>
+          ) : deliveryStatusData ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Order & Shipment Info */}
+              <Box>
+                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+                  معلومات الشحنة
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem
+                      label="رقم الطلب"
+                      value={deliveryStatusData.orderId || '-'}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem
+                      label="رقم الشحنة"
+                      value={deliveryStatusData.shipmentId || '-'}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem
+                      label="رقم الشحنة (RoadFn)"
+                      value={deliveryStatusData.roadFnShipmentId || '-'}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <InfoItem
+                      label="رقم التتبع"
+                      value={deliveryStatusData.trackingNumber || '-'}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+
+              <Divider />
+
+              {/* Status Info */}
+              {deliveryStatusData.status && (
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+                    حالة الشحنة
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                    <Chip
+                      label={deliveryStatusData.status.arabic || deliveryStatusData.status.english || '-'}
+                      sx={{
+                        backgroundColor: deliveryStatusData.status.color || '#1976d2',
+                        color: '#ffffff',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        padding: '8px 16px',
+                      }}
+                    />
+                    {deliveryStatusData.status.english && (
+                      <Typography variant="body2" color="text.secondary">
+                        ({deliveryStatusData.status.english})
+                      </Typography>
+                    )}
+                  </Box>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <InfoItem
+                        label="معرف الحالة"
+                        value={deliveryStatusData.status.id || '-'}
+                      />
+                    </Grid>
+                    {deliveryStatusData.status.colorName && (
+                      <Grid item xs={12} sm={6}>
+                        <InfoItem
+                          label="اسم اللون"
+                          value={deliveryStatusData.status.colorName}
+                        />
+                      </Grid>
+                    )}
+                  </Grid>
+                </Box>
+              )}
+
+              {/* Driver Info */}
+              {deliveryStatusData.driver && (
+                <>
+                  <Divider />
+                  <Box>
+                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+                      معلومات السائق
+                    </Typography>
+                    <Grid container spacing={2}>
+                      {deliveryStatusData.driver.name && (
+                        <Grid item xs={12} sm={6}>
+                          <InfoItem
+                            label="اسم السائق"
+                            value={deliveryStatusData.driver.name}
+                          />
+                        </Grid>
+                      )}
+                      {deliveryStatusData.driver.phone && (
+                        <Grid item xs={12} sm={6}>
+                          <InfoItem
+                            label="هاتف السائق"
+                            value={deliveryStatusData.driver.phone}
+                          />
+                        </Grid>
+                      )}
+                      {deliveryStatusData.driver.vehicleNumber && (
+                        <Grid item xs={12} sm={6}>
+                          <InfoItem
+                            label="رقم المركبة"
+                            value={deliveryStatusData.driver.vehicleNumber}
+                          />
+                        </Grid>
+                      )}
+                      {deliveryStatusData.driver.licenseNumber && (
+                        <Grid item xs={12} sm={6}>
+                          <InfoItem
+                            label="رقم الرخصة"
+                            value={deliveryStatusData.driver.licenseNumber}
+                          />
+                        </Grid>
+                      )}
+                    </Grid>
+                  </Box>
+                </>
+              )}
+
+              {/* Additional Info */}
+              {(!deliveryStatusData.status && !deliveryStatusData.driver) && (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="body1" color="text.secondary">
+                    لا توجد معلومات إضافية متاحة
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="body1" color="text.secondary">
+                لا توجد معلومات حالة توصيل متاحة لهذا الطلب
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      </GlassDialog>
 
       {/* Snackbar Toast */}
       <Snackbar
