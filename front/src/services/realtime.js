@@ -22,7 +22,13 @@ export const createOrderUpdatesConnection = () => {
   return connection;
 };
 
-export const subscribeToOrderUpdates = async ({ onOrderCreated, onOrderStatusChanged } = {}) => {
+export const subscribeToOrderUpdates = async ({ 
+  onOrderCreated, 
+  onOrderStatusChanged, 
+  onDeliveryStatusChanged,
+  onShipmentStatusUpdated,
+  onShipmentNoteAdded
+} = {}) => {
   const primaryBase = getApiBase();
   const candidates = [
     `${primaryBase}${HUB_PATH}`,
@@ -41,6 +47,16 @@ export const subscribeToOrderUpdates = async ({ onOrderCreated, onOrderStatusCha
     );
   }
 
+  // Helper function to register all event handlers
+  const registerHandlers = (connection) => {
+    if (onOrderCreated) connection.on("OrderCreated", onOrderCreated);
+    if (onOrderStatusChanged) connection.on("OrderStatusChanged", onOrderStatusChanged);
+    if (onDeliveryStatusChanged) connection.on("DeliveryStatusChanged", onDeliveryStatusChanged);
+    // Add handlers for shipment status updates from webhook
+    if (onShipmentStatusUpdated) connection.on("ShipmentStatusUpdated", onShipmentStatusUpdated);
+    if (onShipmentNoteAdded) connection.on("ShipmentNoteAdded", onShipmentNoteAdded);
+  };
+
   // Iterate candidates and try to connect using multiple transports
   for (const hubUrl of candidates) {
     try {
@@ -51,8 +67,7 @@ export const subscribeToOrderUpdates = async ({ onOrderCreated, onOrderStatusCha
         .configureLogging(LogLevel.Information)
         .build();
 
-      if (onOrderCreated) wsConnection.on("OrderCreated", onOrderCreated);
-      if (onOrderStatusChanged) wsConnection.on("OrderStatusChanged", onOrderStatusChanged);
+      registerHandlers(wsConnection);
 
       wsConnection.onreconnecting(err => console.warn("SignalR reconnecting...", err));
       wsConnection.onreconnected(id => console.info("SignalR reconnected", id));
@@ -73,8 +88,7 @@ export const subscribeToOrderUpdates = async ({ onOrderCreated, onOrderStatusCha
         .configureLogging(LogLevel.Information)
         .build();
 
-      if (onOrderCreated) connection.on("OrderCreated", onOrderCreated);
-      if (onOrderStatusChanged) connection.on("OrderStatusChanged", onOrderStatusChanged);
+      registerHandlers(connection);
 
       connection.onreconnecting(err => console.warn("SignalR reconnecting...", err));
       connection.onreconnected(id => console.info("SignalR reconnected", id));
@@ -95,8 +109,7 @@ export const subscribeToOrderUpdates = async ({ onOrderCreated, onOrderStatusCha
         .configureLogging(LogLevel.Information)
         .build();
 
-      if (onOrderCreated) lpConnection.on("OrderCreated", onOrderCreated);
-      if (onOrderStatusChanged) lpConnection.on("OrderStatusChanged", onOrderStatusChanged);
+      registerHandlers(lpConnection);
 
       await lpConnection.start();
       console.info("SignalR connected via LongPolling:", hubUrl);
@@ -108,5 +121,88 @@ export const subscribeToOrderUpdates = async ({ onOrderCreated, onOrderStatusCha
 
   throw new Error("All SignalR connection attempts failed. Check API base URL and CORS/HTTPS.");
 };
+
+// Helper function to create a temporary connection and invoke a method
+const invokeSignalRMethod = async (methodName, ...args) => {
+  const primaryBase = getApiBase();
+  const candidates = [
+    `${primaryBase}${HUB_PATH}`,
+    `${primaryBase.replace(/^https:\/\//, 'http://')}${HUB_PATH}`,
+  ];
+
+  // Add common local dev fallbacks if base is localhost
+  if (/^https?:\/\/localhost/.test(primaryBase)) {
+    candidates.push(
+      `https://localhost:44345${HUB_PATH}`,
+      `https://localhost:7036${HUB_PATH}`,
+      `http://localhost:5219${HUB_PATH}`
+    );
+  }
+
+  // Try to connect and invoke method
+  for (const hubUrl of candidates) {
+    let connection = null;
+    try {
+      // Try WebSockets first
+      try {
+        connection = new HubConnectionBuilder()
+          .withUrl(hubUrl, { skipNegotiation: true, transport: HttpTransportType.WebSockets })
+          .withAutomaticReconnect()
+          .configureLogging(LogLevel.Warning)
+          .build();
+        await connection.start();
+      } catch (wsError) {
+        // Fallback to negotiation
+        connection = new HubConnectionBuilder()
+          .withUrl(hubUrl)
+          .withAutomaticReconnect()
+          .configureLogging(LogLevel.Warning)
+          .build();
+        await connection.start();
+      }
+
+      // Invoke the method
+      const result = await connection.invoke(methodName, ...args);
+      
+      // Clean up connection
+      await connection.stop();
+      
+      return result;
+    } catch (error) {
+      if (connection) {
+        try {
+          await connection.stop();
+        } catch (stopError) {
+          // Ignore stop errors
+        }
+      }
+      
+      // Try LongPolling as last resort for this candidate
+      try {
+        const lpConnection = new HubConnectionBuilder()
+          .withUrl(hubUrl, { transport: HttpTransportType.LongPolling })
+          .withAutomaticReconnect()
+          .configureLogging(LogLevel.Warning)
+          .build();
+        
+        await lpConnection.start();
+        const result = await lpConnection.invoke(methodName, ...args);
+        await lpConnection.stop();
+        return result;
+      } catch (lpError) {
+        // Continue to next candidate
+        continue;
+      }
+    }
+  }
+
+  throw new Error(`Failed to invoke ${methodName} via SignalR. All connection attempts failed.`);
+};
+
+// Get delivery status via SignalR - DEPRECATED: Now using REST API instead
+// Keeping this for reference but not exporting it
+// export const getDeliveryStatus = async (orderId) => {
+//   return await invokeSignalRMethod("GetDeliveryStatus", orderId);
+// };
 
 

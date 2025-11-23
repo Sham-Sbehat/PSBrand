@@ -19,6 +19,7 @@ import {
   People,
   CheckCircle,
   Pending,
+  Store,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -26,6 +27,7 @@ import { ordersService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import OrdersList from "../components/admin/OrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
+import SellerManagement from "../components/admin/SellerManagement";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
 
@@ -274,12 +276,26 @@ const AdminDashboard = () => {
                 },
               }}
             />
+            <Tab
+              label="إدارة البائعين"
+              icon={<Store />}
+              iconPosition="start"
+              sx={{
+                fontWeight: 600,
+                fontSize: "1rem",
+                color: calmPalette.textMuted,
+                "&.Mui-selected": {
+                  color: "#f7f2ea",
+                },
+              }}
+            />
           </Tabs>
         </Box>
 
         <Box>
           {currentTab === 0 && <OrdersList />}
           {currentTab === 1 && <EmployeeManagement />}
+          {currentTab === 2 && <SellerManagement />}
         </Box>
       </Container>
     </Box>

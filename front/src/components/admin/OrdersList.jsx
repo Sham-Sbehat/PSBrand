@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Paper,
   Typography,
@@ -31,7 +31,6 @@ import {
   Image as ImageIcon,
   PictureAsPdf,
   LocalShipping,
-  TrackChanges,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../../services/api";
@@ -81,6 +80,8 @@ const OrdersList = () => {
   const [deliveryStatusData, setDeliveryStatusData] = useState(null);
   const [deliveryStatusLoading, setDeliveryStatusLoading] = useState(false);
   const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
+  const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
+  const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true/false }
 
   const getFullUrl = (url) => {
     if (!url || typeof url !== 'string') return url;
@@ -99,29 +100,149 @@ const OrdersList = () => {
     return `${baseDomain}/${url}`;
   };
 
+  // Fetch delivery status for orders sent to delivery company
+  const fetchDeliveryStatus = useCallback(async (orderId) => {
+    // Check if already loading or loaded
+    setLoadingDeliveryStatuses(prev => {
+      if (prev[orderId]) return prev; // Already loading
+      return { ...prev, [orderId]: true };
+    });
+    
+    setDeliveryStatuses(currentStatuses => {
+      if (currentStatuses[orderId]) {
+        // Already loaded, cancel loading
+        setLoadingDeliveryStatuses(prev => {
+          const updated = { ...prev };
+          delete updated[orderId];
+          return updated;
+        });
+        return currentStatuses;
+      }
+      return currentStatuses;
+    });
+    
+    try {
+      const statusData = await shipmentsService.getDeliveryStatus(orderId);
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
+    } catch (error) {
+      console.error(`Error fetching delivery status for order ${orderId}:`, error);
+      // Set null to indicate failed to load
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
+    } finally {
+      setLoadingDeliveryStatuses(prev => {
+        const updated = { ...prev };
+        delete updated[orderId];
+        return updated;
+      });
+    }
+  }, []);
+
   // Fetch all orders from API + subscribe to realtime updates
   useEffect(() => {
     const fetchOrders = async () => {
-      setLoading(true);
       try {
         const response = await ordersService.getAllOrders();
-        setAllOrders(response || []);
+        const newOrders = response || [];
+        
+        // Update state with new orders
+        setAllOrders(newOrders);
+        
+        // Fetch delivery statuses for orders sent to delivery company
+        const sentOrders = newOrders.filter(
+          order => order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
+        );
+        
+        // Load delivery statuses in parallel (with limit to avoid overwhelming)
+        sentOrders.slice(0, 20).forEach(order => {
+          fetchDeliveryStatus(order.id);
+        });
+        
+        // Return the orders for use in .then()
+        return newOrders;
       } catch (error) {
         console.error('Error fetching orders:', error);
         setAllOrders([]);
-      } finally {
-        setLoading(false);
+        return [];
       }
     };
+    
+    const fetchOrdersWithLoading = async () => {
+      setLoading(true);
+      await fetchOrders();
+      setLoading(false);
+    };
 
-    fetchOrders();
+    fetchOrdersWithLoading();
 
     let unsubscribe;
     (async () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
-          onOrderCreated: () => fetchOrders(),
-          onOrderStatusChanged: () => fetchOrders(),
+          onOrderCreated: () => {
+            console.log('Order created - refreshing orders');
+            fetchOrders(); // Refresh without loading indicator
+          },
+          onOrderStatusChanged: (orderData) => {
+            console.log('🔔 Order status changed received from SignalR:', orderData);
+            
+            // Always refresh from server when status changes to get latest data
+            // This ensures we always have the most up-to-date information
+            fetchOrders().then((refreshedOrders) => {
+              console.log('✅ Orders refreshed from server:', refreshedOrders?.length || 'unknown count');
+              
+              // Get order info from the received data
+              const order = typeof orderData === 'object' ? orderData : null;
+              const orderId = order?.id || orderData;
+              const newStatus = order?.status;
+              
+              // Find the updated order in the refreshed list to get its status
+              setAllOrders(currentOrders => {
+                const updatedOrder = currentOrders.find(o => o.id === orderId || (order && o.id === order.id));
+                if (updatedOrder) {
+                  console.log('📦 Updated order found:', updatedOrder.id, 'Status:', updatedOrder.status);
+                  
+                  // If order status changed to SENT_TO_DELIVERY_COMPANY, fetch delivery status
+                  if (updatedOrder.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                    setTimeout(() => {
+                      console.log('🚚 Fetching delivery status for order:', updatedOrder.id);
+                      fetchDeliveryStatus(updatedOrder.id);
+                    }, 1000);
+                  }
+                }
+                return currentOrders; // State already updated by fetchOrders
+              });
+            }).catch(err => {
+              console.error('❌ Error refreshing orders after status change:', err);
+            });
+          },
+          onDeliveryStatusChanged: (orderId, deliveryStatus) => {
+            // Update delivery status in real-time when backend sends update
+            console.log('Delivery status updated via SignalR for order:', orderId, deliveryStatus);
+            setDeliveryStatuses(prev => ({
+              ...prev,
+              [orderId]: deliveryStatus
+            }));
+          },
+          onShipmentStatusUpdated: (shipmentData) => {
+            // Handle shipment status update from webhook (ShipmentStatusUpdated event)
+            console.log('📦 Shipment status updated via SignalR (webhook):', shipmentData);
+            const orderId = shipmentData?.orderId;
+            if (orderId) {
+              // Fetch the latest delivery status from API
+              console.log('🔄 Fetching updated delivery status for order:', orderId);
+              fetchDeliveryStatus(orderId);
+            }
+          },
+          onShipmentNoteAdded: (shipmentData) => {
+            // Handle shipment note added from webhook (ShipmentNoteAdded event)
+            console.log('📝 Shipment note added via SignalR (webhook):', shipmentData);
+            const orderId = shipmentData?.orderId;
+            if (orderId) {
+              // Fetch the latest delivery status from API to get updated notes
+              console.log('🔄 Fetching updated delivery status for order:', orderId);
+              fetchDeliveryStatus(orderId);
+            }
+          },
         });
       } catch (err) {
         console.error('Failed to connect to updates hub:', err);
@@ -132,6 +253,25 @@ const OrdersList = () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, []);
+
+  // Load delivery statuses for orders sent to delivery company when orders change
+  useEffect(() => {
+    const sentOrders = allOrders.filter(
+      order => order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
+    );
+    
+    // Load delivery statuses for new orders
+    sentOrders.forEach(order => {
+      // Check synchronously if already loaded or loading
+      const isLoaded = deliveryStatuses[order.id] !== undefined;
+      const isLoading = loadingDeliveryStatuses[order.id] === true;
+      
+      if (!isLoaded && !isLoading) {
+        fetchDeliveryStatus(order.id);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allOrders]);
 
   const handleViewOrder = (order) => {
     setSelectedOrder(order);
@@ -517,6 +657,10 @@ const OrdersList = () => {
       try {
         const updatedOrders = await ordersService.getAllOrders();
         setAllOrders(updatedOrders || []);
+        
+        // Fetch delivery status for the shipped order
+        // Note: Real-time updates will come via SignalR, but we fetch once to get initial status
+        fetchDeliveryStatus(orderToShip.id);
       } catch (refreshError) {
         console.error('Error refreshing orders after shipping:', refreshError);
       }
@@ -962,6 +1106,7 @@ const OrdersList = () => {
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>الكمية الإجمالية</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>السعر الإجمالي</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>التفاصيل</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}></TableCell>
@@ -970,7 +1115,7 @@ const OrdersList = () => {
               <TableBody>
                 {paginatedOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} align="center">
+                    <TableCell colSpan={11} align="center">
                       <Box sx={{ padding: 4 }}>
                         <Typography variant="h6" color="text.secondary">
                           لا توجد طلبات
@@ -1012,6 +1157,81 @@ const OrdersList = () => {
                         </TableCell>
                         <TableCell>{order.totalQuantity}</TableCell>
                         <TableCell>{order.totalAmount} ₪</TableCell>
+                        <TableCell
+                          onClick={() => {
+                            if (order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                              handleDeliveryStatusClick(order);
+                            }
+                          }}
+                          sx={{
+                            cursor: order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? 'pointer' : 'default',
+                            '&:hover': order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? {
+                              backgroundColor: 'action.hover',
+                            } : {},
+                          }}
+                        >
+                          {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? (
+                            (() => {
+                              const statusData = deliveryStatuses[order.id];
+                              const isLoading = loadingDeliveryStatuses[order.id];
+                              
+                              if (isLoading) {
+                                return (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <CircularProgress size={16} />
+                                    <Typography variant="body2" color="text.secondary">
+                                      جاري التحميل...
+                                    </Typography>
+                                  </Box>
+                                );
+                              }
+                              
+                              if (statusData === null) {
+                                return (
+                                  <Typography variant="body2" color="error">
+                                    فشل التحميل
+                                  </Typography>
+                                );
+                              }
+                              
+                              if (statusData && statusData.status) {
+                                return (
+                                  <Chip
+                                    label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                    sx={{
+                                      backgroundColor: statusData.status.color || '#1976d2',
+                                      color: '#ffffff',
+                                      fontWeight: 600,
+                                      fontSize: '0.75rem',
+                                      cursor: 'pointer',
+                                      maxWidth: '150px',
+                                      '&:hover': {
+                                        opacity: 0.9,
+                                        transform: 'scale(1.05)',
+                                      },
+                                      transition: 'all 0.2s',
+                                      '& .MuiChip-label': {
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                      },
+                                    }}
+                                    size="small"
+                                  />
+                                );
+                              }
+                              
+                              return (
+                                <Typography variant="body2" color="text.secondary">
+                                  غير متوفر - اضغط لعرض التفاصيل
+                                </Typography>
+                              );
+                            })()
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              -
+                            </Typography>
+                          )}
+                        </TableCell>
                         <TableCell sx={{ textAlign: 'center' }}>
                           <IconButton
                             size="small"
@@ -1116,37 +1336,6 @@ const OrdersList = () => {
                                 </IconButton>
                               </span>
                             </Tooltip>
-                            {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY && (
-                              <Tooltip 
-                                title="عرض حالة التوصيل من شركة التوصيل"
-                                arrow 
-                                placement="top"
-                              >
-                                <span>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleDeliveryStatusClick(order)}
-                                    sx={{
-                                      color: '#1976d2',
-                                      backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                                      width: '36px',
-                                      height: '36px',
-                                      minWidth: '36px',
-                                      minHeight: '50px',
-                                      '&:hover': {
-                                        backgroundColor: 'rgba(25, 118, 210, 0.2)',
-                                        color: '#1565c0',
-                                      },
-                                      border: '1px solid rgba(25, 118, 210, 0.3)',
-                                      borderRadius: 1,
-                                      padding: '8px',
-                                    }}
-                                  >
-                                    <TrackChanges fontSize="small" />
-                                  </IconButton>
-                                </span>
-                              </Tooltip>
-                            )}
                           </Box>
                         </TableCell>
                         <TableCell>

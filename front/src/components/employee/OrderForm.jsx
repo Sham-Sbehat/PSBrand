@@ -1806,6 +1806,7 @@ const OrderForm = ({
                     fullWidth
                     options={allClients}
                     getOptionLabel={(option) => option.phone?.toString() || ""}
+                    isOptionEqualToValue={(option, value) => option.id === value?.id}
                     loading={loadingClients}
                     value={
                       allClients.find((client) => client.id === clientId) ||
@@ -1830,7 +1831,7 @@ const OrderForm = ({
                       );
                     }}
                     renderOption={(props, option) => (
-                      <Box component="li" {...props}>
+                      <Box component="li" {...props} key={option.id || option.phone}>
                         <Box
                           sx={{
                             display: "flex",
