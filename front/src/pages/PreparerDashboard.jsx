@@ -23,8 +23,9 @@ import {
   Tabs,
   Tab,
   Divider,
+  TextField,
 } from "@mui/material";
-import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, TrackChanges } from "@mui/icons-material";
+import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../services/api";
@@ -96,6 +97,15 @@ const PreparerDashboard = () => {
   const [deliveryStatusData, setDeliveryStatusData] = useState(null);
   const [deliveryStatusLoading, setDeliveryStatusLoading] = useState(false);
   const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
+  const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
+  const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true }
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
 
   // Fetch available orders (Status 3: IN_PREPARATION) - Tab 0
   const fetchAvailableOrders = async (showLoading = false) => {
@@ -139,8 +149,32 @@ const PreparerDashboard = () => {
     }
   };
 
+  // Fetch delivery status for orders sent to delivery company
+  const fetchDeliveryStatus = async (orderId) => {
+    // Check if already loading or loaded
+    if (loadingDeliveryStatuses[orderId] || deliveryStatuses[orderId] !== undefined) {
+      return;
+    }
+    
+    setLoadingDeliveryStatuses(prev => ({ ...prev, [orderId]: true }));
+    
+    try {
+      const statusData = await shipmentsService.getDeliveryStatus(orderId);
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
+    } catch (error) {
+      console.error(`Error fetching delivery status for order ${orderId}:`, error);
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
+    } finally {
+      setLoadingDeliveryStatuses(prev => {
+        const updated = { ...prev };
+        delete updated[orderId];
+        return updated;
+      });
+    }
+  };
+
   // Fetch completed orders (Status 4: COMPLETED and Status 7: SENT_TO_DELIVERY_COMPANY with preparer === currentUser)
-  const fetchCompletedOrders = async (showLoading = false) => {
+  const fetchCompletedOrders = async (showLoading = false, dateString = null) => {
     if (showLoading) {
       setLoading(true);
     }
@@ -151,19 +185,30 @@ const PreparerDashboard = () => {
         return;
       }
       
-      // Fetch both COMPLETED and SENT_TO_DELIVERY_COMPANY orders
-      const [completedOrders, sentOrders] = await Promise.all([
-        ordersService.getOrdersForPreparer(currentUserId, ORDER_STATUS.COMPLETED),
-        ordersService.getOrdersForPreparer(currentUserId, ORDER_STATUS.SENT_TO_DELIVERY_COMPANY)
-      ]);
+      // استخدام API الجديد مع التاريخ
+      const dateToUse = dateString || selectedDate;
+      const date = dateToUse ? new Date(dateToUse) : new Date();
+      const isoDateString = date.toISOString();
       
-      // Combine both arrays and remove duplicates
-      const allOrders = [...(completedOrders || []), ...(sentOrders || [])];
-      const uniqueOrders = allOrders.filter((order, index, self) => 
-        index === self.findIndex((o) => o.id === order.id)
+      const response = await ordersService.getOrdersByPreparerAndMonth(currentUserId, isoDateString);
+      
+      // الـ API يرجع object يحتوي على orders array
+      const orders = response?.orders || (Array.isArray(response) ? response : []);
+      
+      // Filter للطلبات المكتملة والمرسلة فقط
+      const completedAndSent = orders.filter(
+        order => order.status === ORDER_STATUS.COMPLETED || order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
       );
       
-      setCompletedOrders(uniqueOrders);
+      setCompletedOrders(completedAndSent);
+      
+      // جلب حالة التوصيل للطلبات المرسلة لشركة التوصيل
+      const sentToDelivery = completedAndSent.filter(
+        order => order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
+      );
+      sentToDelivery.slice(0, 20).forEach(order => {
+        fetchDeliveryStatus(order.id);
+      });
     } catch (error) {
       console.error('Error fetching completed orders:', error);
       setCompletedOrders([]);
@@ -172,6 +217,14 @@ const PreparerDashboard = () => {
         setLoading(false);
       }
     }
+  };
+
+  const handleDateChange = async (event) => {
+    const newDateString = event.target.value;
+    if (!newDateString || !user?.id) return;
+    
+    setSelectedDate(newDateString);
+    await fetchCompletedOrders(false, newDateString);
   };
 
   // Fetch both tabs data
@@ -281,6 +334,11 @@ const PreparerDashboard = () => {
                   // Remove from other lists
                   setAvailableOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
                   setMyOpenOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
+                  
+                  // إذا كانت الحالة SENT_TO_DELIVERY_COMPANY، نجلب حالة التوصيل
+                  if (updatedOrder.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                    fetchDeliveryStatus(updatedOrder.id);
+                  }
                 } else {
                   // Status changed to something else, remove from all lists
                   setAvailableOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
@@ -289,6 +347,54 @@ const PreparerDashboard = () => {
                 }
             }
             fetchAllOrders(false);
+          },
+          onShipmentStatusUpdated: (shipmentData) => {
+            const orderId = shipmentData?.orderId;
+            if (orderId) {
+              // استخدام البيانات مباشرة من SignalR
+              if (shipmentData?.status) {
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  lastUpdate: shipmentData.lastUpdate
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              } else {
+                fetchDeliveryStatus(orderId);
+              }
+            }
+          },
+          onShipmentNoteAdded: (shipmentData) => {
+            const orderId = shipmentData?.orderId;
+            if (orderId) { 
+              if (shipmentData?.status) {
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  note: shipmentData.note,
+                  lastUpdate: shipmentData.entryDateTime
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              } else {
+                fetchDeliveryStatus(orderId);
+              }
+            }
           },
         });
       } catch (err) {
@@ -789,7 +895,17 @@ const InfoItem = ({ label, value }) => (
       title: "الطلبات المكتملة والمرسلة",
       value: completedOrders.length,
       icon: Assignment,
-      onClick: () => setOpenCompletedOrdersModal(true),
+      onClick: () => {
+        // تعيين التاريخ الحالي كافتراضي عند فتح Modal
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const todayString = `${year}-${month}-${day}`;
+        setSelectedDate(todayString);
+        fetchCompletedOrders(true, todayString);
+        setOpenCompletedOrdersModal(true);
+      },
     },
   ];
 
@@ -1393,6 +1509,7 @@ const InfoItem = ({ label, value }) => (
                   <TableCell>المحافظة</TableCell>
                   <TableCell>الإجمالي</TableCell>
                   <TableCell>الحالة</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
                   <TableCell>تاريخ الطلب</TableCell>
                   <TableCell>الملاحظات</TableCell>
                   <TableCell>الإجراءات</TableCell>
@@ -1421,6 +1538,81 @@ const InfoItem = ({ label, value }) => (
                       <TableCell>
                         <Chip label={status.label} color={status.color} size="small" />
                       </TableCell>
+                      <TableCell
+                        onClick={() => {
+                          if (order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                            handleDeliveryStatusClick(order);
+                          }
+                        }}
+                        sx={{
+                          cursor: order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? 'pointer' : 'default',
+                          '&:hover': order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? {
+                            backgroundColor: 'action.hover',
+                          } : {},
+                        }}
+                      >
+                        {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? (
+                          (() => {
+                            const statusData = deliveryStatuses[order.id];
+                            const isLoading = loadingDeliveryStatuses[order.id];
+                            
+                            if (isLoading) {
+                              return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <CircularProgress size={16} />
+                                  <Typography variant="body2" color="text.secondary">
+                                    جاري التحميل...
+                                  </Typography>
+                                </Box>
+                              );
+                            }
+                            
+                            if (statusData === null) {
+                              return (
+                                <Typography variant="body2" color="error">
+                                  فشل التحميل
+                                </Typography>
+                              );
+                            }
+                            
+                            if (statusData && statusData.status) {
+                              return (
+                                <Chip
+                                  label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                  sx={{
+                                    backgroundColor: statusData.status.color || '#1976d2',
+                                    color: '#ffffff',
+                                    fontWeight: 600,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    maxWidth: '150px',
+                                    '&:hover': {
+                                      opacity: 0.9,
+                                      transform: 'scale(1.05)',
+                                    },
+                                    transition: 'all 0.2s',
+                                    '& .MuiChip-label': {
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    },
+                                  }}
+                                  size="small"
+                                />
+                              );
+                            }
+                            
+                            return (
+                              <Typography variant="body2" color="text.secondary">
+                                غير متوفر - اضغط لعرض التفاصيل
+                              </Typography>
+                            );
+                          })()
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            -
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell sx={{ color: "text.secondary" }}>
                         {order.orderDate
                           ? new Date(order.orderDate).toLocaleDateString("ar-SA", {
@@ -1447,36 +1639,14 @@ const InfoItem = ({ label, value }) => (
                         </IconButton>
                       </TableCell>
                       <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<Visibility />}
-                            onClick={() => handleViewDetails(order)}
-                          >
-                            عرض التفاصيل
-                          </Button>
-                          {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY && (
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeliveryStatusClick(order)}
-                              sx={{
-                                color: '#1976d2',
-                                backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                                '&:hover': {
-                                  backgroundColor: 'rgba(25, 118, 210, 0.2)',
-                                  color: '#1565c0',
-                                },
-                                border: '1px solid rgba(25, 118, 210, 0.3)',
-                                borderRadius: 1,
-                                padding: '14px 8px',
-                              }}
-                              title="عرض حالة التوصيل من شركة التوصيل"
-                            >
-                              <TrackChanges fontSize="small" />
-                            </IconButton>
-                          )}
-                        </Box>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<Visibility />}
+                          onClick={() => handleViewDetails(order)}
+                        >
+                          عرض التفاصيل
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

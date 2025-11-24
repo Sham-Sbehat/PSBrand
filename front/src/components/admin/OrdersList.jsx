@@ -228,19 +228,49 @@ const OrdersList = () => {
             console.log('📦 Shipment status updated via SignalR (webhook):', shipmentData);
             const orderId = shipmentData?.orderId;
             if (orderId) {
-              // Fetch the latest delivery status from API
-              console.log('🔄 Fetching updated delivery status for order:', orderId);
-              fetchDeliveryStatus(orderId);
+              if (shipmentData?.status) {
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  lastUpdate: shipmentData.lastUpdate
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              } else {
+                fetchDeliveryStatus(orderId);
+              }
             }
           },
           onShipmentNoteAdded: (shipmentData) => {
             // Handle shipment note added from webhook (ShipmentNoteAdded event)
-            console.log('📝 Shipment note added via SignalR (webhook):', shipmentData);
             const orderId = shipmentData?.orderId;
             if (orderId) {
-              // Fetch the latest delivery status from API to get updated notes
-              console.log('🔄 Fetching updated delivery status for order:', orderId);
-              fetchDeliveryStatus(orderId);
+              if (shipmentData?.status) {
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  note: shipmentData.note,
+                  lastUpdate: shipmentData.entryDateTime
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              } else {
+                fetchDeliveryStatus(orderId);
+              }
             }
           },
         });

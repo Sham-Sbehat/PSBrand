@@ -254,6 +254,26 @@ export const ordersService = {
     return response.data;
   },
 
+  getOrdersByDesignerAndMonth: async (designerId, date) => {
+    const response = await api.get(`/Orders/GetOrdersByDesignerAndMonth`, {
+      params: {
+        designerId: designerId,
+        date: date
+      }
+    });
+    return response.data;
+  },
+
+  getOrdersByPreparerAndMonth: async (preparerId, date) => {
+    const response = await api.get(`/Orders/GetOrdersByPreparerAndMonth`, {
+      params: {
+        preparerId: preparerId,
+        date: date
+      }
+    });
+    return response.data;
+  },
+
   getOrdersByStatus: async (status) => {
     const response = await api.get(`/Orders/GetOrderStatus/${status}`);
     return response.data;

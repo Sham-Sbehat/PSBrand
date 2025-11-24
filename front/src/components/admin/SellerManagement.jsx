@@ -26,6 +26,7 @@ import {
   ArrowBack,
   ArrowForward,
   TouchApp,
+  CalendarToday,
 } from '@mui/icons-material';
 import { employeesService, ordersService } from '../../services/api';
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../constants';
@@ -37,10 +38,24 @@ const SellerManagement = () => {
   const [selectedSeller, setSelectedSeller] = useState(null);
   const [sellerOrders, setSellerOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersSummary, setOrdersSummary] = useState({
+    totalCount: 0,
+    totalAmountWithDelivery: 0,
+    totalAmountWithoutDelivery: 0,
+    periodDescription: ''
+  });
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  // التاريخ المحدد بالشكل YYYY-MM-DD (للـ input type="date")
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
 
   useEffect(() => {
     loadSellers();
@@ -59,13 +74,37 @@ const SellerManagement = () => {
     }
   };
 
-  const handleSelectSeller = async (seller) => {
-    setSelectedSeller(seller);
+  const loadSellerOrders = async (seller, dateString) => {
+    if (!seller) return;
+    
     setOrdersLoading(true);
     setPage(0); // Reset pagination
     try {
-      const orders = await ordersService.getOrdersByDesigner(seller.id);
+      // تحويل التاريخ من YYYY-MM-DD إلى ISO string (YYYY-MM-DDTHH:mm:ss)
+      const date = dateString ? new Date(dateString) : new Date();
+      const isoDateString = date.toISOString();
+      const response = await ordersService.getOrdersByDesignerAndMonth(seller.id, isoDateString);
+      
+      // الـ API يرجع object يحتوي على orders array
+      // response structure: { designerId, periodStart, periodEnd, periodDescription, totalCount, orders: [...] }
+      const orders = response?.orders || (Array.isArray(response) ? response : []);
       setSellerOrders(Array.isArray(orders) ? orders : []);
+      
+      // حفظ معلومات الـ summary
+      setOrdersSummary({
+        totalCount: response?.totalCount || orders.length,
+        totalAmountWithDelivery: response?.totalAmountWithDelivery || 0,
+        totalAmountWithoutDelivery: response?.totalAmountWithoutDelivery || 0,
+        periodDescription: response?.periodDescription || ''
+      });
+      
+      console.log('Loaded seller orders:', {
+        totalCount: response?.totalCount || orders.length,
+        ordersCount: orders.length,
+        periodDescription: response?.periodDescription,
+        totalAmountWithDelivery: response?.totalAmountWithDelivery,
+        totalAmountWithoutDelivery: response?.totalAmountWithoutDelivery
+      });
     } catch (err) {
       console.error('Error loading seller orders:', err);
       setSellerOrders([]);
@@ -74,12 +113,44 @@ const SellerManagement = () => {
     }
   };
 
+  const handleSelectSeller = async (seller) => {
+    setSelectedSeller(seller);
+    // تعيين التاريخ الحالي كافتراضي
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayString = `${year}-${month}-${day}`;
+    setSelectedDate(todayString);
+    await loadSellerOrders(seller, todayString);
+  };
+
+  const handleDateChange = async (event) => {
+    const newDateString = event.target.value;
+    if (!newDateString || !selectedSeller) return;
+    
+    setSelectedDate(newDateString);
+    await loadSellerOrders(selectedSeller, newDateString);
+  };
+
   const handleBack = () => {
     setSelectedSeller(null);
     setSellerOrders([]);
     setPage(0);
     setStatusFilter('all');
     setSearchQuery('');
+    setOrdersSummary({
+      totalCount: 0,
+      totalAmountWithDelivery: 0,
+      totalAmountWithoutDelivery: 0,
+      periodDescription: ''
+    });
+    // إعادة تعيين التاريخ للتاريخ الحالي
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    setSelectedDate(`${year}-${month}-${day}`);
   };
 
   const getStatusLabel = (status) => {
@@ -166,10 +237,112 @@ const SellerManagement = () => {
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               طلبات البائع: {selectedSeller.name}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              إجمالي الطلبات: {filteredOrders.length}
-            </Typography>
+            {ordersSummary.periodDescription && (
+              <Typography variant="body2" color="text.secondary">
+                {ordersSummary.periodDescription}
+              </Typography>
+            )}
           </Box>
+        </Box>
+
+        {/* Summary Cards */}
+        <Grid container spacing={2} sx={{ marginBottom: 3 }}>
+          <Grid item xs={12} sm={4}>
+            <Paper
+              elevation={2}
+              sx={{
+                padding: 2,
+                borderRadius: 2,
+                background: `linear-gradient(135deg, ${calmPalette.primary}10 0%, ${calmPalette.primary}20 100%)`,
+                border: `1px solid ${calmPalette.primary}30`,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ marginBottom: 0.5 }}>
+                عدد الطلبات
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: calmPalette.primary }}>
+                {ordersSummary.totalCount}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Paper
+              elevation={2}
+              sx={{
+                padding: 2,
+                borderRadius: 2,
+                background: `linear-gradient(135deg, #4caf5010 0%, #4caf5020 100%)`,
+                border: `1px solid #4caf5030`,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ marginBottom: 0.5 }}>
+                المجموع مع التوصيل
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: '#4caf50' }}>
+                {formatCurrency(ordersSummary.totalAmountWithDelivery)}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Paper
+              elevation={2}
+              sx={{
+                padding: 2,
+                borderRadius: 2,
+                background: `linear-gradient(135deg, #ff980010 0%, #ff980020 100%)`,
+                border: `1px solid #ff980030`,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary" sx={{ marginBottom: 0.5 }}>
+                المجموع بدون التوصيل
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: '#ff9800' }}>
+                {formatCurrency(ordersSummary.totalAmountWithoutDelivery)}
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Date Picker Section */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            marginBottom: 3,
+            padding: 2,
+            backgroundColor: 'action.hover',
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            flexWrap: 'wrap',
+          }}
+        >
+          <CalendarToday sx={{ color: 'primary.main', fontSize: 24 }} />
+          <Typography variant="body1" sx={{ fontWeight: 600, minWidth: 'fit-content' }}>
+            اختر التاريخ:
+          </Typography>
+          <TextField
+            type="date"
+            value={selectedDate}
+            onChange={handleDateChange}
+            size="small"
+            InputLabelProps={{
+              shrink: true,
+            }}
+            inputProps={{
+              style: { textAlign: 'right', fontFamily: 'inherit' },
+            }}
+            sx={{ 
+              minWidth: 200,
+              '& input': {
+                padding: '10px 14px',
+              }
+            }}
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ marginLeft: 'auto', flex: 1, minWidth: 200 }}>
+            سيتم عرض الطلبات  بناءً على التاريخ المحدد
+          </Typography>
         </Box>
 
         <Box

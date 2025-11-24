@@ -23,10 +23,11 @@ import {
   CircularProgress,
   Divider,
 } from "@mui/material";
-import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf, TrackChanges } from "@mui/icons-material";
+import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../services/api";
+import { subscribeToOrderUpdates } from "../services/realtime";
 import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS } from "../constants";
 import OrderForm from "../components/employee/OrderForm";
 import GlassDialog from "../components/common/GlassDialog";
@@ -199,6 +200,21 @@ const EmployeeDashboard = () => {
   const [deliveryStatusData, setDeliveryStatusData] = useState(null);
   const [deliveryStatusLoading, setDeliveryStatusLoading] = useState(false);
   const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
+  const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
+  const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true }
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const [ordersSummary, setOrdersSummary] = useState({
+    totalCount: 0,
+    totalAmountWithDelivery: 0,
+    totalAmountWithoutDelivery: 0,
+    periodDescription: ''
+  });
 
   const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
   const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
@@ -241,16 +257,110 @@ const EmployeeDashboard = () => {
   const fetchDesignerOrdersCount = async () => {
     if (user?.role === USER_ROLES.DESIGNER && user?.id) {
       try {
-        const response = await ordersService.getOrdersByDesigner(user.id);
-        setTotalOrdersCount(response?.length || 0);
+        // استخدام API الجديد مع التاريخ الحالي
+        const today = new Date();
+        const isoDateString = today.toISOString();
+        const response = await ordersService.getOrdersByDesignerAndMonth(user.id, isoDateString);
+        const orders = response?.orders || (Array.isArray(response) ? response : []);
+        setTotalOrdersCount(response?.totalCount || orders.length);
       } catch (error) {
         console.error('Error fetching orders count:', error);
       }
     }
   };
 
+  // Fetch delivery status for orders sent to delivery company
+  const fetchDeliveryStatus = async (orderId) => {
+    // Check if already loading or loaded
+    if (loadingDeliveryStatuses[orderId] || deliveryStatuses[orderId] !== undefined) {
+      return;
+    }
+    
+    setLoadingDeliveryStatuses(prev => ({ ...prev, [orderId]: true }));
+    
+    try {
+      const statusData = await shipmentsService.getDeliveryStatus(orderId);
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
+    } catch (error) {
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
+    } finally {
+      setLoadingDeliveryStatuses(prev => {
+        const updated = { ...prev };
+        delete updated[orderId];
+        return updated;
+      });
+    }
+  };
+
   useEffect(() => {
     fetchDesignerOrdersCount();
+
+    // Subscribe to SignalR updates for real-time delivery status updates
+    let unsubscribe;
+    (async () => {
+      try {
+        unsubscribe = await subscribeToOrderUpdates({
+          onShipmentStatusUpdated: (shipmentData) => {
+            // Handle shipment status update from webhook (ShipmentStatusUpdated event)
+            const orderId = shipmentData?.orderId;
+            if (orderId) {
+              // استخدام البيانات مباشرة من SignalR
+              if (shipmentData?.status) {
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  lastUpdate: shipmentData.lastUpdate
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              } else {
+                // إذا لم تكن البيانات كاملة، نجلب من API
+                fetchDeliveryStatus(orderId);
+              }
+            }
+          },
+          onShipmentNoteAdded: (shipmentData) => {
+            // Handle shipment note added from webhook (ShipmentNoteAdded event)
+            const orderId = shipmentData?.orderId;
+            if (orderId) {
+              // استخدام البيانات مباشرة من SignalR
+              if (shipmentData?.status) {
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  note: shipmentData.note,
+                  lastUpdate: shipmentData.entryDateTime
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              } else {
+                fetchDeliveryStatus(orderId);
+              }
+            }
+          },
+        });
+      } catch (err) {
+        console.error('Failed to connect to updates hub:', err);
+      }
+    })();
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [user]);
 
   const handleLogout = () => {
@@ -258,21 +368,68 @@ const EmployeeDashboard = () => {
     navigate("/");
   };
 
+  const loadOrdersByDate = async (dateString) => {
+    if (user?.role !== USER_ROLES.DESIGNER || !user?.id) return;
+    
+    setLoading(true);
+    try {
+      // تحويل التاريخ من YYYY-MM-DD إلى ISO string
+      const date = dateString ? new Date(dateString) : new Date();
+      const isoDateString = date.toISOString();
+      const response = await ordersService.getOrdersByDesignerAndMonth(user.id, isoDateString);
+      
+      // الـ API يرجع object يحتوي على orders array
+      const orders = response?.orders || (Array.isArray(response) ? response : []);
+      setOrdersList(Array.isArray(orders) ? orders : []);
+      
+      // حفظ معلومات الـ summary
+      setOrdersSummary({
+        totalCount: response?.totalCount || orders.length,
+        totalAmountWithDelivery: response?.totalAmountWithDelivery || 0,
+        totalAmountWithoutDelivery: response?.totalAmountWithoutDelivery || 0,
+        periodDescription: response?.periodDescription || ''
+      });
+      
+      // تحديث العدد الإجمالي
+      setTotalOrdersCount(response?.totalCount || orders.length);
+      
+      // جلب حالة التوصيل للطلبات المرسلة لشركة التوصيل
+      const sentOrders = orders.filter(
+        order => order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
+      );
+      sentOrders.slice(0, 20).forEach(order => {
+        fetchDeliveryStatus(order.id);
+      });
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      setOrdersList([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCardClick = async (index) => {
     // If it's the first card (Total Orders) and user is a designer, open modal
     if (index === 0 && user?.role === USER_ROLES.DESIGNER && user?.id) {
-      setLoading(true);
-      try {
-        const response = await ordersService.getOrdersByDesigner(user.id);
-        setOrdersList(response || []);
-        setTotalOrdersCount(response?.length || 0); // Update count
-        setOpenOrdersModal(true);
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-      } finally {
-        setLoading(false);
-      }
+      // تعيين التاريخ الحالي كافتراضي إذا لم يكن محدد
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const todayString = `${year}-${month}-${day}`;
+      setSelectedDate(todayString);
+      
+      await loadOrdersByDate(todayString);
+      setOpenOrdersModal(true);
     }
+  };
+
+  const handleDateChange = async (event) => {
+    const newDateString = event.target.value;
+    if (!newDateString || !user?.id) return;
+    
+    setSelectedDate(newDateString);
+    await loadOrdersByDate(newDateString);
   };
 
   // Load image for display (lazy loading)
@@ -442,7 +599,6 @@ const EmployeeDashboard = () => {
         const images = getMockupImages(design);
         const hasExcludedImage = images.includes('image_data_excluded');
         if (hasExcludedImage) {
-          console.log('Loading image for design:', design.id);
           return loadImageForDisplay(order.id, design.id);
         }
         return Promise.resolve(null);
@@ -965,6 +1121,7 @@ const EmployeeDashboard = () => {
                   <TableCell>الرقم</TableCell>
                   <TableCell>الإجمالي</TableCell>
                   <TableCell>الحالة</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
                   <TableCell>التاريخ</TableCell>
                   <TableCell>الإجراءات</TableCell>
                 </TableRow>
@@ -986,6 +1143,81 @@ const EmployeeDashboard = () => {
                       <TableCell>{order.totalAmount} ₪</TableCell>
                       <TableCell>
                         <Chip label={status.label} color={status.color} size="small" />
+                      </TableCell>
+                      <TableCell
+                        onClick={() => {
+                          if (order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                            handleDeliveryStatusClick(order);
+                          }
+                        }}
+                        sx={{
+                          cursor: order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? 'pointer' : 'default',
+                          '&:hover': order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? {
+                            backgroundColor: 'action.hover',
+                          } : {},
+                        }}
+                      >
+                        {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? (
+                          (() => {
+                            const statusData = deliveryStatuses[order.id];
+                            const isLoading = loadingDeliveryStatuses[order.id];
+                            
+                            if (isLoading) {
+                              return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <CircularProgress size={16} />
+                                  <Typography variant="body2" color="text.secondary">
+                                    جاري التحميل...
+                                  </Typography>
+                                </Box>
+                              );
+                            }
+                            
+                            if (statusData === null) {
+                              return (
+                                <Typography variant="body2" color="error">
+                                  فشل التحميل
+                                </Typography>
+                              );
+                            }
+                            
+                            if (statusData && statusData.status) {
+                              return (
+                                <Chip
+                                  label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                  sx={{
+                                    backgroundColor: statusData.status.color || '#1976d2',
+                                    color: '#ffffff',
+                                    fontWeight: 600,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    maxWidth: '150px',
+                                    '&:hover': {
+                                      opacity: 0.9,
+                                      transform: 'scale(1.05)',
+                                    },
+                                    transition: 'all 0.2s',
+                                    '& .MuiChip-label': {
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    },
+                                  }}
+                                  size="small"
+                                />
+                              );
+                            }
+                            
+                            return (
+                              <Typography variant="body2" color="text.secondary">
+                                غير متوفر - اضغط لعرض التفاصيل
+                              </Typography>
+                            );
+                          })()
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            -
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         {order.orderDate
@@ -1010,26 +1242,6 @@ const EmployeeDashboard = () => {
                           >
                             تعديل
                           </Button>
-                          {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY && (
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeliveryStatusClick(order)}
-                              sx={{
-                                color: '#1976d2',
-                                backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                                '&:hover': {
-                                  backgroundColor: 'rgba(25, 118, 210, 0.2)',
-                                  color: '#1565c0',
-                                },
-                                border: '1px solid rgba(25, 118, 210, 0.3)',
-                                borderRadius: 1,
-                                padding: '8px',
-                              }}
-                              title="عرض حالة التوصيل من شركة التوصيل"
-                            >
-                              <TrackChanges fontSize="small" />
-                            </IconButton>
-                          )}
                           {order.status !== ORDER_STATUS.CANCELLED &&
                             order.status !== ORDER_STATUS.COMPLETED && (
                               <Button

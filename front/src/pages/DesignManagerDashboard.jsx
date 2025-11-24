@@ -75,6 +75,8 @@ const DesignManagerDashboard = () => {
   const [deliveryStatusData, setDeliveryStatusData] = useState(null);
   const [deliveryStatusLoading, setDeliveryStatusLoading] = useState(false);
   const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
+  const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
+  const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true/false }
 
   const getFullUrl = (inputUrl) => {
     if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
@@ -110,15 +112,46 @@ const DesignManagerDashboard = () => {
   };
 
   // Fetch all orders
+  // Fetch delivery status for orders sent to delivery company
+  const fetchDeliveryStatus = async (orderId) => {
+    // Check if already loading or loaded
+    if (loadingDeliveryStatuses[orderId] || deliveryStatuses[orderId] !== undefined) {
+      return;
+    }
+    
+    setLoadingDeliveryStatuses(prev => ({ ...prev, [orderId]: true }));
+    
+    try {
+      const statusData = await shipmentsService.getDeliveryStatus(orderId);
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
+    } catch (error) {
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
+    } finally {
+      setLoadingDeliveryStatuses(prev => {
+        const updated = { ...prev };
+        delete updated[orderId];
+        return updated;
+      });
+    }
+  };
+
   const fetchOrders = async (showLoading = false) => {
     if (showLoading) {
       setLoading(true);
     }
     try {
       const response = await ordersService.getAllOrders();
-      setAllOrders(response || []);
+      const orders = response || [];
+      setAllOrders(orders);
+      
+      // جلب حالة التوصيل للطلبات المرسلة لشركة التوصيل
+      const sentOrders = orders.filter(
+        order => order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
+      );
+      sentOrders.slice(0, 20).forEach(order => {
+        fetchDeliveryStatus(order.id);
+      });
     } catch (error) {
-      console.error('Error fetching orders:', error);
     } finally {
       if (showLoading) {
         setLoading(false);
@@ -135,15 +168,59 @@ const DesignManagerDashboard = () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
           onOrderCreated: () => {
-            console.log('SignalR: New order created event received');
             fetchOrders(false);
           },
           onOrderStatusChanged: () => {
-            console.log('SignalR: Order status changed');
             fetchOrders(false);
           },
+          onShipmentStatusUpdated: (shipmentData) => {
+            const orderId = shipmentData?.orderId;
+            if (orderId) {
+              if (shipmentData?.status) {
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  lastUpdate: shipmentData.lastUpdate
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              } else {
+                fetchDeliveryStatus(orderId);
+              }
+            }
+          },
+          onShipmentNoteAdded: (shipmentData) => {
+            const orderId = shipmentData?.orderId;
+            if (orderId) {
+              if (shipmentData?.status) {
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  note: shipmentData.note,
+                  lastUpdate: shipmentData.entryDateTime
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              } else {
+                fetchDeliveryStatus(orderId);
+              }
+            }
+          },
         });
-        console.log('SignalR: Successfully subscribed to order updates');
       } catch (err) {
         console.error('Failed to connect to updates hub:', err);
       }
@@ -326,12 +403,7 @@ const DesignManagerDashboard = () => {
 
         // Clean base64 string (remove whitespace, newlines, etc.)
         const cleanBase64 = base64Data.replace(/\s/g, '');
-        
-        console.log('Processing base64 file:', {
-          originalLength: base64Data.length,
-          cleanedLength: cleanBase64.length,
-          mimeType: mimeType
-        });
+  
 
         // Method 1: Try using fetch API first
         let blob;
@@ -343,10 +415,6 @@ const DesignManagerDashboard = () => {
             throw new Error('الملف فارغ بعد التحويل');
           }
           
-          console.log('Blob created via fetch:', {
-            size: blob.size,
-            type: blob.type
-          });
         } catch (fetchError) {
           console.warn('Fetch method failed, trying manual conversion:', fetchError);
           
@@ -375,10 +443,7 @@ const DesignManagerDashboard = () => {
               throw new Error('الملف فارغ بعد التحويل');
             }
             
-            console.log('Blob created via manual conversion:', {
-              size: blob.size,
-              type: blob.type
-            });
+         
           } catch (manualError) {
             console.error('Both methods failed:', { fetchError, manualError });
             throw new Error('فشل في تحويل الملف. قد يكون الملف تالفاً أو كبيراً جداً.');
@@ -427,8 +492,7 @@ const DesignManagerDashboard = () => {
                 fileExtension = 'svg';
               }
             }
-            
-            console.log('File type detected from signature:', fileExtension);
+           
           } catch (sigError) {
             console.warn('Could not detect file type from signature, using default:', sigError);
           }
@@ -436,25 +500,15 @@ const DesignManagerDashboard = () => {
         
         fileName = `${fileName}.${fileExtension}`;
         
-        console.log('File info:', {
-          mimeType: mimeType,
-          fileExtension: fileExtension,
-          fileName: fileName,
-          blobSize: blob.size
-        });
         
         // Create blob URL for download
         const blobUrl = URL.createObjectURL(blob);
-        console.log('Blob URL created:', blobUrl, 'Size:', blob.size);
-        
         // Download file directly
         const link = document.createElement('a');
         link.href = blobUrl;
         link.download = fileName;
         link.style.display = 'none';
         document.body.appendChild(link);
-        
-        console.log('Triggering download...');
         link.click();
         
         // Remove link and cleanup after download
@@ -501,25 +555,13 @@ const DesignManagerDashboard = () => {
     if (fileUrl === 'image_data_excluded' && orderId) {
       setLoadingImage(`file-${orderId}-${designId}`);
       try {
-        console.log('Fetching full order to get file...', { orderId, designId });
         const fullOrder = await ordersService.getOrderById(orderId);
-        console.log('Full order received:', fullOrder);
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-        console.log('Design found:', design);
         
         if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
-          console.log('File found, opening...', {
-            fileUrlLength: design.printFileUrl.length,
-            isBase64: design.printFileUrl.startsWith('data:'),
-            startsWith: design.printFileUrl.substring(0, 50)
-          });
           // Open file using helper function
           await openFile(design.printFileUrl);
         } else {
-          console.error('File not available:', { 
-            hasPrintFileUrl: !!design?.printFileUrl, 
-            printFileUrl: design?.printFileUrl 
-          });
           alert('الملف غير متوفر في قاعدة البيانات');
         }
       } catch (error) {
@@ -1009,13 +1051,14 @@ const DesignManagerDashboard = () => {
                       <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
                       <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {paginatedRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} align="center">
+                        <TableCell colSpan={13} align="center">
                           <Box sx={{ padding: 4 }}>
                             <Typography variant="h6" color="text.secondary">
                               لا توجد طلبات حالياً
@@ -1078,6 +1121,81 @@ const DesignManagerDashboard = () => {
                                 <Note />
                               </IconButton>
                             </TableCell>
+                            <TableCell
+                              onClick={() => {
+                                if (order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                                  handleDeliveryStatusClick(order);
+                                }
+                              }}
+                              sx={{
+                                cursor: order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? 'pointer' : 'default',
+                                '&:hover': order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? {
+                                  backgroundColor: 'action.hover',
+                                } : {},
+                              }}
+                            >
+                              {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? (
+                                (() => {
+                                  const statusData = deliveryStatuses[order.id];
+                                  const isLoading = loadingDeliveryStatuses[order.id];
+                                  
+                                  if (isLoading) {
+                                    return (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <CircularProgress size={16} />
+                                        <Typography variant="body2" color="text.secondary">
+                                          جاري التحميل...
+                                        </Typography>
+                                      </Box>
+                                    );
+                                  }
+                                  
+                                  if (statusData === null) {
+                                    return (
+                                      <Typography variant="body2" color="error">
+                                        فشل التحميل
+                                      </Typography>
+                                    );
+                                  }
+                                  
+                                  if (statusData && statusData.status) {
+                                    return (
+                                      <Chip
+                                        label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                        sx={{
+                                          backgroundColor: statusData.status.color || '#1976d2',
+                                          color: '#ffffff',
+                                          fontWeight: 600,
+                                          fontSize: '0.75rem',
+                                          cursor: 'pointer',
+                                          maxWidth: '150px',
+                                          '&:hover': {
+                                            opacity: 0.9,
+                                            transform: 'scale(1.05)',
+                                          },
+                                          transition: 'all 0.2s',
+                                          '& .MuiChip-label': {
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                          },
+                                        }}
+                                        size="small"
+                                      />
+                                    );
+                                  }
+                                  
+                                  return (
+                                    <Typography variant="body2" color="text.secondary">
+                                      غير متوفر - اضغط لعرض التفاصيل
+                                    </Typography>
+                                  );
+                                })()
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                  -
+                                </Typography>
+                              )}
+                            </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1 }}>
                             <Button
@@ -1089,26 +1207,6 @@ const DesignManagerDashboard = () => {
                             >
                               عرض
                             </Button>
-                            {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY && (
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeliveryStatusClick(order)}
-                                sx={{
-                                  color: '#1976d2',
-                                  backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                                  '&:hover': {
-                                    backgroundColor: 'rgba(25, 118, 210, 0.2)',
-                                    color: '#1565c0',
-                                  },
-                                  border: '1px solid rgba(25, 118, 210, 0.3)',
-                                  borderRadius: 1,
-                                  padding: '8px',
-                                }}
-                                title="عرض حالة التوصيل من شركة التوصيل"
-                              >
-                                <TrackChanges fontSize="small" />
-                              </IconButton>
-                            )}
                             <Button
                               size="small"
                               variant="contained"
@@ -1384,6 +1482,82 @@ const DesignManagerDashboard = () => {
                                     <Note />
                                   </IconButton>
                                 </TableCell>
+                                <TableCell
+                                  rowSpan={rowCount}
+                                  onClick={() => {
+                                    if (order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                                      handleDeliveryStatusClick(order);
+                                    }
+                                  }}
+                                  sx={{
+                                    cursor: order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? 'pointer' : 'default',
+                                    '&:hover': order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? {
+                                      backgroundColor: 'action.hover',
+                                    } : {},
+                                  }}
+                                >
+                                  {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? (
+                                    (() => {
+                                      const statusData = deliveryStatuses[order.id];
+                                      const isLoading = loadingDeliveryStatuses[order.id];
+                                      
+                                      if (isLoading) {
+                                        return (
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <CircularProgress size={16} />
+                                            <Typography variant="body2" color="text.secondary">
+                                              جاري التحميل...
+                                            </Typography>
+                                          </Box>
+                                        );
+                                      }
+                                      
+                                      if (statusData === null) {
+                                        return (
+                                          <Typography variant="body2" color="error">
+                                            فشل التحميل
+                                          </Typography>
+                                        );
+                                      }
+                                      
+                                      if (statusData && statusData.status) {
+                                        return (
+                                          <Chip
+                                            label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                            sx={{
+                                              backgroundColor: statusData.status.color || '#1976d2',
+                                              color: '#ffffff',
+                                              fontWeight: 600,
+                                              fontSize: '0.75rem',
+                                              cursor: 'pointer',
+                                              maxWidth: '150px',
+                                              '&:hover': {
+                                                opacity: 0.9,
+                                                transform: 'scale(1.05)',
+                                              },
+                                              transition: 'all 0.2s',
+                                              '& .MuiChip-label': {
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                              },
+                                            }}
+                                            size="small"
+                                          />
+                                        );
+                                      }
+                                      
+                                      return (
+                                        <Typography variant="body2" color="text.secondary">
+                                          غير متوفر - اضغط لعرض التفاصيل
+                                        </Typography>
+                                      );
+                                    })()
+                                  ) : (
+                                    <Typography variant="body2" color="text.secondary">
+                                      -
+                                    </Typography>
+                                  )}
+                                </TableCell>
                             <TableCell rowSpan={rowCount}>
                           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1 }}>
                                 <Button
@@ -1395,26 +1569,6 @@ const DesignManagerDashboard = () => {
                                 >
                                   عرض
                                 </Button>
-                                {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY && (
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleDeliveryStatusClick(order)}
-                                    sx={{
-                                      color: '#1976d2',
-                                      backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                                      '&:hover': {
-                                        backgroundColor: 'rgba(25, 118, 210, 0.2)',
-                                        color: '#1565c0',
-                                      },
-                                      border: '1px solid rgba(25, 118, 210, 0.3)',
-                                      borderRadius: 1,
-                                      padding: '8px',
-                                    }}
-                                    title="عرض حالة التوصيل من شركة التوصيل"
-                                  >
-                                    <TrackChanges fontSize="small" />
-                                  </IconButton>
-                                )}
                                 <Button
                                   size="small"
                                   variant="contained"
