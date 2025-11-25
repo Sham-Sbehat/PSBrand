@@ -665,13 +665,14 @@ const OrdersList = () => {
     try {
       await shipmentsService.createShipment(orderToShip.id, shippingNotes);
       
-      // Set order status to sent to delivery company after successful shipment
-      try {
-        await orderStatusService.setSentToDeliveryCompany(orderToShip.id);
-      } catch (statusError) {
-        console.error('Error setting order status to sent to delivery company:', statusError);
-        // Don't show error to user - shipment was created successfully
-      }
+      // DISABLED: Set order status to sent to delivery company after successful shipment
+      // This is now handled automatically by the backend when shipment is created via webhook
+      // try {
+      //   await orderStatusService.setSentToDeliveryCompany(orderToShip.id);
+      // } catch (statusError) {
+      //   console.error('Error setting order status to sent to delivery company:', statusError);
+      //   // Don't show error to user - shipment was created successfully
+      // }
       
       // Close dialog first
       handleCloseShippingDialog();
