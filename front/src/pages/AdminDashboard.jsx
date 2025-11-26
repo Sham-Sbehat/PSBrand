@@ -20,6 +20,7 @@ import {
   CheckCircle,
   Pending,
   Store,
+  AccountBalance,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -28,6 +29,7 @@ import { subscribeToOrderUpdates } from "../services/realtime";
 import OrdersList from "../components/admin/OrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
 import SellerManagement from "../components/admin/SellerManagement";
+import FinancialManagement from "../components/admin/FinancialManagement";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
 
@@ -289,6 +291,19 @@ const AdminDashboard = () => {
                 },
               }}
             />
+            <Tab
+              label="الإدارة المالية"
+              icon={<AccountBalance />}
+              iconPosition="start"
+              sx={{
+                fontWeight: 600,
+                fontSize: "1rem",
+                color: calmPalette.textMuted,
+                "&.Mui-selected": {
+                  color: "#f7f2ea",
+                },
+              }}
+            />
           </Tabs>
         </Box>
 
@@ -296,6 +311,7 @@ const AdminDashboard = () => {
           {currentTab === 0 && <OrdersList />}
           {currentTab === 1 && <EmployeeManagement />}
           {currentTab === 2 && <SellerManagement />}
+          {currentTab === 3 && <FinancialManagement />}
         </Box>
       </Container>
     </Box>
