@@ -284,20 +284,24 @@ const OrdersList = () => {
     };
   }, []);
 
-  // Load delivery statuses for orders sent to delivery company when orders change
+  // Load delivery statuses for orders - try to fetch for all orders
+  // API will return error/empty if no shipment exists, which is fine
   useEffect(() => {
-    const sentOrders = allOrders.filter(
-      order => order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
-    );
+    if (!allOrders || allOrders.length === 0) return;
     
-    // Load delivery statuses for new orders
-    sentOrders.forEach(order => {
+    // Try to fetch delivery status for all orders
+    // We check if already loaded/loading to avoid duplicate requests
+    allOrders.forEach(order => {
       // Check synchronously if already loaded or loading
       const isLoaded = deliveryStatuses[order.id] !== undefined;
       const isLoading = loadingDeliveryStatuses[order.id] === true;
       
+      // Only fetch if not already checked
       if (!isLoaded && !isLoading) {
-        fetchDeliveryStatus(order.id);
+        // Try to fetch - if no shipment exists, API will return error and we set null
+        fetchDeliveryStatus(order.id).catch(() => {
+          // Silently fail - this order just doesn't have a shipment
+        });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -684,14 +688,16 @@ const OrdersList = () => {
         severity: 'success'
       });
       
-      // Refresh orders list
+      // Fetch delivery status for the shipped order immediately
+      // We fetch regardless of order status - if shipment exists, we'll get the status
+      setTimeout(() => {
+        fetchDeliveryStatus(orderToShip.id);
+      }, 1000);
+      
+      // Refresh orders list from server
       try {
         const updatedOrders = await ordersService.getAllOrders();
         setAllOrders(updatedOrders || []);
-        
-        // Fetch delivery status for the shipped order
-        // Note: Real-time updates will come via SignalR, but we fetch once to get initial status
-        fetchDeliveryStatus(orderToShip.id);
       } catch (refreshError) {
         console.error('Error refreshing orders after shipping:', refreshError);
       }
@@ -1190,78 +1196,73 @@ const OrdersList = () => {
                         <TableCell>{order.totalAmount} ₪</TableCell>
                         <TableCell
                           onClick={() => {
-                            if (order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
-                              handleDeliveryStatusClick(order);
-                            }
+                            // Always allow clicking - we'll try to fetch delivery status
+                            handleDeliveryStatusClick(order);
                           }}
                           sx={{
-                            cursor: order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? 'pointer' : 'default',
-                            '&:hover': order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? {
+                            cursor: 'pointer',
+                            '&:hover': {
                               backgroundColor: 'action.hover',
-                            } : {},
+                            },
                           }}
                         >
-                          {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? (
-                            (() => {
-                              const statusData = deliveryStatuses[order.id];
-                              const isLoading = loadingDeliveryStatuses[order.id];
-                              
-                              if (isLoading) {
-                                return (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <CircularProgress size={16} />
-                                    <Typography variant="body2" color="text.secondary">
-                                      جاري التحميل...
-                                    </Typography>
-                                  </Box>
-                                );
-                              }
-                              
-                              if (statusData === null) {
-                                return (
-                                  <Typography variant="body2" color="error">
-                                    فشل التحميل
+                          {(() => {
+                            const statusData = deliveryStatuses[order.id];
+                            const isLoading = loadingDeliveryStatuses[order.id];
+                            
+                            if (isLoading) {
+                              return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <CircularProgress size={16} />
+                                  <Typography variant="body2" color="text.secondary">
+                                    جاري التحميل...
                                   </Typography>
-                                );
-                              }
-                              
-                              if (statusData && statusData.status) {
-                                return (
-                                  <Chip
-                                    label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                    sx={{
-                                      backgroundColor: statusData.status.color || '#1976d2',
-                                      color: '#ffffff',
-                                      fontWeight: 600,
-                                      fontSize: '0.75rem',
-                                      cursor: 'pointer',
-                                      maxWidth: '150px',
-                                      '&:hover': {
-                                        opacity: 0.9,
-                                        transform: 'scale(1.05)',
-                                      },
-                                      transition: 'all 0.2s',
-                                      '& .MuiChip-label': {
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                      },
-                                    }}
-                                    size="small"
-                                  />
-                                );
-                              }
-                              
+                                </Box>
+                              );
+                            }
+                            
+                            if (statusData === null) {
+                              // We checked but no shipment exists
                               return (
                                 <Typography variant="body2" color="text.secondary">
-                                  غير متوفر - اضغط لعرض التفاصيل
+                                  -
                                 </Typography>
                               );
-                            })()
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">
-                              -
-                            </Typography>
-                          )}
+                            }
+                            
+                            if (statusData && statusData.status) {
+                              return (
+                                <Chip
+                                  label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                  sx={{
+                                    backgroundColor: statusData.status.color || '#1976d2',
+                                    color: '#ffffff',
+                                    fontWeight: 600,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    maxWidth: '150px',
+                                    '&:hover': {
+                                      opacity: 0.9,
+                                      transform: 'scale(1.05)',
+                                    },
+                                    transition: 'all 0.2s',
+                                    '& .MuiChip-label': {
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    },
+                                  }}
+                                  size="small"
+                                />
+                              );
+                            }
+                            
+                            // No data yet - show dash (will be populated when shipment is created or fetched)
+                            return (
+                              <Typography variant="body2" color="text.secondary">
+                                -
+                              </Typography>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell sx={{ textAlign: 'center' }}>
                           <IconButton
@@ -1340,8 +1341,16 @@ const OrdersList = () => {
                                   size="small"
                                   onClick={() => handleShippingClick(order)}
                                   disabled={
-                                    order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ||
-                                    order.status === ORDER_STATUS.CANCELLED 
+                                    (() => {
+                                      const numericStatus = typeof order.status === 'number' 
+                                        ? order.status 
+                                        : parseInt(order.status, 10);
+                                      const hasDeliveryStatus = deliveryStatuses[order.id] && 
+                                                               deliveryStatuses[order.id] !== null;
+                                      return numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ||
+                                             numericStatus === ORDER_STATUS.CANCELLED ||
+                                             hasDeliveryStatus;
+                                    })()
                                   }
                                   sx={{
                                     color: '#2e7d32',
