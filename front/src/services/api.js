@@ -476,5 +476,32 @@ export const financialCategoriesService = {
   },
 };
 
+// Expense Sources Service
+export const expenseSourcesService = {
+  // Get all expense sources
+  getSources: async () => {
+    const response = await api.get('/expense-sources/GetSources');
+    return response.data;
+  },
+  
+  // Create a new expense source
+  createSource: async (sourceData) => {
+    const response = await api.post('/expense-sources/CreateSource', sourceData);
+    return response.data;
+  },
+  
+  // Update an existing expense source
+  updateSource: async (id, sourceData) => {
+    const response = await api.put(`/expense-sources/UpdateSource/${id}`, sourceData);
+    return response.data;
+  },
+  
+  // Delete an expense source
+  deleteSource: async (id) => {
+    const response = await api.delete(`/expense-sources/DeleteSource/${id}`);
+    return response.data;
+  },
+};
+
 // Export constants for use in components
 export { USER_ROLES, ROLE_STRINGS };

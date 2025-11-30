@@ -45,7 +45,7 @@ import {
   Description,
 } from '@mui/icons-material';
 import calmPalette from '../../theme/calmPalette';
-import { financialCategoriesService } from '../../services/api';
+import { financialCategoriesService, expenseSourcesService } from '../../services/api';
 
 const FinancialManagement = () => {
   // Main tab state
@@ -61,7 +61,7 @@ const FinancialManagement = () => {
   
   // Form states
   const [newCategory, setNewCategory] = useState({ name: '', description: '', type: 1, parentCategoryId: 0 });
-  const [newSource, setNewSource] = useState({ name: '', description: '', categoryId: '' });
+  const [newSource, setNewSource] = useState({ name: '', categoryId: '' });
   const [newTransaction, setNewTransaction] = useState({ 
     categoryId: '', 
     sourceId: '', 
@@ -74,18 +74,19 @@ const FinancialManagement = () => {
   // Real data from API
   const [incomeCategories, setIncomeCategories] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
+  const [sources, setSources] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingSources, setLoadingSources] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [savingCategory, setSavingCategory] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
   const [deletingCategory, setDeletingCategory] = useState(false);
+  const [savingSource, setSavingSource] = useState(false);
+  const [openDeleteSourceDialog, setOpenDeleteSourceDialog] = useState(false);
+  const [sourceToDelete, setSourceToDelete] = useState(null);
+  const [deletingSource, setDeletingSource] = useState(false);
 
-  const mockSources = [
-    { id: 1, name: 'ورق', categoryId: 3, categoryName: 'مطبوعات', description: 'شراء ورق للطباعة' },
-    { id: 2, name: 'حبر', categoryId: 3, categoryName: 'مطبوعات', description: 'شراء حبر للطابعات' },
-    { id: 3, name: 'إعلان فيسبوك', categoryId: 4, categoryName: 'إعلانات', description: 'إعلانات على فيسبوك' },
-  ];
 
   const mockTransactions = [
     { id: 1, categoryName: 'مطبوعات', sourceName: 'ورق', amount: 1000, month: 11, year: 2025, description: 'شراء ورق لشهر نوفمبر' },
@@ -120,9 +121,28 @@ const FinancialManagement = () => {
     }
   };
 
-  // Load categories on component mount and when tab changes
+  // Fetch sources from API
+  const fetchSources = async () => {
+    setLoadingSources(true);
+    try {
+      const sourcesData = await expenseSourcesService.getSources();
+      setSources(Array.isArray(sourcesData) ? sourcesData : []);
+    } catch (error) {
+      console.error('Error fetching sources:', error);
+      setSnackbar({
+        open: true,
+        message: 'حدث خطأ أثناء جلب المصادر',
+        severity: 'error'
+      });
+    } finally {
+      setLoadingSources(false);
+    }
+  };
+
+  // Load categories and sources on component mount
   useEffect(() => {
     fetchCategories();
+    fetchSources();
   }, []);
 
   const handleCategoryTypeTabChange = (event, newValue) => {
@@ -235,8 +255,106 @@ const FinancialManagement = () => {
   };
 
   const handleAddSource = () => {
-    setNewSource({ name: '', description: '', categoryId: '' });
+    setNewSource({ name: '', categoryId: '' });
     setOpenSourceDialog(true);
+  };
+
+  const handleSaveSource = async () => {
+    if (!newSource.name.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'يرجى إدخال اسم المصدر',
+        severity: 'error'
+      });
+      return;
+    }
+
+    if (!newSource.categoryId) {
+      setSnackbar({
+        open: true,
+        message: 'يرجى اختيار الفئة',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setSavingSource(true);
+    try {
+      const payload = {
+        name: newSource.name,
+        categoryId: parseInt(newSource.categoryId),
+        isActive: newSource.isActive !== undefined ? newSource.isActive : true
+      };
+      
+      // Check if this is an update (has id) or create (no id)
+      if (newSource.id) {
+        // Update existing source
+        await expenseSourcesService.updateSource(newSource.id, payload);
+        setSnackbar({
+          open: true,
+          message: 'تم تحديث المصدر بنجاح',
+          severity: 'success'
+        });
+      } else {
+        // Create new source
+        await expenseSourcesService.createSource(payload);
+        setSnackbar({
+          open: true,
+          message: 'تم إضافة المصدر بنجاح',
+          severity: 'success'
+        });
+      }
+      
+      setOpenSourceDialog(false);
+      setNewSource({ name: '', categoryId: '' });
+      
+      // Refresh sources list
+      await fetchSources();
+    } catch (error) {
+      console.error('Error saving source:', error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'حدث خطأ أثناء حفظ المصدر',
+        severity: 'error'
+      });
+    } finally {
+      setSavingSource(false);
+    }
+  };
+
+  const handleDeleteSource = (source) => {
+    setSourceToDelete(source);
+    setOpenDeleteSourceDialog(true);
+  };
+
+  const handleConfirmDeleteSource = async () => {
+    if (!sourceToDelete) return;
+
+    setDeletingSource(true);
+    try {
+      await expenseSourcesService.deleteSource(sourceToDelete.id);
+      
+      setSnackbar({
+        open: true,
+        message: 'تم حذف المصدر بنجاح',
+        severity: 'success'
+      });
+      
+      setOpenDeleteSourceDialog(false);
+      setSourceToDelete(null);
+      
+      // Refresh sources list
+      await fetchSources();
+    } catch (error) {
+      console.error('Error deleting source:', error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'حدث خطأ أثناء حذف المصدر',
+        severity: 'error'
+      });
+    } finally {
+      setDeletingSource(false);
+    }
   };
 
   const handleAddTransaction = () => {
@@ -606,37 +724,47 @@ const FinancialManagement = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {mockSources.map((source, index) => (
-                      <TableRow 
-                        key={source.id} 
-                        hover
-                        sx={{
-                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
-                          '&:hover': {
-                            backgroundColor: '#f5f5f5',
-                          }
-                        }}
-                      >
-                        <TableCell>
-                          <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                            {source.name}
-                          </Typography>
+                    {loadingSources ? (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                          <CircularProgress />
                         </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={source.categoryName}
-                            color="primary"
-                            size="small"
-                            variant="outlined"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell>
+                      </TableRow>
+                    ) : sources.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
                           <Typography variant="body2" color="text.secondary">
-                            {source.description || '-'}
+                            لا توجد مصادر
                           </Typography>
                         </TableCell>
-                        <TableCell align="center">
+                      </TableRow>
+                    ) : (
+                      sources.map((source, index) => (
+                        <TableRow 
+                          key={source.id} 
+                          hover
+                          sx={{
+                            backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
+                            '&:hover': {
+                              backgroundColor: '#f5f5f5',
+                            }
+                          }}
+                        >
+                          <TableCell>
+                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                              {source.name}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={source.categoryName}
+                              color="primary"
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
                           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
                             <Tooltip title="تعديل">
                               <IconButton
@@ -661,9 +789,7 @@ const FinancialManagement = () => {
                               <IconButton
                                 size="small"
                                 color="error"
-                                onClick={() => {
-                                  // Handle delete
-                                }}
+                                onClick={() => handleDeleteSource(source)}
                                 sx={{
                                   '&:hover': {
                                     backgroundColor: 'error.light',
@@ -678,7 +804,8 @@ const FinancialManagement = () => {
                           </Box>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -1014,7 +1141,7 @@ const FinancialManagement = () => {
       {/* Add/Edit Source Dialog */}
       <Dialog
         open={openSourceDialog}
-        onClose={() => setOpenSourceDialog(false)}
+        onClose={() => !savingSource && setOpenSourceDialog(false)}
         maxWidth="sm"
         fullWidth
       >
@@ -1045,26 +1172,72 @@ const FinancialManagement = () => {
               onChange={(e) => setNewSource({ ...newSource, name: e.target.value })}
               required
             />
-            <TextField
-              fullWidth
-              label="الوصف"
-              value={newSource.description}
-              onChange={(e) => setNewSource({ ...newSource, description: e.target.value })}
-              multiline
-              rows={3}
-            />
+            {newSource.id && (
+              <FormControl fullWidth>
+                <InputLabel>الحالة</InputLabel>
+                <Select
+                  value={newSource.isActive !== undefined ? newSource.isActive : true}
+                  label="الحالة"
+                  onChange={(e) => setNewSource({ ...newSource, isActive: e.target.value === 'true' })}
+                >
+                  <MenuItem value={true}>نشط</MenuItem>
+                  <MenuItem value={false}>غير نشط</MenuItem>
+                </Select>
+              </FormControl>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenSourceDialog(false)}>إلغاء</Button>
+          <Button 
+            onClick={() => setOpenSourceDialog(false)} 
+            disabled={savingSource}
+          >
+            إلغاء
+          </Button>
           <Button
             variant="contained"
-            onClick={() => {
-              // Handle save
-              setOpenSourceDialog(false);
-            }}
+            onClick={handleSaveSource}
+            disabled={savingSource}
+            startIcon={savingSource ? <CircularProgress size={16} /> : null}
           >
-            حفظ
+            {savingSource ? 'جاري الحفظ...' : 'حفظ'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Source Confirmation Dialog */}
+      <Dialog
+        open={openDeleteSourceDialog}
+        onClose={() => !deletingSource && setOpenDeleteSourceDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          تأكيد الحذف
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            هل أنت متأكد من رغبتك في حذف المصدر <strong>{sourceToDelete?.name}</strong>؟
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            هذا الإجراء لا يمكن التراجع عنه.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setOpenDeleteSourceDialog(false)} 
+            disabled={deletingSource}
+          >
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmDeleteSource}
+            disabled={deletingSource}
+            startIcon={deletingSource ? <CircularProgress size={16} /> : null}
+          >
+            {deletingSource ? 'جاري الحذف...' : 'حذف'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1105,7 +1278,7 @@ const FinancialManagement = () => {
                 required
                 disabled={!newTransaction.categoryId}
               >
-                {mockSources
+                {sources
                   .filter((source) => source.categoryId === newTransaction.categoryId)
                   .map((source) => (
                     <MenuItem key={source.id} value={source.id}>
