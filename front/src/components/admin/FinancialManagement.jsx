@@ -1366,7 +1366,7 @@ const FinancialManagement = () => {
                 <Grid item xs={12} md={6}>
                   <Card sx={{ padding: 3, borderRadius: 3, boxShadow: calmPalette.shadow }}>
                     <Typography variant="h6" sx={{ fontWeight: 600, marginBottom: 2 }}>
-                      ملخص شهري
+                     الملخص المالي
                     </Typography>
                     <Divider sx={{ marginBottom: 2 }} />
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
