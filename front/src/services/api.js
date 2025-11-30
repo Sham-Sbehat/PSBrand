@@ -503,5 +503,52 @@ export const expenseSourcesService = {
   },
 };
 
+// Financial Transactions Service
+export const transactionsService = {
+  // Create a new financial transaction
+  createTransaction: async (transactionData) => {
+    const response = await api.post('/transactions', transactionData);
+    return response.data;
+  },
+  
+  // Get transactions by month
+  getTransactionsByMonth: async (year, month) => {
+    const response = await api.get('/transactions/ByMonth', {
+      params: {
+        year: year,
+        month: month
+      }
+    });
+    return response.data;
+  },
+  
+  // Update a financial transaction
+  updateTransaction: async (id, transactionData) => {
+    const response = await api.put(`/transactions/${id}`, transactionData);
+    return response.data;
+  },
+  
+  // Delete a financial transaction
+  deleteTransaction: async (id) => {
+    const response = await api.delete(`/transactions/${id}`);
+    return response.data;
+  },
+};
+
+// Financial Reports Service
+export const reportsService = {
+  // Get financial summary report
+  getSummary: async () => {
+    const response = await api.get('/reports/summary');
+    return response.data;
+  },
+  
+  // Get monthly financial report by year and month
+  getMonthlyReport: async (year, month) => {
+    const response = await api.get(`/reports/monthly/${year}/${month}`);
+    return response.data;
+  },
+};
+
 // Export constants for use in components
 export { USER_ROLES, ROLE_STRINGS };
