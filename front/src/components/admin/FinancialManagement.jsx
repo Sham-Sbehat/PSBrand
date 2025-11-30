@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Paper,
   Typography,
@@ -28,6 +28,9 @@ import {
   InputLabel,
   Divider,
   Tooltip,
+  CircularProgress,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Add,
@@ -42,6 +45,7 @@ import {
   Description,
 } from '@mui/icons-material';
 import calmPalette from '../../theme/calmPalette';
+import { financialCategoriesService } from '../../services/api';
 
 const FinancialManagement = () => {
   // Main tab state
@@ -55,8 +59,8 @@ const FinancialManagement = () => {
   const [openSourceDialog, setOpenSourceDialog] = useState(false);
   const [openTransactionDialog, setOpenTransactionDialog] = useState(false);
   
-  // Form states (mock data for design)
-  const [newCategory, setNewCategory] = useState({ name: '', description: '', type: 'income' });
+  // Form states
+  const [newCategory, setNewCategory] = useState({ name: '', description: '', type: 1, parentCategoryId: 0 });
   const [newSource, setNewSource] = useState({ name: '', description: '', categoryId: '' });
   const [newTransaction, setNewTransaction] = useState({ 
     categoryId: '', 
@@ -67,17 +71,15 @@ const FinancialManagement = () => {
     description: '' 
   });
 
-  // Mock data for design demonstration
-  const mockIncomeCategories = [
-    { id: 1, name: 'مبيعات', description: 'إيرادات من المبيعات', isActive: true },
-    { id: 2, name: 'خدمات', description: 'إيرادات من الخدمات', isActive: true },
-  ];
-
-  const mockExpenseCategories = [
-    { id: 3, name: 'مطبوعات', description: 'مصاريف الطباعة', isActive: true },
-    { id: 4, name: 'إعلانات', description: 'مصاريف الإعلانات', isActive: true },
-    { id: 5, name: 'رواتب', description: 'رواتب الموظفين', isActive: true },
-  ];
+  // Real data from API
+  const [incomeCategories, setIncomeCategories] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [deletingCategory, setDeletingCategory] = useState(false);
 
   const mockSources = [
     { id: 1, name: 'ورق', categoryId: 3, categoryName: 'مطبوعات', description: 'شراء ورق للطباعة' },
@@ -95,13 +97,141 @@ const FinancialManagement = () => {
     setMainTab(newValue);
   };
 
+  // Fetch categories from API
+  const fetchCategories = async () => {
+    setLoadingCategories(true);
+    try {
+      // Fetch income categories (type = 1)
+      const incomeData = await financialCategoriesService.getCategoriesByType(1);
+      setIncomeCategories(Array.isArray(incomeData) ? incomeData : []);
+      
+      // Fetch expense categories (type = 2)
+      const expenseData = await financialCategoriesService.getCategoriesByType(2);
+      setExpenseCategories(Array.isArray(expenseData) ? expenseData : []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      setSnackbar({
+        open: true,
+        message: 'حدث خطأ أثناء جلب الفئات',
+        severity: 'error'
+      });
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  // Load categories on component mount and when tab changes
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
   const handleCategoryTypeTabChange = (event, newValue) => {
     setCategoryTypeTab(newValue);
   };
 
   const handleAddCategory = () => {
-    setNewCategory({ name: '', description: '', type: categoryTypeTab === 0 ? 'income' : 'expense' });
+    setNewCategory({ 
+      name: '', 
+      description: '', 
+      type: categoryTypeTab === 0 ? 1 : 2, // 1 for income, 2 for expense
+      parentCategoryId: 0 
+    });
     setOpenCategoryDialog(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!newCategory.name.trim()) {
+      setSnackbar({
+        open: true,
+        message: 'يرجى إدخال اسم الفئة',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setSavingCategory(true);
+    try {
+      // Build payload - only include parentCategoryId if it's not 0
+      const payload = {
+        name: newCategory.name,
+        type: newCategory.type,
+        isActive: newCategory.isActive !== undefined ? newCategory.isActive : true
+      };
+      
+      // Only add parentCategoryId if it's not 0
+      if (newCategory.parentCategoryId && newCategory.parentCategoryId !== 0) {
+        payload.parentCategoryId = newCategory.parentCategoryId;
+      }
+      
+      // Check if this is an update (has id) or create (no id)
+      if (newCategory.id) {
+        // Update existing category
+        await financialCategoriesService.updateCategory(newCategory.id, payload);
+        setSnackbar({
+          open: true,
+          message: 'تم تحديث الفئة بنجاح',
+          severity: 'success'
+        });
+      } else {
+        // Create new category
+        await financialCategoriesService.createCategory(payload);
+        setSnackbar({
+          open: true,
+          message: 'تم إضافة الفئة بنجاح',
+          severity: 'success'
+        });
+      }
+      
+      setOpenCategoryDialog(false);
+      setNewCategory({ name: '', description: '', type: 1, parentCategoryId: 0 });
+      
+      // Refresh categories
+      await fetchCategories();
+    } catch (error) {
+      console.error('Error saving category:', error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'حدث خطأ أثناء حفظ الفئة',
+        severity: 'error'
+      });
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleDeleteCategory = (category) => {
+    setCategoryToDelete(category);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!categoryToDelete) return;
+
+    setDeletingCategory(true);
+    try {
+      await financialCategoriesService.deleteCategory(categoryToDelete.id);
+      
+      setSnackbar({
+        open: true,
+        message: 'تم حذف الفئة بنجاح',
+        severity: 'success'
+      });
+      
+      setOpenDeleteDialog(false);
+      setCategoryToDelete(null);
+      
+      // Refresh categories
+      await fetchCategories();
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'حدث خطأ أثناء حذف الفئة',
+        severity: 'error'
+      });
+    } finally {
+      setDeletingCategory(false);
+    }
   };
 
   const handleAddSource = () => {
@@ -323,91 +453,99 @@ const FinancialManagement = () => {
                       }
                     }}>
                       <TableCell>اسم الفئة</TableCell>
-                      <TableCell>الوصف</TableCell>
                       <TableCell>الحالة</TableCell>
                       <TableCell align="center">الإجراءات</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {(categoryTypeTab === 0 ? mockIncomeCategories : mockExpenseCategories).map((category, index) => (
-                      <TableRow 
-                        key={category.id} 
-                        hover
-                        sx={{
-                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
-                          '&:hover': {
-                            backgroundColor: '#f5f5f5',
-                          }
-                        }}
-                      >
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            {categoryTypeTab === 0 ? (
-                              <TrendingUp sx={{ color: '#2e7d32', fontSize: 24 }} />
-                            ) : (
-                              <TrendingDown sx={{ color: '#d32f2f', fontSize: 24 }} />
-                            )}
-                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                              {category.name}
-                            </Typography>
-                          </Box>
+                    {loadingCategories ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                          <CircularProgress />
                         </TableCell>
-                        <TableCell>
+                      </TableRow>
+                    ) : (categoryTypeTab === 0 ? incomeCategories : expenseCategories).length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                           <Typography variant="body2" color="text.secondary">
-                            {category.description || '-'}
+                            لا توجد فئات
                           </Typography>
                         </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={category.isActive ? 'نشط' : 'غير نشط'}
-                            color={category.isActive ? 'success' : 'default'}
-                            size="small"
-                            sx={{ fontWeight: 600 }}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                            <Tooltip title="تعديل">
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => {
-                                  setNewCategory(category);
-                                  setOpenCategoryDialog(true);
-                                }}
-                                sx={{
-                                  '&:hover': {
-                                    backgroundColor: 'primary.light',
-                                    transform: 'scale(1.1)',
-                                  },
-                                  transition: 'all 0.2s',
-                                }}
-                              >
-                                <Edit fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="حذف">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => {
-                                  // Handle delete
-                                }}
-                                sx={{
-                                  '&:hover': {
-                                    backgroundColor: 'error.light',
-                                    transform: 'scale(1.1)',
-                                  },
-                                  transition: 'all 0.2s',
-                                }}
-                              >
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                      </TableRow>
+                    ) : (
+                      (categoryTypeTab === 0 ? incomeCategories : expenseCategories).map((category, index) => (
+                        <TableRow 
+                          key={category.id} 
+                          hover
+                          sx={{
+                            backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
+                            '&:hover': {
+                              backgroundColor: '#f5f5f5',
+                            }
+                          }}
+                        >
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              {categoryTypeTab === 0 ? (
+                                <TrendingUp sx={{ color: '#2e7d32', fontSize: 24 }} />
+                              ) : (
+                                <TrendingDown sx={{ color: '#d32f2f', fontSize: 24 }} />
+                              )}
+                              <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                {category.name}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={category.isActive ? 'نشط' : 'غير نشط'}
+                              color={category.isActive ? 'success' : 'default'}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                              <Tooltip title="تعديل">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => {
+                                    setNewCategory(category);
+                                    setOpenCategoryDialog(true);
+                                  }}
+                                  sx={{
+                                    '&:hover': {
+                                      backgroundColor: 'primary.light',
+                                      transform: 'scale(1.1)',
+                                    },
+                                    transition: 'all 0.2s',
+                                  }}
+                                >
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="حذف">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleDeleteCategory(category)}
+                                  sx={{
+                                    '&:hover': {
+                                      backgroundColor: 'error.light',
+                                      transform: 'scale(1.1)',
+                                    },
+                                    transition: 'all 0.2s',
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                           </Box>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -464,7 +602,6 @@ const FinancialManagement = () => {
                     }}>
                       <TableCell>اسم المصدر</TableCell>
                       <TableCell>الفئة</TableCell>
-                      <TableCell>الوصف</TableCell>
                       <TableCell align="center">الإجراءات</TableCell>
                     </TableRow>
                   </TableHead>
@@ -821,28 +958,22 @@ const FinancialManagement = () => {
               onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
               required
             />
-            <TextField
-              fullWidth
-              label="الوصف"
-              value={newCategory.description}
-              onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-              multiline
-              rows={3}
-            />
+           
             <FormControl fullWidth>
               <InputLabel>النوع</InputLabel>
               <Select
                 value={newCategory.type}
                 label="النوع"
                 onChange={(e) => setNewCategory({ ...newCategory, type: e.target.value })}
+                disabled={!!newCategory.id} // Disable if editing
               >
-                <MenuItem value="income">
+                <MenuItem value={1}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <TrendingUp sx={{ color: '#2e7d32' }} />
                     إيرادات
                   </Box>
                 </MenuItem>
-                <MenuItem value="expense">
+                <MenuItem value={2}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <TrendingDown sx={{ color: '#d32f2f' }} />
                     مصاريف
@@ -850,18 +981,32 @@ const FinancialManagement = () => {
                 </MenuItem>
               </Select>
             </FormControl>
+            {newCategory.id && (
+              <FormControl fullWidth>
+                <InputLabel>الحالة</InputLabel>
+                <Select
+                  value={newCategory.isActive !== undefined ? newCategory.isActive : true}
+                  label="الحالة"
+                  onChange={(e) => setNewCategory({ ...newCategory, isActive: e.target.value === 'true' })}
+                >
+                  <MenuItem value={true}>نشط</MenuItem>
+                  <MenuItem value={false}>غير نشط</MenuItem>
+                </Select>
+              </FormControl>
+            )}
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenCategoryDialog(false)}>إلغاء</Button>
+          <Button onClick={() => setOpenCategoryDialog(false)} disabled={savingCategory}>
+            إلغاء
+          </Button>
           <Button
             variant="contained"
-            onClick={() => {
-              // Handle save
-              setOpenCategoryDialog(false);
-            }}
+            onClick={handleSaveCategory}
+            disabled={savingCategory}
+            startIcon={savingCategory ? <CircularProgress size={16} /> : null}
           >
-            حفظ
+            {savingCategory ? 'جاري الحفظ...' : 'حفظ'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -886,7 +1031,7 @@ const FinancialManagement = () => {
                 onChange={(e) => setNewSource({ ...newSource, categoryId: e.target.value })}
                 required
               >
-                {[...mockExpenseCategories, ...mockIncomeCategories].map((category) => (
+                {[...expenseCategories, ...incomeCategories].map((category) => (
                   <MenuItem key={category.id} value={category.id}>
                     {category.name}
                   </MenuItem>
@@ -944,7 +1089,7 @@ const FinancialManagement = () => {
                 onChange={(e) => setNewTransaction({ ...newTransaction, categoryId: e.target.value, sourceId: '' })}
                 required
               >
-                {[...mockExpenseCategories, ...mockIncomeCategories].map((category) => (
+                {[...expenseCategories, ...incomeCategories].map((category) => (
                   <MenuItem key={category.id} value={category.id}>
                     {category.name}
                   </MenuItem>
@@ -1035,6 +1180,59 @@ const FinancialManagement = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => !deletingCategory && setOpenDeleteDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          تأكيد الحذف
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            هل أنت متأكد من رغبتك في حذف الفئة <strong>{categoryToDelete?.name}</strong>؟
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            هذا الإجراء لا يمكن التراجع عنه.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setOpenDeleteDialog(false)} 
+            disabled={deletingCategory}
+          >
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmDelete}
+            disabled={deletingCategory}
+            startIcon={deletingCategory ? <CircularProgress size={16} /> : null}
+          >
+            {deletingCategory ? 'جاري الحذف...' : 'حذف'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

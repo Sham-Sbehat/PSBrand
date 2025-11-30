@@ -300,6 +300,14 @@ const EmployeeDashboard = () => {
     (async () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
+          onDeliveryStatusChanged: (orderId, deliveryStatus) => {
+            // Update delivery status in real-time when backend sends update
+            console.log('Delivery status updated via SignalR for order:', orderId, deliveryStatus);
+            setDeliveryStatuses(prev => ({
+              ...prev,
+              [orderId]: deliveryStatus
+            }));
+          },
           onShipmentStatusUpdated: (shipmentData) => {
             // Handle shipment status update from webhook (ShipmentStatusUpdated event)
             const orderId = shipmentData?.orderId;
@@ -363,6 +371,29 @@ const EmployeeDashboard = () => {
     };
   }, [user]);
 
+  // Load delivery statuses for all orders - try to fetch for all orders
+  // API will return error/empty if no shipment exists, which is fine
+  useEffect(() => {
+    if (!ordersList || ordersList.length === 0) return;
+    
+    // Try to fetch delivery status for all orders
+    // We check if already loaded/loading to avoid duplicate requests
+    ordersList.forEach(order => {
+      // Check synchronously if already loaded or loading
+      const isLoaded = deliveryStatuses[order.id] !== undefined;
+      const isLoading = loadingDeliveryStatuses[order.id] === true;
+      
+      // Only fetch if not already checked
+      if (!isLoaded && !isLoading) {
+        // Try to fetch - if no shipment exists, API will return error and we set null
+        fetchDeliveryStatus(order.id).catch(() => {
+          // Silently fail - this order just doesn't have a shipment
+        });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordersList]);
+
   const handleLogout = () => {
     logout();
     navigate("/");
@@ -393,11 +424,9 @@ const EmployeeDashboard = () => {
       // تحديث العدد الإجمالي
       setTotalOrdersCount(response?.totalCount || orders.length);
       
-      // جلب حالة التوصيل للطلبات المرسلة لشركة التوصيل
-      const sentOrders = orders.filter(
-        order => order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
-      );
-      sentOrders.slice(0, 20).forEach(order => {
+      // جلب حالة التوصيل لجميع الطلبات (مثل OrdersList.jsx)
+      // API سيرجع خطأ/فارغ إذا لم تكن هناك شحنة، وهذا طبيعي
+      orders.slice(0, 20).forEach(order => {
         fetchDeliveryStatus(order.id);
       });
     } catch (error) {
@@ -1146,78 +1175,73 @@ const EmployeeDashboard = () => {
                       </TableCell>
                       <TableCell
                         onClick={() => {
-                          if (order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
-                            handleDeliveryStatusClick(order);
-                          }
+                          // Always allow clicking - we'll try to fetch delivery status
+                          handleDeliveryStatusClick(order);
                         }}
                         sx={{
-                          cursor: order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? 'pointer' : 'default',
-                          '&:hover': order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? {
+                          cursor: 'pointer',
+                          '&:hover': {
                             backgroundColor: 'action.hover',
-                          } : {},
+                          },
                         }}
                       >
-                        {order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ? (
-                          (() => {
-                            const statusData = deliveryStatuses[order.id];
-                            const isLoading = loadingDeliveryStatuses[order.id];
-                            
-                            if (isLoading) {
-                              return (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <CircularProgress size={16} />
-                                  <Typography variant="body2" color="text.secondary">
-                                    جاري التحميل...
-                                  </Typography>
-                                </Box>
-                              );
-                            }
-                            
-                            if (statusData === null) {
-                              return (
-                                <Typography variant="body2" color="error">
-                                  فشل التحميل
+                        {(() => {
+                          const statusData = deliveryStatuses[order.id];
+                          const isLoading = loadingDeliveryStatuses[order.id];
+                          
+                          if (isLoading) {
+                            return (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <CircularProgress size={16} />
+                                <Typography variant="body2" color="text.secondary">
+                                  جاري التحميل...
                                 </Typography>
-                              );
-                            }
-                            
-                            if (statusData && statusData.status) {
-                              return (
-                                <Chip
-                                  label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                  sx={{
-                                    backgroundColor: statusData.status.color || '#1976d2',
-                                    color: '#ffffff',
-                                    fontWeight: 600,
-                                    fontSize: '0.75rem',
-                                    cursor: 'pointer',
-                                    maxWidth: '150px',
-                                    '&:hover': {
-                                      opacity: 0.9,
-                                      transform: 'scale(1.05)',
-                                    },
-                                    transition: 'all 0.2s',
-                                    '& .MuiChip-label': {
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                    },
-                                  }}
-                                  size="small"
-                                />
-                              );
-                            }
-                            
+                              </Box>
+                            );
+                          }
+                          
+                          if (statusData === null) {
+                            // We checked but no shipment exists
                             return (
                               <Typography variant="body2" color="text.secondary">
-                                غير متوفر - اضغط لعرض التفاصيل
+                                -
                               </Typography>
                             );
-                          })()
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            -
-                          </Typography>
-                        )}
+                          }
+                          
+                          if (statusData && statusData.status) {
+                            return (
+                              <Chip
+                                label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                sx={{
+                                  backgroundColor: statusData.status.color || '#1976d2',
+                                  color: '#ffffff',
+                                  fontWeight: 600,
+                                  fontSize: '0.75rem',
+                                  cursor: 'pointer',
+                                  maxWidth: '150px',
+                                  '&:hover': {
+                                    opacity: 0.9,
+                                    transform: 'scale(1.05)',
+                                  },
+                                  transition: 'all 0.2s',
+                                  '& .MuiChip-label': {
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  },
+                                }}
+                                size="small"
+                              />
+                            );
+                          }
+                          
+                          // No data yet - show dash (will be populated when shipment is created or fetched)
+                          return (
+                            <Typography variant="body2" color="text.secondary">
+                              -
+                            </Typography>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         {order.orderDate
@@ -1232,7 +1256,7 @@ const EmployeeDashboard = () => {
                             startIcon={<Visibility />}
                             onClick={() => handleViewDetails(order)}
                           >
-                            عرض التفاصيل
+                            عرض 
                           </Button>
                           <Button
                             size="small"

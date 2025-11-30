@@ -449,5 +449,32 @@ export const shipmentsService = {
   }
 };
 
+// Financial Categories Service
+export const financialCategoriesService = {
+  // Create a new financial category
+  createCategory: async (categoryData) => {
+    const response = await api.post('/financial-categories/CreateCategory', categoryData);
+    return response.data;
+  },
+  
+  // Update an existing financial category
+  updateCategory: async (id, categoryData) => {
+    const response = await api.put(`/financial-categories/${id}`, categoryData);
+    return response.data;
+  },
+  
+  // Delete a financial category
+  deleteCategory: async (id) => {
+    const response = await api.delete(`/financial-categories/${id}`);
+    return response.data;
+  },
+  
+  // Get categories by type (1 for revenue/income, 2 for expenses)
+  getCategoriesByType: async (type) => {
+    const response = await api.get(`/financial-categories/ByType/${type}`);
+    return response.data;
+  },
+};
+
 // Export constants for use in components
 export { USER_ROLES, ROLE_STRINGS };
