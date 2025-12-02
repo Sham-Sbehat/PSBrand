@@ -23,7 +23,7 @@ import {
   CircularProgress,
   Divider,
 } from "@mui/material";
-import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
+import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf, Search } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../services/api";
@@ -215,6 +215,7 @@ const EmployeeDashboard = () => {
     totalAmountWithoutDelivery: 0,
     periodDescription: ''
   });
+  const [searchQuery, setSearchQuery] = useState('');
 
   const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
   const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
@@ -750,6 +751,7 @@ const EmployeeDashboard = () => {
   const handleCloseOrdersModal = () => {
     setOpenOrdersModal(false);
     setOrdersList([]);
+    setSearchQuery('');
   };
 
   const handleCloseDetailsModal = () => {
@@ -1130,42 +1132,175 @@ const EmployeeDashboard = () => {
             <Typography>لا توجد طلبات</Typography>
           </Box>
         ) : (
-          <TableContainer
-            sx={{
-              borderRadius: 3,
-              border: "1px solid rgba(94, 78, 62, 0.18)",
-              backgroundColor: "rgba(255,255,255,0.4)",
-            }}
-          >
-            <Table>
-              <TableHead
-                sx={{
-                  backgroundColor: "rgba(94, 78, 62, 0.08)",
-                  "& th": { fontWeight: 700, color: calmPalette.textPrimary },
-                }}
-              >
-                <TableRow>
-                  <TableCell>رقم الطلب</TableCell>
-                  <TableCell>اسم العميل</TableCell>
-                  <TableCell>الرقم</TableCell>
-                  <TableCell>الإجمالي</TableCell>
-                  <TableCell>الحالة</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
-                  <TableCell>التاريخ</TableCell>
-                  <TableCell>الإجراءات</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {ordersList.map((order) => {
-                  const status = getStatusLabel(order.status);
-                  return (
-                    <TableRow
-                      key={order.id}
-                      hover
+          <>
+            {/* Search Field */}
+            <Box 
+              sx={{ 
+                marginBottom: 2,
+                marginTop: 2,
+                position: 'relative',
+                width: '20%',
+              }}
+            >
+              <TextField
+                fullWidth
+                size="medium"
+                placeholder="بحث باسم العميل أو رقم الهاتف..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Box
                       sx={{
-                        "&:nth-of-type(even)": { backgroundColor: "rgba(255,255,255,0.3)" },
+                        display: 'flex',
+                        alignItems: 'center',
+                        marginRight: 1,
+                        color: searchQuery ? calmPalette.primary : 'text.secondary',
+                        transition: 'color 0.3s ease',
                       }}
                     >
+                      <Search />
+                    </Box>
+                  ),
+                }}
+                sx={{
+                  backgroundColor: "rgba(255,255,255,0.85)",
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 3,
+                  boxShadow: '0 4px 20px rgba(94, 78, 62, 0.1)',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    boxShadow: '0 6px 25px rgba(94, 78, 62, 0.15)',
+                    backgroundColor: "rgba(255,255,255,0.95)",
+                  },
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    paddingLeft: 1,
+                    '& fieldset': {
+                      borderColor: 'rgba(94, 78, 62, 0.2)',
+                      borderWidth: 2,
+                      transition: 'all 0.3s ease',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: calmPalette.primary + '80',
+                      borderWidth: 2,
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: calmPalette.primary,
+                      borderWidth: 2,
+                      boxShadow: `0 0 0 3px ${calmPalette.primary}20`,
+                    },
+                    '& input': {
+                      padding: '12px 14px',
+                      fontSize: '0.95rem',
+                      fontWeight: 500,
+                    },
+                  },
+                }}
+              />
+              {searchQuery && (
+                <Box
+                  sx={{
+                    marginTop: 1.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    backgroundColor: calmPalette.primary + '15',
+                    padding: '8px 16px',
+                    borderRadius: 2,
+                    width: 'fit-content',
+                    border: `1px solid ${calmPalette.primary}30`,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: calmPalette.primary + '25',
+                      transform: 'translateX(4px)',
+                    },
+                  }}
+                >
+                  <Search sx={{ fontSize: 18, color: calmPalette.primary }} />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.primary,
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    {(() => {
+                      const filteredCount = searchQuery.trim()
+                        ? ordersList.filter((order) => {
+                            const clientName = order.client?.name || '';
+                            const clientPhone = order.client?.phone || '';
+                            const query = searchQuery.toLowerCase().trim();
+                            return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                          }).length
+                        : ordersList.length;
+                      return `تم العثور على ${filteredCount} ${filteredCount === 1 ? 'نتيجة' : 'نتائج'}`;
+                    })()}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+            <TableContainer
+              sx={{
+                borderRadius: 3,
+                border: "1px solid rgba(94, 78, 62, 0.18)",
+                backgroundColor: "rgba(255,255,255,0.4)",
+              }}
+            >
+              <Table>
+                <TableHead
+                  sx={{
+                    backgroundColor: "rgba(94, 78, 62, 0.08)",
+                    "& th": { fontWeight: 700, color: calmPalette.textPrimary },
+                  }}
+                >
+                  <TableRow>
+                    <TableCell>رقم الطلب</TableCell>
+                    <TableCell>اسم العميل</TableCell>
+                    <TableCell>الرقم</TableCell>
+                    <TableCell>الإجمالي</TableCell>
+                    <TableCell>الحالة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
+                    <TableCell>التاريخ</TableCell>
+                    <TableCell>الإجراءات</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(() => {
+                    const filteredOrders = searchQuery.trim()
+                      ? ordersList.filter((order) => {
+                          const clientName = order.client?.name || '';
+                          const clientPhone = order.client?.phone || '';
+                          const query = searchQuery.toLowerCase().trim();
+                          return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                        })
+                      : ordersList;
+                    
+                    if (filteredOrders.length === 0) {
+                      return (
+                        <TableRow>
+                          <TableCell colSpan={8} align="center">
+                            <Box sx={{ padding: 4 }}>
+                              <Typography variant="body1" color="text.secondary">
+                                {searchQuery.trim() ? 'لا توجد نتائج للبحث' : 'لا توجد طلبات'}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                    
+                    return filteredOrders.map((order) => {
+                      const status = getStatusLabel(order.status);
+                      return (
+                        <TableRow
+                          key={order.id}
+                          hover
+                          sx={{
+                            "&:nth-of-type(even)": { backgroundColor: "rgba(255,255,255,0.3)" },
+                          }}
+                        >
                       <TableCell>{order.orderNumber}</TableCell>
                       <TableCell>{order.client?.name || "-"}</TableCell>
                       <TableCell>{order.client?.phone || "-"}</TableCell>
@@ -1293,11 +1428,13 @@ const EmployeeDashboard = () => {
                         </Box>
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                      );
+                    });
+                  })()}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </>
         )}
       </GlassDialog>
 

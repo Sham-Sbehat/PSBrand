@@ -25,7 +25,7 @@ import {
   Divider,
   TextField,
 } from "@mui/material";
-import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
+import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, Search } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../services/api";
@@ -106,6 +106,9 @@ const PreparerDashboard = () => {
     const day = String(today.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQueryMyOrders, setSearchQueryMyOrders] = useState('');
+  const [searchQueryCompleted, setSearchQueryCompleted] = useState('');
 
   // Fetch available orders (Status 3: IN_PREPARATION) - Tab 0
   const fetchAvailableOrders = async (showLoading = false) => {
@@ -977,6 +980,7 @@ const InfoItem = ({ label, value }) => (
 
   const handleCloseCompletedOrdersModal = () => {
     setOpenCompletedOrdersModal(false);
+    setSearchQueryCompleted('');
   };
 
   return (
@@ -1175,6 +1179,117 @@ const InfoItem = ({ label, value }) => (
        الطلبات المتاحة للتحضير ({availableOrders.length})
           </Typography>
 
+          {/* Search Field */}
+          {!loading && availableOrders.length > 0 && (
+            <Box 
+              sx={{ 
+                marginBottom: 2,
+                marginTop: 2,
+                position: 'relative',
+                width: '20%',
+              }}
+            >
+              <TextField
+                fullWidth
+                size="medium"
+                placeholder="بحث باسم العميل أو رقم الهاتف..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        marginRight: 1,
+                        color: searchQuery ? calmPalette.primary : 'text.secondary',
+                        transition: 'color 0.3s ease',
+                      }}
+                    >
+                      <Search />
+                    </Box>
+                  ),
+                }}
+                sx={{
+                  backgroundColor: "rgba(255,255,255,0.85)",
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 3,
+                  boxShadow: '0 4px 20px rgba(94, 78, 62, 0.1)',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    boxShadow: '0 6px 25px rgba(94, 78, 62, 0.15)',
+                    backgroundColor: "rgba(255,255,255,0.95)",
+                  },
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    paddingLeft: 1,
+                    '& fieldset': {
+                      borderColor: 'rgba(94, 78, 62, 0.2)',
+                      borderWidth: 2,
+                      transition: 'all 0.3s ease',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: calmPalette.primary + '80',
+                      borderWidth: 2,
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: calmPalette.primary,
+                      borderWidth: 2,
+                      boxShadow: `0 0 0 3px ${calmPalette.primary}20`,
+                    },
+                    '& input': {
+                      padding: '12px 14px',
+                      fontSize: '0.95rem',
+                      fontWeight: 500,
+                    },
+                  },
+                }}
+              />
+              {searchQuery && (
+                <Box
+                  sx={{
+                    marginTop: 1.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    backgroundColor: calmPalette.primary + '15',
+                    padding: '8px 16px',
+                    borderRadius: 2,
+                    width: 'fit-content',
+                    border: `1px solid ${calmPalette.primary}30`,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: calmPalette.primary + '25',
+                      transform: 'translateX(4px)',
+                    },
+                  }}
+                >
+                  <Search sx={{ fontSize: 18, color: calmPalette.primary }} />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.primary,
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    {(() => {
+                      const filteredCount = searchQuery.trim()
+                        ? availableOrders.filter((order) => {
+                            const clientName = order.client?.name || '';
+                            const clientPhone = order.client?.phone || '';
+                            const query = searchQuery.toLowerCase().trim();
+                            return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                          }).length
+                        : availableOrders.length;
+                      return `تم العثور على ${filteredCount} ${filteredCount === 1 ? 'نتيجة' : 'نتائج'}`;
+                    })()}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+
               {loading && availableOrders.length === 0 ? (
             <Box sx={{ display: "flex", justifyContent: "center", padding: 4 }}>
               <CircularProgress />
@@ -1223,7 +1338,15 @@ const InfoItem = ({ label, value }) => (
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {availableOrders.map((order, index) => {
+                  {(searchQuery.trim()
+                    ? availableOrders.filter((order) => {
+                        const clientName = order.client?.name || '';
+                        const clientPhone = order.client?.phone || '';
+                        const query = searchQuery.toLowerCase().trim();
+                        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                      })
+                    : availableOrders
+                  ).map((order, index) => {
                       // Get preparer ID from order
                       const orderPreparerId = order.preparer?.id || order.preparerId || (typeof order.preparer === 'number' ? order.preparer : null);
                       const currentUserId = user?.id;
@@ -1400,7 +1523,15 @@ const InfoItem = ({ label, value }) => (
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {myOpenOrders.map((order, index) => {
+                  {(searchQueryMyOrders.trim()
+                    ? myOpenOrders.filter((order) => {
+                        const clientName = order.client?.name || '';
+                        const clientPhone = order.client?.phone || '';
+                        const query = searchQueryMyOrders.toLowerCase().trim();
+                        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                      })
+                    : myOpenOrders
+                  ).map((order, index) => {
                       return (
                     <TableRow 
                       key={order.id} 
@@ -1500,11 +1631,7 @@ const InfoItem = ({ label, value }) => (
         onClose={handleCloseCompletedOrdersModal}
         maxWidth="xl"
         title={`الطلبات المكتملة (${completedOrders.length})`}
-        actions={
-          <Button onClick={handleCloseCompletedOrdersModal} variant="contained">
-            إغلاق
-          </Button>
-        }
+       
       >
         {loading && completedOrders.length === 0 ? (
           <Box sx={{ display: "flex", justifyContent: "center", padding: 4, gap: 2, alignItems: "center" }}>
@@ -1516,35 +1643,152 @@ const InfoItem = ({ label, value }) => (
             <Typography>لا توجد طلبات مكتملة أو مرسلة</Typography>
           </Box>
         ) : (
-          <TableContainer
-            sx={{
-              borderRadius: 3,
-              border: "1px solid rgba(94, 78, 62, 0.18)",
-              backgroundColor: "rgba(255,255,255,0.4)",
-            }}
-          >
-            <Table>
-              <TableHead
-                sx={{
-                  backgroundColor: "rgba(94, 78, 62, 0.08)",
-                  "& th": { fontWeight: 700, color: calmPalette.textPrimary },
+          <>
+            {/* Search Field */}
+            <Box 
+              sx={{ 
+                marginBottom: 2,
+                marginTop: 2,
+                position: 'relative',
+                width: '20%',
+              }}
+            >
+              <TextField
+                fullWidth
+                size="medium"
+                placeholder="بحث باسم العميل أو رقم الهاتف..."
+                value={searchQueryCompleted}
+                onChange={(e) => setSearchQueryCompleted(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        marginRight: 1,
+                        color: searchQueryCompleted ? calmPalette.primary : 'text.secondary',
+                        transition: 'color 0.3s ease',
+                      }}
+                    >
+                      <Search />
+                    </Box>
+                  ),
                 }}
-              >
-                <TableRow>
-                  <TableCell>رقم الطلب</TableCell>
-                  <TableCell>اسم العميل</TableCell>
-                  <TableCell>رقم الهاتف</TableCell>
-                  <TableCell>المحافظة</TableCell>
-                  <TableCell>الإجمالي</TableCell>
-                  <TableCell>الحالة</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
-                  <TableCell>تاريخ الطلب</TableCell>
-                  <TableCell>الملاحظات</TableCell>
-                  <TableCell>الإجراءات</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {completedOrders.map((order) => {
+                sx={{
+                  backgroundColor: "rgba(255,255,255,0.85)",
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 3,
+                  boxShadow: '0 4px 20px rgba(94, 78, 62, 0.1)',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    boxShadow: '0 6px 25px rgba(94, 78, 62, 0.15)',
+                    backgroundColor: "rgba(255,255,255,0.95)",
+                  },
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    paddingLeft: 1,
+                    '& fieldset': {
+                      borderColor: 'rgba(94, 78, 62, 0.2)',
+                      borderWidth: 2,
+                      transition: 'all 0.3s ease',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: calmPalette.primary + '80',
+                      borderWidth: 2,
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: calmPalette.primary,
+                      borderWidth: 2,
+                      boxShadow: `0 0 0 3px ${calmPalette.primary}20`,
+                    },
+                    '& input': {
+                      padding: '12px 14px',
+                      fontSize: '0.95rem',
+                      fontWeight: 500,
+                    },
+                  },
+                }}
+              />
+              {searchQueryCompleted && (
+                <Box
+                  sx={{
+                    marginTop: 1.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    backgroundColor: calmPalette.primary + '15',
+                    padding: '8px 16px',
+                    borderRadius: 2,
+                    width: 'fit-content',
+                    border: `1px solid ${calmPalette.primary}30`,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: calmPalette.primary + '25',
+                      transform: 'translateX(4px)',
+                    },
+                  }}
+                >
+                  <Search sx={{ fontSize: 18, color: calmPalette.primary }} />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.primary,
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    {(() => {
+                      const filteredCount = searchQueryCompleted.trim()
+                        ? completedOrders.filter((order) => {
+                            const clientName = order.client?.name || '';
+                            const clientPhone = order.client?.phone || '';
+                            const query = searchQueryCompleted.toLowerCase().trim();
+                            return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                          }).length
+                        : completedOrders.length;
+                      return `تم العثور على ${filteredCount} ${filteredCount === 1 ? 'نتيجة' : 'نتائج'}`;
+                    })()}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+            <TableContainer
+              sx={{
+                borderRadius: 3,
+                border: "1px solid rgba(94, 78, 62, 0.18)",
+                backgroundColor: "rgba(255,255,255,0.4)",
+              }}
+            >
+              <Table>
+                <TableHead
+                  sx={{
+                    backgroundColor: "rgba(94, 78, 62, 0.08)",
+                    "& th": { fontWeight: 700, color: calmPalette.textPrimary },
+                  }}
+                >
+                  <TableRow>
+                    <TableCell>رقم الطلب</TableCell>
+                    <TableCell>اسم العميل</TableCell>
+                    <TableCell>رقم الهاتف</TableCell>
+                    <TableCell>المحافظة</TableCell>
+                    <TableCell>الإجمالي</TableCell>
+                    <TableCell>الحالة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
+                    <TableCell>تاريخ الطلب</TableCell>
+                    <TableCell>الملاحظات</TableCell>
+                    <TableCell>الإجراءات</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(searchQueryCompleted.trim()
+                    ? completedOrders.filter((order) => {
+                        const clientName = order.client?.name || '';
+                        const clientPhone = order.client?.phone || '';
+                        const query = searchQueryCompleted.toLowerCase().trim();
+                        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                      })
+                    : completedOrders
+                  ).map((order) => {
                   const status = getStatusLabel(order.status);
                   return (
                     <TableRow
@@ -1675,8 +1919,9 @@ const InfoItem = ({ label, value }) => (
                   );
                 })}
               </TableBody>
-            </Table>
-          </TableContainer>
+              </Table>
+            </TableContainer>
+          </>
         )}
       </GlassDialog>
 
@@ -2065,7 +2310,7 @@ const InfoItem = ({ label, value }) => (
         subtitle={orderForDeliveryStatus?.orderNumber ? `طلب رقم: ${orderForDeliveryStatus.orderNumber}` : undefined}
         actions={
           <Button onClick={handleCloseDeliveryStatusDialog} variant="contained">
-            إغلاق
+          إغلاق  
           </Button>
         }
       >

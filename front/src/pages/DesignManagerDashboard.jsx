@@ -41,6 +41,7 @@ import {
   ArrowForward,
   Visibility,
   TrackChanges,
+  Search,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -65,6 +66,7 @@ const DesignManagerDashboard = () => {
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
@@ -1055,8 +1057,10 @@ const DesignManagerDashboard = () => {
             sx={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: "flex-start",
               marginBottom: 3,
+              flexWrap: 'wrap',
+              gap: 2,
             }}
           >
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
@@ -1064,22 +1068,134 @@ const DesignManagerDashboard = () => {
               جميع الطلبات ({filteredOrders.length})
             </Typography>
 
-            <TextField
-              select
-              size="small"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              sx={{ minWidth: 150 }}
-            >
-              <MenuItem value="all">جميع الطلبات</MenuItem>
-              <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
-              <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
-              <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
-              <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
-              <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
-              <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
-              <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
-            </TextField>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box sx={{ flex: 1, minWidth: 300, position: 'relative' }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="بحث باسم العميل أو رقم الهاتف..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginRight: 1,
+                          color: searchQuery ? calmPalette.primary : 'text.secondary',
+                          transition: 'color 0.3s ease',
+                        }}
+                      >
+                        <Search />
+                      </Box>
+                    ),
+                  }}
+                  sx={{
+                    backgroundColor: "rgba(255,255,255,0.85)",
+                    backdropFilter: 'blur(10px)',
+                    borderRadius: 3,
+                    boxShadow: '0 4px 20px rgba(94, 78, 62, 0.1)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      boxShadow: '0 6px 25px rgba(94, 78, 62, 0.15)',
+                      backgroundColor: "rgba(255,255,255,0.95)",
+                    },
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 3,
+                      paddingLeft: 1,
+                      '& fieldset': {
+                        borderColor: 'rgba(94, 78, 62, 0.2)',
+                        borderWidth: 2,
+                        transition: 'all 0.3s ease',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: calmPalette.primary + '80',
+                        borderWidth: 2,
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: calmPalette.primary,
+                        borderWidth: 2,
+                        boxShadow: `0 0 0 3px ${calmPalette.primary}20`,
+                      },
+                      '& input': {
+                        padding: '10px 14px',
+                        fontSize: '0.95rem',
+                        fontWeight: 500,
+                      },
+                    },
+                  }}
+                />
+                {searchQuery && (
+                  <Box
+                    sx={{
+                      marginTop: 1.5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      backgroundColor: calmPalette.primary + '15',
+                      padding: '6px 16px',
+                      borderRadius: 2,
+                      width: 'fit-content',
+                      border: `1px solid ${calmPalette.primary}30`,
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        backgroundColor: calmPalette.primary + '25',
+                        transform: 'translateX(4px)',
+                      },
+                    }}
+                  >
+                    <Search sx={{ fontSize: 18, color: calmPalette.primary }} />
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: calmPalette.primary,
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      {(() => {
+                        const filteredCount = filteredOrders.length;
+                        return `تم العثور على ${filteredCount} ${filteredCount === 1 ? 'نتيجة' : 'نتائج'}`;
+                      })()}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+              <TextField
+                select
+                size="small"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                sx={{ 
+                  minWidth: 150,
+                  backgroundColor: "rgba(255,255,255,0.85)",
+                  borderRadius: 3,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    '& fieldset': {
+                      borderColor: 'rgba(94, 78, 62, 0.2)',
+                      borderWidth: 2,
+                    },
+                    '&:hover fieldset': {
+                      borderColor: calmPalette.primary + '80',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: calmPalette.primary,
+                    },
+                  },
+                }}
+              >
+                <MenuItem value="all">جميع الطلبات</MenuItem>
+                <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
+                <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
+                <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
+                <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
+                <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
+                <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
+                <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
+              </TextField>
+            </Box>
           </Box>
 
           {loading ? (
