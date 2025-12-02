@@ -511,6 +511,12 @@ export const transactionsService = {
     return response.data;
   },
   
+  // Get all transactions
+  getAllTransactions: async () => {
+    const response = await api.get('/transactions');
+    return response.data;
+  },
+  
   // Get transactions by month
   getTransactionsByMonth: async (year, month) => {
     const response = await api.get('/transactions/ByMonth', {
@@ -519,6 +525,20 @@ export const transactionsService = {
         month: month
       }
     });
+    return response.data;
+  },
+  
+  // Get transactions by category
+  getTransactionsByCategory: async (categoryId, year, month) => {
+    const params = { year, month };
+    const response = await api.get(`/transactions/ByCategory/${categoryId}`, { params });
+    return response.data;
+  },
+  
+  // Get transactions by source
+  getTransactionsBySource: async (sourceId, year, month) => {
+    const params = { year, month };
+    const response = await api.get(`/transactions/BySource/${sourceId}`, { params });
     return response.data;
   },
   
@@ -546,6 +566,17 @@ export const reportsService = {
   // Get monthly financial report by year and month
   getMonthlyReport: async (year, month) => {
     const response = await api.get(`/reports/monthly/${year}/${month}`);
+    return response.data;
+  },
+};
+
+// Accounting Service
+export const accountingService = {
+  // Calculate income from orders for a specific month
+  calculateIncomeFromOrders: async (year, month) => {
+    const response = await api.get('/accounting/CalculateIncomeFromOrders', {
+      params: { year, month }
+    });
     return response.data;
   },
 };

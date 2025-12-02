@@ -45,11 +45,16 @@ import {
   Description,
 } from '@mui/icons-material';
 import calmPalette from '../../theme/calmPalette';
-import { financialCategoriesService, expenseSourcesService, transactionsService, reportsService } from '../../services/api';
+import { financialCategoriesService, expenseSourcesService, transactionsService, reportsService, accountingService } from '../../services/api';
 import { useApp } from '../../context/AppContext';
 
 const FinancialManagement = () => {
   const { user } = useApp();
+  
+  // Protected IDs - cannot be deleted (used in income calculation)
+  const PROTECTED_CATEGORY_ID = 20; // مبيعات
+  const PROTECTED_SOURCE_ID = 26; // بلايز
+  
   // Main tab state
   const [mainTab, setMainTab] = useState(0);
   
@@ -80,6 +85,7 @@ const FinancialManagement = () => {
   const [sources, setSources] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingSources, setLoadingSources] = useState(false);
+  const [calculatingIncome, setCalculatingIncome] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [savingCategory, setSavingCategory] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -94,6 +100,8 @@ const FinancialManagement = () => {
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [filterByCategory, setFilterByCategory] = useState('');
+  const [filterBySource, setFilterBySource] = useState('');
   const [transactionToDelete, setTransactionToDelete] = useState(null);
   const [openDeleteTransactionDialog, setOpenDeleteTransactionDialog] = useState(false);
   const [deletingTransaction, setDeletingTransaction] = useState(false);
@@ -104,14 +112,49 @@ const FinancialManagement = () => {
 
 
   // Fetch transactions from API
-  const fetchTransactions = async (month, year) => {
+  const fetchTransactions = async (month, year, categoryId = null, sourceId = null) => {
     setLoadingTransactions(true);
     try {
-      const response = await transactionsService.getTransactionsByMonth(
-        year,
-        month
-      );
-      // API returns an object with transactions array, not a direct array
+      let response;
+      
+      // Priority: category filter > source filter > month filter
+      if (categoryId) {
+        // Filter by category
+        if (month && month !== 'all' && month !== null) {
+          response = await transactionsService.getTransactionsByCategory(categoryId, year, month);
+        } else {
+          // Fetch all transactions for this category using getAllTransactions and filter client-side
+          const allTransactionsResponse = await transactionsService.getAllTransactions();
+          const allTransactions = Array.isArray(allTransactionsResponse) 
+            ? allTransactionsResponse 
+            : (allTransactionsResponse?.transactions || []);
+          // Filter by category
+          const filtered = allTransactions.filter(t => t.categoryId === categoryId);
+          response = { transactions: filtered };
+        }
+      } else if (sourceId) {
+        // Filter by source
+        if (month && month !== 'all' && month !== null) {
+          response = await transactionsService.getTransactionsBySource(sourceId, year, month);
+        } else {
+          // Fetch all transactions for this source using getAllTransactions and filter client-side
+          const allTransactionsResponse = await transactionsService.getAllTransactions();
+          const allTransactions = Array.isArray(allTransactionsResponse) 
+            ? allTransactionsResponse 
+            : (allTransactionsResponse?.transactions || []);
+          // Filter by source
+          const filtered = allTransactions.filter(t => t.sourceId === sourceId);
+          response = { transactions: filtered };
+        }
+      } else if (month && month !== 'all' && month !== null) {
+        // Fetch transactions for specific month
+        response = await transactionsService.getTransactionsByMonth(year, month);
+      } else {
+        // Fetch all transactions using getAllTransactions API
+        response = await transactionsService.getAllTransactions();
+      }
+      
+      // API returns an object with transactions array, or a direct array
       const transactionsData = response?.transactions || response;
       setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
     } catch (error) {
@@ -127,12 +170,14 @@ const FinancialManagement = () => {
     }
   };
 
-  // Load transactions when month/year changes
+  // Load transactions when filters change
   useEffect(() => {
-    if (selectedMonth && selectedYear) {
-      fetchTransactions(selectedMonth, selectedYear);
+    if (selectedYear && (selectedMonth || selectedMonth === 'all' || selectedMonth === null)) {
+      const categoryId = filterByCategory ? parseInt(filterByCategory) : null;
+      const sourceId = filterBySource ? parseInt(filterBySource) : null;
+      fetchTransactions(selectedMonth, selectedYear, categoryId, sourceId);
     }
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, filterByCategory, filterBySource]);
 
   // Fetch report summary - either monthly or all
   const fetchReportSummary = async (year, month) => {
@@ -299,12 +344,33 @@ const FinancialManagement = () => {
   };
 
   const handleDeleteCategory = (category) => {
+    // Check if category is protected
+    if (category.id === PROTECTED_CATEGORY_ID) {
+      setSnackbar({
+        open: true,
+        message: 'لا يمكن حذف هذه الفئة لأنها مستخدمة في حساب إيرادات الطلبات',
+        severity: 'warning'
+      });
+      return;
+    }
     setCategoryToDelete(category);
     setOpenDeleteDialog(true);
   };
 
   const handleConfirmDelete = async () => {
     if (!categoryToDelete) return;
+
+    // Double check protection
+    if (categoryToDelete.id === PROTECTED_CATEGORY_ID) {
+      setSnackbar({
+        open: true,
+        message: 'لا يمكن حذف هذه الفئة لأنها مستخدمة في حساب إيرادات الطلبات',
+        severity: 'warning'
+      });
+      setOpenDeleteDialog(false);
+      setCategoryToDelete(null);
+      return;
+    }
 
     setDeletingCategory(true);
     try {
@@ -402,12 +468,33 @@ const FinancialManagement = () => {
   };
 
   const handleDeleteSource = (source) => {
+    // Check if source is protected
+    if (source.id === PROTECTED_SOURCE_ID) {
+      setSnackbar({
+        open: true,
+        message: 'لا يمكن حذف هذا المصدر لأنه مستخدم في حساب إيرادات الطلبات',
+        severity: 'warning'
+      });
+      return;
+    }
     setSourceToDelete(source);
     setOpenDeleteSourceDialog(true);
   };
 
   const handleConfirmDeleteSource = async () => {
     if (!sourceToDelete) return;
+
+    // Double check protection
+    if (sourceToDelete.id === PROTECTED_SOURCE_ID) {
+      setSnackbar({
+        open: true,
+        message: 'لا يمكن حذف هذا المصدر لأنه مستخدم في حساب إيرادات الطلبات',
+        severity: 'warning'
+      });
+      setOpenDeleteSourceDialog(false);
+      setSourceToDelete(null);
+      return;
+    }
 
     setDeletingSource(true);
     try {
@@ -433,6 +520,99 @@ const FinancialManagement = () => {
       });
     } finally {
       setDeletingSource(false);
+    }
+  };
+
+  // Calculate orders income and create transaction automatically
+  const handleCalculateOrdersIncome = async () => {
+    setCalculatingIncome(true);
+    try {
+      // Step 1: Calculate income from orders
+      const income = await accountingService.calculateIncomeFromOrders(selectedYear, selectedMonth);
+      // API returns { totalIncome, totalWithDelivery, ... }
+      const incomeAmount = typeof income === 'number' ? income : (income?.totalIncome || income?.amount || income?.total || 0);
+      
+      if (incomeAmount <= 0) {
+        setSnackbar({
+          open: true,
+          message: 'لا توجد إيرادات من الطلبات لهذا الشهر',
+          severity: 'info'
+        });
+        return;
+      }
+
+      // Step 2: Use fixed categoryId = 20 and sourceId = 26
+      const ordersCategoryId = 20;
+      const ordersSourceId = 26;
+
+      // Step 3: Check if transaction already exists for this month/year
+      const existingTransaction = transactions.find(
+        t => t.categoryId === ordersCategoryId &&
+             t.sourceId === ordersSourceId &&
+             new Date(t.transactionDate).getMonth() === selectedMonth - 1 &&
+             new Date(t.transactionDate).getFullYear() === selectedYear
+      );
+
+      // Step 4: Use a date in the middle of the selected month (15th day) to ensure it appears in the filter
+      const transactionDate = new Date(selectedYear, selectedMonth - 1, 15, 12, 0, 0);
+      const transactionDateISO = transactionDate.toISOString();
+
+      if (existingTransaction) {
+        // If transaction exists, update it instead of creating a new one
+        // Only update if the amount is different
+        if (existingTransaction.amount !== incomeAmount) {
+          await transactionsService.updateTransaction(existingTransaction.id, {
+            type: 1, // Income
+            categoryId: ordersCategoryId,
+            sourceId: ordersSourceId,
+            amount: incomeAmount,
+            transactionDate: transactionDateISO,
+            description: `إيرادات الطلبات - ${getMonthName(selectedMonth)} ${selectedYear}`
+          });
+
+          setSnackbar({
+            open: true,
+            message: `تم تحديث إيرادات الطلبات بنجاح: ${incomeAmount.toLocaleString()} ₪ (كان: ${existingTransaction.amount.toLocaleString()} ₪)`,
+            severity: 'success'
+          });
+        } else {
+          setSnackbar({
+            open: true,
+            message: `إيرادات الطلبات لهذا الشهر: ${incomeAmount.toLocaleString()} ₪ (لم تتغير)`,
+            severity: 'info'
+          });
+        }
+      } else {
+        // Step 5: Create new transaction if it doesn't exist
+        await transactionsService.createTransaction({
+          type: 1, // Income
+          categoryId: ordersCategoryId,
+          sourceId: ordersSourceId,
+          amount: incomeAmount,
+          transactionDate: transactionDateISO,
+          description: `إيرادات الطلبات - ${getMonthName(selectedMonth)} ${selectedYear}`
+        });
+
+        setSnackbar({
+          open: true,
+          message: `تم حساب إيرادات الطلبات وإضافة المعاملة بنجاح: ${incomeAmount.toLocaleString()} ₪`,
+          severity: 'success'
+        });
+      }
+
+      // Step 6: Refresh transactions list immediately
+      const currentCategoryId = filterByCategory ? parseInt(filterByCategory) : null;
+      const currentSourceId = filterBySource ? parseInt(filterBySource) : null;
+      await fetchTransactions(selectedMonth, selectedYear, currentCategoryId, currentSourceId);
+    } catch (error) {
+      console.error('Error calculating orders income:', error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'حدث خطأ أثناء حساب إيرادات الطلبات',
+        severity: 'error'
+      });
+    } finally {
+      setCalculatingIncome(false);
     }
   };
 
@@ -540,7 +720,9 @@ const FinancialManagement = () => {
           // fetchTransactions will be called automatically by useEffect when month/year changes
         } else {
           // Refresh transactions list for current month/year
-          await fetchTransactions(selectedMonth, selectedYear);
+          const categoryId = filterByCategory ? parseInt(filterByCategory) : null;
+          const sourceId = filterBySource ? parseInt(filterBySource) : null;
+          await fetchTransactions(selectedMonth, selectedYear, categoryId, sourceId);
         }
       } else {
         // Create new transaction
@@ -563,7 +745,9 @@ const FinancialManagement = () => {
           // fetchTransactions will be called automatically by useEffect when month/year changes
         } else {
           // Refresh transactions list for current month/year
-          await fetchTransactions(selectedMonth, selectedYear);
+          const categoryId = filterByCategory ? parseInt(filterByCategory) : null;
+          const sourceId = filterBySource ? parseInt(filterBySource) : null;
+          await fetchTransactions(selectedMonth, selectedYear, categoryId, sourceId);
         }
       }
       
@@ -629,7 +813,9 @@ const FinancialManagement = () => {
       setTransactionToDelete(null);
       
       // Refresh transactions list
-      await fetchTransactions(selectedMonth, selectedYear);
+      const categoryId = filterByCategory ? parseInt(filterByCategory) : null;
+      const sourceId = filterBySource ? parseInt(filterBySource) : null;
+      await fetchTransactions(selectedMonth, selectedYear, categoryId, sourceId);
     } catch (error) {
       console.error('Error deleting transaction:', error);
       setSnackbar({
@@ -916,22 +1102,37 @@ const FinancialManagement = () => {
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="حذف">
-                              <IconButton
-                                size="small"
-                                color="error"
+                            {category.id !== PROTECTED_CATEGORY_ID ? (
+                              <Tooltip title="حذف">
+                                <IconButton
+                                  size="small"
+                                  color="error"
                                   onClick={() => handleDeleteCategory(category)}
-                                sx={{
-                                  '&:hover': {
-                                    backgroundColor: 'error.light',
-                                    transform: 'scale(1.1)',
-                                  },
-                                  transition: 'all 0.2s',
-                                }}
-                              >
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                                  sx={{
+                                    '&:hover': {
+                                      backgroundColor: 'error.light',
+                                      transform: 'scale(1.1)',
+                                    },
+                                    transition: 'all 0.2s',
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="هذه الفئة محمية ولا يمكن حذفها">
+                                <IconButton
+                                  size="small"
+                                  disabled
+                                  sx={{
+                                    opacity: 0.3,
+                                    cursor: 'not-allowed',
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -1058,22 +1259,37 @@ const FinancialManagement = () => {
                                 <Edit fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="حذف">
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => handleDeleteSource(source)}
-                                sx={{
-                                  '&:hover': {
-                                    backgroundColor: 'error.light',
-                                    transform: 'scale(1.1)',
-                                  },
-                                  transition: 'all 0.2s',
-                                }}
-                              >
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {source.id !== PROTECTED_SOURCE_ID ? (
+                              <Tooltip title="حذف">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleDeleteSource(source)}
+                                  sx={{
+                                    '&:hover': {
+                                      backgroundColor: 'error.light',
+                                      transform: 'scale(1.1)',
+                                    },
+                                    transition: 'all 0.2s',
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="هذا المصدر محمي ولا يمكن حذفه">
+                                <IconButton
+                                  size="small"
+                                  disabled
+                                  sx={{
+                                    opacity: 0.3,
+                                    cursor: 'not-allowed',
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Box>
                         </TableCell>
                       </TableRow>
@@ -1092,6 +1308,36 @@ const FinancialManagement = () => {
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
                   المعاملات المالية
                 </Typography>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Tooltip 
+                    title="سيتم إضافة معاملة مالية جديدة تلقائياً ضمن فئة 'مبيعات' ومصدر 'بلايز' بقيمة مجموع إيرادات الطلبات للشهر المحدد (بدون رسوم التوصيل)"
+                    arrow
+                    placement="top"
+                  >
+                    <span>
+                      <Button
+                        variant="outlined"
+                        startIcon={calculatingIncome ? <CircularProgress size={16} /> : <AttachMoney />}
+                        onClick={handleCalculateOrdersIncome}
+                        disabled={calculatingIncome}
+                        sx={{
+                          borderColor: '#2e7d32',
+                          color: '#2e7d32',
+                          borderRadius: 2,
+                          px: 3,
+                          py: 1,
+                          '&:hover': {
+                            borderColor: '#2e7d32',
+                            backgroundColor: '#2e7d3210',
+                            transform: 'translateY(-2px)',
+                          },
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        حساب إيرادات الطلبات
+                      </Button>
+                    </span>
+                  </Tooltip>
                 <Button
                   variant="contained"
                   startIcon={<Add />}
@@ -1112,9 +1358,10 @@ const FinancialManagement = () => {
                 >
                   إضافة معاملة جديدة
                 </Button>
+                </Box>
               </Box>
 
-              {/* Month/Year Filter */}
+              {/* Filters */}
               <Box sx={{ 
                 display: 'flex', 
                 gap: 2, 
@@ -1123,6 +1370,7 @@ const FinancialManagement = () => {
                 backgroundColor: '#f8f8f8',
                 borderRadius: 2,
                 alignItems: 'center',
+                flexWrap: 'wrap',
               }}>
                 <CalendarMonth sx={{ color: calmPalette.statCards[0].background }} />
                 <Typography variant="body1" sx={{ fontWeight: 600, marginRight: 1 }}>
@@ -1131,11 +1379,15 @@ const FinancialManagement = () => {
                 <FormControl size="small" sx={{ minWidth: 150 }}>
                   <InputLabel>الشهر</InputLabel>
                   <Select
-                    value={selectedMonth}
+                    value={selectedMonth || 'all'}
                     label="الشهر"
-                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value === 'all' ? null : e.target.value;
+                      setSelectedMonth(value);
+                    }}
                     sx={{ backgroundColor: '#fff' }}
                   >
+                    <MenuItem value="all">الكل</MenuItem>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((month) => (
                       <MenuItem key={month} value={month}>
                         {getMonthName(month)}
@@ -1143,17 +1395,58 @@ const FinancialManagement = () => {
                     ))}
                   </Select>
                 </FormControl>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>السنة</InputLabel>
+                {selectedMonth && selectedMonth !== 'all' && (
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel>السنة</InputLabel>
+                    <Select
+                      value={selectedYear}
+                      label="السنة"
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      sx={{ backgroundColor: '#fff' }}
+                    >
+                      {[2023, 2024, 2025, 2026].map((year) => (
+                        <MenuItem key={year} value={year}>
+                          {year}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel>الفئة</InputLabel>
                   <Select
-                    value={selectedYear}
-                    label="السنة"
-                    onChange={(e) => setSelectedYear(e.target.value)}
+                    value={filterByCategory}
+                    label="الفئة"
+                    onChange={(e) => {
+                      setFilterByCategory(e.target.value);
+                      setFilterBySource(''); // Clear source filter when category is selected
+                    }}
                     sx={{ backgroundColor: '#fff' }}
                   >
-                    {[2023, 2024, 2025, 2026].map((year) => (
-                      <MenuItem key={year} value={year}>
-                        {year}
+                    <MenuItem value="">الكل</MenuItem>
+                    {[...incomeCategories, ...expenseCategories].map((category) => (
+                      <MenuItem key={category.id} value={category.id}>
+                        {category.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <InputLabel>المصدر</InputLabel>
+                  <Select
+                    value={filterBySource}
+                    label="المصدر"
+                    onChange={(e) => {
+                      setFilterBySource(e.target.value);
+                      setFilterByCategory(''); // Clear category filter when source is selected
+                    }}
+                    disabled={!!filterByCategory}
+                    sx={{ backgroundColor: '#fff' }}
+                  >
+                    <MenuItem value="">الكل</MenuItem>
+                    {sources.map((source) => (
+                      <MenuItem key={source.id} value={source.id}>
+                        {source.name}
                       </MenuItem>
                     ))}
                   </Select>
@@ -1383,14 +1676,14 @@ const FinancialManagement = () => {
                         </Typography>
                       </Box>
                       <Divider />
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                          صافي الربح:
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 700, color: '#1976d2' }}>
-                          {(3300).toLocaleString()} ₪
-                        </Typography>
-                      </Box>
+                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                           صافي الربح:
+                         </Typography>
+                         <Typography variant="body1" sx={{ fontWeight: 700, color: (reportSummary?.netProfit || 0) >= 0 ? '#1976d2' : '#d32f2f' }}>
+                           {(reportSummary?.netProfit || 0).toLocaleString()} ₪
+                         </Typography>
+                       </Box>
                     </Box>
                   </Card>
                 </Grid>
