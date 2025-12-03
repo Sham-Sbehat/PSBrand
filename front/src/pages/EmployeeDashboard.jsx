@@ -31,6 +31,7 @@ import { subscribeToOrderUpdates } from "../services/realtime";
 import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS } from "../constants";
 import OrderForm from "../components/employee/OrderForm";
 import GlassDialog from "../components/common/GlassDialog";
+import NotificationsBell from "../components/common/NotificationsBell";
 import calmPalette from "../theme/calmPalette";
 
 // Helper function to build full image/file URL
@@ -202,6 +203,7 @@ const EmployeeDashboard = () => {
   const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
   const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
   const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true }
+  const [newNotificationReceived, setNewNotificationReceived] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -360,6 +362,11 @@ const EmployeeDashboard = () => {
                 fetchDeliveryStatus(orderId);
               }
             }
+          },
+          onNewNotification: (notification) => {
+            console.log("📬 New notification received:", notification);
+            setNewNotificationReceived(notification);
+            setTimeout(() => setNewNotificationReceived(null), 100);
           },
         });
       } catch (err) {
@@ -895,6 +902,7 @@ const EmployeeDashboard = () => {
             PSBrand - لوحة الموظف
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <NotificationsBell onNewNotification={newNotificationReceived} />
             <Avatar
               sx={{
                 bgcolor: "rgba(255, 255, 255, 0.22)",

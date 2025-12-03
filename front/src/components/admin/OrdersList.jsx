@@ -47,6 +47,30 @@ import NotesDialog from "../common/NotesDialog";
 import GlassDialog from "../common/GlassDialog";
 import OrderForm from "../employee/OrderForm";
 
+// RoadFn Delivery Status Mapping
+const DELIVERY_STATUSES = {
+  "1": { id: 1, label: "مسودة", en: "Draft" },
+  "2": { id: 2, label: "مؤكدة", en: "Submitted" },
+  "4": { id: 4, label: "في المكتب", en: "Picked Up Office" },
+  "5": { id: 5, label: "بحاجة متابعة", en: "ON HOLD" },
+  "7": { id: 7, label: "مرتجع للمرسل", en: "Returned" },
+  "8": { id: 8, label: "تحصيلات مع السائقين", en: "Cod" },
+  "9": { id: 9, label: "في المحاسبة", en: "In Accounting 1010" },
+  "10": { id: 10, label: "مغلق", en: "Closed" },
+  "11": { id: 11, label: "ملغي", en: "Cancelled" },
+  "12": { id: 12, label: "نقل بريد داخل فروع الشركة", en: "Transfer Branch" },
+  "13": { id: 13, label: "متابعة قبل ارجاع الطرد", en: "Ready for pickup" },
+  "14": { id: 14, label: "مع السائق", en: "With Driver" },
+  "15": { id: 15, label: "احضار بدل", en: "Return Exchange11" },
+  "16": { id: 16, label: "تاجيلات في المكتب", en: "Exchange Picked UP" },
+  "17": { id: 17, label: "تحويل فرع للطرود المرتجعة", en: "Transfer office return" },
+  "18": { id: 18, label: "ارسال الشحنات للشركه", en: "need to follow" },
+  "19": { id: 19, label: "تأجيلات", en: "postponed" },
+  "20": { id: 20, label: "فواتير قيد التسليم", en: "Invoices in progress" },
+  "22": { id: 22, label: "رواجع يوم الخميس", en: "transfer branch between office" },
+  "23": { id: 23, label: "طرود مرتجعه مغلقه", en: "Closed Returned" },
+};
+
 const OrdersList = () => {
   const { orders, user } = useApp();
   const [allOrders, setAllOrders] = useState([]);
@@ -1014,39 +1038,55 @@ const OrdersList = () => {
       ? statusFilteredOrders
       : statusFilteredOrders.filter((order) => {
           const statusData = deliveryStatuses[order.id];
-          // Handle both object with status property and string status
-          const deliveryStatusAr = typeof statusData?.status === 'string' 
-            ? statusData.status 
-            : (statusData?.status?.arabic || statusData?.status?.english || "");
-          const deliveryStatusEn = typeof statusData?.status === 'object' 
-            ? (statusData.status?.english || "") 
-            : "";
           
-          switch (deliveryStatusFilter) {
-            case "no_shipment":
-              // لا يوجد شحنة (statusData is null, undefined, or explicitly set to null after failed fetch)
-              return statusData === null || statusData === undefined;
-            case "has_shipment":
-              // لديه شحنة (statusData exists and not null)
-              return statusData !== null && statusData !== undefined;
-            case "cancelled":
-              // ملغي
-              if (!statusData || statusData === null) return false;
-              const statusText = (deliveryStatusAr + " " + deliveryStatusEn).toLowerCase();
-              return statusText.includes("ملغي") || 
-                     statusText.includes("cancelled") ||
-                     statusText.includes("cancel");
-            case "needs_followup":
-              // بحاجة متابعة
-              if (!statusData || statusData === null) return false;
-              const followupText = (deliveryStatusAr + " " + deliveryStatusEn).toLowerCase();
-              return followupText.includes("بحاجة متابعة") ||
-                     followupText.includes("بحاجة متابعه") ||
-                     followupText.includes("followup") ||
-                     followupText.includes("needs");
-            default:
-              return true;
+          // No shipment
+          if (deliveryStatusFilter === "no_shipment") {
+            return statusData === null || statusData === undefined;
           }
+          
+          // Has shipment (any status)
+          if (deliveryStatusFilter === "has_shipment") {
+            return statusData !== null && statusData !== undefined;
+          }
+          
+          // Specific status by ID
+          if (!statusData || statusData === null) return false;
+          
+          // Get status ID from statusData
+          // statusData.status.id or statusData.statusId or just check the status object
+          let statusId = null;
+          
+          if (statusData.status) {
+            if (typeof statusData.status === 'object' && statusData.status.id !== undefined) {
+              statusId = statusData.status.id;
+            } else if (typeof statusData.status === 'number') {
+              statusId = statusData.status;
+            }
+          } else if (statusData.statusId !== undefined) {
+            statusId = statusData.statusId;
+          }
+          
+          // Filter by status ID
+          if (statusId !== null && statusId !== undefined) {
+            const filterStatusId = parseInt(deliveryStatusFilter);
+            return statusId === filterStatusId;
+          }
+          
+          // Fallback: try to match by status text if ID not available
+          const statusAr = statusData?.status?.arabic || "";
+          const statusEn = statusData?.status?.english || "";
+          const statusText = (statusAr + " " + statusEn).toLowerCase();
+          
+          // Check if any of the status labels match (for backwards compatibility)
+          const statusMap = DELIVERY_STATUSES[deliveryStatusFilter];
+          if (statusMap) {
+            const filterStatusId = parseInt(deliveryStatusFilter);
+            const statusLabelAr = statusMap.label.toLowerCase();
+            const statusLabelEn = statusMap.en.toLowerCase();
+            return statusText.includes(statusLabelAr) || statusText.includes(statusLabelEn);
+          }
+          
+          return false;
         });
 
   // Filter by client name or phone search
@@ -1147,14 +1187,32 @@ const OrdersList = () => {
               setDeliveryStatusFilter(e.target.value);
               setPage(0); // Reset to first page when filtering
             }}
-            sx={{ minWidth: 180 }}
+            sx={{ minWidth: 220 }}
             label="حالة التوصيل"
           >
             <MenuItem value="all">جميع حالات التوصيل</MenuItem>
             <MenuItem value="no_shipment">بدون شحنة</MenuItem>
-            <MenuItem value="has_shipment">لديه شحنة</MenuItem>
-            <MenuItem value="cancelled">ملغي</MenuItem>
-            <MenuItem value="needs_followup">بحاجة متابعة</MenuItem>
+            <MenuItem value="has_shipment">لديه شحنة (أي حالة)</MenuItem>
+            <MenuItem value="1">مسودة (Draft)</MenuItem>
+            <MenuItem value="2">مؤكدة (Submitted)</MenuItem>
+            <MenuItem value="4">في المكتب (Picked Up Office)</MenuItem>
+            <MenuItem value="5">بحاجة متابعة (ON HOLD)</MenuItem>
+            <MenuItem value="7">مرتجع للمرسل (Returned)</MenuItem>
+            <MenuItem value="8">تحصيلات مع السائقين (Cod)</MenuItem>
+            <MenuItem value="9">في المحاسبة (In Accounting)</MenuItem>
+            <MenuItem value="10">مغلق (Closed)</MenuItem>
+            <MenuItem value="11">ملغي (Cancelled)</MenuItem>
+            <MenuItem value="12">نقل بريد داخل فروع الشركة</MenuItem>
+            <MenuItem value="13">متابعة قبل ارجاع الطرد</MenuItem>
+            <MenuItem value="14">مع السائق (With Driver)</MenuItem>
+            <MenuItem value="15">احضار بدل (Return Exchange)</MenuItem>
+            <MenuItem value="16">تاجيلات في المكتب</MenuItem>
+            <MenuItem value="17">تحويل فرع للطرود المرتجعة</MenuItem>
+            <MenuItem value="18">ارسال الشحنات للشركه</MenuItem>
+            <MenuItem value="19">تأجيلات (postponed)</MenuItem>
+            <MenuItem value="20">فواتير قيد التسليم</MenuItem>
+            <MenuItem value="22">رواجع يوم الخميس</MenuItem>
+            <MenuItem value="23">طرود مرتجعه مغلقه</MenuItem>
           </TextField>
         </Box>
       </Box>
