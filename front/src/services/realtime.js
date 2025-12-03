@@ -27,7 +27,8 @@ export const subscribeToOrderUpdates = async ({
   onOrderStatusChanged, 
   onDeliveryStatusChanged,
   onShipmentStatusUpdated,
-  onShipmentNoteAdded
+  onShipmentNoteAdded,
+  onNewNotification
 } = {}) => {
   const primaryBase = getApiBase();
   const candidates = [
@@ -55,6 +56,8 @@ export const subscribeToOrderUpdates = async ({
     // Add handlers for shipment status updates from webhook
     if (onShipmentStatusUpdated) connection.on("ShipmentStatusUpdated", onShipmentStatusUpdated);
     if (onShipmentNoteAdded) connection.on("ShipmentNoteAdded", onShipmentNoteAdded);
+    // Add handler for new notifications
+    if (onNewNotification) connection.on("NewNotification", onNewNotification);
   };
 
   // Iterate candidates and try to connect using multiple transports

@@ -61,6 +61,7 @@ const OrdersList = () => {
   const [openImageDialog, setOpenImageDialog] = useState(false);
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [statusFilter, setStatusFilter] = useState("all");
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -1007,15 +1008,56 @@ const OrdersList = () => {
       ? allOrders
       : allOrders.filter((order) => order.status === parseInt(statusFilter));
 
+  // Filter by delivery status
+  const deliveryStatusFilteredOrders =
+    deliveryStatusFilter === "all"
+      ? statusFilteredOrders
+      : statusFilteredOrders.filter((order) => {
+          const statusData = deliveryStatuses[order.id];
+          // Handle both object with status property and string status
+          const deliveryStatusAr = typeof statusData?.status === 'string' 
+            ? statusData.status 
+            : (statusData?.status?.arabic || statusData?.status?.english || "");
+          const deliveryStatusEn = typeof statusData?.status === 'object' 
+            ? (statusData.status?.english || "") 
+            : "";
+          
+          switch (deliveryStatusFilter) {
+            case "no_shipment":
+              // لا يوجد شحنة (statusData is null, undefined, or explicitly set to null after failed fetch)
+              return statusData === null || statusData === undefined;
+            case "has_shipment":
+              // لديه شحنة (statusData exists and not null)
+              return statusData !== null && statusData !== undefined;
+            case "cancelled":
+              // ملغي
+              if (!statusData || statusData === null) return false;
+              const statusText = (deliveryStatusAr + " " + deliveryStatusEn).toLowerCase();
+              return statusText.includes("ملغي") || 
+                     statusText.includes("cancelled") ||
+                     statusText.includes("cancel");
+            case "needs_followup":
+              // بحاجة متابعة
+              if (!statusData || statusData === null) return false;
+              const followupText = (deliveryStatusAr + " " + deliveryStatusEn).toLowerCase();
+              return followupText.includes("بحاجة متابعة") ||
+                     followupText.includes("بحاجة متابعه") ||
+                     followupText.includes("followup") ||
+                     followupText.includes("needs");
+            default:
+              return true;
+          }
+        });
+
   // Filter by client name or phone search
   const filteredOrders = searchQuery.trim()
-    ? statusFilteredOrders.filter((order) => {
+    ? deliveryStatusFilteredOrders.filter((order) => {
         const clientName = order.client?.name || "";
         const clientPhone = order.client?.phone || "";
         const query = searchQuery.toLowerCase().trim();
         return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
       })
-    : statusFilteredOrders;
+    : deliveryStatusFilteredOrders;
 
   // Sort by state if sortByState is set
   const sortedOrders = sortByState 
@@ -1067,7 +1109,7 @@ const OrdersList = () => {
           جميع الطلبات ({sortedOrders.length})
         </Typography>
 
-        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <TextField
             size="small"
             placeholder="بحث باسم العميل أو رقم الهاتف..."
@@ -1096,6 +1138,23 @@ const OrdersList = () => {
             <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
             <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
             <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={deliveryStatusFilter}
+            onChange={(e) => {
+              setDeliveryStatusFilter(e.target.value);
+              setPage(0); // Reset to first page when filtering
+            }}
+            sx={{ minWidth: 180 }}
+            label="حالة التوصيل"
+          >
+            <MenuItem value="all">جميع حالات التوصيل</MenuItem>
+            <MenuItem value="no_shipment">بدون شحنة</MenuItem>
+            <MenuItem value="has_shipment">لديه شحنة</MenuItem>
+            <MenuItem value="cancelled">ملغي</MenuItem>
+            <MenuItem value="needs_followup">بحاجة متابعة</MenuItem>
           </TextField>
         </Box>
       </Box>

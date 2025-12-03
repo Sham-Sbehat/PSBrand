@@ -30,6 +30,7 @@ import OrdersList from "../components/admin/OrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
 import SellerManagement from "../components/admin/SellerManagement";
 import FinancialManagement from "../components/admin/FinancialManagement";
+import NotificationsBell from "../components/common/NotificationsBell";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
 
@@ -38,6 +39,7 @@ const AdminDashboard = () => {
   const { user, logout, employees } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
   const [allOrders, setAllOrders] = useState([]);
+  const [newNotificationReceived, setNewNotificationReceived] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -64,6 +66,12 @@ const AdminDashboard = () => {
         unsubscribe = await subscribeToOrderUpdates({
           onOrderCreated: () => fetchOrders(),
           onOrderStatusChanged: () => fetchOrders(),
+          onNewNotification: (notification) => {
+            console.log("📬 New notification received:", notification);
+            setNewNotificationReceived(notification);
+            // Reset after a moment to allow re-triggering
+            setTimeout(() => setNewNotificationReceived(null), 100);
+          },
         });
       } catch (err) {
         console.error("Failed to subscribe to order updates:", err);
@@ -139,6 +147,7 @@ const AdminDashboard = () => {
             PSBrand - لوحة الأدمن
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <NotificationsBell onNewNotification={newNotificationReceived} />
             <Avatar
               sx={{
                 bgcolor: "rgba(255, 255, 255, 0.22)",

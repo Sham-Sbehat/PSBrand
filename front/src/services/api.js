@@ -581,5 +581,39 @@ export const accountingService = {
   },
 };
 
+// Notifications Service
+export const notificationsService = {
+  // Get all notifications for current user
+  getNotifications: async (isRead = null) => {
+    const params = isRead !== null ? { isRead } : {};
+    const response = await api.get('/notifications', { params });
+    return response.data;
+  },
+
+  // Get unread count
+  getUnreadCount: async () => {
+    const response = await api.get('/notifications/unread-count');
+    return response.data;
+  },
+
+  // Mark notification as read
+  markAsRead: async (notificationId) => {
+    const response = await api.put(`/notifications/${notificationId}/read`);
+    return response.data;
+  },
+
+  // Mark all notifications as read
+  markAllAsRead: async () => {
+    const response = await api.put('/notifications/mark-all-read');
+    return response.data;
+  },
+
+  // Delete notification
+  deleteNotification: async (notificationId) => {
+    const response = await api.delete(`/notifications/${notificationId}`);
+    return response.data;
+  },
+};
+
 // Export constants for use in components
 export { USER_ROLES, ROLE_STRINGS };
