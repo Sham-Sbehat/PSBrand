@@ -52,7 +52,7 @@ const DELIVERY_STATUSES = {
   "1": { id: 1, label: "مسودة", en: "Draft" },
   "2": { id: 2, label: "مؤكدة", en: "Submitted" },
   "4": { id: 4, label: "في المكتب", en: "Picked Up Office" },
-  "5": { id: 5, label: "بحاجة متابعة", en: "ON HOLD" },
+  "5": { id: 5, label: "بحاجة متابعه", en: "ON HOLD" },
   "7": { id: 7, label: "مرتجع للمرسل", en: "Returned" },
   "8": { id: 8, label: "تحصيلات مع السائقين", en: "Cod" },
   "9": { id: 9, label: "في المحاسبة", en: "In Accounting 1010" },

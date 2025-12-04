@@ -337,7 +337,7 @@ const PreparerDashboard = () => {
                   setMyOpenOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
                   
                   // نجلب حالة التوصيل لأي طلب تم تحديثه
-                  fetchDeliveryStatus(updatedOrder.id);
+                    fetchDeliveryStatus(updatedOrder.id);
                 } else {
                   // Status changed to something else, remove from all lists
                   setAvailableOrders(prevOrders => prevOrders.filter(order => order.id !== updatedOrder.id));
@@ -1752,34 +1752,34 @@ const InfoItem = ({ label, value }) => (
                 </Box>
               )}
             </Box>
-            <TableContainer
-              sx={{
-                borderRadius: 3,
-                border: "1px solid rgba(94, 78, 62, 0.18)",
-                backgroundColor: "rgba(255,255,255,0.4)",
-              }}
-            >
-              <Table>
-                <TableHead
-                  sx={{
-                    backgroundColor: "rgba(94, 78, 62, 0.08)",
-                    "& th": { fontWeight: 700, color: calmPalette.textPrimary },
-                  }}
-                >
-                  <TableRow>
-                    <TableCell>رقم الطلب</TableCell>
-                    <TableCell>اسم العميل</TableCell>
-                    <TableCell>رقم الهاتف</TableCell>
-                    <TableCell>المحافظة</TableCell>
-                    <TableCell>الإجمالي</TableCell>
-                    <TableCell>الحالة</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
-                    <TableCell>تاريخ الطلب</TableCell>
-                    <TableCell>الملاحظات</TableCell>
-                    <TableCell>الإجراءات</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+          <TableContainer
+            sx={{
+              borderRadius: 3,
+              border: "1px solid rgba(94, 78, 62, 0.18)",
+              backgroundColor: "rgba(255,255,255,0.4)",
+            }}
+          >
+            <Table>
+              <TableHead
+                sx={{
+                  backgroundColor: "rgba(94, 78, 62, 0.08)",
+                  "& th": { fontWeight: 700, color: calmPalette.textPrimary },
+                }}
+              >
+                <TableRow>
+                  <TableCell>رقم الطلب</TableCell>
+                  <TableCell>اسم العميل</TableCell>
+                  <TableCell>رقم الهاتف</TableCell>
+                  <TableCell>المحافظة</TableCell>
+                  <TableCell>الإجمالي</TableCell>
+                  <TableCell>الحالة</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
+                  <TableCell>تاريخ الطلب</TableCell>
+                  <TableCell>الملاحظات</TableCell>
+                  <TableCell>الإجراءات</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                   {(searchQueryCompleted.trim()
                     ? completedOrders.filter((order) => {
                         const clientName = order.client?.name || '';
@@ -1813,7 +1813,7 @@ const InfoItem = ({ label, value }) => (
                       <TableCell
                         onClick={() => {
                           // Always allow clicking - we'll try to fetch delivery status
-                          handleDeliveryStatusClick(order);
+                            handleDeliveryStatusClick(order);
                         }}
                         sx={{
                           cursor: 'pointer',
@@ -1823,60 +1823,60 @@ const InfoItem = ({ label, value }) => (
                         }}
                       >
                         {(() => {
-                          const statusData = deliveryStatuses[order.id];
-                          const isLoading = loadingDeliveryStatuses[order.id];
-                          
-                          if (isLoading) {
-                            return (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <CircularProgress size={16} />
-                                <Typography variant="body2" color="text.secondary">
-                                  جاري التحميل...
-                                </Typography>
-                              </Box>
-                            );
-                          }
-                          
-                          if (statusData === null) {
+                            const statusData = deliveryStatuses[order.id];
+                            const isLoading = loadingDeliveryStatuses[order.id];
+                            
+                            if (isLoading) {
+                              return (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <CircularProgress size={16} />
+                                  <Typography variant="body2" color="text.secondary">
+                                    جاري التحميل...
+                                  </Typography>
+                                </Box>
+                              );
+                            }
+                            
+                            if (statusData === null) {
                             // We checked but no shipment exists
-                            return (
+                              return (
                               <Typography variant="body2" color="text.secondary">
                                 -
-                              </Typography>
-                            );
-                          }
-                          
-                          if (statusData && statusData.status) {
-                            return (
-                              <Chip
-                                label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                sx={{
-                                  backgroundColor: statusData.status.color || '#1976d2',
-                                  color: '#ffffff',
-                                  fontWeight: 600,
-                                  fontSize: '0.75rem',
-                                  cursor: 'pointer',
-                                  maxWidth: '150px',
-                                  '&:hover': {
-                                    opacity: 0.9,
-                                    transform: 'scale(1.05)',
-                                  },
-                                  transition: 'all 0.2s',
-                                  '& .MuiChip-label': {
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                  },
-                                }}
-                                size="small"
-                              />
-                            );
-                          }
-                          
+                                </Typography>
+                              );
+                            }
+                            
+                            if (statusData && statusData.status) {
+                              return (
+                                <Chip
+                                  label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                  sx={{
+                                    backgroundColor: statusData.status.color || '#1976d2',
+                                    color: '#ffffff',
+                                    fontWeight: 600,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    maxWidth: '150px',
+                                    '&:hover': {
+                                      opacity: 0.9,
+                                      transform: 'scale(1.05)',
+                                    },
+                                    transition: 'all 0.2s',
+                                    '& .MuiChip-label': {
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    },
+                                  }}
+                                  size="small"
+                                />
+                              );
+                            }
+                            
                           // No data yet - show dash (will be populated when shipment is created or fetched)
-                          return (
-                            <Typography variant="body2" color="text.secondary">
-                              -
-                            </Typography>
+                            return (
+                          <Typography variant="body2" color="text.secondary">
+                            -
+                          </Typography>
                           );
                         })()}
                       </TableCell>
@@ -1919,8 +1919,8 @@ const InfoItem = ({ label, value }) => (
                   );
                 })}
               </TableBody>
-              </Table>
-            </TableContainer>
+            </Table>
+          </TableContainer>
           </>
         )}
       </GlassDialog>
@@ -2310,7 +2310,7 @@ const InfoItem = ({ label, value }) => (
         subtitle={orderForDeliveryStatus?.orderNumber ? `طلب رقم: ${orderForDeliveryStatus.orderNumber}` : undefined}
         actions={
           <Button onClick={handleCloseDeliveryStatusDialog} variant="contained">
-          إغلاق  
+            إغلاق
           </Button>
         }
       >

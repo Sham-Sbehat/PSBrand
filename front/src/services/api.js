@@ -613,6 +613,12 @@ export const notificationsService = {
     const response = await api.delete(`/notifications/${notificationId}`);
     return response.data;
   },
+
+  // Get order details by relatedEntityId (for notifications)
+  getOrderDetails: async (relatedEntityId) => {
+    const response = await api.get(`/notifications/order-details/${relatedEntityId}`);
+    return response.data;
+  },
 };
 
 // Export constants for use in components

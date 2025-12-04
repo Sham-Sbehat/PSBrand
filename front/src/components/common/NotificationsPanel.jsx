@@ -6,25 +6,80 @@ import {
   CheckCircle as CheckCircleIcon,
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
+  Assignment as AssignmentIcon,
+  LocalShipping as LocalShippingIcon,
+  Undo as UndoIcon,
 } from "@mui/icons-material";
 import calmPalette from "../../theme/calmPalette";
 
 const getNotificationIcon = (type) => {
+  // Log notification type for debugging
+  if (type && !["shipment_cancelled", "shipment_followup", "order_created", "order_completed"].includes(type)) {
+    console.log("Notification type:", type);
+  }
+
+  const typeLower = (type || "").toLowerCase();
+  
+  // Handle cancelled/closed shipments
+  if (typeLower.includes("cancelled") || typeLower.includes("ملغي") || typeLower.includes("مغلق")) {
+    return <CancelIcon sx={{ color: "#d32f2f" }} />;
+  }
+  
+  // Handle followup/needs followup
+  if (typeLower.includes("followup") || typeLower.includes("متابعة") || typeLower.includes("follow")) {
+    return <WarningIcon sx={{ color: "#ed6c02" }} />;
+  }
+  
+  // Handle returned shipments (closed)
+  if (typeLower.includes("returned") && typeLower.includes("closed")) {
+    return <UndoIcon sx={{ color: "#9c27b0" }} />;
+  }
+  
+  // Handle returned shipments
+  if (typeLower.includes("returned") || typeLower.includes("مرتجع")) {
+    return <LocalShippingIcon sx={{ color: "#9c27b0" }} />;
+  }
+  
   switch (type) {
     case "shipment_cancelled":
+    case "shipment_cancelled_closed":
       return <CancelIcon sx={{ color: "#d32f2f" }} />;
     case "shipment_followup":
+    case "shipment_needs_followup":
       return <WarningIcon sx={{ color: "#ed6c02" }} />;
     case "order_created":
       return <InfoIcon sx={{ color: "#1976d2" }} />;
     case "order_completed":
       return <CheckCircleIcon sx={{ color: "#2e7d32" }} />;
+    case "returned_shipment_closed":
+    case "shipment_returned_closed":
+      return <UndoIcon sx={{ color: "#9c27b0" }} />;
+    case "returned_shipment":
+    case "shipment_returned":
+      return <LocalShippingIcon sx={{ color: "#9c27b0" }} />;
     default:
       return <InfoIcon sx={{ color: calmPalette.textMuted }} />;
   }
 };
 
 const getNotificationColor = (type) => {
+  const typeLower = (type || "").toLowerCase();
+  
+  // Handle cancelled/closed shipments
+  if (typeLower.includes("cancelled") || typeLower.includes("ملغي") || typeLower.includes("مغلق")) {
+    return "#d32f2f";
+  }
+  
+  // Handle followup/needs followup
+  if (typeLower.includes("followup") || typeLower.includes("متابعة") || typeLower.includes("follow")) {
+    return "#ed6c02";
+  }
+  
+  // Handle returned shipments
+  if (typeLower.includes("returned") || typeLower.includes("مرتجع")) {
+    return "#9c27b0";
+  }
+  
   switch (type) {
     case "shipment_cancelled":
       return "#d32f2f";
@@ -61,7 +116,7 @@ const formatDate = (dateString) => {
   });
 };
 
-const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, refreshing = false }) => {
+const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrderDetails, refreshing = false }) => {
   if (notifications.length === 0) {
     return (
       <Box sx={{ textAlign: "center", py: 4 }}>
@@ -152,6 +207,20 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, refreshing 
                   </Typography>
 
                   <Box sx={{ display: "flex", gap: 0.5 }}>
+                    {notification.relatedEntityId && (
+                      <Tooltip title="عرض تفاصيل الطلب">
+                        <IconButton
+                          size="small"
+                          onClick={() => onViewOrderDetails && onViewOrderDetails(notification.relatedEntityId)}
+                          sx={{
+                            color: calmPalette.textMuted,
+                            "&:hover": { color: "#1976d2" },
+                          }}
+                        >
+                          <AssignmentIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     {!notification.isRead && (
                       <Tooltip title="تحديد كمقروء">
                         <IconButton
@@ -191,4 +260,5 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, refreshing 
 };
 
 export default NotificationsPanel;
+
 

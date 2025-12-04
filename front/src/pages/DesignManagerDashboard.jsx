@@ -1162,11 +1162,11 @@ const DesignManagerDashboard = () => {
                   </Box>
                 )}
               </Box>
-              <TextField
-                select
-                size="small"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+            <TextField
+              select
+              size="small"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
                 sx={{ 
                   minWidth: 150,
                   backgroundColor: "rgba(255,255,255,0.85)",
@@ -1185,16 +1185,16 @@ const DesignManagerDashboard = () => {
                     },
                   },
                 }}
-              >
-                <MenuItem value="all">جميع الطلبات</MenuItem>
-                <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
-                <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
-                <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
-                <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
-                <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
-                <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
-                <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
-              </TextField>
+            >
+              <MenuItem value="all">جميع الطلبات</MenuItem>
+              <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
+              <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
+              <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
+              <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
+              <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
+              <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
+              <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
+            </TextField>
             </Box>
           </Box>
 
@@ -1290,7 +1290,7 @@ const DesignManagerDashboard = () => {
                             <TableCell
                               onClick={() => {
                                 // Always allow clicking - we'll try to fetch delivery status
-                                handleDeliveryStatusClick(order);
+                                  handleDeliveryStatusClick(order);
                               }}
                               sx={{
                                 cursor: 'pointer',
@@ -1300,60 +1300,60 @@ const DesignManagerDashboard = () => {
                               }}
                             >
                               {(() => {
-                                const statusData = deliveryStatuses[order.id];
-                                const isLoading = loadingDeliveryStatuses[order.id];
-                                
-                                if (isLoading) {
-                                  return (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <CircularProgress size={16} />
-                                      <Typography variant="body2" color="text.secondary">
-                                        جاري التحميل...
-                                      </Typography>
-                                    </Box>
-                                  );
-                                }
-                                
-                                if (statusData === null) {
+                                  const statusData = deliveryStatuses[order.id];
+                                  const isLoading = loadingDeliveryStatuses[order.id];
+                                  
+                                  if (isLoading) {
+                                    return (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <CircularProgress size={16} />
+                                        <Typography variant="body2" color="text.secondary">
+                                          جاري التحميل...
+                                        </Typography>
+                                      </Box>
+                                    );
+                                  }
+                                  
+                                  if (statusData === null) {
                                   // We checked but no shipment exists
-                                  return (
+                                    return (
                                     <Typography variant="body2" color="text.secondary">
                                       -
-                                    </Typography>
-                                  );
-                                }
-                                
-                                if (statusData && statusData.status) {
-                                  return (
-                                    <Chip
-                                      label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                      sx={{
-                                        backgroundColor: statusData.status.color || '#1976d2',
-                                        color: '#ffffff',
-                                        fontWeight: 600,
-                                        fontSize: '0.75rem',
-                                        cursor: 'pointer',
-                                        maxWidth: '150px',
-                                        '&:hover': {
-                                          opacity: 0.9,
-                                          transform: 'scale(1.05)',
-                                        },
-                                        transition: 'all 0.2s',
-                                        '& .MuiChip-label': {
-                                          overflow: 'hidden',
-                                          textOverflow: 'ellipsis',
-                                        },
-                                      }}
-                                      size="small"
-                                    />
-                                  );
-                                }
-                                
+                                      </Typography>
+                                    );
+                                  }
+                                  
+                                  if (statusData && statusData.status) {
+                                    return (
+                                      <Chip
+                                        label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                        sx={{
+                                          backgroundColor: statusData.status.color || '#1976d2',
+                                          color: '#ffffff',
+                                          fontWeight: 600,
+                                          fontSize: '0.75rem',
+                                          cursor: 'pointer',
+                                          maxWidth: '150px',
+                                          '&:hover': {
+                                            opacity: 0.9,
+                                            transform: 'scale(1.05)',
+                                          },
+                                          transition: 'all 0.2s',
+                                          '& .MuiChip-label': {
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                          },
+                                        }}
+                                        size="small"
+                                      />
+                                    );
+                                  }
+                                  
                                 // No data yet - show dash (will be populated when shipment is created or fetched)
-                                return (
-                                  <Typography variant="body2" color="text.secondary">
-                                    -
-                                  </Typography>
+                                  return (
+                                <Typography variant="body2" color="text.secondary">
+                                  -
+                                </Typography>
                                 );
                               })()}
                             </TableCell>
@@ -1647,7 +1647,7 @@ const DesignManagerDashboard = () => {
                                   rowSpan={rowCount}
                                   onClick={() => {
                                     // Always allow clicking - we'll try to fetch delivery status
-                                    handleDeliveryStatusClick(order);
+                                      handleDeliveryStatusClick(order);
                                   }}
                                   sx={{
                                     cursor: 'pointer',
@@ -1657,60 +1657,60 @@ const DesignManagerDashboard = () => {
                                   }}
                                 >
                                   {(() => {
-                                    const statusData = deliveryStatuses[order.id];
-                                    const isLoading = loadingDeliveryStatuses[order.id];
-                                    
-                                    if (isLoading) {
-                                      return (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                          <CircularProgress size={16} />
-                                          <Typography variant="body2" color="text.secondary">
-                                            جاري التحميل...
-                                          </Typography>
-                                        </Box>
-                                      );
-                                    }
-                                    
-                                    if (statusData === null) {
+                                      const statusData = deliveryStatuses[order.id];
+                                      const isLoading = loadingDeliveryStatuses[order.id];
+                                      
+                                      if (isLoading) {
+                                        return (
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <CircularProgress size={16} />
+                                            <Typography variant="body2" color="text.secondary">
+                                              جاري التحميل...
+                                            </Typography>
+                                          </Box>
+                                        );
+                                      }
+                                      
+                                      if (statusData === null) {
                                       // We checked but no shipment exists
-                                      return (
+                                        return (
                                         <Typography variant="body2" color="text.secondary">
                                           -
-                                        </Typography>
-                                      );
-                                    }
-                                    
-                                    if (statusData && statusData.status) {
-                                      return (
-                                        <Chip
-                                          label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                          sx={{
-                                            backgroundColor: statusData.status.color || '#1976d2',
-                                            color: '#ffffff',
-                                            fontWeight: 600,
-                                            fontSize: '0.75rem',
-                                            cursor: 'pointer',
-                                            maxWidth: '150px',
-                                            '&:hover': {
-                                              opacity: 0.9,
-                                              transform: 'scale(1.05)',
-                                            },
-                                            transition: 'all 0.2s',
-                                            '& .MuiChip-label': {
-                                              overflow: 'hidden',
-                                              textOverflow: 'ellipsis',
-                                            },
-                                          }}
-                                          size="small"
-                                        />
-                                      );
-                                    }
-                                    
+                                          </Typography>
+                                        );
+                                      }
+                                      
+                                      if (statusData && statusData.status) {
+                                        return (
+                                          <Chip
+                                            label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                            sx={{
+                                              backgroundColor: statusData.status.color || '#1976d2',
+                                              color: '#ffffff',
+                                              fontWeight: 600,
+                                              fontSize: '0.75rem',
+                                              cursor: 'pointer',
+                                              maxWidth: '150px',
+                                              '&:hover': {
+                                                opacity: 0.9,
+                                                transform: 'scale(1.05)',
+                                              },
+                                              transition: 'all 0.2s',
+                                              '& .MuiChip-label': {
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                              },
+                                            }}
+                                            size="small"
+                                          />
+                                        );
+                                      }
+                                      
                                     // No data yet - show dash (will be populated when shipment is created or fetched)
-                                    return (
-                                      <Typography variant="body2" color="text.secondary">
-                                        -
-                                      </Typography>
+                                      return (
+                                    <Typography variant="body2" color="text.secondary">
+                                      -
+                                    </Typography>
                                     );
                                   })()}
                                 </TableCell>
