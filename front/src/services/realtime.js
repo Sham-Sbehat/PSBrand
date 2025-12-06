@@ -1,9 +1,22 @@
 import { HubConnectionBuilder, LogLevel, HttpTransportType } from "@microsoft/signalr";
+import { STORAGE_KEYS } from "../constants";
 
 const getApiBase = () => {
   const fromEnv = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : "https://psbrand-backend-production.up.railway.app/api";
   // Remove trailing /api to build hub URL
   return fromEnv.replace(/\/api\/?$/, "");
+};
+
+// Helper to get auth token (same as api.js)
+const getAuthToken = () => {
+  try {
+    const sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+    if (sessionToken) return sessionToken;
+    const localToken = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+    return localToken || null;
+  } catch {
+    return null;
+  }
 };
 
 const HUB_PATH = "/orderUpdatesHub";
@@ -60,12 +73,19 @@ export const subscribeToOrderUpdates = async ({
     if (onNewNotification) connection.on("NewNotification", onNewNotification);
   };
 
+  // Get auth token for SignalR connection
+  const authToken = getAuthToken();
+  
   // Iterate candidates and try to connect using multiple transports
   for (const hubUrl of candidates) {
     try {
       console.info("Trying SignalR WebSockets:", hubUrl);
       const wsConnection = new HubConnectionBuilder()
-        .withUrl(hubUrl, { skipNegotiation: true, transport: HttpTransportType.WebSockets })
+        .withUrl(hubUrl, { 
+          skipNegotiation: true, 
+          transport: HttpTransportType.WebSockets,
+          accessTokenFactory: () => authToken || ""
+        })
         .withAutomaticReconnect()
         .configureLogging(LogLevel.Information)
         .build();
@@ -86,7 +106,9 @@ export const subscribeToOrderUpdates = async ({
     try {
       console.info("Trying SignalR negotiation:", hubUrl);
       const connection = new HubConnectionBuilder()
-        .withUrl(hubUrl)
+        .withUrl(hubUrl, {
+          accessTokenFactory: () => authToken || ""
+        })
         .withAutomaticReconnect()
         .configureLogging(LogLevel.Information)
         .build();
@@ -107,7 +129,10 @@ export const subscribeToOrderUpdates = async ({
     try {
       console.info("Trying SignalR LongPolling:", hubUrl);
       const lpConnection = new HubConnectionBuilder()
-        .withUrl(hubUrl, { transport: HttpTransportType.LongPolling })
+        .withUrl(hubUrl, { 
+          transport: HttpTransportType.LongPolling,
+          accessTokenFactory: () => authToken || ""
+        })
         .withAutomaticReconnect()
         .configureLogging(LogLevel.Information)
         .build();
