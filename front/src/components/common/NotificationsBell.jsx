@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { IconButton, Badge, Popover, Box, Typography, Divider, Button, CircularProgress, Chip, Grid, Card, CardContent, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from "@mui/material";
-import { Notifications as NotificationsIcon, Close, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, LocalShipping } from "@mui/icons-material";
+import { Notifications as NotificationsIcon, Close, Assignment, Person, Phone, LocationOn, Receipt, CalendarToday, LocalShipping, CameraAlt } from "@mui/icons-material";
 import { notificationsService } from "../../services/api";
 import NotificationsPanel from "./NotificationsPanel";
 import GlassDialog from "./GlassDialog";
@@ -344,6 +344,26 @@ const NotificationsBell = ({ onNewNotification }) => {
                           size="small"
                           sx={{ fontWeight: 600 }}
                         />
+                      </Box>
+
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem", display: "block", mb: 0.5 }}>
+                          يحتاج تصوير
+                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          {orderDetails.needsPhotography ? (
+                            <>
+                              <CameraAlt sx={{ color: "primary.main", fontSize: 18 }} />
+                              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                                نعم
+                              </Typography>
+                            </>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.9rem" }}>
+                              لا
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
                     </Box>
                   </CardContent>

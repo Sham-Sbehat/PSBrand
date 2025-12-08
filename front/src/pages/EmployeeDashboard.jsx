@@ -23,12 +23,13 @@ import {
   CircularProgress,
   Divider,
 } from "@mui/material";
-import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf, Search } from "@mui/icons-material";
+import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf, Search, WhatsApp as WhatsAppIcon, CameraAlt } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS } from "../constants";
+import { openWhatsApp } from "../utils";
 import OrderForm from "../components/employee/OrderForm";
 import GlassDialog from "../components/common/GlassDialog";
 import NotificationsBell from "../components/common/NotificationsBell";
@@ -1147,13 +1148,14 @@ const EmployeeDashboard = () => {
                 marginBottom: 2,
                 marginTop: 2,
                 position: 'relative',
-                width: '20%',
+                width: '30%',
+                minWidth: 400,
               }}
             >
               <TextField
                 fullWidth
                 size="medium"
-                placeholder="بحث باسم العميل أو رقم الهاتف..."
+                placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 InputProps={{
@@ -1280,8 +1282,13 @@ const EmployeeDashboard = () => {
                       ? ordersList.filter((order) => {
                           const clientName = order.client?.name || '';
                           const clientPhone = order.client?.phone || '';
+                          const orderNumber = order.orderNumber || `#${order.id}` || '';
                           const query = searchQuery.toLowerCase().trim();
-                          return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                          return (
+                            clientName.toLowerCase().includes(query) || 
+                            clientPhone.includes(query) ||
+                            orderNumber.toLowerCase().includes(query)
+                          );
                         })
                       : ordersList;
                     
@@ -1311,7 +1318,29 @@ const EmployeeDashboard = () => {
                         >
                       <TableCell>{order.orderNumber}</TableCell>
                       <TableCell>{order.client?.name || "-"}</TableCell>
-                      <TableCell>{order.client?.phone || "-"}</TableCell>
+                      <TableCell>
+                        {order.client?.phone ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2">{order.client.phone}</Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                openWhatsApp(order.client.phone);
+                              }}
+                              sx={{
+                                color: '#25D366',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                                },
+                              }}
+                            >
+                              <WhatsAppIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
                       <TableCell>{order.totalAmount} ₪</TableCell>
                       <TableCell>
                         <Chip label={status.label} color={status.color} size="small" />
@@ -1521,6 +1550,21 @@ const EmployeeDashboard = () => {
                   <InfoItem
                     label="المبلغ الإجمالي"
                     value={formatCurrency(selectedOrder.totalAmount)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="يحتاج تصوير"
+                    value={
+                      selectedOrder.needsPhotography ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CameraAlt sx={{ color: 'primary.main' }} />
+                          <Typography variant="body2">نعم</Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">لا</Typography>
+                      )
+                    }
                   />
                 </Grid>
               </Grid>

@@ -25,7 +25,7 @@ import {
   Divider,
   TextField,
 } from "@mui/material";
-import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, Search } from "@mui/icons-material";
+import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, Search, CameraAlt } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../services/api";
@@ -1186,13 +1186,14 @@ const InfoItem = ({ label, value }) => (
                 marginBottom: 2,
                 marginTop: 2,
                 position: 'relative',
-                width: '20%',
+                width: '30%',
+                minWidth: 400,
               }}
             >
               <TextField
                 fullWidth
                 size="medium"
-                placeholder="بحث باسم العميل أو رقم الهاتف..."
+                placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 InputProps={{
@@ -1278,8 +1279,13 @@ const InfoItem = ({ label, value }) => (
                         ? availableOrders.filter((order) => {
                             const clientName = order.client?.name || '';
                             const clientPhone = order.client?.phone || '';
+                            const orderNumber = order.orderNumber || `#${order.id}` || '';
                             const query = searchQuery.toLowerCase().trim();
-                            return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                            return (
+                              clientName.toLowerCase().includes(query) || 
+                              clientPhone.includes(query) ||
+                              orderNumber.toLowerCase().includes(query)
+                            );
                           }).length
                         : availableOrders.length;
                       return `تم العثور على ${filteredCount} ${filteredCount === 1 ? 'نتيجة' : 'نتائج'}`;
@@ -1342,8 +1348,13 @@ const InfoItem = ({ label, value }) => (
                     ? availableOrders.filter((order) => {
                         const clientName = order.client?.name || '';
                         const clientPhone = order.client?.phone || '';
+                        const orderNumber = order.orderNumber || `#${order.id}` || '';
                         const query = searchQuery.toLowerCase().trim();
-                        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                        return (
+                          clientName.toLowerCase().includes(query) || 
+                          clientPhone.includes(query) ||
+                          orderNumber.toLowerCase().includes(query)
+                        );
                       })
                     : availableOrders
                   ).map((order, index) => {
@@ -1527,8 +1538,13 @@ const InfoItem = ({ label, value }) => (
                     ? myOpenOrders.filter((order) => {
                         const clientName = order.client?.name || '';
                         const clientPhone = order.client?.phone || '';
+                        const orderNumber = order.orderNumber || `#${order.id}` || '';
                         const query = searchQueryMyOrders.toLowerCase().trim();
-                        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                        return (
+                          clientName.toLowerCase().includes(query) || 
+                          clientPhone.includes(query) ||
+                          orderNumber.toLowerCase().includes(query)
+                        );
                       })
                     : myOpenOrders
                   ).map((order, index) => {
@@ -1650,13 +1666,14 @@ const InfoItem = ({ label, value }) => (
                 marginBottom: 2,
                 marginTop: 2,
                 position: 'relative',
-                width: '20%',
+                width: '30%',
+                minWidth: 400,
               }}
             >
               <TextField
                 fullWidth
                 size="medium"
-                placeholder="بحث باسم العميل أو رقم الهاتف..."
+                placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
                 value={searchQueryCompleted}
                 onChange={(e) => setSearchQueryCompleted(e.target.value)}
                 InputProps={{
@@ -1742,8 +1759,13 @@ const InfoItem = ({ label, value }) => (
                         ? completedOrders.filter((order) => {
                             const clientName = order.client?.name || '';
                             const clientPhone = order.client?.phone || '';
+                            const orderNumber = order.orderNumber || `#${order.id}` || '';
                             const query = searchQueryCompleted.toLowerCase().trim();
-                            return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                            return (
+                              clientName.toLowerCase().includes(query) || 
+                              clientPhone.includes(query) ||
+                              orderNumber.toLowerCase().includes(query)
+                            );
                           }).length
                         : completedOrders.length;
                       return `تم العثور على ${filteredCount} ${filteredCount === 1 ? 'نتيجة' : 'نتائج'}`;
@@ -1784,8 +1806,13 @@ const InfoItem = ({ label, value }) => (
                     ? completedOrders.filter((order) => {
                         const clientName = order.client?.name || '';
                         const clientPhone = order.client?.phone || '';
+                        const orderNumber = order.orderNumber || `#${order.id}` || '';
                         const query = searchQueryCompleted.toLowerCase().trim();
-                        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+                        return (
+                          clientName.toLowerCase().includes(query) || 
+                          clientPhone.includes(query) ||
+                          orderNumber.toLowerCase().includes(query)
+                        );
                       })
                     : completedOrders
                   ).map((order) => {
@@ -1991,6 +2018,21 @@ const InfoItem = ({ label, value }) => (
                   <InfoItem
                     label="المبلغ الإجمالي"
                     value={formatCurrency(selectedOrder.totalAmount)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="يحتاج تصوير"
+                    value={
+                      selectedOrder.needsPhotography ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CameraAlt sx={{ color: 'primary.main' }} />
+                          <Typography variant="body2">نعم</Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">لا</Typography>
+                      )
+                    }
                   />
                 </Grid>
               </Grid>

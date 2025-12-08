@@ -32,6 +32,7 @@ import {
   Visibility,
   VisibilityOff,
 } from '@mui/icons-material';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { useApp } from '../../context/AppContext';
 import { employeesService } from '../../services/api';
 import GlassDialog from '../common/GlassDialog';
@@ -75,6 +76,7 @@ const EmployeeManagement = () => {
       role: '',
       username: '',
       password: '',
+      whatsappNumber: '',
     },
   });
 

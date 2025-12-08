@@ -192,6 +192,63 @@ export const getRoleColor = (role) => {
 };
 
 /**
+ * Format phone number for WhatsApp (Palestine: +970 or +972)
+ * Handles various phone number formats and ensures valid WhatsApp URL
+ * @param {string} phoneNumber - Phone number in any format
+ * @returns {string} Formatted phone number with country code for WhatsApp
+ */
+export const formatPhoneForWhatsApp = (phoneNumber) => {
+  if (!phoneNumber) return null;
+  
+  // Remove any non-digit characters except +
+  let cleanPhone = phoneNumber.replace(/[^\d+]/g, '').trim();
+  
+  // If phone already has country code (+972 or +970), use it as is
+  if (cleanPhone.startsWith('+972') || cleanPhone.startsWith('+970')) {
+    return cleanPhone;
+  }
+  
+  // If phone starts with + but different code, use it as is
+  if (cleanPhone.startsWith('+')) {
+    return cleanPhone;
+  }
+  
+  // If phone starts with 0, remove it
+  if (cleanPhone.startsWith('0')) {
+    cleanPhone = cleanPhone.replace(/^0/, '');
+  }
+  
+  // If phone is without prefix, determine the correct country code
+  // Palestinian numbers typically start with 5
+  if (cleanPhone.length >= 9 && cleanPhone.startsWith('5')) {
+    // Numbers starting with 59 are more likely to be +970 (Gaza/West Bank)
+    // Numbers starting with 50, 52, 54, 56, 57, 58 are typically +972
+    if (cleanPhone.startsWith('59')) {
+      return `+970${cleanPhone}`;
+    }
+    // For other numbers starting with 5, use +972 (most common)
+    return `+972${cleanPhone}`;
+  }
+  
+  // For numbers that don't start with 5, use +972 as default for Palestine
+  // This handles edge cases where the number might be entered differently
+  return `+972${cleanPhone}`;
+};
+
+/**
+ * Open WhatsApp with phone number
+ * @param {string} phoneNumber - Phone number in any format
+ */
+export const openWhatsApp = (phoneNumber) => {
+  const formattedPhone = formatPhoneForWhatsApp(phoneNumber);
+  if (!formattedPhone) return;
+  
+  // WhatsApp URL format: https://wa.me/[country code][phone number without +]
+  const whatsappUrl = `https://wa.me/${formattedPhone.replace('+', '')}`;
+  window.open(whatsappUrl, '_blank');
+};
+
+/**
  * Local storage helpers
  */
 export const storage = {

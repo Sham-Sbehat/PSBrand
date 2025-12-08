@@ -42,6 +42,7 @@ import {
   Visibility,
   TrackChanges,
   Search,
+  CameraAlt,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -1069,11 +1070,11 @@ const DesignManagerDashboard = () => {
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Box sx={{ flex: 1, minWidth: 300, position: 'relative' }}>
+              <Box sx={{ flex: 1, minWidth: 400, position: 'relative' }}>
                 <TextField
                   fullWidth
                   size="small"
-                  placeholder="بحث باسم العميل أو رقم الهاتف..."
+                  placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   InputProps={{
@@ -1364,7 +1365,7 @@ const DesignManagerDashboard = () => {
                               variant="outlined"
                               startIcon={<Visibility />}
                               onClick={() => handleViewOrder(order)}
-                              sx={{ minWidth: 120, flexShrink: 0 }}
+                              sx={{ minWidth: 90, flexShrink: 0 }}
                             >
                               عرض
                             </Button>
@@ -1377,7 +1378,7 @@ const DesignManagerDashboard = () => {
                                 (order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING) ||
                                 updatingOrderId === order.id
                               }
-                              sx={{ minWidth: 120, flexShrink: 0 }}
+                              sx={{ minWidth: 90, flexShrink: 0 }}
                             >
                               {updatingOrderId === order.id ? (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1721,7 +1722,7 @@ const DesignManagerDashboard = () => {
                                   variant="outlined"
                                   startIcon={<Visibility />}
                                   onClick={() => handleViewOrder(order)}
-                                  sx={{ minWidth: 140, flexShrink: 0 }}
+                                  sx={{ minWidth: 90, flexShrink: 0 }}
                                 >
                                   عرض
                                 </Button>
@@ -1734,7 +1735,7 @@ const DesignManagerDashboard = () => {
                                     (order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING) ||
                                     updatingOrderId === order.id
                                   }
-                                  sx={{ minWidth: 140, flexShrink: 0 }}
+                                  sx={{ minWidth: 90, flexShrink: 0 }}
                                 >
                                   {updatingOrderId === order.id ? (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1841,6 +1842,21 @@ const DesignManagerDashboard = () => {
                   <InfoItem
                     label="المبلغ الإجمالي"
                     value={formatCurrency(selectedOrder.totalAmount)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
+                    label="يحتاج تصوير"
+                    value={
+                      selectedOrder.needsPhotography ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CameraAlt sx={{ color: 'primary.main' }} />
+                          <Typography variant="body2">نعم</Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">لا</Typography>
+                      )
+                    }
                   />
                 </Grid>
               </Grid>

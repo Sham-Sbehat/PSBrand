@@ -7,6 +7,8 @@ import {
   Stack,
   TextField,
   Typography,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import GlassDialog from "./GlassDialog";
 import { ORDER_STATUS, ORDER_STATUS_LABELS } from "../../constants";
@@ -44,6 +46,7 @@ const OrderEditDialog = ({
         notes: "",
         status: ORDER_STATUS.PENDING_PRINTING,
         orderDate: "",
+        needsPhotography: false,
       };
     }
 
@@ -64,6 +67,7 @@ const OrderEditDialog = ({
           ? order.status
           : parseInt(order.status, 10) || ORDER_STATUS.PENDING_PRINTING,
       orderDate: formatDateForInput(order.orderDate),
+      needsPhotography: order.needsPhotography || false,
     };
   }, [order]);
 
@@ -129,6 +133,7 @@ const OrderEditDialog = ({
           ? formValues.status
           : parseInt(formValues.status, 10),
       orderDate: formValues.orderDate ? new Date(formValues.orderDate).toISOString() : null,
+      needsPhotography: formValues.needsPhotography || false,
     };
 
     onSubmit?.(payload);
@@ -266,6 +271,18 @@ const OrderEditDialog = ({
                 </MenuItem>
               ))}
             </TextField>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formValues.needsPhotography || false}
+                  onChange={(e) => handleChange("needsPhotography")({ target: { value: e.target.checked } })}
+                  color="primary"
+                />
+              }
+              label="يحتاج تصوير"
+            />
           </Grid>
           <Grid item xs={12}>
             <TextField

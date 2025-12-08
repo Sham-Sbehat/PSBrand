@@ -28,6 +28,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import { ExpandMore } from "@mui/icons-material";
 import {
@@ -129,6 +131,7 @@ const OrderForm = ({
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState("percentage"); // 'percentage' or 'fixed'
   const [additionalPrice, setAdditionalPrice] = useState(0); // سعر إضافي
+  const [needsPhotography, setNeedsPhotography] = useState(false); // يحتاج تصوير
   const [customerNotFound, setCustomerNotFound] = useState(false);
   const [clientId, setClientId] = useState(null);
   const [allClients, setAllClients] = useState([]);
@@ -379,6 +382,7 @@ const OrderForm = ({
     setClientId(initialOrder.clientId || initialOrder.client?.id || null);
     setDeliveryPrice(initialOrder.deliveryFee || 0);
     setAdditionalPrice(initialOrder.additionalPrice || 0);
+    setNeedsPhotography(initialOrder.needsPhotography || false);
     if (
       initialOrder.discountPercentage &&
       initialOrder.discountPercentage > 0
@@ -1047,30 +1051,19 @@ const OrderForm = ({
       // Get current client data
       const currentClient = allClients.find((c) => c.id === clientId);
 
-      // Prepare client object with shipping company information
-      const clientWithShippingInfo = currentClient
-        ? {
-            ...currentClient,
-            name: customerData.customerName || currentClient.name,
-            phone: customerData.customerPhone || currentClient.phone,
-            country: customerData.country || currentClient.country,
-            province: customerData.province || currentClient.province,
-            district: customerData.district || currentClient.district,
-            address: shippingAddress || currentClient.address || "",
-            roadFnCityId: selectedCityId || currentClient.roadFnCityId || null,
-            roadFnAreaId: selectedAreaId || currentClient.roadFnAreaId || null,
-          }
-        : {
-            id: clientId,
-            name: customerData.customerName,
-            phone: customerData.customerPhone,
-            country: customerData.country,
-            province: customerData.province,
-            district: customerData.district,
-            address: shippingAddress || "",
-            roadFnCityId: selectedCityId || null,
-            roadFnAreaId: selectedAreaId || null,
-          };
+      // Prepare client object with shipping company information (only necessary fields)
+      const clientWithShippingInfo = {
+        id: clientId,
+        name: customerData.customerName || currentClient?.name || "",
+        phone: customerData.customerPhone || currentClient?.phone || "",
+        country: customerData.country || currentClient?.country || "",
+        province: customerData.province || currentClient?.province || "",
+        district: customerData.district || currentClient?.district || "",
+        address: shippingAddress || currentClient?.address || "",
+        roadFnCityId: selectedCityId ?? currentClient?.roadFnCityId ?? null,
+        roadFnAreaId: selectedAreaId ?? currentClient?.roadFnAreaId ?? null,
+        phone2: currentClient?.phone2 || null,
+      };
 
       const orderData = {
         clientId: clientId,
@@ -1079,6 +1072,7 @@ const OrderForm = ({
         district: customerData.district,
         designerId: resolvedDesignerId,
         preparerId: isEditMode ? initialOrder?.preparerId ?? null : null,
+        needsPhotography: needsPhotography,
         discountPercentage: discountType === "percentage" ? discount : 0,
         discountAmount:
           discountType === "fixed"
@@ -1103,51 +1097,41 @@ const OrderForm = ({
       };
 
       if (isEditMode) {
+        // Build payload explicitly to avoid sending nested objects with validation errors
         const payload = {
-          ...(initialOrder || {}),
-          ...orderData,
           id: initialOrder?.id,
+          clientId: clientId,
+          country: customerData.country,
+          province: customerData.province,
+          district: customerData.district,
+          designerId: resolvedDesignerId,
+          preparerId: isEditMode ? initialOrder?.preparerId ?? null : null,
+          needsPhotography: needsPhotography,
+          discountPercentage: discountType === "percentage" ? discount : 0,
+          discountAmount:
+            discountType === "fixed"
+              ? discount
+              : isEditMode
+              ? initialOrder?.discountAmount || 0
+              : 0,
+          deliveryFee: deliveryPrice,
+          additionalPrice: additionalPrice || 0,
+          discountNotes: computedDiscountNotes,
+          notes: formattedNotes,
+          orderDesigns: orderDesigns,
           status: initialOrder?.status ?? ORDER_STATUS.PENDING_PRINTING,
           orderNumber: initialOrder?.orderNumber || initialOrder?.id,
           orderDate: initialOrder?.orderDate || null,
           subTotal: initialOrder?.subTotal ?? 0,
           totalAmount: initialOrder?.totalAmount ?? 0,
+          // Client shipping company information
+          clientAddress: shippingAddress || currentClient?.address || "",
+          clientRoadFnCityId: selectedCityId ?? currentClient?.roadFnCityId ?? null,
+          clientRoadFnAreaId: selectedAreaId ?? currentClient?.roadFnAreaId ?? null,
+          clientPhone2: currentClient?.phone2 || null,
+          // Send client object with shipping info (only necessary fields)
+          client: clientWithShippingInfo,
         };
-
-        if (payload.client) {
-          payload.client = {
-            ...payload.client,
-            name: customerData.customerName || payload.client.name,
-            phone: customerData.customerPhone || payload.client.phone,
-            country: customerData.country || payload.client.country,
-            province: customerData.province || payload.client.province,
-            district: customerData.district || payload.client.district,
-            address: shippingAddress || payload.client.address || "",
-            roadFnCityId: selectedCityId || payload.client.roadFnCityId || null,
-            roadFnAreaId: selectedAreaId || payload.client.roadFnAreaId || null,
-          };
-        }
-
-        // Also add client shipping company information to main payload with correct field names
-        payload.clientAddress =
-          shippingAddress ||
-          payload.clientAddress ||
-          currentClient?.address ||
-          "";
-        payload.clientRoadFnCityId =
-          selectedCityId ??
-          payload.clientRoadFnCityId ??
-          currentClient?.roadFnCityId ??
-          null;
-        payload.clientRoadFnAreaId =
-          selectedAreaId ??
-          payload.clientRoadFnAreaId ??
-          currentClient?.roadFnAreaId ??
-          null;
-        payload.clientPhone2 =
-          payload.clientPhone2 ?? currentClient?.phone2 ?? null;
-
-        payload.orderDesigns = orderDesigns;
 
         try {
           await onUpdate?.(payload);
@@ -2990,6 +2974,21 @@ const OrderForm = ({
                         }}
                       />
                     </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={needsPhotography}
+                            onChange={(e) => setNeedsPhotography(e.target.checked)}
+                            color="primary"
+                          />
+                        }
+                        label="يحتاج تصوير"
+                        sx={{ mt: 1 }}
+                      />
+                    </Grid>
+                  </Grid>
+                  <Grid container spacing={2} sx={{ mt: 1 }}>
                     <Grid item xs={12} sm={4}>
                       <TextField
                         fullWidth

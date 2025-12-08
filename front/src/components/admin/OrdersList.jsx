@@ -31,10 +31,13 @@ import {
   Image as ImageIcon,
   PictureAsPdf,
   LocalShipping,
+  CameraAlt,
 } from "@mui/icons-material";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { useApp } from "../../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../../services/api";
 import { subscribeToOrderUpdates } from "../../services/realtime";
+import { openWhatsApp } from "../../utils";
 import {
   ORDER_STATUS,
   ORDER_STATUS_LABELS,
@@ -1089,13 +1092,18 @@ const OrdersList = () => {
           return false;
         });
 
-  // Filter by client name or phone search
+  // Filter by client name, phone, or order number search
   const filteredOrders = searchQuery.trim()
     ? deliveryStatusFilteredOrders.filter((order) => {
         const clientName = order.client?.name || "";
         const clientPhone = order.client?.phone || "";
+        const orderNumber = order.orderNumber || `#${order.id}` || "";
         const query = searchQuery.toLowerCase().trim();
-        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+        return (
+          clientName.toLowerCase().includes(query) || 
+          clientPhone.includes(query) ||
+          orderNumber.toLowerCase().includes(query)
+        );
       })
     : deliveryStatusFilteredOrders;
 
@@ -1152,13 +1160,13 @@ const OrdersList = () => {
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <TextField
             size="small"
-            placeholder="بحث باسم العميل أو رقم الهاتف..."
+            placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setPage(0); // Reset to first page when searching
             }}
-            sx={{ minWidth: 250 }}
+            sx={{ minWidth: 400 }}
           />
           <TextField
             select
@@ -1269,7 +1277,7 @@ const OrdersList = () => {
               <TableBody>
                 {paginatedOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} align="center">
+                    <TableCell colSpan={12} align="center">
                       <Box sx={{ padding: 4 }}>
                         <Typography variant="h6" color="text.secondary">
                           لا توجد طلبات
@@ -1397,17 +1405,22 @@ const OrdersList = () => {
                           </IconButton>
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
                             <Button
                               size="small"
                               variant="outlined"
                               startIcon={<Visibility />}
                               onClick={() => handleViewOrder(order)}
                               sx={{ 
-                                fontSize: '0.85rem',
-                                padding: '6px 12px',
+                                fontSize: '0.8rem',
+                                padding: '5px 10px',
+                                minWidth: 'auto',
                                 minHeight: '36px',
-                                height: '50px',
+                                height: '36px',
+                                '& .MuiButton-startIcon': {
+                                  marginRight: '4px',
+                                  marginLeft: 0,
+                                },
                               }}
                             >
                               عرض
@@ -1418,10 +1431,11 @@ const OrdersList = () => {
                               color="primary"
                               onClick={() => handleEditClick(order)}
                               sx={{ 
-                                fontSize: '0.85rem',
-                                padding: '6px 12px',
+                                fontSize: '0.8rem',
+                                padding: '5px 10px',
+                                minWidth: 'auto',
                                 minHeight: '36px',
-                                height: '50px',
+                                height: '36px',
                               }}
                             >
                               تعديل
@@ -1436,10 +1450,11 @@ const OrdersList = () => {
                               }
                               onClick={() => handleCancelClick(order)}
                               sx={{ 
-                                fontSize: '0.85rem',
-                                padding: '6px 12px',
+                                fontSize: '0.8rem',
+                                padding: '5px 10px',
+                                minWidth: 'auto',
                                 minHeight: '36px',
-                                height: '50px',
+                                height: '36px',
                               }}
                             >
                               إلغاء
@@ -1475,7 +1490,7 @@ const OrdersList = () => {
                                     width: '36px',
                                     height: '36px',
                                     minWidth: '36px',
-                                    minHeight: '50px',
+                                    padding: '6px',
                                     '&:hover': {
                                       backgroundColor: 'rgba(46, 125, 50, 0.2)',
                                       color: '#1b5e20',
@@ -1486,17 +1501,24 @@ const OrdersList = () => {
                                     },
                                     border: '1px solid rgba(46, 125, 50, 0.3)',
                                     borderRadius: 1,
-                                    padding: '8px',
                                   }}
                                 >
                                   <LocalShipping fontSize="small" />
                                 </IconButton>
                               </span>
                             </Tooltip>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                           <IconButton
+                            {order.needsPhotography && (
+                              <Tooltip title="يحتاج تصوير" arrow placement="top">
+                                <CameraAlt 
+                                  sx={{ 
+                                    color: 'primary.main',
+                                    fontSize: '1.4rem',
+                                    ml: 0.5,
+                                  }} 
+                                />
+                              </Tooltip>
+                            )}
+                            <IconButton
                               size="small"
                               color="error"
                               onClick={() => handleDeleteClick(order)}
@@ -1504,12 +1526,13 @@ const OrdersList = () => {
                                 width: '36px',
                                 height: '36px',
                                 minWidth: '36px',
-                                minHeight: '36px',
-                                padding: '8px',
+                                padding: '6px',
+                                ml: 0.5,
                               }}
                             >
                               <Delete fontSize="small" />
                             </IconButton>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     );
@@ -1604,6 +1627,21 @@ const OrdersList = () => {
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem
+                    label="يحتاج تصوير"
+                    value={
+                      selectedOrder.needsPhotography ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CameraAlt sx={{ color: 'primary.main' }} />
+                          <Typography variant="body2">نعم</Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">لا</Typography>
+                      )
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <InfoItem
                     label="المبلغ الإجمالي"
                     value={formatCurrency(selectedOrder.totalAmount)}
                   />
@@ -1632,7 +1670,32 @@ const OrdersList = () => {
                   <InfoItem label="الاسم" value={selectedOrder.client?.name || "-"} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="الهاتف" value={selectedOrder.client?.phone || "-"} />
+                  <InfoItem 
+                    label="الهاتف" 
+                    value={
+                      selectedOrder.client?.phone ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2">{selectedOrder.client.phone}</Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              openWhatsApp(selectedOrder.client.phone);
+                            }}
+                            sx={{
+                              color: '#25D366',
+                              '&:hover': {
+                                backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                              },
+                            }}
+                          >
+                            <WhatsAppIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ) : (
+                        '-'
+                      )
+                    } 
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem label="المدينة" value={selectedOrder.province || "-"} />

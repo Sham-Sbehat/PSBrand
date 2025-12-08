@@ -28,8 +28,10 @@ import {
   TouchApp,
   CalendarToday,
 } from '@mui/icons-material';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { employeesService, ordersService } from '../../services/api';
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../constants';
+import { openWhatsApp } from '../../utils';
 import calmPalette from '../../theme/calmPalette';
 
 const SellerManagement = () => {
@@ -73,6 +75,7 @@ const SellerManagement = () => {
       setLoading(false);
     }
   };
+
 
   const loadSellerOrders = async (seller, dateString) => {
     if (!seller) return;
@@ -194,13 +197,18 @@ const SellerManagement = () => {
       ? sellerOrders
       : sellerOrders.filter((order) => order.status === parseInt(statusFilter));
 
-  // Filter by client name or phone search
+  // Filter by client name, phone, or order number search
   const filteredOrders = searchQuery.trim()
     ? statusFilteredOrders.filter((order) => {
         const clientName = order.client?.name || '';
         const clientPhone = order.client?.phone || '';
+        const orderNumber = order.orderNumber || `#${order.id}` || '';
         const query = searchQuery.toLowerCase().trim();
-        return clientName.toLowerCase().includes(query) || clientPhone.includes(query);
+        return (
+          clientName.toLowerCase().includes(query) || 
+          clientPhone.includes(query) ||
+          orderNumber.toLowerCase().includes(query)
+        );
       })
     : statusFilteredOrders;
 
@@ -357,13 +365,13 @@ const SellerManagement = () => {
         >
           <TextField
             size="small"
-            placeholder="بحث باسم العميل أو رقم الهاتف..."
+            placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setPage(0);
             }}
-            sx={{ minWidth: 250 }}
+            sx={{ minWidth: 400 }}
           />
           <TextField
             select
@@ -398,6 +406,7 @@ const SellerManagement = () => {
                   <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                     <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>رقم الهاتف</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>الكمية الإجمالية</TableCell>
@@ -407,7 +416,7 @@ const SellerManagement = () => {
                 <TableBody>
                   {paginatedOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
+                      <TableCell colSpan={7} align="center">
                         <Box sx={{ padding: 4 }}>
                           <Typography variant="h6" color="text.secondary">
                             لا توجد طلبات
@@ -426,6 +435,27 @@ const SellerManagement = () => {
                       >
                         <TableCell>{order.orderNumber || `#${order.id}`}</TableCell>
                         <TableCell>{order.client?.name || '-'}</TableCell>
+                        <TableCell>
+                          {order.client?.phone ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2">{order.client.phone}</Typography>
+                              <IconButton
+                                size="small"
+                                onClick={() => openWhatsApp(order.client.phone)}
+                                sx={{
+                                  color: '#25D366',
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                                  },
+                                }}
+                              >
+                                <WhatsAppIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
                         <TableCell>{formatDate(order.orderDate)}</TableCell>
                         <TableCell>
                           <Chip
