@@ -17,6 +17,7 @@ import {
   DesignServices as DesignerIcon,
   Assignment as PreparerIcon,
   ManageAccounts as DesignManagerIcon,
+  Inventory as PackagerIcon,
 } from "@mui/icons-material";
 import { useApp } from "../context/AppContext";
 
@@ -62,6 +63,14 @@ const RoleSelection = () => {
       icon: PreparerIcon,
       color: "#2e7d32",
       gradient: "linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%)",
+    },
+    {
+      id: "packager",
+      title: "مسؤول التغليف ",
+      description: "تغليف الطلبات الجاهزة",
+      icon: PackagerIcon,
+      color: "#1976d2",
+      gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     },
   ];
 
@@ -145,7 +154,7 @@ const RoleSelection = () => {
                         >
                           <CardContent
                             sx={{
-                              padding: 5,
+                              padding: 3.5,
                               textAlign: "center",
                               color: "rgba(255, 255, 255, 0.95)",
                             }}

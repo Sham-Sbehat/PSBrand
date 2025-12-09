@@ -12,6 +12,8 @@ import {
   Card,
   CardContent,
   Avatar,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import {
   Logout,
@@ -36,6 +38,8 @@ import calmPalette from "../theme/calmPalette";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user, logout, employees } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
   const [allOrders, setAllOrders] = useState([]);
@@ -135,29 +139,54 @@ const AdminDashboard = () => {
           backdropFilter: "blur(10px)",
         }}
       >
-        <Toolbar sx={{ minHeight: 72 }}>
+        <Toolbar 
+          sx={{ 
+            minHeight: { xs: 56, sm: 72 },
+            paddingX: { xs: 1, sm: 2 },
+            flexWrap: { xs: 'wrap', sm: 'nowrap' },
+            gap: { xs: 1, sm: 0 }
+          }}
+        >
           <Typography
             variant="h5"
             sx={{
               flexGrow: 1,
               fontWeight: 700,
               letterSpacing: "0.04em",
+              fontSize: { xs: '1rem', sm: '1.5rem' },
+              minWidth: 0,
             }}
           >
             PSBrand - لوحة الأدمن
           </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Box sx={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: { xs: 0.5, sm: 2 },
+            flexWrap: 'nowrap'
+          }}>
             <NotificationsBell onNewNotification={newNotificationReceived} />
             <Avatar
               sx={{
                 bgcolor: "rgba(255, 255, 255, 0.22)",
                 color: "#ffffff",
                 backdropFilter: "blur(6px)",
+                width: { xs: 32, sm: 40 },
+                height: { xs: 32, sm: 40 },
+                fontSize: { xs: '0.875rem', sm: '1.25rem' }
               }}
             >
               {user?.name?.charAt(0) || "أ"}
             </Avatar>
-            <Typography variant="body1" sx={{ fontWeight: 500, color: "#f6f1eb" }}>
+            <Typography 
+              variant="body1" 
+              sx={{ 
+                fontWeight: 500, 
+                color: "#f6f1eb",
+                display: { xs: 'none', sm: 'block' },
+                fontSize: { xs: '0.75rem', sm: '1rem' }
+              }}
+            >
               {user?.name || "الأدمن"}
             </Typography>
             <IconButton
@@ -167,6 +196,10 @@ const AdminDashboard = () => {
                 color: "#f6f1eb",
                 border: "1px solid rgba(255,255,255,0.25)",
                 borderRadius: 2,
+                padding: { xs: 0.5, sm: 1 },
+                '& svg': {
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' }
+                }
               }}
             >
               <Logout />
@@ -175,19 +208,25 @@ const AdminDashboard = () => {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ paddingY: 5 }}>
-        <Grid container spacing={3} sx={{ marginBottom: 4 }}>
+      <Container 
+        maxWidth="xl" 
+        sx={{ 
+          paddingY: { xs: 2, sm: 5 },
+          paddingX: { xs: 1, sm: 2, md: 3 }
+        }}
+      >
+        <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ marginBottom: { xs: 2, sm: 4 } }}>
           {stats.map((stat, index) => {
             const Icon = stat.icon;
             const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
             return (
-              <Grid item xs={12} sm={6} md={3} key={index}>
+              <Grid item xs={6} sm={6} md={3} key={index}>
                 <Card
                   sx={{
                     position: "relative",
                     background: cardStyle.background,
                     color: cardStyle.highlight,
-                    borderRadius: 4,
+                    borderRadius: { xs: 2, sm: 4 },
                     boxShadow: calmPalette.shadow,
                     overflow: "hidden",
                     transition: "transform 0.2s, box-shadow 0.2s",
@@ -201,37 +240,49 @@ const AdminDashboard = () => {
                       pointerEvents: "none",
                     },
                     "&:hover": {
-                      transform: "translateY(-5px)",
-                      boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
+                      transform: { xs: "none", sm: "translateY(-5px)" },
+                      boxShadow: { xs: calmPalette.shadow, sm: "0 28px 50px rgba(46, 38, 31, 0.22)" },
                     },
                   }}
                 >
-                  <CardContent>
+                  <CardContent sx={{ padding: { xs: 1.5, sm: 2, md: 3 } }}>
                     <Box
                       sx={{
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
+                        flexDirection: { xs: 'column', sm: 'row' },
+                        gap: { xs: 1, sm: 0 },
+                        textAlign: { xs: 'center', sm: 'left' }
                       }}
                     >
-                      <Box>
+                      <Box sx={{ flex: 1 }}>
                         <Typography
                           variant="h3"
-                          sx={{ fontWeight: 700, color: cardStyle.highlight }}
+                          sx={{ 
+                            fontWeight: 700, 
+                            color: cardStyle.highlight,
+                            fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
+                          }}
                         >
                           {stat.value}
                         </Typography>
                         <Typography
                           variant="body1"
                           sx={{
-                            marginTop: 1,
+                            marginTop: { xs: 0.5, sm: 1 },
                             color: "rgba(255, 255, 255, 0.8)",
+                            fontSize: { xs: '0.75rem', sm: '0.875rem', md: '1rem' }
                           }}
                         >
                           {stat.title}
                         </Typography>
                       </Box>
-                      <Icon sx={{ fontSize: 56, color: cardStyle.highlight }} />
+                      <Icon sx={{ 
+                        fontSize: { xs: 32, sm: 40, md: 56 }, 
+                        color: cardStyle.highlight,
+                        flexShrink: 0
+                      }} />
                     </Box>
                   </CardContent>
                 </Card>
@@ -240,21 +291,30 @@ const AdminDashboard = () => {
           })}
         </Grid>
 
-        <Box sx={{ marginBottom: 3 }}>
+        <Box sx={{ marginBottom: { xs: 2, sm: 3 } }}>
           <Tabs
             value={currentTab}
             onChange={handleTabChange}
-            variant="fullWidth"
+            variant={isMobile ? "scrollable" : "fullWidth"}
+            scrollButtons="auto"
+            allowScrollButtonsMobile
             sx={{
               backgroundColor: calmPalette.surface,
-              borderRadius: 3,
+              borderRadius: { xs: 2, sm: 3 },
               boxShadow: calmPalette.shadow,
               backdropFilter: "blur(8px)",
+              minHeight: { xs: 48, sm: 64 },
+              '& .MuiTabs-scrollButtons': {
+                color: calmPalette.textMuted,
+                '&.Mui-disabled': {
+                  opacity: 0.3
+                }
+              }
             }}
             TabIndicatorProps={{
               sx: {
                 height: "100%",
-                borderRadius: 3,
+                borderRadius: { xs: 2, sm: 3 },
                 background:
                   "linear-gradient(135deg, rgba(96, 78, 62, 0.85) 0%, rgba(75, 61, 49, 0.9) 100%)",
                 zIndex: -1,
@@ -267,11 +327,19 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: "1rem",
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
                 color: calmPalette.textMuted,
+                minHeight: { xs: 48, sm: 64 },
+                padding: { xs: '8px 12px', sm: '12px 16px' },
                 "&.Mui-selected": {
                   color: "#f7f2ea",
                 },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 1 },
+                  '& svg': {
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                  }
+                }
               }}
             />
             <Tab
@@ -280,11 +348,19 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: "1rem",
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
                 color: calmPalette.textMuted,
+                minHeight: { xs: 48, sm: 64 },
+                padding: { xs: '8px 12px', sm: '12px 16px' },
                 "&.Mui-selected": {
                   color: "#f7f2ea",
                 },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 1 },
+                  '& svg': {
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                  }
+                }
               }}
             />
             <Tab
@@ -293,11 +369,19 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: "1rem",
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
                 color: calmPalette.textMuted,
+                minHeight: { xs: 48, sm: 64 },
+                padding: { xs: '8px 12px', sm: '12px 16px' },
                 "&.Mui-selected": {
                   color: "#f7f2ea",
                 },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 1 },
+                  '& svg': {
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                  }
+                }
               }}
             />
             <Tab
@@ -306,11 +390,19 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: "1rem",
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
                 color: calmPalette.textMuted,
+                minHeight: { xs: 48, sm: 64 },
+                padding: { xs: '8px 12px', sm: '12px 16px' },
                 "&.Mui-selected": {
                   color: "#f7f2ea",
                 },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 1 },
+                  '& svg': {
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                  }
+                }
               }}
             />
           </Tabs>

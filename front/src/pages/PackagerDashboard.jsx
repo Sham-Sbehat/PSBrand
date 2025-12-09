@@ -27,10 +27,12 @@ import {
   CircularProgress,
   TablePagination,
   Divider,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import {
   Logout,
-  DesignServices,
+  Inventory,
   Close,
   Note,
   Schedule,
@@ -54,10 +56,12 @@ import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
 import calmPalette from "../theme/calmPalette";
 
-const DesignManagerDashboard = () => {
+const PackagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
-  const [allOrders, setAllOrders] = useState([]);
+  const [currentTab, setCurrentTab] = useState(0);
+  const [packagedOrders, setPackagedOrders] = useState([]); // Tab 0: Status 8 (IN_PACKAGING)
+  const [completedOrders, setCompletedOrders] = useState([]); // Tab 1: Status 4 (COMPLETED)
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // Can be string or array
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -66,8 +70,8 @@ const DesignManagerDashboard = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchQueryPackaged, setSearchQueryPackaged] = useState('');
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
@@ -138,26 +142,57 @@ const DesignManagerDashboard = () => {
     }
   };
 
-  const fetchOrders = async (showLoading = false) => {
+  // Fetch packaged orders (Status 8: IN_PACKAGING) - Tab 0
+  const fetchPackagedOrders = async (showLoading = false) => {
     if (showLoading) {
       setLoading(true);
     }
     try {
-      const response = await ordersService.getAllOrders();
-      const orders = response || [];
-      setAllOrders(orders);
+      const packagingOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.IN_PACKAGING);
+      setPackagedOrders(packagingOrders || []);
       
-      // جلب حالة التوصيل لجميع الطلبات (مثل OrdersList.jsx)
-      // API سيرجع خطأ/فارغ إذا لم تكن هناك شحنة، وهذا طبيعي
-      orders.slice(0, 20).forEach(order => {
+      // Fetch delivery status for first 20 orders
+      (packagingOrders || []).slice(0, 20).forEach(order => {
         fetchDeliveryStatus(order.id);
       });
     } catch (error) {
+      console.error('Error fetching packaged orders:', error);
+      setPackagedOrders([]);
     } finally {
       if (showLoading) {
         setLoading(false);
       }
     }
+  };
+
+  // Fetch completed orders (Status 4: COMPLETED) - Tab 1
+  const fetchCompletedOrders = async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+    try {
+      const completedOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.COMPLETED);
+      setCompletedOrders(completedOrders || []);
+      
+      // Fetch delivery status for first 20 orders
+      (completedOrders || []).slice(0, 20).forEach(order => {
+        fetchDeliveryStatus(order.id);
+      });
+    } catch (error) {
+      console.error('Error fetching completed orders:', error);
+      setCompletedOrders([]);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const fetchOrders = async (showLoading = false) => {
+    await Promise.all([
+      fetchPackagedOrders(showLoading),
+      fetchCompletedOrders(false) // Don't show loading for second call
+    ]);
   };
 
   useEffect(() => {
@@ -173,24 +208,9 @@ const DesignManagerDashboard = () => {
           },
           onOrderStatusChanged: (orderData) => {
             // Always refresh from server when status changes to get latest data
+            // Always refresh from server when status changes to get latest data
             fetchOrders(false).then(() => {
-              // Get order info from the received data
-              const order = typeof orderData === 'object' ? orderData : null;
-              const orderId = order?.id || orderData;
-              
-              // Find the updated order in the refreshed list
-              setAllOrders(currentOrders => {
-                const updatedOrder = currentOrders.find(o => o.id === orderId || (order && o.id === order.id));
-                if (updatedOrder) {
-                  // If order status changed to SENT_TO_DELIVERY_COMPANY, fetch delivery status
-                  if (updatedOrder.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
-                    setTimeout(() => {
-                      fetchDeliveryStatus(updatedOrder.id);
-                    }, 1000);
-                  }
-                }
-                return currentOrders; // State already updated by fetchOrders
-              });
+              // The state will be updated by fetchOrders
             }).catch(err => {
               console.error('Error refreshing orders after status change:', err);
             });
@@ -264,11 +284,12 @@ const DesignManagerDashboard = () => {
   // Load delivery statuses for all orders - try to fetch for all orders
   // API will return error/empty if no shipment exists, which is fine
   useEffect(() => {
-    if (!allOrders || allOrders.length === 0) return;
+    const allOrdersList = [...completedOrders, ...packagedOrders];
+    if (!allOrdersList || allOrdersList.length === 0) return;
     
     // Try to fetch delivery status for all orders
     // We check if already loaded/loading to avoid duplicate requests
-    allOrders.forEach(order => {
+    allOrdersList.forEach(order => {
       // Check synchronously if already loaded or loading
       const isLoaded = deliveryStatuses[order.id] !== undefined;
       const isLoading = loadingDeliveryStatuses[order.id] === true;
@@ -282,7 +303,7 @@ const DesignManagerDashboard = () => {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allOrders]);
+  }, [completedOrders, packagedOrders]);
 
   const handleLogout = () => {
     logout();
@@ -395,7 +416,7 @@ const DesignManagerDashboard = () => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allOrders.length]); // Re-run only when orders count changes
+  }, [completedOrders.length, packagedOrders.length]); // Re-run only when orders count changes
 
   const handleImageClick = async (imageUrl, orderId, designId) => {
     const cacheKey = `${orderId}-${designId}`;
@@ -650,27 +671,28 @@ const DesignManagerDashboard = () => {
     await ordersService.updateOrderNotes(orderId, updatedNotes);
     // Update local state
     setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
-    setAllOrders(prev => prev.map(order => 
-      order.id === orderId ? { ...order, notes: updatedNotes } : order
-    ));
+    // Update notes in the appropriate list
+    if (selectedOrder.status === ORDER_STATUS.COMPLETED) {
+      setCompletedOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, notes: updatedNotes } : order
+      ));
+    } else if (selectedOrder.status === ORDER_STATUS.IN_PACKAGING) {
+      setPackagedOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, notes: updatedNotes } : order
+      ));
+    }
   };
 
-  // Handle status update
+  // Handle status update - تحويل من في مرحلة التغليف إلى مكتمل
   const handleStatusUpdate = async (orderId, currentStatus) => {
     setUpdatingOrderId(orderId);
     try {
-      let response;
-      
-      if (currentStatus === ORDER_STATUS.PENDING_PRINTING) {
-        // Move from "بانتظار الطباعة" to "في مرحلة الطباعة"
-        response = await orderStatusService.setInPrinting(orderId);
-      } else if (currentStatus === ORDER_STATUS.IN_PRINTING) {
-        // Move from "في مرحلة الطباعة" to "في مرحلة التحضير"
-        response = await orderStatusService.setInPreparation(orderId);
+      if (currentStatus === ORDER_STATUS.IN_PACKAGING) {
+        // Move from "في مرحلة التغليف" to "مكتمل"
+        await orderStatusService.setCompleted(orderId);
       }
       
-      // After successful update, refresh the orders list to get the latest data
-      // Wait a bit for backend to process, then refresh
+      // After successful update, refresh the orders list
       setTimeout(() => {
         fetchOrders(false); // Don't show loading after action
       }, 500);
@@ -845,10 +867,27 @@ const DesignManagerDashboard = () => {
   const discountNotes =
     typeof selectedOrder?.discountNotes === "string" ? selectedOrder.discountNotes.trim() : "";
 
-  // Filter orders by status
-  const filteredOrders = statusFilter === "all"
-    ? allOrders
-    : allOrders.filter((order) => order.status === parseInt(statusFilter));
+  // Filter orders based on current tab
+  const getFilteredOrders = () => {
+    const orders = currentTab === 0 ? packagedOrders : completedOrders;
+    const search = currentTab === 0 ? searchQueryPackaged : searchQuery;
+    
+    if (!search.trim()) return orders;
+    
+    return orders.filter((order) => {
+      const clientName = order.client?.name || "";
+      const clientPhone = order.client?.phone || "";
+      const orderNumber = order.orderNumber || `#${order.id}` || "";
+      const query = search.toLowerCase().trim();
+      return (
+        clientName.toLowerCase().includes(query) || 
+        clientPhone.includes(query) ||
+        orderNumber.toLowerCase().includes(query)
+      );
+    });
+  };
+
+  const filteredOrders = getFilteredOrders();
 
   // Calculate total rows (each design counts as a row)
   const totalRows = filteredOrders.reduce((total, order) => {
@@ -899,13 +938,12 @@ const DesignManagerDashboard = () => {
     setPage(0);
     setLoadingImage(null);
     activeImageLoads.current.clear();
-  }, [statusFilter]);
+  }, []);
 
   // Calculate stats
-  const pendingPrintingCount = allOrders.filter(order => order.status === ORDER_STATUS.PENDING_PRINTING).length;
-  const inPrintingCount = allOrders.filter(order => order.status === ORDER_STATUS.IN_PRINTING).length;
-  const completedCount = allOrders.filter(order => order.status === ORDER_STATUS.COMPLETED).length;
-  const totalOrdersCount = allOrders.length;
+  const packagedCount = packagedOrders.length;
+  const completedCount = completedOrders.length;
+  const totalOrdersCount = packagedCount + completedCount;
 
   const stats = [
     {
@@ -914,14 +952,9 @@ const DesignManagerDashboard = () => {
       icon: Dashboard,
     },
     {
-      title: "بانتظار الطباعة",
-      value: pendingPrintingCount,
-      icon: Schedule,
-    },
-    {
-      title: "في مرحلة الطباعة",
-      value: inPrintingCount,
-      icon: Print,
+      title: "في مرحلة التغليف",
+      value: packagedCount,
+      icon: Inventory,
     },
     {
       title: "مكتملة",
@@ -929,6 +962,10 @@ const DesignManagerDashboard = () => {
       icon: CheckCircle,
     },
   ];
+
+  const handleTabChange = (event, newValue) => {
+    setCurrentTab(newValue);
+  };
 
     return (
       <Box
@@ -957,7 +994,7 @@ const DesignManagerDashboard = () => {
                 color: "#f6f1eb",
               }}
             >
-              PSBrand - لوحة مدير التصميم
+              PSBrand - لوحة مسؤول التغليف
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Avatar
@@ -970,7 +1007,7 @@ const DesignManagerDashboard = () => {
                 {user?.name?.charAt(0) || "م"}
               </Avatar>
               <Typography variant="body1" sx={{ fontWeight: 500, color: "#f6f1eb" }}>
-                {user?.name || "مدير التصميم"}
+                {user?.name || "مسؤول التغليف"}
               </Typography>
               <IconButton
                 color="inherit"
@@ -1054,6 +1091,57 @@ const DesignManagerDashboard = () => {
               backdropFilter: "blur(8px)",
             }}
           >
+          {/* Tabs */}
+          <Box sx={{ marginBottom: 3 }}>
+            <Tabs
+              value={currentTab}
+              onChange={handleTabChange}
+              variant="fullWidth"
+              sx={{
+                backgroundColor: calmPalette.surface,
+                borderRadius: 3,
+                boxShadow: calmPalette.shadow,
+                backdropFilter: "blur(8px)",
+              }}
+              TabIndicatorProps={{
+                sx: {
+                  height: "100%",
+                  borderRadius: 3,
+                  background:
+                    "linear-gradient(135deg, rgba(96, 78, 62, 0.85) 0%, rgba(75, 61, 49, 0.9) 100%)",
+                  zIndex: -1,
+                },
+              }}
+            >
+              <Tab
+                label={`في مرحلة التغليف (${packagedOrders.length})`}
+                icon={<Inventory />}
+                iconPosition="start"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "1rem",
+                  color: calmPalette.textMuted,
+                  "&.Mui-selected": {
+                    color: "#f7f2ea",
+                  },
+                }}
+              />
+              <Tab
+                label={`الطلبات المكتملة (${completedOrders.length})`}
+                icon={<CheckCircle />}
+                iconPosition="start"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "1rem",
+                  color: calmPalette.textMuted,
+                  "&.Mui-selected": {
+                    color: "#f7f2ea",
+                  },
+                }}
+              />
+            </Tabs>
+          </Box>
+
           <Box
             sx={{
               display: "flex",
@@ -1065,8 +1153,11 @@ const DesignManagerDashboard = () => {
             }}
           >
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              <DesignServices sx={{ verticalAlign: "middle", mr: 1 }} />
-              جميع الطلبات ({filteredOrders.length})
+              <Inventory sx={{ verticalAlign: "middle", mr: 1 }} />
+              {currentTab === 0 
+                ? `في مرحلة التغليف (${filteredOrders.length})`
+                : `الطلبات المكتملة (${filteredOrders.length})`
+              }
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1075,8 +1166,14 @@ const DesignManagerDashboard = () => {
                   fullWidth
                   size="small"
                   placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={currentTab === 0 ? searchQueryPackaged : searchQuery}
+                  onChange={(e) => {
+                    if (currentTab === 0) {
+                      setSearchQueryPackaged(e.target.value);
+                    } else {
+                      setSearchQuery(e.target.value);
+                    }
+                  }}
                   InputProps={{
                     startAdornment: (
                       <Box
@@ -1084,7 +1181,7 @@ const DesignManagerDashboard = () => {
                           display: 'flex',
                           alignItems: 'center',
                           marginRight: 1,
-                          color: searchQuery ? calmPalette.primary : 'text.secondary',
+                          color: (currentTab === 0 ? searchQueryPackaged : searchQuery) ? calmPalette.primary : 'text.secondary',
                           transition: 'color 0.3s ease',
                         }}
                       >
@@ -1127,7 +1224,7 @@ const DesignManagerDashboard = () => {
                     },
                   }}
                 />
-                {searchQuery && (
+                 {((currentTab === 0 && searchQuery) || (currentTab === 1 && searchQueryPackaged)) && (
                   <Box
                     sx={{
                       marginTop: 1.5,
@@ -1163,40 +1260,6 @@ const DesignManagerDashboard = () => {
                   </Box>
                 )}
               </Box>
-            <TextField
-              select
-              size="small"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-                sx={{ 
-                  minWidth: 150,
-                  backgroundColor: "rgba(255,255,255,0.85)",
-                  borderRadius: 3,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 3,
-                    '& fieldset': {
-                      borderColor: 'rgba(94, 78, 62, 0.2)',
-                      borderWidth: 2,
-                    },
-                    '&:hover fieldset': {
-                      borderColor: calmPalette.primary + '80',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: calmPalette.primary,
-                    },
-                  },
-                }}
-            >
-              <MenuItem value="all">جميع الطلبات</MenuItem>
-              <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
-              <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
-              <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
-              <MenuItem value={ORDER_STATUS.IN_PACKAGING}>في مرحلة التغليف</MenuItem>
-              <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
-              <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
-              <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
-              <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
-            </TextField>
             </Box>
           </Box>
 
@@ -1370,32 +1433,12 @@ const DesignManagerDashboard = () => {
                             >
                               عرض
                             </Button>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              color="primary"
-                              onClick={() => handleStatusUpdate(order.id, order.status)}
-                              disabled={
-                                (order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING) ||
-                                updatingOrderId === order.id
-                              }
-                              sx={{ minWidth: 90, flexShrink: 0 }}
-                            >
-                              {updatingOrderId === order.id ? (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                  <CircularProgress size={16} color="inherit" />
-                                  جاري التحميل...
-                                </Box>
-                              ) : (
-                                order.status === ORDER_STATUS.PENDING_PRINTING ? "بدء الطباعة" : 
-                                order.status === ORDER_STATUS.IN_PRINTING ? "إرسال للتحضير" : "غير متاح"
-                              )}
-                            </Button>
+                            {/* No button for completed orders - preparer sends to packaging */}
                           </Box>
                             </TableCell>
                           </TableRow>
-                        );
-                      }
+                         );
+                       }
                       
                       // Calculate rowSpan for visible designs in current page
                       const visibleDesignsInOrder = paginatedRows.filter(row => row.order.id === order.id);
@@ -1727,27 +1770,29 @@ const DesignManagerDashboard = () => {
                                 >
                                   عرض
                                 </Button>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  color="primary"
-                                  onClick={() => handleStatusUpdate(order.id, order.status)}
-                                  disabled={
-                                    (order.status !== ORDER_STATUS.PENDING_PRINTING && order.status !== ORDER_STATUS.IN_PRINTING) ||
-                                    updatingOrderId === order.id
-                                  }
-                                  sx={{ minWidth: 90, flexShrink: 0 }}
-                                >
-                                  {updatingOrderId === order.id ? (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <CircularProgress size={16} color="inherit" />
-                                      جاري التحميل...
-                                    </Box>
-                                  ) : (
-                                    order.status === ORDER_STATUS.PENDING_PRINTING ? "بدء الطباعة" : 
-                                    order.status === ORDER_STATUS.IN_PRINTING ? "إرسال للتحضير" : "غير متاح"
-                                  )}
-                                </Button>
+                                {/* Show "مكتمل" button only for IN_PACKAGING orders (Tab 0) */}
+                                {currentTab === 0 && (
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="success"
+                                    onClick={() => handleStatusUpdate(order.id, order.status)}
+                                    disabled={
+                                      order.status !== ORDER_STATUS.IN_PACKAGING ||
+                                      updatingOrderId === order.id
+                                    }
+                                    sx={{ minWidth: 90, flexShrink: 0 }}
+                                  >
+                                    {updatingOrderId === order.id ? (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <CircularProgress size={16} color="inherit" />
+                                        جاري التحميل...
+                                      </Box>
+                                    ) : (
+                                    " إكمال"
+                                    )}
+                                  </Button>
+                                )}
                               </Box>
                                 </TableCell>
                               </>
@@ -2500,6 +2545,6 @@ const DesignManagerDashboard = () => {
   );
 };
 
-export default DesignManagerDashboard;
+export default PackagerDashboard;
 
 

@@ -736,12 +736,13 @@ const PreparerDashboard = () => {
     ));
   };
 
-  // Handle status update: when already OPEN_ORDER -> set COMPLETED
+  // Handle status update: when OPEN_ORDER -> set IN_PACKAGING (إرسال للتغليف)
+  // المحضر ينهي التحضير → الحالة تصبح 8 (في مرحلة التغليف)
   const handleStatusUpdate = async (orderId) => {
     setUpdatingOrderId(orderId);
     try {
-      // Move from "في مرحلة التحضير" to "مكتمل"
-      const response = await orderStatusService.setCompleted(orderId);
+      // Move from "الطلب مفتوح" (OPEN_ORDER) to "في مرحلة التغليف" (IN_PACKAGING)
+      const response = await orderStatusService.setInPackaging(orderId);
       
       // After successful update, refresh the orders list to get the latest data
       // Wait a bit for backend to process, then refresh
@@ -1612,7 +1613,10 @@ const InfoItem = ({ label, value }) => (
                             variant="contained"
                             color="success"
                             onClick={() => handleStatusUpdate(order.id)}
-                            disabled={updatingOrderId === order.id}
+                            disabled={
+                              order.status !== ORDER_STATUS.OPEN_ORDER ||
+                              updatingOrderId === order.id
+                            }
                             sx={{ 
                               minWidth: '120px',
                               fontSize: '0.8rem'
@@ -1624,7 +1628,7 @@ const InfoItem = ({ label, value }) => (
                                 جاري...
                               </Box>
                             ) : (
-                              'إكمال الطلب'
+                              'إرسال للتغليف'
                             )}
                           </Button>
                         </Box>
@@ -1933,14 +1937,17 @@ const InfoItem = ({ label, value }) => (
                         </IconButton>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<Visibility />}
-                          onClick={() => handleViewDetails(order)}
-                        >
-                          عرض التفاصيل
-                        </Button>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<Visibility />}
+                            onClick={() => handleViewDetails(order)}
+                            sx={{ minWidth: '100px' }}
+                          >
+                            عرض التفاصيل
+                          </Button>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   );

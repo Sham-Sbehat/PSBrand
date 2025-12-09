@@ -9,6 +9,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import DesignManagerDashboard from './pages/DesignManagerDashboard';
 import PreparerDashboard from './pages/PreparerDashboard';
+import PackagerDashboard from './pages/PackagerDashboard';
 
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useApp();
@@ -24,6 +25,7 @@ const ProtectedRoute = ({ children, allowedRole }) => {
       case 2: return "designer";
       case 3: return "preparer";
       case 4: return "designmanager";
+      case 5: return "packager";
       default: return "unknown";
     }
   };
@@ -52,6 +54,7 @@ function AppContent() {
       case 2: return "/employee";
       case 3: return "/preparer";
       case 4: return "/designmanager";
+      case 5: return "/packager";
       default: return "/";
     }
   };
@@ -92,6 +95,14 @@ function AppContent() {
           element={
             <ProtectedRoute allowedRole="designmanager">
               <DesignManagerDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/packager"
+          element={
+            <ProtectedRoute allowedRole="packager">
+              <PackagerDashboard />
             </ProtectedRoute>
           }
         />

@@ -387,6 +387,7 @@ const SellerManagement = () => {
             <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
             <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
             <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
+            <MenuItem value={ORDER_STATUS.IN_PACKAGING}>في مرحلة التغليف  </MenuItem>
             <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
             <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
             <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>

@@ -24,6 +24,7 @@ import {
   Visibility,
   VisibilityOff,
   Lock,
+  Inventory,
 } from "@mui/icons-material";
 import { useApp } from "../context/AppContext";
 import { authService } from "../services/api";
@@ -87,6 +88,8 @@ const Login = () => {
         return 3;
       case "designmanager":
         return 4;
+      case "packager":
+        return 5;
       default:
         return 1;
     }
@@ -122,6 +125,13 @@ const Login = () => {
           icon: ManageAccounts,
           gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
           route: "/designmanager"
+        };
+      case "packager":
+        return {
+          title: "تسجيل دخول مسؤول التغليف",
+          icon: Inventory,
+          gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          route: "/packager"
         };
       default:
         return {
@@ -212,6 +222,8 @@ const Login = () => {
         return "محضر طلبات";
       case "designmanager":
         return "مدير التصميم";
+      case "packager":
+        return "مسؤول التغليف";
       default:
         return "غير محدد";
     }

@@ -902,6 +902,23 @@ const OrderForm = ({
       return;
     }
 
+    // Validate required shipping company fields
+    if (!shippingAddress || !shippingAddress.trim()) {
+      setSubmitError("يرجى إدخال عنوان شركة التوصيل");
+      setIsDirty(true);
+      return;
+    }
+    if (!selectedCityId) {
+      setSubmitError("يرجى اختيار المدينة");
+      setIsDirty(true);
+      return;
+    }
+    if (!selectedAreaId) {
+      setSubmitError("يرجى اختيار المنطقة");
+      setIsDirty(true);
+      return;
+    }
+
     // Validate all orders
     const hasInvalidOrders = orders.some(
       (order) =>
@@ -1959,10 +1976,13 @@ const OrderForm = ({
                   <TextField
                     sx={{ minWidth: '250px' }}
                     fullWidth
+                    required
                     label="العنوان"
                     value={shippingAddress}
                     onChange={(e) => setShippingAddress(e.target.value)}
                     placeholder="أدخل عنوان شركة التوصيل"
+                    error={!shippingAddress && isDirty}
+                    helperText={!shippingAddress && isDirty ? "هذا الحقل مطلوب" : ""}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1998,9 +2018,12 @@ const OrderForm = ({
                     renderInput={(params) => (
                       <TextField
                         {...params}
+                        required
                         label="المدينة"
                         placeholder="ابحث عن المدينة..."
                         variant="outlined"
+                        error={!selectedCityId && isDirty}
+                        helperText={!selectedCityId && isDirty ? "هذا الحقل مطلوب" : ""}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             backgroundColor: '#f5f5f5',
@@ -2115,6 +2138,7 @@ const OrderForm = ({
                     renderInput={(params) => (
                       <TextField
                         {...params}
+                        required
                         label="المنطقة"
                         placeholder={
                           !selectedCityId
@@ -2122,6 +2146,8 @@ const OrderForm = ({
                             : "ابحث عن المنطقة..."
                         }
                         variant="outlined"
+                        error={!selectedAreaId && isDirty && selectedCityId}
+                        helperText={!selectedAreaId && isDirty && selectedCityId ? "هذا الحقل مطلوب" : ""}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             backgroundColor: '#f5f5f5',

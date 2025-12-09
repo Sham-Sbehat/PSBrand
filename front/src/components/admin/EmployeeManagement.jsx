@@ -238,12 +238,14 @@ const EmployeeManagement = () => {
                         employee.role === 'admin' ? 'أدمن' :
                         employee.role === 'designer' ? 'بائع' : 
                         employee.role === 'designmanager' ? 'مدير التصميم' :
+                        employee.role === 'packager' ? 'مسؤول تغليف' :
                         'محضر طلبات'
                       } 
                       color={
                         employee.role === 'admin' ? 'error' :
                         employee.role === 'designer' ? 'secondary' : 
                         employee.role === 'designmanager' ? 'warning' :
+                        employee.role === 'packager' ? 'info' :
                         'success'
                       }
                       size="small" 
@@ -366,6 +368,7 @@ const EmployeeManagement = () => {
                   <MenuItem value="designer">بائع</MenuItem>
                   <MenuItem value="preparer">محضر طلبات</MenuItem>
                   <MenuItem value="designmanager">مدير التصميم</MenuItem>
+                  <MenuItem value="packager">مسؤول تغليف الطلبات</MenuItem>
                 </Select>
                 {errors.role && (
                   <FormHelperText>{errors.role.message}</FormHelperText>

@@ -74,6 +74,7 @@ const USER_ROLES = {
   DESIGNER: 2,
   PREPARER: 3,
   DESIGN_MANAGER: 4,
+  PACKAGER: 5,
 };
 
 const ROLE_STRINGS = {
@@ -81,6 +82,7 @@ const ROLE_STRINGS = {
   [USER_ROLES.DESIGNER]: "designer",
   [USER_ROLES.PREPARER]: "preparer",
   [USER_ROLES.DESIGN_MANAGER]: "designmanager",
+  [USER_ROLES.PACKAGER]: "packager",
 };
 
 // Utility functions
@@ -90,6 +92,7 @@ const convertRoleToNumber = (role) => {
     "designer": USER_ROLES.DESIGNER,
     "preparer": USER_ROLES.PREPARER,
     "designmanager": USER_ROLES.DESIGN_MANAGER,
+    "packager": USER_ROLES.PACKAGER,
   };
   return roleMap[role] || USER_ROLES.ADMIN;
 };
@@ -312,6 +315,11 @@ export const orderStatusService = {
 
   setInPreparation: async (orderId) => {
     const response = await api.post(`/OrderStatus/SetInPreparation/${orderId}`);
+    return response.data;
+  },
+
+  setInPackaging: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetInPackaging/${orderId}`);
     return response.data;
   },
 

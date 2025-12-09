@@ -7,6 +7,7 @@ export const ORDER_STATUS = {
   CANCELLED: 5,           // ملغي
   OPEN_ORDER: 6,          // الطلب مفتوح (المحضّر أخذ الطلب)
   SENT_TO_DELIVERY_COMPANY: 7,  // تم الإرسال لشركة التوصيل
+  IN_PACKAGING: 8,        // في مرحلة التغليف
 };
 
 export const ORDER_STATUS_LABELS = {
@@ -17,6 +18,7 @@ export const ORDER_STATUS_LABELS = {
   [ORDER_STATUS.CANCELLED]: 'ملغي',
   [ORDER_STATUS.OPEN_ORDER]: 'الطلب مفتوح',
   [ORDER_STATUS.SENT_TO_DELIVERY_COMPANY]: 'تم الإرسال لشركة التوصيل',
+  [ORDER_STATUS.IN_PACKAGING]:  'في مرحلة التغليف',
 };
 
 export const ORDER_STATUS_COLORS = {
@@ -27,6 +29,7 @@ export const ORDER_STATUS_COLORS = {
   [ORDER_STATUS.CANCELLED]: 'error',
   [ORDER_STATUS.OPEN_ORDER]: 'primary',
   [ORDER_STATUS.SENT_TO_DELIVERY_COMPANY]: 'info',
+  [ORDER_STATUS.IN_PACKAGING]: 'warning',
 };
 
 // User Role Constants
@@ -35,6 +38,7 @@ export const USER_ROLES = {
   DESIGNER: 2,
   PREPARER: 3,
   DESIGN_MANAGER: 4,
+  PACKAGER: 5,
 };
 
 export const USER_ROLE_LABELS = {
@@ -42,6 +46,7 @@ export const USER_ROLE_LABELS = {
   [USER_ROLES.DESIGNER]: 'بائع',
   [USER_ROLES.PREPARER]: 'معد',
   [USER_ROLES.DESIGN_MANAGER]: 'مدير التصميم',
+  [USER_ROLES.PACKAGER]: 'مسؤول تغليف الطلبات',
 };
 
 // Size Enum (matching backend exactly)
