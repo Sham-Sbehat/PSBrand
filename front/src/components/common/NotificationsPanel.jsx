@@ -107,10 +107,10 @@ const formatDate = (dateString) => {
   if (diffHours < 24) return `منذ ${diffHours} ساعة`;
   if (diffDays < 7) return `منذ ${diffDays} يوم`;
   
-  return date.toLocaleDateString("ar-SA", {
+  return date.toLocaleDateString("en-GB", {
     year: "numeric",
-    month: "short",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   });
