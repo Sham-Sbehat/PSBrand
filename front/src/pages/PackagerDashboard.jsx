@@ -1113,7 +1113,7 @@ const PackagerDashboard = () => {
                                   size="small"
                                 />
                                 {order.needsPhotography && (
-                                  <Tooltip title="يحتاج طباعة">
+                                  <Tooltip title="يحتاج تصوير">
                                     <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
                                   </Tooltip>
                                 )}
@@ -1386,7 +1386,7 @@ const PackagerDashboard = () => {
                                       size="small"
                                     />
                                     {order.needsPhotography && (
-                                      <Tooltip title="يحتاج طباعة">
+                                      <Tooltip title="يحتاج تصوير">
                                         <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
                                       </Tooltip>
                                     )}

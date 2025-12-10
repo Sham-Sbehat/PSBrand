@@ -1467,7 +1467,9 @@ const InfoItem = ({ label, value }) => (
                             />
                           ) : null}
                           {order.needsPhotography && (
-                            <CameraAlt sx={{ color: 'primary.main', fontSize: 20, ml: 1 }} />
+                            <Tooltip title="يحتاج تصوير">
+                              <CameraAlt sx={{ color: 'primary.main', fontSize: 20, ml: 1 }} />
+                            </Tooltip>
                           )}
                         </Box>
                       </TableCell>

@@ -27,6 +27,7 @@ import {
   Divider,
   Tabs,
   Tab,
+  Tooltip,
 } from "@mui/material";
 import {
   Logout,
@@ -1102,7 +1103,9 @@ const DesignManagerDashboard = () => {
                                   size="small"
                                 />
                                 {order.needsPhotography && (
-                                  <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                                  <Tooltip title="يحتاج تصوير">
+                                    <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                                  </Tooltip>
                                 )}
                               </Box>
                             </TableCell>

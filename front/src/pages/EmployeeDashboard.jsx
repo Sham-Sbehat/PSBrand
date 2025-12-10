@@ -22,6 +22,7 @@ import {
   TextField,
   CircularProgress,
   Divider,
+  Tooltip,
 } from "@mui/material";
 import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf, Search, WhatsApp as WhatsAppIcon, CameraAlt } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -1346,7 +1347,9 @@ const EmployeeDashboard = () => {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Chip label={status.label} color={status.color} size="small" />
                           {order.needsPhotography && (
-                            <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                            <Tooltip title="يحتاج تصوير">
+                              <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                            </Tooltip>
                           )}
                         </Box>
                       </TableCell>
