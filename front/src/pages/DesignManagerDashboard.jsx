@@ -8,8 +8,6 @@ import {
   IconButton,
   Avatar,
   Grid,
-  Card,
-  CardContent,
   Table,
   TableBody,
   TableCell,
@@ -27,6 +25,8 @@ import {
   CircularProgress,
   TablePagination,
   Divider,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import {
   Logout,
@@ -35,18 +35,15 @@ import {
   Note,
   Schedule,
   Print,
-  CheckCircle,
-  Dashboard,
   ArrowBack,
   ArrowForward,
   Visibility,
-  TrackChanges,
   Search,
   CameraAlt,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService, shipmentsService } from "../services/api";
+import { ordersService, orderStatusService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
@@ -57,7 +54,9 @@ import calmPalette from "../theme/calmPalette";
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
-  const [allOrders, setAllOrders] = useState([]);
+  const [currentTab, setCurrentTab] = useState(0);
+  const [pendingPrintingOrders, setPendingPrintingOrders] = useState([]); // Tab 0: Status 1 (PENDING_PRINTING)
+  const [inPrintingOrders, setInPrintingOrders] = useState([]); // Tab 1: Status 2 (IN_PRINTING)
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // Can be string or array
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -66,20 +65,14 @@ const DesignManagerDashboard = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchQueryInPrinting, setSearchQueryInPrinting] = useState('');
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
   const MAX_CONCURRENT_LOADS = 3; // Maximum concurrent image loads
   const [page, setPage] = useState(0); // Current page for pagination
   const [rowsPerPage, setRowsPerPage] = useState(5); // Number of rows per page
-  const [openDeliveryStatusDialog, setOpenDeliveryStatusDialog] = useState(false);
-  const [deliveryStatusData, setDeliveryStatusData] = useState(null);
-  const [deliveryStatusLoading, setDeliveryStatusLoading] = useState(false);
-  const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
-  const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
-  const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true/false }
 
   const getFullUrl = (inputUrl) => {
     if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
@@ -114,50 +107,48 @@ const DesignManagerDashboard = () => {
     return `${baseDomain}/${normalizedPath}`;
   };
 
-  // Fetch all orders
-  // Fetch delivery status for orders sent to delivery company
-  const fetchDeliveryStatus = async (orderId) => {
-    // Check if already loading or loaded
-    if (loadingDeliveryStatuses[orderId] || deliveryStatuses[orderId] !== undefined) {
-      return;
-    }
-    
-    setLoadingDeliveryStatuses(prev => ({ ...prev, [orderId]: true }));
-    
-    try {
-      const statusData = await shipmentsService.getDeliveryStatus(orderId);
-      setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
-    } catch (error) {
-      setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
-    } finally {
-      setLoadingDeliveryStatuses(prev => {
-        const updated = { ...prev };
-        delete updated[orderId];
-        return updated;
-      });
-    }
-  };
 
-  const fetchOrders = async (showLoading = false) => {
+  // Fetch pending printing orders (Status 1: PENDING_PRINTING) - Tab 0
+  const fetchPendingPrintingOrders = async (showLoading = false) => {
     if (showLoading) {
       setLoading(true);
     }
     try {
-      const response = await ordersService.getAllOrders();
-      const orders = response || [];
-      setAllOrders(orders);
-      
-      // جلب حالة التوصيل لجميع الطلبات (مثل OrdersList.jsx)
-      // API سيرجع خطأ/فارغ إذا لم تكن هناك شحنة، وهذا طبيعي
-      orders.slice(0, 20).forEach(order => {
-        fetchDeliveryStatus(order.id);
-      });
+      const orders = await ordersService.getOrdersByStatus(ORDER_STATUS.PENDING_PRINTING);
+      setPendingPrintingOrders(orders || []);
     } catch (error) {
+      console.error('Error fetching pending printing orders:', error);
+      setPendingPrintingOrders([]);
     } finally {
       if (showLoading) {
         setLoading(false);
       }
     }
+  };
+
+  // Fetch in printing orders (Status 2: IN_PRINTING) - Tab 1
+  const fetchInPrintingOrders = async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+    try {
+      const orders = await ordersService.getOrdersByStatus(ORDER_STATUS.IN_PRINTING);
+      setInPrintingOrders(orders || []);
+    } catch (error) {
+      console.error('Error fetching in printing orders:', error);
+      setInPrintingOrders([]);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const fetchOrders = async (showLoading = false) => {
+    await Promise.all([
+      fetchPendingPrintingOrders(showLoading),
+      fetchInPrintingOrders(false) // Don't show loading for second call
+    ]);
   };
 
   useEffect(() => {
@@ -173,82 +164,9 @@ const DesignManagerDashboard = () => {
           },
           onOrderStatusChanged: (orderData) => {
             // Always refresh from server when status changes to get latest data
-            fetchOrders(false).then(() => {
-              // Get order info from the received data
-              const order = typeof orderData === 'object' ? orderData : null;
-              const orderId = order?.id || orderData;
-              
-              // Find the updated order in the refreshed list
-              setAllOrders(currentOrders => {
-                const updatedOrder = currentOrders.find(o => o.id === orderId || (order && o.id === order.id));
-                if (updatedOrder) {
-                  // If order status changed to SENT_TO_DELIVERY_COMPANY, fetch delivery status
-                  if (updatedOrder.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
-                    setTimeout(() => {
-                      fetchDeliveryStatus(updatedOrder.id);
-                    }, 1000);
-                  }
-                }
-                return currentOrders; // State already updated by fetchOrders
-              });
-            }).catch(err => {
+            fetchOrders(false).catch(err => {
               console.error('Error refreshing orders after status change:', err);
             });
-          },
-          onDeliveryStatusChanged: (orderId, deliveryStatus) => {
-            // Update delivery status in real-time when backend sends update
-            console.log('Delivery status updated via SignalR for order:', orderId, deliveryStatus);
-            setDeliveryStatuses(prev => ({
-              ...prev,
-              [orderId]: deliveryStatus
-            }));
-          },
-          onShipmentStatusUpdated: (shipmentData) => {
-            const orderId = shipmentData?.orderId;
-            if (orderId) {
-              if (shipmentData?.status) {
-                const statusData = {
-                  orderId: shipmentData.orderId,
-                  shipmentId: shipmentData.shipmentId,
-                  roadFnShipmentId: shipmentData.roadFnShipmentId,
-                  trackingNumber: shipmentData.trackingNumber,
-                  status: typeof shipmentData.status === 'string' 
-                    ? { arabic: shipmentData.status, english: shipmentData.status }
-                    : shipmentData.status,
-                  lastUpdate: shipmentData.lastUpdate
-                };
-                setDeliveryStatuses(prev => ({
-                  ...prev,
-                  [orderId]: statusData
-                }));
-              } else {
-                fetchDeliveryStatus(orderId);
-              }
-            }
-          },
-          onShipmentNoteAdded: (shipmentData) => {
-            const orderId = shipmentData?.orderId;
-            if (orderId) {
-              if (shipmentData?.status) {
-                const statusData = {
-                  orderId: shipmentData.orderId,
-                  shipmentId: shipmentData.shipmentId,
-                  roadFnShipmentId: shipmentData.roadFnShipmentId,
-                  trackingNumber: shipmentData.trackingNumber,
-                  status: typeof shipmentData.status === 'string' 
-                    ? { arabic: shipmentData.status, english: shipmentData.status }
-                    : shipmentData.status,
-                  note: shipmentData.note,
-                  lastUpdate: shipmentData.entryDateTime
-                };
-                setDeliveryStatuses(prev => ({
-                  ...prev,
-                  [orderId]: statusData
-                }));
-              } else {
-                fetchDeliveryStatus(orderId);
-              }
-            }
           },
         });
       } catch (err) {
@@ -261,28 +179,6 @@ const DesignManagerDashboard = () => {
     };
   }, []);
 
-  // Load delivery statuses for all orders - try to fetch for all orders
-  // API will return error/empty if no shipment exists, which is fine
-  useEffect(() => {
-    if (!allOrders || allOrders.length === 0) return;
-    
-    // Try to fetch delivery status for all orders
-    // We check if already loaded/loading to avoid duplicate requests
-    allOrders.forEach(order => {
-      // Check synchronously if already loaded or loading
-      const isLoaded = deliveryStatuses[order.id] !== undefined;
-      const isLoading = loadingDeliveryStatuses[order.id] === true;
-      
-      // Only fetch if not already checked
-      if (!isLoaded && !isLoading) {
-        // Try to fetch - if no shipment exists, API will return error and we set null
-        fetchDeliveryStatus(order.id).catch(() => {
-          // Silently fail - this order just doesn't have a shipment
-        });
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allOrders]);
 
   const handleLogout = () => {
     logout();
@@ -395,7 +291,7 @@ const DesignManagerDashboard = () => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allOrders.length]); // Re-run only when orders count changes
+  }, [pendingPrintingOrders.length, inPrintingOrders.length]); // Re-run only when orders count changes
 
   const handleImageClick = async (imageUrl, orderId, designId) => {
     const cacheKey = `${orderId}-${designId}`;
@@ -569,7 +465,6 @@ const DesignManagerDashboard = () => {
           document.body.removeChild(link);
           // Give more time for download to complete before revoking
           setTimeout(() => {
-            console.log('Revoking blob URL');
             URL.revokeObjectURL(blobUrl);
           }, 10000); // 10 seconds - enough time for download
         }, 1000);
@@ -650,9 +545,17 @@ const DesignManagerDashboard = () => {
     await ordersService.updateOrderNotes(orderId, updatedNotes);
     // Update local state
     setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
-    setAllOrders(prev => prev.map(order => 
-      order.id === orderId ? { ...order, notes: updatedNotes } : order
-    ));
+    
+    // Update the correct list based on order status
+    if (selectedOrder.status === ORDER_STATUS.PENDING_PRINTING) {
+      setPendingPrintingOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, notes: updatedNotes } : order
+      ));
+    } else if (selectedOrder.status === ORDER_STATUS.IN_PRINTING) {
+      setInPrintingOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, notes: updatedNotes } : order
+      ));
+    }
   };
 
   // Handle status update
@@ -670,10 +573,19 @@ const DesignManagerDashboard = () => {
       }
       
       // After successful update, refresh the orders list to get the latest data
-      // Wait a bit for backend to process, then refresh
-      setTimeout(() => {
-        fetchOrders(false); // Don't show loading after action
-      }, 500);
+      // Also switch tab if order moved from pending to in printing
+      if (currentStatus === ORDER_STATUS.PENDING_PRINTING) {
+        // Order moved from pending to in printing, switch to tab 1
+        setTimeout(() => {
+          fetchOrders(false).then(() => {
+            setCurrentTab(1); // Switch to "في مرحلة الطباعة" tab
+          });
+        }, 500);
+      } else {
+        setTimeout(() => {
+          fetchOrders(false); // Don't show loading after action
+        }, 500);
+      }
       
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -683,28 +595,6 @@ const DesignManagerDashboard = () => {
     }
   };
 
-  const handleDeliveryStatusClick = async (order) => {
-    setOrderForDeliveryStatus(order);
-    setDeliveryStatusLoading(true);
-    setOpenDeliveryStatusDialog(true);
-    setDeliveryStatusData(null);
-    
-    try {
-      const statusData = await shipmentsService.getDeliveryStatus(order.id);
-      setDeliveryStatusData(statusData);
-    } catch (error) {
-      console.error('Error fetching delivery status:', error);
-      alert(`حدث خطأ أثناء جلب حالة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
-    } finally {
-      setDeliveryStatusLoading(false);
-    }
-  };
-
-  const handleCloseDeliveryStatusDialog = () => {
-    setOpenDeliveryStatusDialog(false);
-    setDeliveryStatusData(null);
-    setOrderForDeliveryStatus(null);
-  };
 
   const getStatusLabel = (status) => {
     const numericStatus = typeof status === 'number' ? status : parseInt(status);
@@ -845,10 +735,27 @@ const DesignManagerDashboard = () => {
   const discountNotes =
     typeof selectedOrder?.discountNotes === "string" ? selectedOrder.discountNotes.trim() : "";
 
-  // Filter orders by status
-  const filteredOrders = statusFilter === "all"
-    ? allOrders
-    : allOrders.filter((order) => order.status === parseInt(statusFilter));
+  // Get filtered orders based on current tab and search query
+  const getFilteredOrders = () => {
+    const orders = currentTab === 0 ? pendingPrintingOrders : inPrintingOrders;
+    const search = currentTab === 0 ? searchQuery : searchQueryInPrinting;
+    
+    if (!search.trim()) return orders;
+    
+    return orders.filter((order) => {
+      const clientName = order.client?.name || "";
+      const clientPhone = order.client?.phone || "";
+      const orderNumber = order.orderNumber || `#${order.id}` || "";
+      const query = search.toLowerCase().trim();
+      return (
+        clientName.toLowerCase().includes(query) ||
+        clientPhone.toString().includes(query) ||
+        orderNumber.toLowerCase().includes(query)
+      );
+    });
+  };
+
+  const filteredOrders = getFilteredOrders();
 
   // Calculate total rows (each design counts as a row)
   const totalRows = filteredOrders.reduce((total, order) => {
@@ -894,41 +801,13 @@ const DesignManagerDashboard = () => {
     activeImageLoads.current.clear();
   };
 
-  // Reset page when filter changes
+  // Reset page when tab or search changes
   useEffect(() => {
     setPage(0);
     setLoadingImage(null);
     activeImageLoads.current.clear();
-  }, [statusFilter]);
+  }, [currentTab, searchQuery, searchQueryInPrinting]);
 
-  // Calculate stats
-  const pendingPrintingCount = allOrders.filter(order => order.status === ORDER_STATUS.PENDING_PRINTING).length;
-  const inPrintingCount = allOrders.filter(order => order.status === ORDER_STATUS.IN_PRINTING).length;
-  const completedCount = allOrders.filter(order => order.status === ORDER_STATUS.COMPLETED).length;
-  const totalOrdersCount = allOrders.length;
-
-  const stats = [
-    {
-      title: "إجمالي الطلبات",
-      value: totalOrdersCount,
-      icon: Dashboard,
-    },
-    {
-      title: "بانتظار الطباعة",
-      value: pendingPrintingCount,
-      icon: Schedule,
-    },
-    {
-      title: "في مرحلة الطباعة",
-      value: inPrintingCount,
-      icon: Print,
-    },
-    {
-      title: "مكتملة",
-      value: completedCount,
-      icon: CheckCircle,
-    },
-  ];
 
     return (
       <Box
@@ -988,61 +867,6 @@ const DesignManagerDashboard = () => {
         </AppBar>
 
         <Container maxWidth="xl" sx={{ paddingY: 5 }}>
-        {/* Stats Cards */}
-          <Grid container spacing={3} sx={{ marginBottom: 4 }}>
-            {stats.map((stat, index) => {
-              const Icon = stat.icon;
-              const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
-              return (
-                <Grid item xs={12} sm={6} md={3} key={index}>
-                  <Card
-                    sx={{
-                      position: "relative",
-                      background: cardStyle.background,
-                      color: cardStyle.highlight,
-                      borderRadius: 4,
-                      boxShadow: calmPalette.shadow,
-                      overflow: "hidden",
-                      transition: "transform 0.2s, box-shadow 0.2s",
-                      backdropFilter: "blur(6px)",
-                      "&::after": {
-                        content: '""',
-                        position: "absolute",
-                        inset: 0,
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
-                        pointerEvents: "none",
-                      },
-                      "&:hover": {
-                        transform: "translateY(-5px)",
-                        boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
-                      },
-                    }}
-                  >
-                    <CardContent>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Box>
-                          <Typography variant="h3" sx={{ fontWeight: 700 }}>
-                            {stat.value}
-                          </Typography>
-                          <Typography variant="body1" sx={{ marginTop: 1 }}>
-                            {stat.title}
-                          </Typography>
-                        </Box>
-                        <Icon sx={{ fontSize: 60, opacity: 0.8 }} />
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
 
           <Paper
             elevation={0}
@@ -1054,29 +878,77 @@ const DesignManagerDashboard = () => {
               backdropFilter: "blur(8px)",
             }}
           >
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: 3,
-              flexWrap: 'wrap',
-              gap: 2,
-            }}
-          >
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              <DesignServices sx={{ verticalAlign: "middle", mr: 1 }} />
-              جميع الطلبات ({filteredOrders.length})
-            </Typography>
+          <Box sx={{ marginBottom: 3 }}>
+            <Tabs
+              value={currentTab}
+              onChange={(e, newValue) => setCurrentTab(newValue)}
+              variant="fullWidth"
+              sx={{
+                backgroundColor: calmPalette.surface,
+                borderRadius: 3,
+                boxShadow: calmPalette.shadow,
+                backdropFilter: "blur(8px)",
+              }}
+              TabIndicatorProps={{
+                sx: {
+                  height: "100%",
+                  borderRadius: 3,
+                  background:
+                    "linear-gradient(135deg, rgba(96, 78, 62, 0.85) 0%, rgba(75, 61, 49, 0.9) 100%)",
+                  zIndex: -1,
+                },
+              }}
+            >
+              <Tab
+                label={`بانتظار الطباعة (${pendingPrintingOrders.length})`}
+                icon={<Schedule />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 0 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '12px 0 0 12px',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
+                label={`في مرحلة الطباعة (${inPrintingOrders.length})`}
+                icon={<Print />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 1 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0 12px 12px 0',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+            </Tabs>
 
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Box sx={{ flex: 1, minWidth: 400, position: 'relative' }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+              <Box sx={{ flex: '0 0 auto', width: '50%', position: 'relative' }}>
                 <TextField
                   fullWidth
                   size="small"
                   placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={currentTab === 0 ? searchQuery : searchQueryInPrinting}
+                  onChange={(e) => {
+                    if (currentTab === 0) {
+                      setSearchQuery(e.target.value);
+                    } else {
+                      setSearchQueryInPrinting(e.target.value);
+                    }
+                  }}
                   InputProps={{
                     startAdornment: (
                       <Box
@@ -1084,7 +956,7 @@ const DesignManagerDashboard = () => {
                           display: 'flex',
                           alignItems: 'center',
                           marginRight: 1,
-                          color: searchQuery ? calmPalette.primary : 'text.secondary',
+                          color: (currentTab === 0 ? searchQuery : searchQueryInPrinting) ? calmPalette.primary : 'text.secondary',
                           transition: 'color 0.3s ease',
                         }}
                       >
@@ -1127,7 +999,7 @@ const DesignManagerDashboard = () => {
                     },
                   }}
                 />
-                {searchQuery && (
+                {(currentTab === 0 ? searchQuery : searchQueryInPrinting) && (
                   <Box
                     sx={{
                       marginTop: 1.5,
@@ -1163,40 +1035,6 @@ const DesignManagerDashboard = () => {
                   </Box>
                 )}
               </Box>
-            <TextField
-              select
-              size="small"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-                sx={{ 
-                  minWidth: 150,
-                  backgroundColor: "rgba(255,255,255,0.85)",
-                  borderRadius: 3,
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 3,
-                    '& fieldset': {
-                      borderColor: 'rgba(94, 78, 62, 0.2)',
-                      borderWidth: 2,
-                    },
-                    '&:hover fieldset': {
-                      borderColor: calmPalette.primary + '80',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: calmPalette.primary,
-                    },
-                  },
-                }}
-            >
-              <MenuItem value="all">جميع الطلبات</MenuItem>
-              <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
-              <MenuItem value={ORDER_STATUS.IN_PRINTING}>في مرحلة الطباعة</MenuItem>
-              <MenuItem value={ORDER_STATUS.IN_PREPARATION}>في مرحلة التحضير</MenuItem>
-              <MenuItem value={ORDER_STATUS.IN_PACKAGING}>في مرحلة التغليف</MenuItem>
-              <MenuItem value={ORDER_STATUS.COMPLETED}>مكتمل</MenuItem>
-              <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
-              <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
-              <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
-            </TextField>
             </Box>
           </Box>
 
@@ -1219,14 +1057,13 @@ const DesignManagerDashboard = () => {
                       <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
                       <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {paginatedRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={13} align="center">
+                        <TableCell colSpan={12} align="center">
                           <Box sx={{ padding: 4 }}>
                             <Typography variant="h6" color="text.secondary">
                               لا توجد طلبات حالياً
@@ -1258,11 +1095,16 @@ const DesignManagerDashboard = () => {
                             <TableCell>-</TableCell>
                             <TableCell>-</TableCell>
                             <TableCell>
-                              <Chip
-                                label={status.label}
-                                color={status.color}
-                                size="small"
-                              />
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip
+                                  label={status.label}
+                                  color={status.color}
+                                  size="small"
+                                />
+                                {order.needsPhotography && (
+                                  <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                                )}
+                              </Box>
                             </TableCell>
                             <TableCell>
                               {order.orderDate 
@@ -1288,76 +1130,6 @@ const DesignManagerDashboard = () => {
                               >
                                 <Note />
                               </IconButton>
-                            </TableCell>
-                            <TableCell
-                              onClick={() => {
-                                // Always allow clicking - we'll try to fetch delivery status
-                                  handleDeliveryStatusClick(order);
-                              }}
-                              sx={{
-                                cursor: 'pointer',
-                                '&:hover': {
-                                  backgroundColor: 'action.hover',
-                                },
-                              }}
-                            >
-                              {(() => {
-                                  const statusData = deliveryStatuses[order.id];
-                                  const isLoading = loadingDeliveryStatuses[order.id];
-                                  
-                                  if (isLoading) {
-                                    return (
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <CircularProgress size={16} />
-                                        <Typography variant="body2" color="text.secondary">
-                                          جاري التحميل...
-                                        </Typography>
-                                      </Box>
-                                    );
-                                  }
-                                  
-                                  if (statusData === null) {
-                                  // We checked but no shipment exists
-                                    return (
-                                    <Typography variant="body2" color="text.secondary">
-                                      -
-                                      </Typography>
-                                    );
-                                  }
-                                  
-                                  if (statusData && statusData.status) {
-                                    return (
-                                      <Chip
-                                        label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                        sx={{
-                                          backgroundColor: statusData.status.color || '#1976d2',
-                                          color: '#ffffff',
-                                          fontWeight: 600,
-                                          fontSize: '0.75rem',
-                                          cursor: 'pointer',
-                                          maxWidth: '150px',
-                                          '&:hover': {
-                                            opacity: 0.9,
-                                            transform: 'scale(1.05)',
-                                          },
-                                          transition: 'all 0.2s',
-                                          '& .MuiChip-label': {
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                          },
-                                        }}
-                                        size="small"
-                                      />
-                                    );
-                                  }
-                                  
-                                // No data yet - show dash (will be populated when shipment is created or fetched)
-                                  return (
-                                <Typography variant="body2" color="text.secondary">
-                                  -
-                                </Typography>
-                                );
-                              })()}
                             </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1 }}>
@@ -1614,11 +1386,16 @@ const DesignManagerDashboard = () => {
                             {isFirstRow && (
                               <>
                                 <TableCell rowSpan={rowCount}>
-                                  <Chip
-                                    label={status.label}
-                                    color={status.color}
-                                    size="small"
-                                  />
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Chip
+                                      label={status.label}
+                                      color={status.color}
+                                      size="small"
+                                    />
+                                    {order.needsPhotography && (
+                                      <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                                    )}
+                                  </Box>
                                 </TableCell>
                                 <TableCell rowSpan={rowCount}>
                                   {order.orderDate 
@@ -1644,77 +1421,6 @@ const DesignManagerDashboard = () => {
                                   >
                                     <Note />
                                   </IconButton>
-                                </TableCell>
-                                <TableCell
-                                  rowSpan={rowCount}
-                                  onClick={() => {
-                                    // Always allow clicking - we'll try to fetch delivery status
-                                      handleDeliveryStatusClick(order);
-                                  }}
-                                  sx={{
-                                    cursor: 'pointer',
-                                    '&:hover': {
-                                      backgroundColor: 'action.hover',
-                                    },
-                                  }}
-                                >
-                                  {(() => {
-                                      const statusData = deliveryStatuses[order.id];
-                                      const isLoading = loadingDeliveryStatuses[order.id];
-                                      
-                                      if (isLoading) {
-                                        return (
-                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <CircularProgress size={16} />
-                                            <Typography variant="body2" color="text.secondary">
-                                              جاري التحميل...
-                                            </Typography>
-                                          </Box>
-                                        );
-                                      }
-                                      
-                                      if (statusData === null) {
-                                      // We checked but no shipment exists
-                                        return (
-                                        <Typography variant="body2" color="text.secondary">
-                                          -
-                                          </Typography>
-                                        );
-                                      }
-                                      
-                                      if (statusData && statusData.status) {
-                                        return (
-                                          <Chip
-                                            label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                            sx={{
-                                              backgroundColor: statusData.status.color || '#1976d2',
-                                              color: '#ffffff',
-                                              fontWeight: 600,
-                                              fontSize: '0.75rem',
-                                              cursor: 'pointer',
-                                              maxWidth: '150px',
-                                              '&:hover': {
-                                                opacity: 0.9,
-                                                transform: 'scale(1.05)',
-                                              },
-                                              transition: 'all 0.2s',
-                                              '& .MuiChip-label': {
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                              },
-                                            }}
-                                            size="small"
-                                          />
-                                        );
-                                      }
-                                      
-                                    // No data yet - show dash (will be populated when shipment is created or fetched)
-                                      return (
-                                    <Typography variant="body2" color="text.secondary">
-                                      -
-                                    </Typography>
-                                    );
-                                  })()}
                                 </TableCell>
                             <TableCell rowSpan={rowCount}>
                           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1 }}>
@@ -2327,167 +2033,6 @@ const DesignManagerDashboard = () => {
       </Dialog>
 
       {/* Notes Dialog */}
-      {/* Delivery Status Dialog */}
-      <GlassDialog
-        open={openDeliveryStatusDialog}
-        onClose={handleCloseDeliveryStatusDialog}
-        maxWidth="md"
-        title="حالة التوصيل من شركة التوصيل"
-        subtitle={orderForDeliveryStatus?.orderNumber ? `طلب رقم: ${orderForDeliveryStatus.orderNumber}` : undefined}
-        actions={
-          <Button onClick={handleCloseDeliveryStatusDialog} variant="contained">
-            إغلاق
-          </Button>
-        }
-      >
-        <Box sx={{ padding: 3 }}>
-          {deliveryStatusLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
-              <CircularProgress />
-            </Box>
-          ) : deliveryStatusData ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {/* Order & Shipment Info */}
-              <Box>
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                  معلومات الشحنة
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <InfoItem
-                      label="رقم الطلب"
-                      value={deliveryStatusData.orderId || '-'}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <InfoItem
-                      label="رقم الشحنة"
-                      value={deliveryStatusData.shipmentId || '-'}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <InfoItem
-                      label="رقم الشحنة (RoadFn)"
-                      value={deliveryStatusData.roadFnShipmentId || '-'}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <InfoItem
-                      label="رقم التتبع"
-                      value={deliveryStatusData.trackingNumber || '-'}
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-
-              <Divider />
-
-              {/* Status Info */}
-              {deliveryStatusData.status && (
-                <Box>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                    حالة الشحنة
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                    <Chip
-                      label={deliveryStatusData.status.arabic || deliveryStatusData.status.english || '-'}
-                      sx={{
-                        backgroundColor: deliveryStatusData.status.color || '#1976d2',
-                        color: '#ffffff',
-                        fontWeight: 600,
-                        fontSize: '0.95rem',
-                        padding: '8px 16px',
-                      }}
-                    />
-                    {deliveryStatusData.status.english && (
-                      <Typography variant="body2" color="text.secondary">
-                        ({deliveryStatusData.status.english})
-                      </Typography>
-                    )}
-                  </Box>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <InfoItem
-                        label="معرف الحالة"
-                        value={deliveryStatusData.status.id || '-'}
-                      />
-                    </Grid>
-                    {deliveryStatusData.status.colorName && (
-                      <Grid item xs={12} sm={6}>
-                        <InfoItem
-                          label="اسم اللون"
-                          value={deliveryStatusData.status.colorName}
-                        />
-                      </Grid>
-                    )}
-                  </Grid>
-                </Box>
-              )}
-
-              {/* Driver Info */}
-              {deliveryStatusData.driver && (
-                <>
-                  <Divider />
-                  <Box>
-                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                      معلومات السائق
-                    </Typography>
-                    <Grid container spacing={2}>
-                      {deliveryStatusData.driver.name && (
-                        <Grid item xs={12} sm={6}>
-                          <InfoItem
-                            label="اسم السائق"
-                            value={deliveryStatusData.driver.name}
-                          />
-                        </Grid>
-                      )}
-                      {deliveryStatusData.driver.phone && (
-                        <Grid item xs={12} sm={6}>
-                          <InfoItem
-                            label="هاتف السائق"
-                            value={deliveryStatusData.driver.phone}
-                          />
-                        </Grid>
-                      )}
-                      {deliveryStatusData.driver.vehicleNumber && (
-                        <Grid item xs={12} sm={6}>
-                          <InfoItem
-                            label="رقم المركبة"
-                            value={deliveryStatusData.driver.vehicleNumber}
-                          />
-                        </Grid>
-                      )}
-                      {deliveryStatusData.driver.licenseNumber && (
-                        <Grid item xs={12} sm={6}>
-                          <InfoItem
-                            label="رقم الرخصة"
-                            value={deliveryStatusData.driver.licenseNumber}
-                          />
-                        </Grid>
-                      )}
-                    </Grid>
-                  </Box>
-                </>
-              )}
-
-              {/* Additional Info */}
-              {(!deliveryStatusData.status && !deliveryStatusData.driver) && (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    لا توجد معلومات إضافية متاحة
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="body1" color="text.secondary">
-                لا توجد معلومات حالة توصيل متاحة لهذا الطلب
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      </GlassDialog>
 
       <NotesDialog
         open={notesDialogOpen}

@@ -24,6 +24,7 @@ import {
   Tab,
   Divider,
   TextField,
+  Tooltip,
 } from "@mui/material";
 import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, Search, CameraAlt } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -1465,11 +1466,14 @@ const InfoItem = ({ label, value }) => (
                               sx={{ minWidth: '120px' }}
                             />
                           ) : null}
+                          {order.needsPhotography && (
+                            <CameraAlt sx={{ color: 'primary.main', fontSize: 20, ml: 1 }} />
+                          )}
                         </Box>
                       </TableCell>
                     </TableRow>
-                    );
-                  })}
+                  );
+                })}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -1937,7 +1941,7 @@ const InfoItem = ({ label, value }) => (
                         </IconButton>
                       </TableCell>
                       <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                           <Button
                             size="small"
                             variant="outlined"

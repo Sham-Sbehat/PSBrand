@@ -1343,7 +1343,12 @@ const EmployeeDashboard = () => {
                       </TableCell>
                       <TableCell>{order.totalAmount} ₪</TableCell>
                       <TableCell>
-                        <Chip label={status.label} color={status.color} size="small" />
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip label={status.label} color={status.color} size="small" />
+                          {order.needsPhotography && (
+                            <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell
                         onClick={() => {

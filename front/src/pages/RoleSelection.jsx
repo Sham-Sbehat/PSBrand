@@ -34,7 +34,7 @@ const RoleSelection = () => {
   const roles = [
     {
       id: "admin",
-      title: "أدمن",
+      title: "الإدارة",
       description: "إدارة الطلبات والموظفين",
       icon: AdminIcon,
       color: "#d32f2f",
@@ -42,7 +42,7 @@ const RoleSelection = () => {
     },
     {
       id: "designmanager",
-      title: "مدير التصميم",
+      title: " إدارة التصاميم",
       description: "إدارة ومراجعة التصاميم من المصممين",
       icon: DesignManagerIcon,
       color: "#e65100",
@@ -50,7 +50,7 @@ const RoleSelection = () => {
     },
     {
       id: "designer",
-      title: "بائع",
+      title: "قسم المبيعات",
       description: "استقبال الطلبات والبيع",
       icon: DesignerIcon,
       color: "#7b1fa2",
@@ -58,7 +58,7 @@ const RoleSelection = () => {
     },
     {
       id: "preparer",
-      title: "محضر طلبات",
+      title: "قسم التحضير",
       description: "إعداد ومتابعة الطلبات",
       icon: PreparerIcon,
       color: "#2e7d32",
@@ -66,7 +66,7 @@ const RoleSelection = () => {
     },
     {
       id: "packager",
-      title: "مسؤول التغليف ",
+      title: "قسم التغليف",
       description: "تغليف الطلبات الجاهزة",
       icon: PackagerIcon,
       color: "#1976d2",

@@ -8,8 +8,6 @@ import {
   IconButton,
   Avatar,
   Grid,
-  Card,
-  CardContent,
   Table,
   TableBody,
   TableCell,
@@ -23,12 +21,12 @@ import {
   DialogContent,
   DialogTitle,
   TextField,
-  MenuItem,
   CircularProgress,
   TablePagination,
   Divider,
   Tabs,
   Tab,
+  Tooltip,
 } from "@mui/material";
 import {
   Logout,
@@ -38,17 +36,15 @@ import {
   Schedule,
   Print,
   CheckCircle,
-  Dashboard,
   ArrowBack,
   ArrowForward,
   Visibility,
-  TrackChanges,
   Search,
   CameraAlt,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService, shipmentsService } from "../services/api";
+import { ordersService, orderStatusService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
@@ -78,12 +74,6 @@ const PackagerDashboard = () => {
   const MAX_CONCURRENT_LOADS = 3; // Maximum concurrent image loads
   const [page, setPage] = useState(0); // Current page for pagination
   const [rowsPerPage, setRowsPerPage] = useState(5); // Number of rows per page
-  const [openDeliveryStatusDialog, setOpenDeliveryStatusDialog] = useState(false);
-  const [deliveryStatusData, setDeliveryStatusData] = useState(null);
-  const [deliveryStatusLoading, setDeliveryStatusLoading] = useState(false);
-  const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
-  const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
-  const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true/false }
 
   const getFullUrl = (inputUrl) => {
     if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
@@ -119,28 +109,6 @@ const PackagerDashboard = () => {
   };
 
   // Fetch all orders
-  // Fetch delivery status for orders sent to delivery company
-  const fetchDeliveryStatus = async (orderId) => {
-    // Check if already loading or loaded
-    if (loadingDeliveryStatuses[orderId] || deliveryStatuses[orderId] !== undefined) {
-      return;
-    }
-    
-    setLoadingDeliveryStatuses(prev => ({ ...prev, [orderId]: true }));
-    
-    try {
-      const statusData = await shipmentsService.getDeliveryStatus(orderId);
-      setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
-    } catch (error) {
-      setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
-    } finally {
-      setLoadingDeliveryStatuses(prev => {
-        const updated = { ...prev };
-        delete updated[orderId];
-        return updated;
-      });
-    }
-  };
 
   // Fetch packaged orders (Status 8: IN_PACKAGING) - Tab 0
   const fetchPackagedOrders = async (showLoading = false) => {
@@ -150,11 +118,6 @@ const PackagerDashboard = () => {
     try {
       const packagingOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.IN_PACKAGING);
       setPackagedOrders(packagingOrders || []);
-      
-      // Fetch delivery status for first 20 orders
-      (packagingOrders || []).slice(0, 20).forEach(order => {
-        fetchDeliveryStatus(order.id);
-      });
     } catch (error) {
       console.error('Error fetching packaged orders:', error);
       setPackagedOrders([]);
@@ -166,18 +129,19 @@ const PackagerDashboard = () => {
   };
 
   // Fetch completed orders (Status 4: COMPLETED) - Tab 1
+  // Only fetch orders from today
   const fetchCompletedOrders = async (showLoading = false) => {
     if (showLoading) {
       setLoading(true);
     }
     try {
-      const completedOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.COMPLETED);
-      setCompletedOrders(completedOrders || []);
+      // Get today's date in ISO format (YYYY-MM-DDTHH:mm:ss)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to start of day
+      const todayISOString = today.toISOString();
       
-      // Fetch delivery status for first 20 orders
-      (completedOrders || []).slice(0, 20).forEach(order => {
-        fetchDeliveryStatus(order.id);
-      });
+      const completedOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.COMPLETED, todayISOString);
+      setCompletedOrders(completedOrders || []);
     } catch (error) {
       console.error('Error fetching completed orders:', error);
       setCompletedOrders([]);
@@ -215,61 +179,6 @@ const PackagerDashboard = () => {
               console.error('Error refreshing orders after status change:', err);
             });
           },
-          onDeliveryStatusChanged: (orderId, deliveryStatus) => {
-            // Update delivery status in real-time when backend sends update
-            console.log('Delivery status updated via SignalR for order:', orderId, deliveryStatus);
-            setDeliveryStatuses(prev => ({
-              ...prev,
-              [orderId]: deliveryStatus
-            }));
-          },
-          onShipmentStatusUpdated: (shipmentData) => {
-            const orderId = shipmentData?.orderId;
-            if (orderId) {
-              if (shipmentData?.status) {
-                const statusData = {
-                  orderId: shipmentData.orderId,
-                  shipmentId: shipmentData.shipmentId,
-                  roadFnShipmentId: shipmentData.roadFnShipmentId,
-                  trackingNumber: shipmentData.trackingNumber,
-                  status: typeof shipmentData.status === 'string' 
-                    ? { arabic: shipmentData.status, english: shipmentData.status }
-                    : shipmentData.status,
-                  lastUpdate: shipmentData.lastUpdate
-                };
-                setDeliveryStatuses(prev => ({
-                  ...prev,
-                  [orderId]: statusData
-                }));
-              } else {
-                fetchDeliveryStatus(orderId);
-              }
-            }
-          },
-          onShipmentNoteAdded: (shipmentData) => {
-            const orderId = shipmentData?.orderId;
-            if (orderId) {
-              if (shipmentData?.status) {
-                const statusData = {
-                  orderId: shipmentData.orderId,
-                  shipmentId: shipmentData.shipmentId,
-                  roadFnShipmentId: shipmentData.roadFnShipmentId,
-                  trackingNumber: shipmentData.trackingNumber,
-                  status: typeof shipmentData.status === 'string' 
-                    ? { arabic: shipmentData.status, english: shipmentData.status }
-                    : shipmentData.status,
-                  note: shipmentData.note,
-                  lastUpdate: shipmentData.entryDateTime
-                };
-                setDeliveryStatuses(prev => ({
-                  ...prev,
-                  [orderId]: statusData
-                }));
-              } else {
-                fetchDeliveryStatus(orderId);
-              }
-            }
-          },
         });
       } catch (err) {
         console.error('Failed to connect to updates hub:', err);
@@ -281,29 +190,6 @@ const PackagerDashboard = () => {
     };
   }, []);
 
-  // Load delivery statuses for all orders - try to fetch for all orders
-  // API will return error/empty if no shipment exists, which is fine
-  useEffect(() => {
-    const allOrdersList = [...completedOrders, ...packagedOrders];
-    if (!allOrdersList || allOrdersList.length === 0) return;
-    
-    // Try to fetch delivery status for all orders
-    // We check if already loaded/loading to avoid duplicate requests
-    allOrdersList.forEach(order => {
-      // Check synchronously if already loaded or loading
-      const isLoaded = deliveryStatuses[order.id] !== undefined;
-      const isLoading = loadingDeliveryStatuses[order.id] === true;
-      
-      // Only fetch if not already checked
-      if (!isLoaded && !isLoading) {
-        // Try to fetch - if no shipment exists, API will return error and we set null
-        fetchDeliveryStatus(order.id).catch(() => {
-          // Silently fail - this order just doesn't have a shipment
-        });
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [completedOrders, packagedOrders]);
 
   const handleLogout = () => {
     logout();
@@ -590,7 +476,6 @@ const PackagerDashboard = () => {
           document.body.removeChild(link);
           // Give more time for download to complete before revoking
           setTimeout(() => {
-            console.log('Revoking blob URL');
             URL.revokeObjectURL(blobUrl);
           }, 10000); // 10 seconds - enough time for download
         }, 1000);
@@ -705,28 +590,6 @@ const PackagerDashboard = () => {
     }
   };
 
-  const handleDeliveryStatusClick = async (order) => {
-    setOrderForDeliveryStatus(order);
-    setDeliveryStatusLoading(true);
-    setOpenDeliveryStatusDialog(true);
-    setDeliveryStatusData(null);
-    
-    try {
-      const statusData = await shipmentsService.getDeliveryStatus(order.id);
-      setDeliveryStatusData(statusData);
-    } catch (error) {
-      console.error('Error fetching delivery status:', error);
-      alert(`حدث خطأ أثناء جلب حالة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
-    } finally {
-      setDeliveryStatusLoading(false);
-    }
-  };
-
-  const handleCloseDeliveryStatusDialog = () => {
-    setOpenDeliveryStatusDialog(false);
-    setDeliveryStatusData(null);
-    setOrderForDeliveryStatus(null);
-  };
 
   const getStatusLabel = (status) => {
     const numericStatus = typeof status === 'number' ? status : parseInt(status);
@@ -940,28 +803,6 @@ const PackagerDashboard = () => {
     activeImageLoads.current.clear();
   }, []);
 
-  // Calculate stats
-  const packagedCount = packagedOrders.length;
-  const completedCount = completedOrders.length;
-  const totalOrdersCount = packagedCount + completedCount;
-
-  const stats = [
-    {
-      title: "إجمالي الطلبات",
-      value: totalOrdersCount,
-      icon: Dashboard,
-    },
-    {
-      title: "في مرحلة التغليف",
-      value: packagedCount,
-      icon: Inventory,
-    },
-    {
-      title: "مكتملة",
-      value: completedCount,
-      icon: CheckCircle,
-    },
-  ];
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
@@ -1025,61 +866,6 @@ const PackagerDashboard = () => {
         </AppBar>
 
         <Container maxWidth="xl" sx={{ paddingY: 5 }}>
-        {/* Stats Cards */}
-          <Grid container spacing={3} sx={{ marginBottom: 4 }}>
-            {stats.map((stat, index) => {
-              const Icon = stat.icon;
-              const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
-              return (
-                <Grid item xs={12} sm={6} md={3} key={index}>
-                  <Card
-                    sx={{
-                      position: "relative",
-                      background: cardStyle.background,
-                      color: cardStyle.highlight,
-                      borderRadius: 4,
-                      boxShadow: calmPalette.shadow,
-                      overflow: "hidden",
-                      transition: "transform 0.2s, box-shadow 0.2s",
-                      backdropFilter: "blur(6px)",
-                      "&::after": {
-                        content: '""',
-                        position: "absolute",
-                        inset: 0,
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
-                        pointerEvents: "none",
-                      },
-                      "&:hover": {
-                        transform: "translateY(-5px)",
-                        boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
-                      },
-                    }}
-                  >
-                    <CardContent>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Box>
-                          <Typography variant="h3" sx={{ fontWeight: 700 }}>
-                            {stat.value}
-                          </Typography>
-                          <Typography variant="body1" sx={{ marginTop: 1 }}>
-                            {stat.title}
-                          </Typography>
-                        </Box>
-                        <Icon sx={{ fontSize: 60, opacity: 0.8 }} />
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
 
           <Paper
             elevation={0}
@@ -1282,14 +1068,13 @@ const PackagerDashboard = () => {
                       <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
                       <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>الإجراءات</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {paginatedRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={13} align="center">
+                        <TableCell colSpan={12} align="center">
                           <Box sx={{ padding: 4 }}>
                             <Typography variant="h6" color="text.secondary">
                               لا توجد طلبات حالياً
@@ -1321,11 +1106,18 @@ const PackagerDashboard = () => {
                             <TableCell>-</TableCell>
                             <TableCell>-</TableCell>
                             <TableCell>
-                              <Chip
-                                label={status.label}
-                                color={status.color}
-                                size="small"
-                              />
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip
+                                  label={status.label}
+                                  color={status.color}
+                                  size="small"
+                                />
+                                {order.needsPhotography && (
+                                  <Tooltip title="يحتاج طباعة">
+                                    <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                                  </Tooltip>
+                                )}
+                              </Box>
                             </TableCell>
                             <TableCell>
                               {order.orderDate 
@@ -1351,76 +1143,6 @@ const PackagerDashboard = () => {
                               >
                                 <Note />
                               </IconButton>
-                            </TableCell>
-                            <TableCell
-                              onClick={() => {
-                                // Always allow clicking - we'll try to fetch delivery status
-                                  handleDeliveryStatusClick(order);
-                              }}
-                              sx={{
-                                cursor: 'pointer',
-                                '&:hover': {
-                                  backgroundColor: 'action.hover',
-                                },
-                              }}
-                            >
-                              {(() => {
-                                  const statusData = deliveryStatuses[order.id];
-                                  const isLoading = loadingDeliveryStatuses[order.id];
-                                  
-                                  if (isLoading) {
-                                    return (
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <CircularProgress size={16} />
-                                        <Typography variant="body2" color="text.secondary">
-                                          جاري التحميل...
-                                        </Typography>
-                                      </Box>
-                                    );
-                                  }
-                                  
-                                  if (statusData === null) {
-                                  // We checked but no shipment exists
-                                    return (
-                                    <Typography variant="body2" color="text.secondary">
-                                      -
-                                      </Typography>
-                                    );
-                                  }
-                                  
-                                  if (statusData && statusData.status) {
-                                    return (
-                                      <Chip
-                                        label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                        sx={{
-                                          backgroundColor: statusData.status.color || '#1976d2',
-                                          color: '#ffffff',
-                                          fontWeight: 600,
-                                          fontSize: '0.75rem',
-                                          cursor: 'pointer',
-                                          maxWidth: '150px',
-                                          '&:hover': {
-                                            opacity: 0.9,
-                                            transform: 'scale(1.05)',
-                                          },
-                                          transition: 'all 0.2s',
-                                          '& .MuiChip-label': {
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                          },
-                                        }}
-                                        size="small"
-                                      />
-                                    );
-                                  }
-                                  
-                                // No data yet - show dash (will be populated when shipment is created or fetched)
-                                  return (
-                                <Typography variant="body2" color="text.secondary">
-                                  -
-                                </Typography>
-                                );
-                              })()}
                             </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1 }}>
@@ -1657,11 +1379,18 @@ const PackagerDashboard = () => {
                             {isFirstRow && (
                               <>
                                 <TableCell rowSpan={rowCount}>
-                                  <Chip
-                                    label={status.label}
-                                    color={status.color}
-                                    size="small"
-                                  />
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Chip
+                                      label={status.label}
+                                      color={status.color}
+                                      size="small"
+                                    />
+                                    {order.needsPhotography && (
+                                      <Tooltip title="يحتاج طباعة">
+                                        <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                                      </Tooltip>
+                                    )}
+                                  </Box>
                                 </TableCell>
                                 <TableCell rowSpan={rowCount}>
                                   {order.orderDate 
@@ -1687,77 +1416,6 @@ const PackagerDashboard = () => {
                                   >
                                     <Note />
                                   </IconButton>
-                                </TableCell>
-                                <TableCell
-                                  rowSpan={rowCount}
-                                  onClick={() => {
-                                    // Always allow clicking - we'll try to fetch delivery status
-                                      handleDeliveryStatusClick(order);
-                                  }}
-                                  sx={{
-                                    cursor: 'pointer',
-                                    '&:hover': {
-                                      backgroundColor: 'action.hover',
-                                    },
-                                  }}
-                                >
-                                  {(() => {
-                                      const statusData = deliveryStatuses[order.id];
-                                      const isLoading = loadingDeliveryStatuses[order.id];
-                                      
-                                      if (isLoading) {
-                                        return (
-                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <CircularProgress size={16} />
-                                            <Typography variant="body2" color="text.secondary">
-                                              جاري التحميل...
-                                            </Typography>
-                                          </Box>
-                                        );
-                                      }
-                                      
-                                      if (statusData === null) {
-                                      // We checked but no shipment exists
-                                        return (
-                                        <Typography variant="body2" color="text.secondary">
-                                          -
-                                          </Typography>
-                                        );
-                                      }
-                                      
-                                      if (statusData && statusData.status) {
-                                        return (
-                                          <Chip
-                                            label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
-                                            sx={{
-                                              backgroundColor: statusData.status.color || '#1976d2',
-                                              color: '#ffffff',
-                                              fontWeight: 600,
-                                              fontSize: '0.75rem',
-                                              cursor: 'pointer',
-                                              maxWidth: '150px',
-                                              '&:hover': {
-                                                opacity: 0.9,
-                                                transform: 'scale(1.05)',
-                                              },
-                                              transition: 'all 0.2s',
-                                              '& .MuiChip-label': {
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                              },
-                                            }}
-                                            size="small"
-                                          />
-                                        );
-                                      }
-                                      
-                                    // No data yet - show dash (will be populated when shipment is created or fetched)
-                                      return (
-                                    <Typography variant="body2" color="text.secondary">
-                                      -
-                                    </Typography>
-                                    );
-                                  })()}
                                 </TableCell>
                             <TableCell rowSpan={rowCount}>
                           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: 1 }}>
@@ -2372,167 +2030,6 @@ const PackagerDashboard = () => {
       </Dialog>
 
       {/* Notes Dialog */}
-      {/* Delivery Status Dialog */}
-      <GlassDialog
-        open={openDeliveryStatusDialog}
-        onClose={handleCloseDeliveryStatusDialog}
-        maxWidth="md"
-        title="حالة التوصيل من شركة التوصيل"
-        subtitle={orderForDeliveryStatus?.orderNumber ? `طلب رقم: ${orderForDeliveryStatus.orderNumber}` : undefined}
-        actions={
-          <Button onClick={handleCloseDeliveryStatusDialog} variant="contained">
-            إغلاق
-          </Button>
-        }
-      >
-        <Box sx={{ padding: 3 }}>
-          {deliveryStatusLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
-              <CircularProgress />
-            </Box>
-          ) : deliveryStatusData ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {/* Order & Shipment Info */}
-              <Box>
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                  معلومات الشحنة
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <InfoItem
-                      label="رقم الطلب"
-                      value={deliveryStatusData.orderId || '-'}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <InfoItem
-                      label="رقم الشحنة"
-                      value={deliveryStatusData.shipmentId || '-'}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <InfoItem
-                      label="رقم الشحنة (RoadFn)"
-                      value={deliveryStatusData.roadFnShipmentId || '-'}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <InfoItem
-                      label="رقم التتبع"
-                      value={deliveryStatusData.trackingNumber || '-'}
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-
-              <Divider />
-
-              {/* Status Info */}
-              {deliveryStatusData.status && (
-                <Box>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                    حالة الشحنة
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                    <Chip
-                      label={deliveryStatusData.status.arabic || deliveryStatusData.status.english || '-'}
-                      sx={{
-                        backgroundColor: deliveryStatusData.status.color || '#1976d2',
-                        color: '#ffffff',
-                        fontWeight: 600,
-                        fontSize: '0.95rem',
-                        padding: '8px 16px',
-                      }}
-                    />
-                    {deliveryStatusData.status.english && (
-                      <Typography variant="body2" color="text.secondary">
-                        ({deliveryStatusData.status.english})
-                      </Typography>
-                    )}
-                  </Box>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <InfoItem
-                        label="معرف الحالة"
-                        value={deliveryStatusData.status.id || '-'}
-                      />
-                    </Grid>
-                    {deliveryStatusData.status.colorName && (
-                      <Grid item xs={12} sm={6}>
-                        <InfoItem
-                          label="اسم اللون"
-                          value={deliveryStatusData.status.colorName}
-                        />
-                      </Grid>
-                    )}
-                  </Grid>
-                </Box>
-              )}
-
-              {/* Driver Info */}
-              {deliveryStatusData.driver && (
-                <>
-                  <Divider />
-                  <Box>
-                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
-                      معلومات السائق
-                    </Typography>
-                    <Grid container spacing={2}>
-                      {deliveryStatusData.driver.name && (
-                        <Grid item xs={12} sm={6}>
-                          <InfoItem
-                            label="اسم السائق"
-                            value={deliveryStatusData.driver.name}
-                          />
-                        </Grid>
-                      )}
-                      {deliveryStatusData.driver.phone && (
-                        <Grid item xs={12} sm={6}>
-                          <InfoItem
-                            label="هاتف السائق"
-                            value={deliveryStatusData.driver.phone}
-                          />
-                        </Grid>
-                      )}
-                      {deliveryStatusData.driver.vehicleNumber && (
-                        <Grid item xs={12} sm={6}>
-                          <InfoItem
-                            label="رقم المركبة"
-                            value={deliveryStatusData.driver.vehicleNumber}
-                          />
-                        </Grid>
-                      )}
-                      {deliveryStatusData.driver.licenseNumber && (
-                        <Grid item xs={12} sm={6}>
-                          <InfoItem
-                            label="رقم الرخصة"
-                            value={deliveryStatusData.driver.licenseNumber}
-                          />
-                        </Grid>
-                      )}
-                    </Grid>
-                  </Box>
-                </>
-              )}
-
-              {/* Additional Info */}
-              {(!deliveryStatusData.status && !deliveryStatusData.driver) && (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    لا توجد معلومات إضافية متاحة
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="body1" color="text.secondary">
-                لا توجد معلومات حالة توصيل متاحة لهذا الطلب
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      </GlassDialog>
 
       <NotesDialog
         open={notesDialogOpen}

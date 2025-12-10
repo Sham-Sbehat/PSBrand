@@ -277,8 +277,12 @@ export const ordersService = {
     return response.data;
   },
 
-  getOrdersByStatus: async (status) => {
-    const response = await api.get(`/Orders/GetOrderStatus/${status}`);
+  getOrdersByStatus: async (status, date = null) => {
+    const params = {};
+    if (date) {
+      params.date = date;
+    }
+    const response = await api.get(`/Orders/GetOrderStatus/${status}`, { params });
     return response.data;
   },
 
