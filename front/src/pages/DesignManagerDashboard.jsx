@@ -41,10 +41,11 @@ import {
   Visibility,
   Search,
   CameraAlt,
+  History,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService } from "../services/api";
+import { ordersService, orderStatusService, shipmentsService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
@@ -68,6 +69,8 @@ const DesignManagerDashboard = () => {
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchQueryInPrinting, setSearchQueryInPrinting] = useState('');
+  const [cities, setCities] = useState([]);
+  const [areas, setAreas] = useState([]);
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
@@ -736,6 +739,123 @@ const DesignManagerDashboard = () => {
   const discountNotes =
     typeof selectedOrder?.discountNotes === "string" ? selectedOrder.discountNotes.trim() : "";
 
+  // Load cities and areas for modification display
+  useEffect(() => {
+    const loadCitiesAndAreas = async () => {
+      try {
+        const citiesData = await shipmentsService.getCities();
+        const citiesArray = Array.isArray(citiesData) ? citiesData : [];
+        setCities(citiesArray);
+        
+        // Load areas for all cities
+        const allAreas = [];
+        for (const city of citiesArray) {
+          if (city && (city.id || city.Id)) {
+            try {
+              const cityId = city.id || city.Id;
+              const areasData = await shipmentsService.getAreas(cityId);
+              const areasArray = Array.isArray(areasData) ? areasData : [];
+              areasArray.forEach(area => {
+                if (area) {
+                  allAreas.push({ 
+                    ...area, 
+                    id: area.id || area.Id,
+                    name: area.name || area.Name,
+                    cityId: cityId 
+                  });
+                }
+              });
+            } catch (error) {
+              console.error(`Error loading areas for city ${city.id || city.Id}:`, error);
+            }
+          }
+        }
+        setAreas(allAreas);
+      } catch (error) {
+        console.error('Error loading cities:', error);
+      }
+    };
+    loadCitiesAndAreas();
+  }, []);
+
+  // Helper function to get field display value
+  const getFieldDisplayValue = (fieldName, value) => {
+    if (value === '' || value === null || value === undefined) {
+      return '(فارغ)';
+    }
+
+    const valueStr = String(value).trim();
+    if (!valueStr || valueStr === 'null' || valueStr === 'undefined') {
+      return '(فارغ)';
+    }
+    
+    // Check if it's a city field
+    if (fieldName && (fieldName === 'مدينة العميل' || fieldName === 'المدينة' || fieldName.includes('مدينة'))) {
+      if (cities.length > 0) {
+        const numValue = Number(valueStr);
+        const city = cities.find(c => {
+          const cityId = c.id || c.Id || c.cityId;
+          const cityIdStr = String(cityId || '');
+          const cityIdNum = Number(cityId);
+          return cityIdStr === valueStr || 
+                 cityIdStr === String(value) || 
+                 (numValue && cityIdNum && numValue === cityIdNum) ||
+                 (cityId && String(cityId) === valueStr);
+        });
+        if (city) {
+          const cityName = city.name || city.Name || city.cityName;
+          if (cityName) {
+            return cityName;
+          }
+        }
+      }
+      return valueStr;
+    }
+    
+    // Check if it's an area/district field
+    if (fieldName && (fieldName === 'منطقة العميل' || fieldName === 'المنطقة' || fieldName.includes('منطقة'))) {
+      if (areas.length > 0) {
+        const numValue = Number(valueStr);
+        const area = areas.find(a => {
+          const areaId = a.id || a.Id || a.areaId;
+          const areaIdStr = String(areaId || '');
+          const areaIdNum = Number(areaId);
+          return areaIdStr === valueStr || 
+                 areaIdStr === String(value) || 
+                 (numValue && areaIdNum && numValue === areaIdNum) ||
+                 (areaId && String(areaId) === valueStr);
+        });
+        if (area) {
+          const areaName = area.name || area.Name || area.areaName;
+          if (areaName) {
+            return areaName;
+          }
+        }
+      }
+      return valueStr;
+    }
+    
+    return valueStr;
+  };
+
+  // Parse modification details
+  const parseModificationDetails = (modificationDetailsString) => {
+    if (!modificationDetailsString || typeof modificationDetailsString !== 'string') {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(modificationDetailsString);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error('Error parsing modification details:', error);
+      return [];
+    }
+  };
+
+  const modificationHistory = selectedOrder?.isModified 
+    ? parseModificationDetails(selectedOrder?.modificationDetails)
+    : [];
+
   // Get filtered orders based on current tab and search query
   const getFilteredOrders = () => {
     const orders = currentTab === 0 ? pendingPrintingOrders : inPrintingOrders;
@@ -1107,6 +1227,11 @@ const DesignManagerDashboard = () => {
                                     <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
                                   </Tooltip>
                                 )}
+                                {order.isModified && (
+                                  <Tooltip title="تم تعديل الطلب">
+                                    <History sx={{ color: 'warning.main', fontSize: 20 }} />
+                                  </Tooltip>
+                                )}
                               </Box>
                             </TableCell>
                             <TableCell>
@@ -1396,7 +1521,14 @@ const DesignManagerDashboard = () => {
                                       size="small"
                                     />
                                     {order.needsPhotography && (
-                                      <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                                      <Tooltip title="يحتاج تصوير">
+                                        <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
+                                      </Tooltip>
+                                    )}
+                                    {order.isModified && (
+                                      <Tooltip title="تم تعديل الطلب">
+                                        <History sx={{ color: 'warning.main', fontSize: 20 }} />
+                                      </Tooltip>
                                     )}
                                   </Box>
                                 </TableCell>
@@ -1633,6 +1765,130 @@ const DesignManagerDashboard = () => {
                   <Typography variant="body2" color="text.secondary">
                     {orderNotes}
                   </Typography>
+                </Box>
+              </>
+            )}
+
+            {selectedOrder?.isModified && (
+              <>
+                <Divider />
+                <Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                    <History color="warning" fontSize="small" />
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      سجل التعديلات
+                    </Typography>
+                    <Chip 
+                      label="تم التعديل" 
+                      color="warning" 
+                      size="small" 
+                      sx={{ ml: 1 }}
+                    />
+                  </Box>
+                  {modificationHistory.length > 0 ? (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      {modificationHistory.map((modification, modIndex) => {
+                        const timestamp = modification.Timestamp 
+                          ? new Date(modification.Timestamp).toLocaleString("en-GB", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "-";
+                        const changes = modification.Changes || [];
+
+                        return (
+                          <Box
+                            key={modIndex}
+                            sx={{
+                              border: "1px solid",
+                              borderColor: "divider",
+                              borderRadius: 2,
+                              padding: 2,
+                              bgcolor: "warning.50",
+                            }}
+                          >
+                            <Typography 
+                              variant="subtitle2" 
+                              sx={{ fontWeight: 600, mb: 1.5, color: "warning.dark" }}
+                            >
+                              تعديل بتاريخ: {timestamp}
+                            </Typography>
+                            {changes.length > 0 ? (
+                              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                                {changes.map((change, changeIndex) => (
+                                  <Box
+                                    key={changeIndex}
+                                    sx={{
+                                      p: 1.5,
+                                      bgcolor: "background.paper",
+                                      borderRadius: 1,
+                                      border: "1px solid",
+                                      borderColor: "divider",
+                                    }}
+                                  >
+                                    <Typography 
+                                      variant="body2" 
+                                      sx={{ fontWeight: 600, mb: 1, color: "primary.main" }}
+                                    >
+                                      {change.Field || "حقل غير معروف"}
+                                    </Typography>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                                      <Box sx={{ flex: 1, minWidth: 200 }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                                          القيمة القديمة:
+                                        </Typography>
+                                        <Typography 
+                                          variant="body2" 
+                                          sx={{ 
+                                            p: 0.75, 
+                                            bgcolor: "error.50", 
+                                            borderRadius: 0.5,
+                                            color: "error.dark",
+                                            wordBreak: "break-word"
+                                          }}
+                                        >
+                                          {getFieldDisplayValue(change.Field, change.OldValue)}
+                                        </Typography>
+                                      </Box>
+                                      <ArrowForward sx={{ color: "text.secondary", mx: 1 }} />
+                                      <Box sx={{ flex: 1, minWidth: 200 }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                                          القيمة الجديدة:
+                                        </Typography>
+                                        <Typography 
+                                          variant="body2" 
+                                          sx={{ 
+                                            p: 0.75, 
+                                            bgcolor: "success.50", 
+                                            borderRadius: 0.5,
+                                            color: "success.dark",
+                                            wordBreak: "break-word"
+                                          }}
+                                        >
+                                          {getFieldDisplayValue(change.Field, change.NewValue)}
+                                        </Typography>
+                                      </Box>
+                                    </Box>
+                                  </Box>
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                لا توجد تفاصيل التعديلات
+                              </Typography>
+                            )}
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      لا توجد تفاصيل التعديلات
+                    </Typography>
+                  )}
                 </Box>
               </>
             )}
