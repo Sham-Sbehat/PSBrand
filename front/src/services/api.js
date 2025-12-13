@@ -136,7 +136,7 @@ export const ordersService = {
     const userSpecifiedPage = params.page !== undefined;
     const baseParams = {
       page: userSpecifiedPage ? params.page : 1,
-      pageSize: params.pageSize ?? 100,
+      pageSize: params.pageSize ?? 50, // تقليل من 100 إلى 50
     };
     const otherParams = { ...params, ...baseParams };
 

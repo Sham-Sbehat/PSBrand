@@ -264,11 +264,8 @@ const EmployeeDashboard = () => {
   useEffect(() => {
     const loadCitiesAndAreas = async () => {
       try {
-        console.log('Loading cities and areas...');
         const citiesData = await shipmentsService.getCities();
-        console.log('Cities data received:', citiesData);
         const citiesArray = Array.isArray(citiesData) ? citiesData : [];
-        console.log(`Loaded ${citiesArray.length} cities`);
         setCities(citiesArray);
         
         // Load areas for all cities
@@ -290,11 +287,10 @@ const EmployeeDashboard = () => {
                 }
               });
             } catch (error) {
-              console.error(`Error loading areas for city ${city.id || city.Id}:`, error);
+              // Silent fail for individual cities
             }
           }
         }
-        console.log(`Loaded ${allAreas.length} areas`);
         setAreas(allAreas);
       } catch (error) {
         console.error('Error loading cities:', error);
@@ -328,19 +324,13 @@ const EmployeeDashboard = () => {
                  (numValue && cityIdNum && numValue === cityIdNum) ||
                  (cityId && String(cityId) === valueStr);
         });
-        if (city) {
-          const cityName = city.name || city.Name || city.cityName;
-          if (cityName) {
-            console.log(`✅ Found city: ${valueStr} -> ${cityName}`, { city, valueStr });
-            return cityName;
-          }
-        }
-      }
-      console.log(`❌ City not found for value: ${valueStr}, cities count: ${cities.length}`, { 
-        sampleCities: cities.slice(0, 3),
-        fieldName,
-        valueStr 
-      });
+         if (city) {
+           const cityName = city.name || city.Name || city.cityName;
+           if (cityName) {
+             return cityName;
+           }
+         }
+       }
       return valueStr;
     }
     
@@ -358,19 +348,13 @@ const EmployeeDashboard = () => {
                  (numValue && areaIdNum && numValue === areaIdNum) ||
                  (areaId && String(areaId) === valueStr);
         });
-        if (area) {
-          const areaName = area.name || area.Name || area.areaName;
-          if (areaName) {
-            console.log(`✅ Found area: ${valueStr} -> ${areaName}`, { area, valueStr });
-            return areaName;
-          }
-        }
-      }
-      console.log(`❌ Area not found for value: ${valueStr}, areas count: ${areas.length}`, { 
-        sampleAreas: areas.slice(0, 3),
-        fieldName,
-        valueStr 
-      });
+         if (area) {
+           const areaName = area.name || area.Name || area.areaName;
+           if (areaName) {
+             return areaName;
+           }
+         }
+       }
       return valueStr;
     }
     
@@ -442,14 +426,13 @@ const EmployeeDashboard = () => {
     (async () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
-          onDeliveryStatusChanged: (orderId, deliveryStatus) => {
-            // Update delivery status in real-time when backend sends update
-            console.log('Delivery status updated via SignalR for order:', orderId, deliveryStatus);
-            setDeliveryStatuses(prev => ({
-              ...prev,
-              [orderId]: deliveryStatus
-            }));
-          },
+           onDeliveryStatusChanged: (orderId, deliveryStatus) => {
+             // Update delivery status in real-time when backend sends update
+             setDeliveryStatuses(prev => ({
+               ...prev,
+               [orderId]: deliveryStatus
+             }));
+           },
           onShipmentStatusUpdated: (shipmentData) => {
             // Handle shipment status update from webhook (ShipmentStatusUpdated event)
             const orderId = shipmentData?.orderId;
@@ -502,11 +485,10 @@ const EmployeeDashboard = () => {
               }
             }
           },
-          onNewNotification: (notification) => {
-            console.log("📬 New notification received:", notification);
-            setNewNotificationReceived(notification);
-            setTimeout(() => setNewNotificationReceived(null), 100);
-          },
+           onNewNotification: (notification) => {
+             setNewNotificationReceived(notification);
+             setTimeout(() => setNewNotificationReceived(null), 100);
+           },
         });
       } catch (err) {
         console.error('Failed to connect to updates hub:', err);

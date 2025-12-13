@@ -1,15 +1,33 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
+import { CssBaseline, CircularProgress, Box } from '@mui/material';
 import { AppProvider, useApp } from './context/AppContext';
 import theme from './theme/theme';
-import RoleSelection from './pages/RoleSelection';
-import EmployeeDashboard from './pages/EmployeeDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import Login from './pages/Login';
-import DesignManagerDashboard from './pages/DesignManagerDashboard';
-import PreparerDashboard from './pages/PreparerDashboard';
-import PackagerDashboard from './pages/PackagerDashboard';
+
+// Lazy load pages for code splitting (reduces initial bundle size)
+const RoleSelection = lazy(() => import('./pages/RoleSelection'));
+const EmployeeDashboard = lazy(() => import('./pages/EmployeeDashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const Login = lazy(() => import('./pages/Login'));
+const DesignManagerDashboard = lazy(() => import('./pages/DesignManagerDashboard'));
+const PreparerDashboard = lazy(() => import('./pages/PreparerDashboard'));
+const PackagerDashboard = lazy(() => import('./pages/PackagerDashboard'));
+
+// Loading component for lazy loaded pages
+const PageLoader = () => (
+  <Box
+    sx={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+      backgroundColor: '#f5f5f5',
+    }}
+  >
+    <CircularProgress />
+  </Box>
+);
 
 const ProtectedRoute = ({ children, allowedRole }) => {
   const { user } = useApp();
@@ -61,53 +79,55 @@ function AppContent() {
 
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={
-          user ? <Navigate to={getDefaultRoute()} replace /> : <RoleSelection />
-        } />
-        <Route path="/login" element={<Login />} />
-        <Route
-          path="/employee"
-          element={
-            <ProtectedRoute allowedRole="designer">
-              <EmployeeDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute allowedRole="admin">
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
-         <Route
-          path="/preparer"
-          element={
-            <ProtectedRoute allowedRole="preparer">
-              <PreparerDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/designmanager"
-          element={
-            <ProtectedRoute allowedRole="designmanager">
-              <DesignManagerDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/packager"
-          element={
-            <ProtectedRoute allowedRole="packager">
-              <PackagerDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={
+            user ? <Navigate to={getDefaultRoute()} replace /> : <RoleSelection />
+          } />
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/employee"
+            element={
+              <ProtectedRoute allowedRole="designer">
+                <EmployeeDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRole="admin">
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+           <Route
+            path="/preparer"
+            element={
+              <ProtectedRoute allowedRole="preparer">
+                <PreparerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/designmanager"
+            element={
+              <ProtectedRoute allowedRole="designmanager">
+                <DesignManagerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/packager"
+            element={
+              <ProtectedRoute allowedRole="packager">
+                <PackagerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </Router>
   );
 }

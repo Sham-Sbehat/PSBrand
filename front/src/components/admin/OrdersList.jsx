@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { getCache, setCache, CACHE_KEYS } from "../../utils/cache";
+import { debounce } from "../../utils";
 import {
   Paper,
   Typography,
@@ -21,6 +23,7 @@ import {
   Tooltip,
   Snackbar,
   Alert,
+  InputAdornment,
 } from "@mui/material";
 import {
   Visibility,
@@ -34,6 +37,8 @@ import {
   LocalShipping,
   CameraAlt,
   History,
+  Clear,
+  CalendarToday,
 } from "@mui/icons-material";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { useApp } from "../../context/AppContext";
@@ -94,6 +99,7 @@ const OrdersList = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFilter, setDateFilter] = useState(""); // Date filter for filtering orders by date
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortByState, setSortByState] = useState('asc'); // 'asc', 'desc', or null
@@ -173,20 +179,54 @@ const OrdersList = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await ordersService.getAllOrders();
+        // Prepare params for API call
+        const params = {};
+        let cacheKey = CACHE_KEYS.ORDERS;
+        
+        if (dateFilter) {
+          // Convert date string (YYYY-MM-DD) to ISO date-time string
+          // Create date in UTC to avoid timezone conversion issues
+          // dateFilter format is "YYYY-MM-DD"
+          const [year, month, day] = dateFilter.split('-').map(Number);
+          // Create date in UTC at start of day (00:00:00 UTC)
+          const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+          params.date = dateObj.toISOString();
+          cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${dateFilter}`;
+        }
+        
+        // Check cache first (5 minutes TTL)
+        const cachedOrders = getCache(cacheKey);
+        if (cachedOrders) {
+          setAllOrders(cachedOrders);
+          // Still fetch in background to update cache
+          ordersService.getAllOrders(params).then(response => {
+            const newOrders = response || [];
+            setAllOrders(newOrders);
+            setCache(cacheKey, newOrders, 5 * 60 * 1000); // 5 minutes
+          }).catch(() => {
+            // If background fetch fails, keep using cached data
+          });
+          return cachedOrders;
+        }
+        
+        const response = await ordersService.getAllOrders(params);
         const newOrders = response || [];
+        
+        // Cache the results
+        setCache(cacheKey, newOrders, 5 * 60 * 1000); // 5 minutes cache
         
         // Update state with new orders
         setAllOrders(newOrders);
         
-        // Fetch delivery statuses for orders sent to delivery company
-        const sentOrders = newOrders.filter(
-          order => order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
-        );
-        
-        // Load delivery statuses in parallel (with limit to avoid overwhelming)
-        sentOrders.slice(0, 20).forEach(order => {
-          fetchDeliveryStatus(order.id);
+        // ✅ جلب حالة التوصيل تلقائياً لجميع الطلبات
+        // هذا يوفر الوقت للمستخدم ويقلل الحاجة للنقر على كل طلب
+        newOrders.forEach(order => {
+          // فقط إذا لم يتم جلبها من قبل
+          if (!deliveryStatuses[order.id] && !loadingDeliveryStatuses[order.id]) {
+            fetchDeliveryStatus(order.id).catch(() => {
+              // تجاهل الأخطاء (404 للطلبات بدون شحنة)
+            });
+          }
         });
         
         // Return the orders for use in .then()
@@ -210,42 +250,56 @@ const OrdersList = () => {
     (async () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
-          onOrderCreated: () => {
-            console.log('Order created - refreshing orders');
-            fetchOrders(); // Refresh without loading indicator
+          onOrderCreated: (newOrder) => {
+            // ✅ تحديث محلي بدل refresh كامل - يوفر API call و bandwidth
+            if (newOrder && typeof newOrder === 'object') {
+              setAllOrders(prev => {
+                // تجنب إضافة مكرر - تحديث إذا موجود
+                const existingIndex = prev.findIndex(o => o.id === newOrder.id);
+                if (existingIndex >= 0) {
+                  const updated = [...prev];
+                  updated[existingIndex] = newOrder;
+                  return updated;
+                }
+                // إضافة جديد في البداية
+                return [newOrder, ...prev];
+              });
+              // مسح cache للطلبات
+              Object.keys(CACHE_KEYS).forEach(key => {
+                if (key.includes('ORDERS')) {
+                  setCache(CACHE_KEYS[key], null, 0);
+                }
+              });
+            } else {
+              // Fallback: refresh كامل فقط إذا لم تكن البيانات كاملة
+              fetchOrders();
+            }
           },
           onOrderStatusChanged: (orderData) => {
-            console.log('🔔 Order status changed received from SignalR:', orderData);
-            
-            // Always refresh from server when status changes to get latest data
-            // This ensures we always have the most up-to-date information
-            fetchOrders().then((refreshedOrders) => {
-              console.log('✅ Orders refreshed from server:', refreshedOrders?.length || 'unknown count');
-              
-              // Get order info from the received data
-              const order = typeof orderData === 'object' ? orderData : null;
-              const orderId = order?.id || orderData;
-              const newStatus = order?.status;
-              
-              // Find the updated order in the refreshed list to get its status
-              setAllOrders(currentOrders => {
-                const updatedOrder = currentOrders.find(o => o.id === orderId || (order && o.id === order.id));
-                if (updatedOrder) {
-                  console.log('📦 Updated order found:', updatedOrder.id, 'Status:', updatedOrder.status);
-                  
-                  // If order status changed to SENT_TO_DELIVERY_COMPANY, fetch delivery status
-                  if (updatedOrder.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
-                    setTimeout(() => {
-                      console.log('🚚 Fetching delivery status for order:', updatedOrder.id);
-                      fetchDeliveryStatus(updatedOrder.id);
-                    }, 1000);
-                  }
+            // ✅ تحديث محلي بدل refresh كامل - يوفر API call و bandwidth
+            const order = typeof orderData === 'object' ? orderData : null;
+            if (order && order.id) {
+              setAllOrders(prev => {
+                const existingIndex = prev.findIndex(o => o.id === order.id);
+                if (existingIndex >= 0) {
+                  // تحديث الطلب الموجود فقط
+                  const updated = [...prev];
+                  updated[existingIndex] = { ...updated[existingIndex], ...order };
+                  return updated;
                 }
-                return currentOrders; // State already updated by fetchOrders
+                // إذا لم يكن موجود، أضفه
+                return [order, ...prev];
               });
-            }).catch(err => {
-              console.error('❌ Error refreshing orders after status change:', err);
-            });
+              // مسح cache للطلبات
+              Object.keys(CACHE_KEYS).forEach(key => {
+                if (key.includes('ORDERS')) {
+                  setCache(CACHE_KEYS[key], null, 0);
+                }
+              });
+            } else {
+              // Fallback: refresh كامل فقط إذا لم تكن البيانات كاملة
+              fetchOrders();
+            }
           },
           onDeliveryStatusChanged: (orderId, deliveryStatus) => {
             // Update delivery status in real-time when backend sends update
@@ -275,35 +329,31 @@ const OrdersList = () => {
                   ...prev,
                   [orderId]: statusData
                 }));
-              } else {
-                fetchDeliveryStatus(orderId);
               }
+              // Don't fetch if status is missing - user can click to load manually if needed
             }
           },
           onShipmentNoteAdded: (shipmentData) => {
             // Handle shipment note added from webhook (ShipmentNoteAdded event)
             const orderId = shipmentData?.orderId;
-            if (orderId) {
-              if (shipmentData?.status) {
-                const statusData = {
-                  orderId: shipmentData.orderId,
-                  shipmentId: shipmentData.shipmentId,
-                  roadFnShipmentId: shipmentData.roadFnShipmentId,
-                  trackingNumber: shipmentData.trackingNumber,
-                  status: typeof shipmentData.status === 'string' 
-                    ? { arabic: shipmentData.status, english: shipmentData.status }
-                    : shipmentData.status,
-                  note: shipmentData.note,
-                  lastUpdate: shipmentData.entryDateTime
-                };
-                setDeliveryStatuses(prev => ({
-                  ...prev,
-                  [orderId]: statusData
-                }));
-              } else {
-                fetchDeliveryStatus(orderId);
-              }
+            if (orderId && shipmentData?.status) {
+              const statusData = {
+                orderId: shipmentData.orderId,
+                shipmentId: shipmentData.shipmentId,
+                roadFnShipmentId: shipmentData.roadFnShipmentId,
+                trackingNumber: shipmentData.trackingNumber,
+                status: typeof shipmentData.status === 'string' 
+                  ? { arabic: shipmentData.status, english: shipmentData.status }
+                  : shipmentData.status,
+                note: shipmentData.note,
+                lastUpdate: shipmentData.entryDateTime
+              };
+              setDeliveryStatuses(prev => ({
+                ...prev,
+                [orderId]: statusData
+              }));
             }
+            // Don't fetch if status is missing - user can click to load manually if needed
           },
         });
       } catch (err) {
@@ -314,30 +364,10 @@ const OrdersList = () => {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, []);
+  }, [dateFilter]); // Re-fetch orders when date filter changes
 
-  // Load delivery statuses for orders - try to fetch for all orders
-  // API will return error/empty if no shipment exists, which is fine
-  useEffect(() => {
-    if (!allOrders || allOrders.length === 0) return;
-    
-    // Try to fetch delivery status for all orders
-    // We check if already loaded/loading to avoid duplicate requests
-    allOrders.forEach(order => {
-      // Check synchronously if already loaded or loading
-      const isLoaded = deliveryStatuses[order.id] !== undefined;
-      const isLoading = loadingDeliveryStatuses[order.id] === true;
-      
-      // Only fetch if not already checked
-      if (!isLoaded && !isLoading) {
-        // Try to fetch - if no shipment exists, API will return error and we set null
-        fetchDeliveryStatus(order.id).catch(() => {
-          // Silently fail - this order just doesn't have a shipment
-        });
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allOrders]);
+  // Don't auto-fetch delivery statuses - user can click to load manually
+  // This prevents 404 errors for orders without shipments
 
   const handleViewOrder = (order) => {
     setSelectedOrder(order);
@@ -720,11 +750,8 @@ const OrdersList = () => {
         severity: 'success'
       });
       
-      // Fetch delivery status for the shipped order immediately
-      // We fetch regardless of order status - if shipment exists, we'll get the status
-      setTimeout(() => {
-        fetchDeliveryStatus(orderToShip.id);
-      }, 1000);
+      // Don't auto-fetch delivery status - user can click to load manually
+      // This prevents 404 errors if shipment creation is delayed
       
       // Refresh orders list from server
       try {
@@ -1037,34 +1064,72 @@ const OrdersList = () => {
   useEffect(() => {
     const loadCitiesAndAreas = async () => {
       try {
-        const citiesData = await shipmentsService.getCities();
-        const citiesArray = Array.isArray(citiesData) ? citiesData : [];
+        // Check cache for cities (30 minutes TTL - cities don't change often)
+        let citiesArray = getCache(CACHE_KEYS.CITIES);
+        if (!citiesArray) {
+          const citiesData = await shipmentsService.getCities();
+          citiesArray = Array.isArray(citiesData) ? citiesData : [];
+          setCache(CACHE_KEYS.CITIES, citiesArray, 30 * 60 * 1000); // 30 minutes
+        }
         setCities(citiesArray);
         
-        // Load areas for all cities
-        const allAreas = [];
-        for (const city of citiesArray) {
-          if (city && (city.id || city.Id)) {
-            try {
+        // Check cache for all areas (30 minutes TTL)
+        let allAreas = getCache(CACHE_KEYS.AREAS);
+        if (!allAreas) {
+          // Load areas for all cities in parallel (with caching per city)
+          allAreas = [];
+          const areaPromises = [];
+          const uniqueCityIds = new Set();
+          
+          // Collect unique city IDs
+          citiesArray.forEach(city => {
+            if (city && (city.id || city.Id)) {
               const cityId = city.id || city.Id;
-              const areasData = await shipmentsService.getAreas(cityId);
-              const areasArray = Array.isArray(areasData) ? areasData : [];
-              areasArray.forEach(area => {
-                if (area) {
-                  allAreas.push({ 
-                    ...area, 
-                    id: area.id || area.Id,
-                    name: area.name || area.Name,
-                    cityId: cityId 
-                  });
+              if (!uniqueCityIds.has(cityId)) {
+                uniqueCityIds.add(cityId);
+                // Check cache for this city's areas
+                const cachedCityAreas = getCache(`${CACHE_KEYS.AREAS}_city_${cityId}`);
+                if (cachedCityAreas) {
+                  allAreas.push(...cachedCityAreas);
+                } else {
+                  areaPromises.push(
+                    shipmentsService.getAreas(cityId)
+                      .then(areasData => {
+                        const areasArray = Array.isArray(areasData) ? areasData : [];
+                        const formattedAreas = areasArray.map(area => ({
+                          ...area,
+                          id: area.id || area.Id,
+                          name: area.name || area.Name,
+                          cityId: cityId
+                        })).filter(area => area);
+                        // Cache this city's areas
+                        setCache(`${CACHE_KEYS.AREAS}_city_${cityId}`, formattedAreas, 30 * 60 * 1000);
+                        return formattedAreas;
+                      })
+                      .catch(error => {
+                        console.error(`Error loading areas for city ${cityId}:`, error);
+                        return [];
+                      })
+                  );
                 }
-              });
-            } catch (error) {
-              console.error(`Error loading areas for city ${city.id || city.Id}:`, error);
+              }
             }
+          });
+          
+          // Wait for all area requests to complete
+          if (areaPromises.length > 0) {
+            const results = await Promise.all(areaPromises);
+            results.forEach(cityAreas => {
+              if (Array.isArray(cityAreas)) {
+                allAreas.push(...cityAreas);
+              }
+            });
           }
+          
+          // Cache all areas
+          setCache(CACHE_KEYS.AREAS, allAreas, 30 * 60 * 1000); // 30 minutes
         }
-        setAreas(allAreas);
+        setAreas(allAreas || []);
       } catch (error) {
         console.error('Error loading cities:', error);
       }
@@ -1289,6 +1354,42 @@ const OrdersList = () => {
             }}
             sx={{ minWidth: 400 }}
           />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <TextField
+              type="date"
+              size="small"
+              label="فلترة حسب التاريخ"
+              value={dateFilter}
+              onChange={(e) => {
+                setDateFilter(e.target.value);
+                setPage(0); // Reset to first page when filtering
+              }}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <CalendarToday sx={{ fontSize: 18, color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ minWidth: 200 }}
+            />
+            {dateFilter && (
+              <IconButton
+                size="small"
+                onClick={() => {
+                  setDateFilter("");
+                  setPage(0);
+                }}
+                sx={{ color: 'text.secondary' }}
+                title="إزالة فلتر التاريخ"
+              >
+                <Clear />
+              </IconButton>
+            )}
+          </Box>
           <TextField
             select
             size="small"
@@ -1469,6 +1570,14 @@ const OrdersList = () => {
                             const statusData = deliveryStatuses[order.id];
                             const isLoading = loadingDeliveryStatuses[order.id];
                             
+                            // ✅ إذا لم يتم جلب البيانات بعد، ابدأ الجلب تلقائياً
+                            if (statusData === undefined && !isLoading) {
+                              // جلب تلقائي في الخلفية
+                              fetchDeliveryStatus(order.id).catch(() => {
+                                // تجاهل الأخطاء (404 للطلبات بدون شحنة)
+                              });
+                            }
+                            
                             if (isLoading) {
                               return (
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1515,10 +1624,10 @@ const OrdersList = () => {
                               );
                             }
                             
-                            // No data yet - show dash (will be populated when shipment is created or fetched)
+                            // جاري التحميل - اعرض مؤشر التحميل
                             return (
-                              <Typography variant="body2" color="text.secondary">
-                                -
+                              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                جاري التحميل...
                               </Typography>
                             );
                           })()}

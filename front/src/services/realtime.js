@@ -24,7 +24,6 @@ const HUB_PATH = "/orderUpdatesHub";
 export const createOrderUpdatesConnection = () => {
   const base = getApiBase();
   const hubUrl = `${base}${HUB_PATH}`;
-  console.info("SignalR hub URL:", hubUrl);
 
   const connection = new HubConnectionBuilder()
     .withUrl(hubUrl)
@@ -63,87 +62,206 @@ export const subscribeToOrderUpdates = async ({
 
   // Helper function to register all event handlers
   const registerHandlers = (connection) => {
-    if (onOrderCreated) connection.on("OrderCreated", onOrderCreated);
-    if (onOrderStatusChanged) connection.on("OrderStatusChanged", onOrderStatusChanged);
-    if (onDeliveryStatusChanged) connection.on("DeliveryStatusChanged", onDeliveryStatusChanged);
+    if (onOrderCreated) {
+      connection.on("OrderCreated", (data) => {
+        onOrderCreated(data);
+      });
+    }
+    if (onOrderStatusChanged) {
+      connection.on("OrderStatusChanged", (data) => {
+        onOrderStatusChanged(data);
+      });
+    }
+    if (onDeliveryStatusChanged) {
+      connection.on("DeliveryStatusChanged", (orderId, deliveryStatus) => {
+        onDeliveryStatusChanged(orderId, deliveryStatus);
+      });
+    }
     // Add handlers for shipment status updates from webhook
-    if (onShipmentStatusUpdated) connection.on("ShipmentStatusUpdated", onShipmentStatusUpdated);
-    if (onShipmentNoteAdded) connection.on("ShipmentNoteAdded", onShipmentNoteAdded);
+    if (onShipmentStatusUpdated) {
+      connection.on("ShipmentStatusUpdated", (shipmentData) => {
+        onShipmentStatusUpdated(shipmentData);
+      });
+    }
+    if (onShipmentNoteAdded) {
+      connection.on("ShipmentNoteAdded", (shipmentData) => {
+        onShipmentNoteAdded(shipmentData);
+      });
+    }
     // Add handler for new notifications
-    if (onNewNotification) connection.on("NewNotification", onNewNotification);
+    if (onNewNotification) {
+      connection.on("NewNotification", (notification) => {
+        onNewNotification(notification);
+      });
+    }
+    
+    // Only log connection errors, not normal reconnections
+    connection.onclose((error) => {
+      if (error) {
+        console.error("SignalR - Connection closed with error:", error);
+      }
+    });
   };
 
   // Get auth token for SignalR connection
   const authToken = getAuthToken();
   
-  // Iterate candidates and try to connect using multiple transports
+  // Try WebSockets FIRST (most efficient, no polling)
   for (const hubUrl of candidates) {
     try {
-      console.info("Trying SignalR WebSockets:", hubUrl);
       const wsConnection = new HubConnectionBuilder()
         .withUrl(hubUrl, { 
           skipNegotiation: true, 
           transport: HttpTransportType.WebSockets,
           accessTokenFactory: () => authToken || ""
         })
-        .withAutomaticReconnect()
-        .configureLogging(LogLevel.Information)
+        .withAutomaticReconnect({
+          // Optimize reconnection to avoid unnecessary polling and spam
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            // Exponential backoff: 0s, 2s, 10s, 30s, 60s (max)
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000; // Max 60 seconds between retries
+          }
+        })
+        .configureLogging(LogLevel.Warning) // Reduce logging in production
         .build();
 
       registerHandlers(wsConnection);
+      
+      // زيادة وقت مهلة الـ client لتجنب انقطاع الاتصال
+      // يجب أن يكون أكبر من ClientTimeoutInterval في السيرفر (120 ثانية)
+      wsConnection.serverTimeoutInMilliseconds = 120000; // 120 ثانية
 
-      wsConnection.onreconnecting(err => console.warn("SignalR reconnecting...", err));
-      wsConnection.onreconnected(id => console.info("SignalR reconnected", id));
-      wsConnection.onclose(err => console.warn("SignalR connection closed", err));
+      // Only log errors, not normal reconnections
+      wsConnection.onreconnecting(err => {
+        // Only log if it's not a normal timeout
+        if (err && !err.message?.includes('timeout')) {
+          console.warn("SignalR reconnecting due to error:", err);
+        }
+      });
+      wsConnection.onreconnected(() => {
+        // Silent reconnection - no need to log
+      });
+      wsConnection.onclose(err => {
+        if (err) {
+          console.error("SignalR connection closed with error:", err);
+        }
+      });
 
       await wsConnection.start();
-      console.info("SignalR connected via WebSockets:", hubUrl);
-      return () => wsConnection.stop();
+      
+      // Only log initial connection, not reconnections
+      if (wsConnection.state === "Connected") {
+        console.info("✅ SignalR connected via WebSockets");
+      }
+      
+      return () => {
+        wsConnection.stop();
+      };
     } catch (e1) {
-      console.warn("WebSockets failed:", hubUrl, e1);
+      // Silent fail, try next candidate
     }
+  }
 
+  // Fallback to negotiation (will try WebSockets first, then Server-Sent Events, then LongPolling)
+  for (const hubUrl of candidates) {
     try {
-      console.info("Trying SignalR negotiation:", hubUrl);
       const connection = new HubConnectionBuilder()
         .withUrl(hubUrl, {
-          accessTokenFactory: () => authToken || ""
+          accessTokenFactory: () => authToken || "",
+          // Prefer WebSockets, then Server-Sent Events, avoid LongPolling if possible
+          transport: HttpTransportType.WebSockets | HttpTransportType.ServerSentEvents
         })
-        .withAutomaticReconnect()
-        .configureLogging(LogLevel.Information)
+        .withAutomaticReconnect({
+          // Optimize reconnection to avoid spam
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000; // Max 60 seconds between retries
+          }
+        })
+        .configureLogging(LogLevel.Warning)
         .build();
 
       registerHandlers(connection);
+      
+      // زيادة وقت مهلة الـ client
+      connection.serverTimeoutInMilliseconds = 120000; // 120 ثانية
 
-      connection.onreconnecting(err => console.warn("SignalR reconnecting...", err));
-      connection.onreconnected(id => console.info("SignalR reconnected", id));
-      connection.onclose(err => console.warn("SignalR connection closed", err));
+      // Only log errors, not normal reconnections
+      connection.onreconnecting(err => {
+        if (err && !err.message?.includes('timeout')) {
+          console.warn("SignalR reconnecting due to error:", err);
+        }
+      });
+      connection.onreconnected(() => {
+        // Silent reconnection
+      });
+      connection.onclose(err => {
+        if (err) {
+          console.error("SignalR connection closed with error:", err);
+        }
+      });
 
       await connection.start();
-      console.info("SignalR connected (negotiation):", hubUrl);
-      return () => connection.stop();
+      const transportName = connection.connection?.transport?.transport?.name || "unknown";
+      
+      // Only log initial connection
+      if (connection.state === "Connected") {
+        console.info(`✅ SignalR connected via ${transportName}`);
+        
+        // Warn if using LongPolling (less efficient)
+        if (transportName === "LongPolling") {
+          console.warn("⚠️ Using LongPolling - this will cause XHR requests every ~700ms. Check WebSocket support on server.");
+        }
+      }
+      
+      return () => {
+        connection.stop();
+      };
     } catch (e2) {
-      console.warn("Negotiation failed:", hubUrl, e2);
+      // Silent fail, try next candidate
     }
+  }
 
+  // Last resort: LongPolling (but warn user)
+  for (const hubUrl of candidates) {
     try {
-      console.info("Trying SignalR LongPolling:", hubUrl);
       const lpConnection = new HubConnectionBuilder()
         .withUrl(hubUrl, { 
           transport: HttpTransportType.LongPolling,
           accessTokenFactory: () => authToken || ""
         })
-        .withAutomaticReconnect()
-        .configureLogging(LogLevel.Information)
+        .withAutomaticReconnect({
+          // Optimize reconnection for LongPolling too
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000;
+          }
+        })
+        .configureLogging(LogLevel.Warning)
         .build();
 
       registerHandlers(lpConnection);
+      
+      // زيادة وقت مهلة الـ client
+      lpConnection.serverTimeoutInMilliseconds = 120000; // 120 ثانية
 
       await lpConnection.start();
-      console.info("SignalR connected via LongPolling:", hubUrl);
+      if (lpConnection.state === "Connected") {
+        console.warn("⚠️ SignalR connected via LongPolling (XHR polling active)");
+      }
       return () => lpConnection.stop();
     } catch (e3) {
-      console.warn("LongPolling failed:", hubUrl, e3);
+      // Silent fail, try next candidate
     }
   }
 

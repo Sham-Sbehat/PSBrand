@@ -31,6 +31,8 @@ import {
   CircularProgress,
   Alert,
   Snackbar,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Add,
@@ -50,6 +52,9 @@ import { useApp } from '../../context/AppContext';
 
 const FinancialManagement = () => {
   const { user } = useApp();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   
   // Protected IDs - cannot be deleted (used in income calculation)
   const PROTECTED_CATEGORY_ID = 20; // مبيعات
@@ -924,28 +929,37 @@ const FinancialManagement = () => {
         </Box>
 
         {/* Tab Content Area */}
-        <Box sx={{ padding: 4 }}>
+        <Box sx={{ padding: { xs: 2, sm: 3, md: 4 } }}>
           {/* Categories Tab */}
           {mainTab === 0 && (
             <Box>
               {/* Header with Add Button */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'space-between', 
+                alignItems: { xs: 'stretch', sm: 'center' }, 
+                gap: { xs: 2, sm: 0 },
+                marginBottom: 3 
+              }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
                   إدارة الفئات المالية
                 </Typography>
                 <Button
                   variant="contained"
                   startIcon={<Add />}
                   onClick={handleAddCategory}
+                  fullWidth={isMobile}
                   sx={{
                     background: calmPalette.statCards[0].background,
                     borderRadius: 2,
-                    px: 3,
+                    px: { xs: 2, sm: 3 },
                     py: 1,
+                    fontSize: { xs: '0.875rem', sm: '1rem' },
                     '&:hover': {
                       background: calmPalette.statCards[0].background,
                       opacity: 0.9,
-                      transform: 'translateY(-2px)',
+                      transform: { xs: 'none', sm: 'translateY(-2px)' },
                       boxShadow: calmPalette.shadow,
                     },
                     transition: 'all 0.2s',
@@ -1009,105 +1023,194 @@ const FinancialManagement = () => {
                 </Tabs>
               </Box>
 
-              {/* Categories Table */}
-              <TableContainer 
-                component={Paper} 
-                elevation={0}
-                sx={{ 
-                  borderRadius: 2, 
-                  border: '1px solid #e0e0e0',
-                  overflow: 'hidden'
-                }}
-              >
-                <Table>
-                  <TableHead>
-                    <TableRow sx={{ 
-                      backgroundColor: calmPalette.statCards[0].background,
-                      '& .MuiTableCell-head': {
-                        color: '#fff',
-                        fontWeight: 700,
-                        fontSize: '0.95rem',
-                      }
-                    }}>
-                      <TableCell>اسم الفئة</TableCell>
-                      <TableCell>الحالة</TableCell>
-                      <TableCell align="center">الإجراءات</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {loadingCategories ? (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                          <CircularProgress />
-                        </TableCell>
-                      </TableRow>
-                    ) : (categoryTypeTab === 0 ? incomeCategories : expenseCategories).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                          <Typography variant="body2" color="text.secondary">
-                            لا توجد فئات
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      (categoryTypeTab === 0 ? incomeCategories : expenseCategories).map((category, index) => (
-                      <TableRow 
-                        key={category.id} 
-                        hover
+              {/* Categories - Table on Desktop, Cards on Mobile */}
+              {isMobile ? (
+                // Mobile: Cards Layout
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {loadingCategories ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (categoryTypeTab === 0 ? incomeCategories : expenseCategories).length === 0 ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        لا توجد فئات
+                      </Typography>
+                    </Box>
+                  ) : (
+                    (categoryTypeTab === 0 ? incomeCategories : expenseCategories).map((category) => (
+                      <Card
+                        key={category.id}
                         sx={{
-                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
+                          borderRadius: 2,
+                          border: '1px solid #e0e0e0',
+                          padding: 2,
                           '&:hover': {
-                            backgroundColor: '#f5f5f5',
-                          }
+                            boxShadow: 2,
+                          },
                         }}
                       >
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 1.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
                             {categoryTypeTab === 0 ? (
                               <TrendingUp sx={{ color: '#2e7d32', fontSize: 24 }} />
                             ) : (
                               <TrendingDown sx={{ color: '#d32f2f', fontSize: 24 }} />
                             )}
-                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                            <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1rem' }}>
                               {category.name}
                             </Typography>
                           </Box>
-                        </TableCell>
-                        <TableCell>
                           <Chip
                             label={category.isActive ? 'نشط' : 'غير نشط'}
                             color={category.isActive ? 'success' : 'default'}
                             size="small"
                             sx={{ fontWeight: 600 }}
                           />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                            <Tooltip title="تعديل">
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', marginTop: 1 }}>
+                          <Tooltip title="تعديل">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => {
+                                setNewCategory(category);
+                                setOpenCategoryDialog(true);
+                              }}
+                            >
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          {category.id !== PROTECTED_CATEGORY_ID ? (
+                            <Tooltip title="حذف">
                               <IconButton
                                 size="small"
-                                color="primary"
-                                onClick={() => {
-                                  setNewCategory(category);
-                                  setOpenCategoryDialog(true);
-                                }}
-                                sx={{
-                                  '&:hover': {
-                                    backgroundColor: 'primary.light',
-                                    transform: 'scale(1.1)',
-                                  },
-                                  transition: 'all 0.2s',
-                                }}
+                                color="error"
+                                onClick={() => handleDeleteCategory(category)}
                               >
-                                <Edit fontSize="small" />
+                                <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            {category.id !== PROTECTED_CATEGORY_ID ? (
+                          ) : (
+                            <Tooltip title="هذه الفئة محمية ولا يمكن حذفها">
+                              <IconButton
+                                size="small"
+                                disabled
+                                sx={{
+                                  opacity: 0.3,
+                                  cursor: 'not-allowed',
+                                }}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </Card>
+                    ))
+                  )}
+                </Box>
+              ) : (
+                // Desktop: Table Layout
+                <TableContainer 
+                  component={Paper} 
+                  elevation={0}
+                  sx={{ 
+                    borderRadius: 2, 
+                    border: '1px solid #e0e0e0',
+                    overflowX: 'auto',
+                    overflowY: 'hidden'
+                  }}
+                >
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ 
+                        backgroundColor: calmPalette.statCards[0].background,
+                        '& .MuiTableCell-head': {
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: '0.95rem',
+                        }
+                      }}>
+                        <TableCell>اسم الفئة</TableCell>
+                        <TableCell>الحالة</TableCell>
+                        <TableCell align="center">الإجراءات</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {loadingCategories ? (
+                        <TableRow>
+                          <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                            <CircularProgress />
+                          </TableCell>
+                        </TableRow>
+                      ) : (categoryTypeTab === 0 ? incomeCategories : expenseCategories).length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              لا توجد فئات
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        (categoryTypeTab === 0 ? incomeCategories : expenseCategories).map((category, index) => (
+                        <TableRow 
+                          key={category.id} 
+                          hover
+                          sx={{
+                            backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
+                            '&:hover': {
+                              backgroundColor: '#f5f5f5',
+                            }
+                          }}
+                        >
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              {categoryTypeTab === 0 ? (
+                                <TrendingUp sx={{ color: '#2e7d32', fontSize: 24 }} />
+                              ) : (
+                                <TrendingDown sx={{ color: '#d32f2f', fontSize: 24 }} />
+                              )}
+                              <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                {category.name}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={category.isActive ? 'نشط' : 'غير نشط'}
+                              color={category.isActive ? 'success' : 'default'}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                              <Tooltip title="تعديل">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => {
+                                    setNewCategory(category);
+                                    setOpenCategoryDialog(true);
+                                  }}
+                                  sx={{
+                                    '&:hover': {
+                                      backgroundColor: 'primary.light',
+                                      transform: 'scale(1.1)',
+                                    },
+                                    transition: 'all 0.2s',
+                                  }}
+                                >
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              {category.id !== PROTECTED_CATEGORY_ID ? (
                               <Tooltip title="حذف">
                                 <IconButton
                                   size="small"
                                   color="error"
-                                  onClick={() => handleDeleteCategory(category)}
+                                    onClick={() => handleDeleteCategory(category)}
                                   sx={{
                                     '&:hover': {
                                       backgroundColor: 'error.light',
@@ -1119,51 +1222,61 @@ const FinancialManagement = () => {
                                   <Delete fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                            ) : (
-                              <Tooltip title="هذه الفئة محمية ولا يمكن حذفها">
-                                <IconButton
-                                  size="small"
-                                  disabled
-                                  sx={{
-                                    opacity: 0.3,
-                                    cursor: 'not-allowed',
-                                  }}
-                                >
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                              ) : (
+                                <Tooltip title="هذه الفئة محمية ولا يمكن حذفها">
+                                  <IconButton
+                                    size="small"
+                                    disabled
+                                    sx={{
+                                      opacity: 0.3,
+                                      cursor: 'not-allowed',
+                                    }}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </Box>
           )}
 
           {/* Sources Tab */}
           {mainTab === 1 && (
             <Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'space-between', 
+                alignItems: { xs: 'stretch', sm: 'center' }, 
+                gap: { xs: 2, sm: 0 },
+                marginBottom: 3 
+              }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
                   إدارة المصادر
                 </Typography>
                 <Button
                   variant="contained"
                   startIcon={<Add />}
                   onClick={handleAddSource}
+                  fullWidth={isMobile}
                   sx={{
                     background: calmPalette.statCards[0].background,
                     borderRadius: 2,
-                    px: 3,
+                    px: { xs: 2, sm: 3 },
                     py: 1,
+                    fontSize: { xs: '0.875rem', sm: '1rem' },
                     '&:hover': {
                       background: calmPalette.statCards[0].background,
                       opacity: 0.9,
-                      transform: 'translateY(-2px)',
+                      transform: { xs: 'none', sm: 'translateY(-2px)' },
                       boxShadow: calmPalette.shadow,
                     },
                     transition: 'all 0.2s',
@@ -1173,63 +1286,37 @@ const FinancialManagement = () => {
                 </Button>
               </Box>
 
-              <TableContainer 
-                component={Paper} 
-                elevation={0}
-                sx={{ 
-                  borderRadius: 2, 
-                  border: '1px solid #e0e0e0',
-                  overflow: 'hidden'
-                }}
-              >
-                <Table>
-                  <TableHead>
-                    <TableRow sx={{ 
-                      backgroundColor: calmPalette.statCards[0].background,
-                      '& .MuiTableCell-head': {
-                        color: '#fff',
-                        fontWeight: 700,
-                        fontSize: '0.95rem',
-                      }
-                    }}>
-                      <TableCell>اسم المصدر</TableCell>
-                      <TableCell>الفئة</TableCell>
-                      <TableCell align="center">الإجراءات</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {loadingSources ? (
-                      <TableRow>
-                        <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
-                          <CircularProgress />
-                        </TableCell>
-                      </TableRow>
-                    ) : sources.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
-                          <Typography variant="body2" color="text.secondary">
-                            لا توجد مصادر
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      sources.map((source, index) => (
-                      <TableRow 
-                        key={source.id} 
-                        hover
+              {/* Sources - Table on Desktop, Cards on Mobile */}
+              {isMobile ? (
+                // Mobile: Cards Layout
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {loadingSources ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <CircularProgress />
+                    </Box>
+                  ) : sources.length === 0 ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        لا توجد مصادر
+                      </Typography>
+                    </Box>
+                  ) : (
+                    sources.map((source) => (
+                      <Card
+                        key={source.id}
                         sx={{
-                          backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
+                          borderRadius: 2,
+                          border: '1px solid #e0e0e0',
+                          padding: 2,
                           '&:hover': {
-                            backgroundColor: '#f5f5f5',
-                          }
+                            boxShadow: 2,
+                          },
                         }}
                       >
-                        <TableCell>
-                          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 1.5 }}>
+                          <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1rem', flex: 1 }}>
                             {source.name}
                           </Typography>
-                        </TableCell>
-                        <TableCell>
                           <Chip
                             label={source.categoryName}
                             color="primary"
@@ -1237,78 +1324,196 @@ const FinancialManagement = () => {
                             variant="outlined"
                             sx={{ fontWeight: 600 }}
                           />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                            <Tooltip title="تعديل">
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', marginTop: 1 }}>
+                          <Tooltip title="تعديل">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => {
+                                setNewSource(source);
+                                setOpenSourceDialog(true);
+                              }}
+                            >
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          {source.id !== PROTECTED_SOURCE_ID ? (
+                            <Tooltip title="حذف">
                               <IconButton
                                 size="small"
-                                color="primary"
-                                onClick={() => {
-                                  setNewSource(source);
-                                  setOpenSourceDialog(true);
-                                }}
-                                sx={{
-                                  '&:hover': {
-                                    backgroundColor: 'primary.light',
-                                    transform: 'scale(1.1)',
-                                  },
-                                  transition: 'all 0.2s',
-                                }}
+                                color="error"
+                                onClick={() => handleDeleteSource(source)}
                               >
-                                <Edit fontSize="small" />
+                                <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
-                            {source.id !== PROTECTED_SOURCE_ID ? (
-                              <Tooltip title="حذف">
+                          ) : (
+                            <Tooltip title="هذا المصدر محمي ولا يمكن حذفه">
+                              <IconButton
+                                size="small"
+                                disabled
+                                sx={{
+                                  opacity: 0.3,
+                                  cursor: 'not-allowed',
+                                }}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </Card>
+                    ))
+                  )}
+                </Box>
+              ) : (
+                // Desktop: Table Layout
+                <TableContainer 
+                  component={Paper} 
+                  elevation={0}
+                  sx={{ 
+                    borderRadius: 2, 
+                    border: '1px solid #e0e0e0',
+                    overflowX: 'auto',
+                    overflowY: 'hidden'
+                  }}
+                >
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ 
+                        backgroundColor: calmPalette.statCards[0].background,
+                        '& .MuiTableCell-head': {
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: '0.95rem',
+                        }
+                      }}>
+                        <TableCell>اسم المصدر</TableCell>
+                        <TableCell>الفئة</TableCell>
+                        <TableCell align="center">الإجراءات</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {loadingSources ? (
+                        <TableRow>
+                          <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                            <CircularProgress />
+                          </TableCell>
+                        </TableRow>
+                      ) : sources.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              لا توجد مصادر
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        sources.map((source, index) => (
+                        <TableRow 
+                          key={source.id} 
+                          hover
+                          sx={{
+                            backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
+                            '&:hover': {
+                              backgroundColor: '#f5f5f5',
+                            }
+                          }}
+                        >
+                          <TableCell>
+                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                              {source.name}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={source.categoryName}
+                              color="primary"
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontWeight: 600 }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                              <Tooltip title="تعديل">
                                 <IconButton
                                   size="small"
-                                  color="error"
-                                  onClick={() => handleDeleteSource(source)}
+                                  color="primary"
+                                  onClick={() => {
+                                    setNewSource(source);
+                                    setOpenSourceDialog(true);
+                                  }}
                                   sx={{
                                     '&:hover': {
-                                      backgroundColor: 'error.light',
+                                      backgroundColor: 'primary.light',
                                       transform: 'scale(1.1)',
                                     },
                                     transition: 'all 0.2s',
                                   }}
                                 >
-                                  <Delete fontSize="small" />
+                                  <Edit fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                            ) : (
-                              <Tooltip title="هذا المصدر محمي ولا يمكن حذفه">
-                                <IconButton
-                                  size="small"
-                                  disabled
-                                  sx={{
-                                    opacity: 0.3,
-                                    cursor: 'not-allowed',
-                                  }}
-                                >
-                                  <Delete fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                              {source.id !== PROTECTED_SOURCE_ID ? (
+                                <Tooltip title="حذف">
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => handleDeleteSource(source)}
+                                    sx={{
+                                      '&:hover': {
+                                        backgroundColor: 'error.light',
+                                        transform: 'scale(1.1)',
+                                      },
+                                      transition: 'all 0.2s',
+                                    }}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip title="هذا المصدر محمي ولا يمكن حذفه">
+                                  <IconButton
+                                    size="small"
+                                    disabled
+                                    sx={{
+                                      opacity: 0.3,
+                                      cursor: 'not-allowed',
+                                    }}
+                                  >
+                                    <Delete fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </Box>
           )}
 
           {/* Transactions Tab */}
           {mainTab === 2 && (
             <Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'space-between', 
+                alignItems: { xs: 'stretch', sm: 'center' }, 
+                gap: { xs: 2, sm: 0 },
+                marginBottom: 3 
+              }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
                   المعاملات المالية
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' }, width: { xs: '100%', sm: 'auto' } }}>
                   <Tooltip 
                     title="سيتم إضافة معاملة مالية جديدة تلقائياً ضمن فئة 'مبيعات' ومصدر 'بلايز' بقيمة مجموع إيرادات الطلبات للشهر المحدد (بدون رسوم التوصيل)"
                     arrow
@@ -1320,16 +1525,18 @@ const FinancialManagement = () => {
                         startIcon={calculatingIncome ? <CircularProgress size={16} /> : <AttachMoney />}
                         onClick={handleCalculateOrdersIncome}
                         disabled={calculatingIncome}
+                        fullWidth={isMobile}
                         sx={{
                           borderColor: '#2e7d32',
                           color: '#2e7d32',
                           borderRadius: 2,
-                          px: 3,
+                          px: { xs: 2, sm: 3 },
                           py: 1,
+                          fontSize: { xs: '0.875rem', sm: '1rem' },
                           '&:hover': {
                             borderColor: '#2e7d32',
                             backgroundColor: '#2e7d3210',
-                            transform: 'translateY(-2px)',
+                            transform: { xs: 'none', sm: 'translateY(-2px)' },
                           },
                           transition: 'all 0.2s',
                         }}
@@ -1342,15 +1549,17 @@ const FinancialManagement = () => {
                   variant="contained"
                   startIcon={<Add />}
                   onClick={handleAddTransaction}
+                  fullWidth={isMobile}
                   sx={{
                     background: calmPalette.statCards[0].background,
                     borderRadius: 2,
-                    px: 3,
+                    px: { xs: 2, sm: 3 },
                     py: 1,
+                    fontSize: { xs: '0.875rem', sm: '1rem' },
                     '&:hover': {
                       background: calmPalette.statCards[0].background,
                       opacity: 0.9,
-                      transform: 'translateY(-2px)',
+                      transform: { xs: 'none', sm: 'translateY(-2px)' },
                       boxShadow: calmPalette.shadow,
                     },
                     transition: 'all 0.2s',
@@ -1364,12 +1573,13 @@ const FinancialManagement = () => {
               {/* Filters */}
               <Box sx={{ 
                 display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
                 gap: 2, 
                 marginBottom: 3,
-                padding: 2,
+                padding: { xs: 1.5, sm: 2 },
                 backgroundColor: '#f8f8f8',
                 borderRadius: 2,
-                alignItems: 'center',
+                alignItems: { xs: 'stretch', sm: 'center' },
                 flexWrap: 'wrap',
               }}>
                 <CalendarMonth sx={{ color: calmPalette.statCards[0].background }} />
@@ -1396,23 +1606,23 @@ const FinancialManagement = () => {
                   </Select>
                 </FormControl>
                 {selectedMonth && selectedMonth !== 'all' && (
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>السنة</InputLabel>
-                    <Select
+                  <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 120 } }} fullWidth={isMobile}>
+                  <InputLabel>السنة</InputLabel>
+                  <Select
                       value={selectedYear}
-                      label="السنة"
+                    label="السنة"
                       onChange={(e) => setSelectedYear(e.target.value)}
-                      sx={{ backgroundColor: '#fff' }}
-                    >
-                      {[2023, 2024, 2025, 2026].map((year) => (
-                        <MenuItem key={year} value={year}>
-                          {year}
+                    sx={{ backgroundColor: '#fff' }}
+                  >
+                    {[2023, 2024, 2025, 2026].map((year) => (
+                      <MenuItem key={year} value={year}>
+                        {year}
                         </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
                 )}
-                <FormControl size="small" sx={{ minWidth: 150 }}>
+                <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }} fullWidth={isMobile}>
                   <InputLabel>الفئة</InputLabel>
                   <Select
                     value={filterByCategory}
@@ -1431,7 +1641,7 @@ const FinancialManagement = () => {
                     ))}
                   </Select>
                 </FormControl>
-                <FormControl size="small" sx={{ minWidth: 150 }}>
+                <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }} fullWidth={isMobile}>
                   <InputLabel>المصدر</InputLabel>
                   <Select
                     value={filterBySource}
@@ -1459,25 +1669,27 @@ const FinancialManagement = () => {
                 sx={{ 
                   borderRadius: 2, 
                   border: '1px solid #e0e0e0',
-                  overflow: 'hidden'
+                  overflowX: 'auto',
+                  overflowY: 'hidden'
                 }}
               >
-                <Table>
+                <Table sx={{ minWidth: { xs: 800, sm: 'auto' } }}>
                   <TableHead>
                     <TableRow sx={{ 
                       backgroundColor: calmPalette.statCards[0].background,
                       '& .MuiTableCell-head': {
                         color: '#fff',
                         fontWeight: 700,
-                        fontSize: '0.95rem',
+                        fontSize: { xs: '0.875rem', sm: '0.95rem' },
+                        whiteSpace: 'nowrap'
                       }
                     }}>
-                      <TableCell>الفئة</TableCell>
-                      <TableCell>المصدر</TableCell>
-                      <TableCell>المبلغ</TableCell>
-                      <TableCell>الشهر</TableCell>
-                      <TableCell>الوصف</TableCell>
-                      <TableCell align="center">الإجراءات</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.875rem', sm: '0.95rem' } }}>الفئة</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.875rem', sm: '0.95rem' } }}>المصدر</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.875rem', sm: '0.95rem' } }}>المبلغ</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.875rem', sm: '0.95rem' } }}>الشهر</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.875rem', sm: '0.95rem' }, display: { xs: 'none', md: 'table-cell' } }}>الوصف</TableCell>
+                      <TableCell align="center" sx={{ fontSize: { xs: '0.875rem', sm: '0.95rem' } }}>الإجراءات</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -1543,7 +1755,7 @@ const FinancialManagement = () => {
                                 {getMonthName(month)} {year}
                           </Typography>
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                           <Typography variant="body2" color="text.secondary">
                             {transaction.description || '-'}
                           </Typography>
@@ -1604,18 +1816,21 @@ const FinancialManagement = () => {
               {/* Month/Year Filter for Reports */}
               <Box sx={{ 
                 display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
                 gap: 2, 
                 marginBottom: 3,
-                padding: 2,
+                padding: { xs: 1.5, sm: 2 },
                 backgroundColor: '#f8f8f8',
                 borderRadius: 2,
-                alignItems: 'center',
+                alignItems: { xs: 'stretch', sm: 'center' },
               }}>
-                <CalendarMonth sx={{ color: calmPalette.statCards[0].background }} />
-                <Typography variant="body1" sx={{ fontWeight: 600, marginRight: 1 }}>
-                  فلترة حسب:
-                </Typography>
-                <FormControl size="small" sx={{ minWidth: 150 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
+                  <CalendarMonth sx={{ color: calmPalette.statCards[0].background, fontSize: { xs: 20, sm: 24 } }} />
+                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                    فلترة حسب:
+                  </Typography>
+                </Box>
+                <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }} fullWidth={isMobile}>
                   <InputLabel>الشهر</InputLabel>
                   <Select
                     value={reportMonth || 'all'}
@@ -1632,7 +1847,7 @@ const FinancialManagement = () => {
                   </Select>
                 </FormControl>
                 {reportMonth && reportMonth !== 'all' && (
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 120 } }} fullWidth={isMobile}>
                     <InputLabel>السنة</InputLabel>
                     <Select
                       value={reportYear}
@@ -1655,7 +1870,7 @@ const FinancialManagement = () => {
                   <CircularProgress />
                 </Box>
               ) : (
-              <Grid container spacing={3}>
+              <Grid container spacing={{ xs: 2, sm: 3 }}>
                 <Grid item xs={12} md={6}>
                   <Card sx={{ padding: 3, borderRadius: 3, boxShadow: calmPalette.shadow }}>
                     <Typography variant="h6" sx={{ fontWeight: 600, marginBottom: 2 }}>
@@ -1676,14 +1891,14 @@ const FinancialManagement = () => {
                         </Typography>
                       </Box>
                       <Divider />
-                       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                           صافي الربح:
-                         </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                          صافي الربح:
+                        </Typography>
                          <Typography variant="body1" sx={{ fontWeight: 700, color: (reportSummary?.netProfit || 0) >= 0 ? '#1976d2' : '#d32f2f' }}>
                            {(reportSummary?.netProfit || 0).toLocaleString()} ₪
-                         </Typography>
-                       </Box>
+                        </Typography>
+                      </Box>
                     </Box>
                   </Card>
                 </Grid>
@@ -1788,6 +2003,7 @@ const FinancialManagement = () => {
         onClose={() => setOpenCategoryDialog(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>
           {newCategory.id ? 'تعديل الفئة' : 'إضافة فئة جديدة'}
@@ -1860,6 +2076,7 @@ const FinancialManagement = () => {
         onClose={() => !savingSource && setOpenSourceDialog(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>
           {newSource.id ? 'تعديل المصدر' : 'إضافة مصدر جديد'}
@@ -1964,6 +2181,7 @@ const FinancialManagement = () => {
         onClose={() => !savingTransaction && setOpenTransactionDialog(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>
           {newTransaction.id ? 'تعديل المعاملة' : 'إضافة معاملة مالية جديدة'}
