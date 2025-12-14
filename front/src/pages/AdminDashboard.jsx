@@ -23,6 +23,7 @@ import {
   Pending,
   Store,
   AccountBalance,
+  CalendarToday,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -44,6 +45,17 @@ const AdminDashboard = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const [allOrders, setAllOrders] = useState([]);
   const [newNotificationReceived, setNewNotificationReceived] = useState(null);
+  
+  // Get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const todayDate = getTodayDate();
 
   useEffect(() => {
     let isMounted = true;
@@ -405,6 +417,27 @@ const AdminDashboard = () => {
                 }
               }}
             />
+            <Tab
+              label="الطلبات اليومية"
+              icon={<CalendarToday />}
+              iconPosition="start"
+              sx={{
+                fontWeight: 600,
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
+                color: calmPalette.textMuted,
+                minHeight: { xs: 48, sm: 64 },
+                padding: { xs: '8px 12px', sm: '12px 16px' },
+                "&.Mui-selected": {
+                  color: "#f7f2ea",
+                },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 1 },
+                  '& svg': {
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                  }
+                }
+              }}
+            />
           </Tabs>
         </Box>
 
@@ -413,6 +446,7 @@ const AdminDashboard = () => {
           {currentTab === 1 && <EmployeeManagement />}
           {currentTab === 2 && <SellerManagement />}
           {currentTab === 3 && <FinancialManagement />}
+          {currentTab === 4 && <OrdersList dateFilter={todayDate} />}
         </Box>
       </Container>
     </Box>

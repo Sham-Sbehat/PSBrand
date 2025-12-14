@@ -13,6 +13,7 @@ const Login = lazy(() => import('./pages/Login'));
 const DesignManagerDashboard = lazy(() => import('./pages/DesignManagerDashboard'));
 const PreparerDashboard = lazy(() => import('./pages/PreparerDashboard'));
 const PackagerDashboard = lazy(() => import('./pages/PackagerDashboard'));
+const DailyOrders = lazy(() => import('./pages/DailyOrders'));
 
 // Loading component for lazy loaded pages
 const PageLoader = () => (
@@ -98,6 +99,14 @@ function AppContent() {
             element={
               <ProtectedRoute allowedRole="admin">
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/daily-orders"
+            element={
+              <ProtectedRoute allowedRole="admin">
+                <DailyOrders />
               </ProtectedRoute>
             }
           />

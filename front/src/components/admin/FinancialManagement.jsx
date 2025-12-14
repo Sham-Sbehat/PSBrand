@@ -124,9 +124,9 @@ const FinancialManagement = () => {
       
       // Priority: category filter > source filter > month filter
       if (categoryId) {
-        // Filter by category
+        // Filter by category using ByMonth endpoint with categoryId
         if (month && month !== 'all' && month !== null) {
-          response = await transactionsService.getTransactionsByCategory(categoryId, year, month);
+          response = await transactionsService.getTransactionsByMonth(year, month, categoryId);
         } else {
           // Fetch all transactions for this category using getAllTransactions and filter client-side
           const allTransactionsResponse = await transactionsService.getAllTransactions();
@@ -138,9 +138,9 @@ const FinancialManagement = () => {
           response = { transactions: filtered };
         }
       } else if (sourceId) {
-        // Filter by source
+        // Filter by source using ByMonth endpoint with sourceId
         if (month && month !== 'all' && month !== null) {
-          response = await transactionsService.getTransactionsBySource(sourceId, year, month);
+          response = await transactionsService.getTransactionsByMonth(year, month, null, sourceId);
         } else {
           // Fetch all transactions for this source using getAllTransactions and filter client-side
           const allTransactionsResponse = await transactionsService.getAllTransactions();

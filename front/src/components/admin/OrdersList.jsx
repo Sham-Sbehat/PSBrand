@@ -81,7 +81,7 @@ const DELIVERY_STATUSES = {
   "23": { id: 23, label: "طرود مرتجعه مغلقه", en: "Closed Returned" },
 };
 
-const OrdersList = () => {
+const OrdersList = ({ dateFilter: dateFilterProp }) => {
   const { orders, user } = useApp();
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -99,9 +99,16 @@ const OrdersList = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [dateFilter, setDateFilter] = useState(""); // Date filter for filtering orders by date
+  const [dateFilter, setDateFilter] = useState(dateFilterProp || ""); // Date filter for filtering orders by date
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // Update dateFilter when prop changes
+  useEffect(() => {
+    if (dateFilterProp !== undefined) {
+      setDateFilter(dateFilterProp);
+    }
+  }, [dateFilterProp]);
   const [sortByState, setSortByState] = useState('asc'); // 'asc', 'desc', or null
   const [openCancelDialog, setOpenCancelDialog] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState(null);
@@ -183,15 +190,16 @@ const OrdersList = () => {
         const params = {};
         let cacheKey = CACHE_KEYS.ORDERS;
         
-        if (dateFilter) {
+        const currentDateFilter = dateFilterProp || dateFilter;
+        if (currentDateFilter) {
           // Convert date string (YYYY-MM-DD) to ISO date-time string
           // Create date in UTC to avoid timezone conversion issues
           // dateFilter format is "YYYY-MM-DD"
-          const [year, month, day] = dateFilter.split('-').map(Number);
+          const [year, month, day] = currentDateFilter.split('-').map(Number);
           // Create date in UTC at start of day (00:00:00 UTC)
           const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
           params.date = dateObj.toISOString();
-          cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${dateFilter}`;
+          cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${currentDateFilter}`;
         }
         
         // Check cache first (5 minutes TTL)
@@ -364,7 +372,7 @@ const OrdersList = () => {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [dateFilter]); // Re-fetch orders when date filter changes
+  }, [dateFilterProp]); // Re-fetch orders when date filter prop changes
 
   // Don't auto-fetch delivery statuses - user can click to load manually
   // This prevents 404 errors for orders without shipments
@@ -1354,42 +1362,6 @@ const OrdersList = () => {
             }}
             sx={{ minWidth: 400 }}
           />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <TextField
-              type="date"
-              size="small"
-              label="فلترة حسب التاريخ"
-              value={dateFilter}
-              onChange={(e) => {
-                setDateFilter(e.target.value);
-                setPage(0); // Reset to first page when filtering
-              }}
-              InputLabelProps={{
-                shrink: true,
-              }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <CalendarToday sx={{ fontSize: 18, color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ minWidth: 200 }}
-            />
-            {dateFilter && (
-              <IconButton
-                size="small"
-                onClick={() => {
-                  setDateFilter("");
-                  setPage(0);
-                }}
-                sx={{ color: 'text.secondary' }}
-                title="إزالة فلتر التاريخ"
-              >
-                <Clear />
-              </IconButton>
-            )}
-          </Box>
           <TextField
             select
             size="small"

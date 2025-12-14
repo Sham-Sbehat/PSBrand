@@ -530,13 +530,15 @@ export const transactionsService = {
   },
   
   // Get transactions by month
-  getTransactionsByMonth: async (year, month) => {
-    const response = await api.get('/transactions/ByMonth', {
-      params: {
-        year: year,
-        month: month
-      }
-    });
+  getTransactionsByMonth: async (year, month, categoryId = null, sourceId = null) => {
+    const params = {
+      year: year,
+      month: month
+    };
+    if (categoryId) params.categoryId = categoryId;
+    if (sourceId) params.sourceId = sourceId;
+    
+    const response = await api.get('/transactions/ByMonth', { params });
     return response.data;
   },
   
