@@ -1442,20 +1442,22 @@ const EmployeeDashboard = () => {
                         {order.client?.phone ? (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="body2">{order.client.phone}</Typography>
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                openWhatsApp(order.client.phone);
-                              }}
-                              sx={{
-                                color: '#25D366',
-                                '&:hover': {
-                                  backgroundColor: 'rgba(37, 211, 102, 0.1)',
-                                },
-                              }}
-                            >
-                              <WhatsAppIcon fontSize="small" />
-                            </IconButton>
+                            <Tooltip title="انقر للتواصل مع الزبون عبر الواتساب">
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  openWhatsApp(order.client.phone);
+                                }}
+                                sx={{
+                                  color: '#25D366',
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                                  },
+                                }}
+                              >
+                                <WhatsAppIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           </Box>
                         ) : (
                           '-'
@@ -1470,7 +1472,7 @@ const EmployeeDashboard = () => {
                               <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
                             </Tooltip>
                           )}
-                          {order.isModified && (
+                          {order.isModified && user?.role === USER_ROLES.ADMIN && (
                             <Tooltip title="تم تعديل الطلب">
                               <History sx={{ color: 'warning.main', fontSize: 20 }} />
                             </Tooltip>
@@ -1861,7 +1863,7 @@ const EmployeeDashboard = () => {
               )}
             </Box>
 
-            {selectedOrder?.isModified && (
+            {selectedOrder?.isModified && user?.role === USER_ROLES.ADMIN && (
               <>
                 <Divider />
                 <Box>

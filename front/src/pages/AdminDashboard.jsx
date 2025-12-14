@@ -14,6 +14,10 @@ import {
   Avatar,
   useMediaQuery,
   useTheme,
+  TextField,
+  InputAdornment,
+  Paper,
+  Divider,
 } from "@mui/material";
 import {
   Logout,
@@ -24,6 +28,7 @@ import {
   Store,
   AccountBalance,
   CalendarToday,
+  Clear,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -55,7 +60,7 @@ const AdminDashboard = () => {
     return `${year}-${month}-${day}`;
   };
   
-  const todayDate = getTodayDate();
+  const [dailyOrdersDate, setDailyOrdersDate] = useState(getTodayDate());
 
   useEffect(() => {
     let isMounted = true;
@@ -446,7 +451,126 @@ const AdminDashboard = () => {
           {currentTab === 1 && <EmployeeManagement />}
           {currentTab === 2 && <SellerManagement />}
           {currentTab === 3 && <FinancialManagement />}
-          {currentTab === 4 && <OrdersList dateFilter={todayDate} />}
+          {currentTab === 4 && (
+            <Box>
+              <Paper
+                elevation={0}
+                sx={{
+                  padding: { xs: 2, sm: 3 },
+                  marginBottom: 3,
+                  background: calmPalette.surface,
+                  borderRadius: { xs: 2, sm: 3 },
+                  boxShadow: calmPalette.shadow,
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 2,
+                  }}
+                >
+                  <Divider sx={{ flex: 1, borderColor: "rgba(255, 255, 255, 0.1)" }} />
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      paddingX: 2,
+                      fontWeight: 600,
+                      color: calmPalette.textPrimary,
+                      fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' }
+                    }}
+                  >
+                    فلترة حسب التاريخ
+                  </Typography>
+                  <Divider sx={{ flex: 1, borderColor: "rgba(255, 255, 255, 0.1)" }} />
+                </Box>
+
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                  <TextField
+                    type="date"
+                    size="medium"
+                    label="اختر التاريخ"
+                    value={dailyOrdersDate}
+                    onChange={(e) => {
+                      setDailyOrdersDate(e.target.value);
+                    }}
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <CalendarToday sx={{ fontSize: 20, color: 'text.secondary', pointerEvents: 'none' }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                    inputProps={{
+                      style: { cursor: 'pointer' },
+                      onClick: (e) => {
+                        // Ensure the date picker opens when clicking on the input
+                        if (e.target.showPicker) {
+                          e.target.showPicker();
+                        }
+                      }
+                    }}
+                    onClick={(e) => {
+                      // Open date picker when clicking anywhere on the TextField
+                      const input = e.currentTarget.querySelector('input[type="date"]');
+                      if (input && input.showPicker) {
+                        e.preventDefault();
+                        input.showPicker();
+                      } else {
+                        // Fallback: focus the input which will show native date picker
+                        input?.focus();
+                        input?.click();
+                      }
+                    }}
+                    sx={{ 
+                      minWidth: { xs: 200, sm: 250 },
+                      cursor: 'pointer',
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        },
+                        '&.Mui-focused': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        },
+                        '& input': {
+                          cursor: 'pointer',
+                        },
+                      },
+                      '& .MuiInputLabel-root': {
+                        color: calmPalette.textMuted,
+                      },
+                      '& .MuiInputLabel-root.Mui-focused': {
+                        color: calmPalette.textPrimary,
+                      },
+                    }}
+                  />
+                  <IconButton
+                    size="medium"
+                    onClick={() => {
+                      setDailyOrdersDate(getTodayDate());
+                    }}
+                    sx={{ 
+                      color: 'text.secondary',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      }
+                    }}
+                    title="إعادة تعيين إلى اليوم"
+                  >
+                    <Clear />
+                  </IconButton>
+                </Box>
+              </Paper>
+              <OrdersList dateFilter={dailyOrdersDate} />
+            </Box>
+          )}
         </Box>
       </Container>
     </Box>

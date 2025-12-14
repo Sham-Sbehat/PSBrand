@@ -1891,20 +1891,22 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                       selectedOrder.client?.phone ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Typography variant="body2">{selectedOrder.client.phone}</Typography>
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              openWhatsApp(selectedOrder.client.phone);
-                            }}
-                            sx={{
-                              color: '#25D366',
-                              '&:hover': {
-                                backgroundColor: 'rgba(37, 211, 102, 0.1)',
-                              },
-                            }}
-                          >
-                            <WhatsAppIcon fontSize="small" />
-                          </IconButton>
+                          <Tooltip title="انقر للتواصل مع الزبون عبر الواتساب">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                openWhatsApp(selectedOrder.client.phone);
+                              }}
+                              sx={{
+                                color: '#25D366',
+                                '&:hover': {
+                                  backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                                },
+                              }}
+                            >
+                              <WhatsAppIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
                       ) : (
                         '-'

@@ -48,7 +48,7 @@ import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
-import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
+import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, USER_ROLES } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
 import calmPalette from "../theme/calmPalette";
@@ -1769,7 +1769,7 @@ const DesignManagerDashboard = () => {
               </>
             )}
 
-            {selectedOrder?.isModified && (
+            {selectedOrder?.isModified && user?.role === USER_ROLES.ADMIN && (
               <>
                 <Divider />
                 <Box>
