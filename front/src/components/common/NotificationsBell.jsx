@@ -330,7 +330,7 @@ const NotificationsBell = ({ onNewNotification }) => {
                           </Typography>
                         </Box>
                         <Typography variant="body1" sx={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                          {formatDateTime(orderDetails.orderDate)}
+                          {formatDateTime(orderDetails.createdAt)}
                         </Typography>
                       </Box>
 

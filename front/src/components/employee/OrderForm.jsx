@@ -137,6 +137,7 @@ const OrderForm = ({
   const [allClients, setAllClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [notes, setNotes] = useState("");
+  const [createdAt, setCreatedAt] = useState("");
 
   // Shipping company information
   const [shippingAddress, setShippingAddress] = useState("");
@@ -383,6 +384,11 @@ const OrderForm = ({
     setDeliveryPrice(initialOrder.deliveryFee || 0);
     setAdditionalPrice(initialOrder.additionalPrice || 0);
     setNeedsPhotography(initialOrder.needsPhotography || false);
+    setCreatedAt(
+      initialOrder.createdAt
+        ? new Date(initialOrder.createdAt).toISOString().slice(0, 16)
+        : ""
+    );
     if (
       initialOrder.discountPercentage &&
       initialOrder.discountPercentage > 0
@@ -1089,6 +1095,7 @@ const OrderForm = ({
         district: customerData.district,
         designerId: resolvedDesignerId,
         preparerId: isEditMode ? initialOrder?.preparerId ?? null : null,
+        createdAt: createdAt ? new Date(createdAt).toISOString() : null,
         needsPhotography: needsPhotography,
         discountPercentage: discountType === "percentage" ? discount : 0,
         discountAmount:
@@ -1123,6 +1130,7 @@ const OrderForm = ({
           district: customerData.district,
           designerId: resolvedDesignerId,
           preparerId: isEditMode ? initialOrder?.preparerId ?? null : null,
+          createdAt: createdAt ? new Date(createdAt).toISOString() : null,
           needsPhotography: needsPhotography,
           discountPercentage: discountType === "percentage" ? discount : 0,
           discountAmount:
@@ -1143,8 +1151,10 @@ const OrderForm = ({
           totalAmount: initialOrder?.totalAmount ?? 0,
           // Client shipping company information
           clientAddress: shippingAddress || currentClient?.address || "",
-          clientRoadFnCityId: selectedCityId ?? currentClient?.roadFnCityId ?? null,
-          clientRoadFnAreaId: selectedAreaId ?? currentClient?.roadFnAreaId ?? null,
+          clientRoadFnCityId:
+            selectedCityId ?? currentClient?.roadFnCityId ?? null,
+          clientRoadFnAreaId:
+            selectedAreaId ?? currentClient?.roadFnAreaId ?? null,
           clientPhone2: currentClient?.phone2 || null,
           // Send client object with shipping info (only necessary fields)
           client: clientWithShippingInfo,
@@ -1543,29 +1553,29 @@ const OrderForm = ({
                           placeholder="ابحث عن المدينة..."
                           variant="outlined"
                           sx={{
-                            '& .MuiOutlinedInput-root': {
-                              backgroundColor: '#f5f5f5',
-                              '&:hover': {
-                                backgroundColor: '#eeeeee',
+                            "& .MuiOutlinedInput-root": {
+                              backgroundColor: "#f5f5f5",
+                              "&:hover": {
+                                backgroundColor: "#eeeeee",
                               },
-                              '&.Mui-focused': {
-                                backgroundColor: '#ffffff',
+                              "&.Mui-focused": {
+                                backgroundColor: "#ffffff",
                               },
-                              '& fieldset': {
-                                borderColor: '#e0e0e0',
+                              "& fieldset": {
+                                borderColor: "#e0e0e0",
                               },
-                              '&:hover fieldset': {
-                                borderColor: '#bdbdbd',
+                              "&:hover fieldset": {
+                                borderColor: "#bdbdbd",
                               },
-                              '&.Mui-focused fieldset': {
-                                borderColor: '#1976d2',
-                                borderWidth: '2px',
+                              "&.Mui-focused fieldset": {
+                                borderColor: "#1976d2",
+                                borderWidth: "2px",
                               },
                             },
-                            '& .MuiInputLabel-root': {
-                              color: '#616161',
-                              '&.Mui-focused': {
-                                color: '#1976d2',
+                            "& .MuiInputLabel-root": {
+                              color: "#616161",
+                              "&.Mui-focused": {
+                                color: "#1976d2",
                               },
                             },
                           }}
@@ -1587,16 +1597,16 @@ const OrderForm = ({
                           component="li"
                           {...props}
                           sx={{
-                            padding: '14px 40px',
-                            fontSize: '1rem',
-                            minHeight: '48px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            '&:hover': {
-                              backgroundColor: '#f5f5f5',
+                            padding: "14px 40px",
+                            fontSize: "1rem",
+                            minHeight: "48px",
+                            display: "flex",
+                            alignItems: "center",
+                            "&:hover": {
+                              backgroundColor: "#f5f5f5",
                             },
                             '&[aria-selected="true"]': {
-                              backgroundColor: '#e3f2fd',
+                              backgroundColor: "#e3f2fd",
                             },
                           }}
                         >
@@ -1607,19 +1617,19 @@ const OrderForm = ({
                       )}
                       ListboxProps={{
                         style: {
-                          maxHeight: '350px',
-                          padding: '8px 0',
+                          maxHeight: "350px",
+                          padding: "8px 0",
                         },
                       }}
                       PaperComponent={({ children, ...other }) => (
                         <Paper
                           {...other}
                           sx={{
-                            boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-                            borderRadius: '4px',
-                            marginTop: '4px',
-                            border: '1px solid #e0e0e0',
-                            '& .MuiAutocomplete-listbox': {
+                            boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.1)",
+                            borderRadius: "4px",
+                            marginTop: "4px",
+                            border: "1px solid #e0e0e0",
+                            "& .MuiAutocomplete-listbox": {
                               padding: 0,
                             },
                           }}
@@ -1634,7 +1644,7 @@ const OrderForm = ({
                   <Grid item xs={12} sm={6}>
                     <Autocomplete
                       fullWidth
-                      sx={{ minWidth: '350px' }}
+                      sx={{ minWidth: "350px" }}
                       options={dialogAreas}
                       getOptionLabel={(option) =>
                         option.name ||
@@ -1665,29 +1675,29 @@ const OrderForm = ({
                           }
                           variant="outlined"
                           sx={{
-                            '& .MuiOutlinedInput-root': {
-                              backgroundColor: '#f5f5f5',
-                              '&:hover': {
-                                backgroundColor: '#eeeeee',
+                            "& .MuiOutlinedInput-root": {
+                              backgroundColor: "#f5f5f5",
+                              "&:hover": {
+                                backgroundColor: "#eeeeee",
                               },
-                              '&.Mui-focused': {
-                                backgroundColor: '#ffffff',
+                              "&.Mui-focused": {
+                                backgroundColor: "#ffffff",
                               },
-                              '& fieldset': {
-                                borderColor: '#e0e0e0',
+                              "& fieldset": {
+                                borderColor: "#e0e0e0",
                               },
-                              '&:hover fieldset': {
-                                borderColor: '#bdbdbd',
+                              "&:hover fieldset": {
+                                borderColor: "#bdbdbd",
                               },
-                              '&.Mui-focused fieldset': {
-                                borderColor: '#1976d2',
-                                borderWidth: '2px',
+                              "&.Mui-focused fieldset": {
+                                borderColor: "#1976d2",
+                                borderWidth: "2px",
                               },
                             },
-                            '& .MuiInputLabel-root': {
-                              color: '#616161',
-                              '&.Mui-focused': {
-                                color: '#1976d2',
+                            "& .MuiInputLabel-root": {
+                              color: "#616161",
+                              "&.Mui-focused": {
+                                color: "#1976d2",
                               },
                             },
                           }}
@@ -1709,18 +1719,18 @@ const OrderForm = ({
                           component="li"
                           {...props}
                           sx={{
-                            padding: '14px 20px',
-                            fontSize: '1rem',
-                            minHeight: '48px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            whiteSpace: 'normal',
-                            wordWrap: 'break-word',
-                            '&:hover': {
-                              backgroundColor: '#f5f5f5',
+                            padding: "14px 20px",
+                            fontSize: "1rem",
+                            minHeight: "48px",
+                            display: "flex",
+                            alignItems: "center",
+                            whiteSpace: "normal",
+                            wordWrap: "break-word",
+                            "&:hover": {
+                              backgroundColor: "#f5f5f5",
                             },
                             '&[aria-selected="true"]': {
-                              backgroundColor: '#e3f2fd',
+                              backgroundColor: "#e3f2fd",
                             },
                           }}
                         >
@@ -1731,19 +1741,19 @@ const OrderForm = ({
                       )}
                       ListboxProps={{
                         style: {
-                          maxHeight: '350px',
-                          padding: '8px 0',
+                          maxHeight: "350px",
+                          padding: "8px 0",
                         },
                       }}
                       PaperComponent={({ children, ...other }) => (
                         <Paper
                           {...other}
                           sx={{
-                            boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-                            borderRadius: '4px',
-                            marginTop: '4px',
-                            border: '1px solid #e0e0e0',
-                            '& .MuiAutocomplete-listbox': {
+                            boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.1)",
+                            borderRadius: "4px",
+                            marginTop: "4px",
+                            border: "1px solid #e0e0e0",
+                            "& .MuiAutocomplete-listbox": {
                               padding: 0,
                             },
                           }}
@@ -1807,7 +1817,9 @@ const OrderForm = ({
                     fullWidth
                     options={allClients}
                     getOptionLabel={(option) => option.phone?.toString() || ""}
-                    isOptionEqualToValue={(option, value) => option.id === value?.id}
+                    isOptionEqualToValue={(option, value) =>
+                      option.id === value?.id
+                    }
                     loading={loadingClients}
                     value={
                       allClients.find((client) => client.id === clientId) ||
@@ -1832,7 +1844,11 @@ const OrderForm = ({
                       );
                     }}
                     renderOption={(props, option) => (
-                      <Box component="li" {...props} key={option.id || option.phone}>
+                      <Box
+                        component="li"
+                        {...props}
+                        key={option.id || option.phone}
+                      >
                         <Box
                           sx={{
                             display: "flex",
@@ -1974,7 +1990,7 @@ const OrderForm = ({
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
-                    sx={{ minWidth: '250px' }}
+                    sx={{ minWidth: "250px" }}
                     fullWidth
                     required
                     label="العنوان"
@@ -1982,7 +1998,9 @@ const OrderForm = ({
                     onChange={(e) => setShippingAddress(e.target.value)}
                     placeholder="أدخل عنوان شركة التوصيل"
                     error={!shippingAddress && isDirty}
-                    helperText={!shippingAddress && isDirty ? "هذا الحقل مطلوب" : ""}
+                    helperText={
+                      !shippingAddress && isDirty ? "هذا الحقل مطلوب" : ""
+                    }
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -1995,7 +2013,7 @@ const OrderForm = ({
                 <Grid item xs={12} sm={8} md={6}>
                   <Autocomplete
                     fullWidth
-                    sx={{ minWidth: '250px' }}
+                    sx={{ minWidth: "250px" }}
                     options={cities}
                     getOptionLabel={(option) =>
                       option.name ||
@@ -2023,31 +2041,33 @@ const OrderForm = ({
                         placeholder="ابحث عن المدينة..."
                         variant="outlined"
                         error={!selectedCityId && isDirty}
-                        helperText={!selectedCityId && isDirty ? "هذا الحقل مطلوب" : ""}
+                        helperText={
+                          !selectedCityId && isDirty ? "هذا الحقل مطلوب" : ""
+                        }
                         sx={{
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f5f5f5',
-                            '&:hover': {
-                              backgroundColor: '#eeeeee',
+                          "& .MuiOutlinedInput-root": {
+                            backgroundColor: "#f5f5f5",
+                            "&:hover": {
+                              backgroundColor: "#eeeeee",
                             },
-                            '&.Mui-focused': {
-                              backgroundColor: '#ffffff',
+                            "&.Mui-focused": {
+                              backgroundColor: "#ffffff",
                             },
-                            '& fieldset': {
-                              borderColor: '#e0e0e0',
+                            "& fieldset": {
+                              borderColor: "#e0e0e0",
                             },
-                            '&:hover fieldset': {
-                              borderColor: '#bdbdbd',
+                            "&:hover fieldset": {
+                              borderColor: "#bdbdbd",
                             },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#1976d2',
-                              borderWidth: '2px',
+                            "&.Mui-focused fieldset": {
+                              borderColor: "#1976d2",
+                              borderWidth: "2px",
                             },
                           },
-                          '& .MuiInputLabel-root': {
-                            color: '#616161',
-                            '&.Mui-focused': {
-                              color: '#1976d2',
+                          "& .MuiInputLabel-root": {
+                            color: "#616161",
+                            "&.Mui-focused": {
+                              color: "#1976d2",
                             },
                           },
                         }}
@@ -2069,16 +2089,16 @@ const OrderForm = ({
                         component="li"
                         {...props}
                         sx={{
-                          padding: '14px 20px',
-                          fontSize: '1rem',
-                          minHeight: '48px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          '&:hover': {
-                            backgroundColor: '#f5f5f5',
+                          padding: "14px 20px",
+                          fontSize: "1rem",
+                          minHeight: "48px",
+                          display: "flex",
+                          alignItems: "center",
+                          "&:hover": {
+                            backgroundColor: "#f5f5f5",
                           },
                           '&[aria-selected="true"]': {
-                            backgroundColor: '#e3f2fd',
+                            backgroundColor: "#e3f2fd",
                           },
                         }}
                       >
@@ -2089,19 +2109,19 @@ const OrderForm = ({
                     )}
                     ListboxProps={{
                       style: {
-                        maxHeight: '350px',
-                        padding: '8px 0',
+                        maxHeight: "350px",
+                        padding: "8px 0",
                       },
                     }}
                     PaperComponent={({ children, ...other }) => (
                       <Paper
                         {...other}
                         sx={{
-                          boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-                          borderRadius: '4px',
-                          marginTop: '4px',
-                          border: '1px solid #e0e0e0',
-                          '& .MuiAutocomplete-listbox': {
+                          boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.1)",
+                          borderRadius: "4px",
+                          marginTop: "4px",
+                          border: "1px solid #e0e0e0",
+                          "& .MuiAutocomplete-listbox": {
                             padding: 0,
                           },
                         }}
@@ -2116,7 +2136,7 @@ const OrderForm = ({
                 <Grid item xs={12} sm={8} md={6}>
                   <Autocomplete
                     fullWidth
-                    sx={{ minWidth: '350px' }}
+                    sx={{ minWidth: "350px" }}
                     options={areas}
                     getOptionLabel={(option) =>
                       option.name ||
@@ -2147,31 +2167,35 @@ const OrderForm = ({
                         }
                         variant="outlined"
                         error={!selectedAreaId && isDirty && selectedCityId}
-                        helperText={!selectedAreaId && isDirty && selectedCityId ? "هذا الحقل مطلوب" : ""}
+                        helperText={
+                          !selectedAreaId && isDirty && selectedCityId
+                            ? "هذا الحقل مطلوب"
+                            : ""
+                        }
                         sx={{
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f5f5f5',
-                            '&:hover': {
-                              backgroundColor: '#eeeeee',
+                          "& .MuiOutlinedInput-root": {
+                            backgroundColor: "#f5f5f5",
+                            "&:hover": {
+                              backgroundColor: "#eeeeee",
                             },
-                            '&.Mui-focused': {
-                              backgroundColor: '#ffffff',
+                            "&.Mui-focused": {
+                              backgroundColor: "#ffffff",
                             },
-                            '& fieldset': {
-                              borderColor: '#e0e0e0',
+                            "& fieldset": {
+                              borderColor: "#e0e0e0",
                             },
-                            '&:hover fieldset': {
-                              borderColor: '#bdbdbd',
+                            "&:hover fieldset": {
+                              borderColor: "#bdbdbd",
                             },
-                            '&.Mui-focused fieldset': {
-                              borderColor: '#1976d2',
-                              borderWidth: '2px',
+                            "&.Mui-focused fieldset": {
+                              borderColor: "#1976d2",
+                              borderWidth: "2px",
                             },
                           },
-                          '& .MuiInputLabel-root': {
-                            color: '#616161',
-                            '&.Mui-focused': {
-                              color: '#1976d2',
+                          "& .MuiInputLabel-root": {
+                            color: "#616161",
+                            "&.Mui-focused": {
+                              color: "#1976d2",
                             },
                           },
                         }}
@@ -2193,16 +2217,16 @@ const OrderForm = ({
                         component="li"
                         {...props}
                         sx={{
-                          padding: '14px 20px',
-                          fontSize: '1rem',
-                          minHeight: '48px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          '&:hover': {
-                            backgroundColor: '#f5f5f5',
+                          padding: "14px 20px",
+                          fontSize: "1rem",
+                          minHeight: "48px",
+                          display: "flex",
+                          alignItems: "center",
+                          "&:hover": {
+                            backgroundColor: "#f5f5f5",
                           },
                           '&[aria-selected="true"]': {
-                            backgroundColor: '#e3f2fd',
+                            backgroundColor: "#e3f2fd",
                           },
                         }}
                       >
@@ -2213,19 +2237,19 @@ const OrderForm = ({
                     )}
                     ListboxProps={{
                       style: {
-                        maxHeight: '350px',
-                        padding: '8px 0',
+                        maxHeight: "350px",
+                        padding: "8px 0",
                       },
                     }}
                     PaperComponent={({ children, ...other }) => (
                       <Paper
                         {...other}
                         sx={{
-                          boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-                          borderRadius: '4px',
-                          marginTop: '4px',
-                          border: '1px solid #e0e0e0',
-                          '& .MuiAutocomplete-listbox': {
+                          boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.1)",
+                          borderRadius: "4px",
+                          marginTop: "4px",
+                          border: "1px solid #e0e0e0",
+                          "& .MuiAutocomplete-listbox": {
                             padding: 0,
                           },
                         }}
@@ -2374,7 +2398,18 @@ const OrderForm = ({
                           }}
                         />
                       </Grid>
-
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          type="datetime-local"
+                          label="وقت الإنشاء (اختياري)"
+                          value={createdAt}
+                          onChange={(e) => setCreatedAt(e.target.value)}
+                          InputLabelProps={{
+                            shrink: true,
+                          }}
+                        />
+                      </Grid>
                       <Grid item xs={12} md={6}>
                         <Box
                           sx={{
@@ -3005,7 +3040,9 @@ const OrderForm = ({
                         control={
                           <Checkbox
                             checked={needsPhotography}
-                            onChange={(e) => setNeedsPhotography(e.target.checked)}
+                            onChange={(e) =>
+                              setNeedsPhotography(e.target.checked)
+                            }
                             color="primary"
                           />
                         }

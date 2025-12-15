@@ -85,6 +85,8 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
   const { orders, user } = useApp();
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [totalSum, setTotalSum] = useState(null);
+  const [totalSumWithoutDelivery, setTotalSumWithoutDelivery] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -182,9 +184,8 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
     }
   }, []);
 
-  // Fetch all orders from API + subscribe to realtime updates
-  useEffect(() => {
-    const fetchOrders = async () => {
+  // Fetch all orders from API
+  const fetchOrders = useCallback(async () => {
       try {
         // Prepare params for API call
         const params = {};
@@ -203,32 +204,58 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         }
         
         // Check cache first (5 minutes TTL)
-        const cachedOrders = getCache(cacheKey);
-        if (cachedOrders) {
-          setAllOrders(cachedOrders);
+        const cachedData = getCache(cacheKey);
+        if (cachedData) {
+          // Handle both array (old cache) and object (new cache) formats
+          if (Array.isArray(cachedData)) {
+            setAllOrders(cachedData);
+            setTotalSum(null);
+            setTotalSumWithoutDelivery(null);
+          } else {
+            setAllOrders(cachedData.orders || []);
+            setTotalSum(cachedData.totalSum ?? null);
+            setTotalSumWithoutDelivery(cachedData.totalSumWithoutDelivery ?? null);
+          }
           // Still fetch in background to update cache
           ordersService.getAllOrders(params).then(response => {
-            const newOrders = response || [];
-            setAllOrders(newOrders);
-            setCache(cacheKey, newOrders, 5 * 60 * 1000); // 5 minutes
+            if (Array.isArray(response)) {
+              setAllOrders(response);
+              setTotalSum(null);
+              setTotalSumWithoutDelivery(null);
+              setCache(cacheKey, response, 5 * 60 * 1000);
+            } else {
+              setAllOrders(response.orders || []);
+              setTotalSum(response.totalSum ?? null);
+              setTotalSumWithoutDelivery(response.totalSumWithoutDelivery ?? null);
+              setCache(cacheKey, response, 5 * 60 * 1000);
+            }
           }).catch(() => {
             // If background fetch fails, keep using cached data
           });
-          return cachedOrders;
+          return;
         }
         
         const response = await ordersService.getAllOrders(params);
-        const newOrders = response || [];
         
-        // Cache the results
-        setCache(cacheKey, newOrders, 5 * 60 * 1000); // 5 minutes cache
-        
-        // Update state with new orders
-        setAllOrders(newOrders);
+        // Handle both array (no date filter) and object (with date filter) formats
+        let ordersList = [];
+        if (Array.isArray(response)) {
+          ordersList = response;
+          setAllOrders(response);
+          setTotalSum(null);
+          setTotalSumWithoutDelivery(null);
+          setCache(cacheKey, response, 5 * 60 * 1000);
+        } else {
+          ordersList = response.orders || [];
+          setAllOrders(ordersList);
+          setTotalSum(response.totalSum ?? null);
+          setTotalSumWithoutDelivery(response.totalSumWithoutDelivery ?? null);
+          setCache(cacheKey, response, 5 * 60 * 1000);
+        }
         
         // ✅ جلب حالة التوصيل تلقائياً لجميع الطلبات
         // هذا يوفر الوقت للمستخدم ويقلل الحاجة للنقر على كل طلب
-        newOrders.forEach(order => {
+        ordersList.forEach(order => {
           // فقط إذا لم يتم جلبها من قبل
           if (!deliveryStatuses[order.id] && !loadingDeliveryStatuses[order.id]) {
             fetchDeliveryStatus(order.id).catch(() => {
@@ -238,14 +265,18 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         });
         
         // Return the orders for use in .then()
-        return newOrders;
+        return ordersList;
       } catch (error) {
         console.error('Error fetching orders:', error);
         setAllOrders([]);
+        setTotalSum(null);
+        setTotalSumWithoutDelivery(null);
         return [];
       }
-    };
+    }, [dateFilterProp, dateFilter]);
     
+  // Fetch all orders from API + subscribe to realtime updates
+  useEffect(() => {
     const fetchOrdersWithLoading = async () => {
       setLoading(true);
       await fetchOrders();
@@ -260,6 +291,14 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         unsubscribe = await subscribeToOrderUpdates({
           onOrderCreated: (newOrder) => {
             // ✅ تحديث محلي بدل refresh كامل - يوفر API call و bandwidth
+            // لكن إذا كان هناك date filter، يجب إعادة جلب البيانات للحصول على totalSum المحدث
+            const currentDateFilter = dateFilterProp || dateFilter;
+            if (currentDateFilter) {
+              // إعادة جلب البيانات للحصول على totalSum المحدث
+              fetchOrders();
+              return;
+            }
+            
             if (newOrder && typeof newOrder === 'object') {
               setAllOrders(prev => {
                 // تجنب إضافة مكرر - تحديث إذا موجود
@@ -285,7 +324,15 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           },
           onOrderStatusChanged: (orderData) => {
             // ✅ تحديث محلي بدل refresh كامل - يوفر API call و bandwidth
-            const order = typeof orderData === 'object' ? orderData : null;
+            // لكن إذا كان هناك date filter، يجب إعادة جلب البيانات للحصول على totalSum المحدث
+            const currentDateFilter = dateFilterProp || dateFilter;
+            if (currentDateFilter) {
+              // إعادة جلب البيانات للحصول على totalSum المحدث
+              fetchOrders();
+              return;
+            }
+            
+              const order = typeof orderData === 'object' ? orderData : null;
             if (order && order.id) {
               setAllOrders(prev => {
                 const existingIndex = prev.findIndex(o => o.id === order.id);
@@ -345,22 +392,22 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
             // Handle shipment note added from webhook (ShipmentNoteAdded event)
             const orderId = shipmentData?.orderId;
             if (orderId && shipmentData?.status) {
-              const statusData = {
-                orderId: shipmentData.orderId,
-                shipmentId: shipmentData.shipmentId,
-                roadFnShipmentId: shipmentData.roadFnShipmentId,
-                trackingNumber: shipmentData.trackingNumber,
-                status: typeof shipmentData.status === 'string' 
-                  ? { arabic: shipmentData.status, english: shipmentData.status }
-                  : shipmentData.status,
-                note: shipmentData.note,
-                lastUpdate: shipmentData.entryDateTime
-              };
-              setDeliveryStatuses(prev => ({
-                ...prev,
-                [orderId]: statusData
-              }));
-            }
+                const statusData = {
+                  orderId: shipmentData.orderId,
+                  shipmentId: shipmentData.shipmentId,
+                  roadFnShipmentId: shipmentData.roadFnShipmentId,
+                  trackingNumber: shipmentData.trackingNumber,
+                  status: typeof shipmentData.status === 'string' 
+                    ? { arabic: shipmentData.status, english: shipmentData.status }
+                    : shipmentData.status,
+                  note: shipmentData.note,
+                  lastUpdate: shipmentData.entryDateTime
+                };
+                setDeliveryStatuses(prev => ({
+                  ...prev,
+                  [orderId]: statusData
+                }));
+              }
             // Don't fetch if status is missing - user can click to load manually if needed
           },
         });
@@ -372,7 +419,7 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [dateFilterProp]); // Re-fetch orders when date filter prop changes
+  }, [dateFilterProp, fetchOrders]); // Re-fetch orders when date filter prop changes
 
   // Don't auto-fetch delivery statuses - user can click to load manually
   // This prevents 404 errors for orders without shipments
@@ -1347,9 +1394,25 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           gap: 2,
         }}
       >
+        <Box>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           جميع الطلبات ({sortedOrders.length})
         </Typography>
+          {(dateFilterProp || dateFilter) && (totalSum !== null || totalSumWithoutDelivery !== null) && (
+            <Box sx={{ display: "flex", gap: 2, marginTop: 1, flexWrap: "wrap" }}>
+              {totalSum !== null && (
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  <strong>المجموع الإجمالي:</strong> ₪ {totalSum.toFixed(2)}
+                </Typography>
+              )}
+              {totalSumWithoutDelivery !== null && (
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  <strong>المجموع بدون التوصيل:</strong> ₪ {totalSumWithoutDelivery.toFixed(2)}
+                </Typography>
+              )}
+            </Box>
+          )}
+        </Box>
 
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
           <TextField
@@ -1507,11 +1570,11 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                         </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Chip
-                              label={getStatusLabel(order.status)}
-                              color={getStatusColor(order.status)}
-                              size="small"
-                            />
+                          <Chip
+                            label={getStatusLabel(order.status)}
+                            color={getStatusColor(order.status)}
+                            size="small"
+                          />
                             {order.needsPhotography && (
                               <Tooltip title="يحتاج تصوير">
                                 <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
@@ -1722,17 +1785,6 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                                 </IconButton>
                               </span>
                             </Tooltip>
-                            {order.needsPhotography && (
-                              <Tooltip title="يحتاج تصوير" arrow placement="top">
-                                <CameraAlt 
-                                  sx={{ 
-                                    color: 'primary.main',
-                                    fontSize: '1.4rem',
-                                    ml: 0.5,
-                                  }} 
-                                />
-                              </Tooltip>
-                            )}
                             <IconButton
                               size="small"
                               color="error"
@@ -1812,7 +1864,7 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
+                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.createdAt)} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem

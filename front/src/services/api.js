@@ -143,6 +143,9 @@ export const ordersService = {
     const accumulatedOrders = [];
     let currentPage = baseParams.page;
     let keepFetching = true;
+    let totalSum = null;
+    let totalSumWithoutDelivery = null;
+    const hasDateFilter = !!params.date;
 
     while (keepFetching) {
       const response = await retryRequest(async () => {
@@ -154,6 +157,14 @@ export const ordersService = {
 
       const payload = response.data;
 
+      // Extract totalSum and totalSumWithoutDelivery from first page when date filter is active
+      if (hasDateFilter && currentPage === baseParams.page) {
+        if (!Array.isArray(payload) && payload) {
+          totalSum = payload.totalSum ?? null;
+          totalSumWithoutDelivery = payload.totalSumWithoutDelivery ?? null;
+        }
+      }
+
       if (Array.isArray(payload)) {
         accumulatedOrders.push(...payload);
         break;
@@ -162,6 +173,14 @@ export const ordersService = {
       const pageData = Array.isArray(payload?.data) ? payload.data : [];
 
       if (userSpecifiedPage) {
+        // If date filter is active, return object with totals
+        if (hasDateFilter) {
+          return {
+            orders: pageData,
+            totalSum: payload?.totalSum ?? null,
+            totalSumWithoutDelivery: payload?.totalSumWithoutDelivery ?? null,
+          };
+        }
         return pageData;
       }
 
@@ -178,6 +197,15 @@ export const ordersService = {
       } else {
         currentPage += 1;
       }
+    }
+
+    // If date filter is active, return object with totals
+    if (hasDateFilter) {
+      return {
+        orders: accumulatedOrders,
+        totalSum,
+        totalSumWithoutDelivery,
+      };
     }
 
     return accumulatedOrders;

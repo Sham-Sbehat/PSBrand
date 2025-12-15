@@ -2005,7 +2005,7 @@ const InfoItem = ({ label, value }) => (
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
+                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.createdAt)} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem
