@@ -148,31 +148,77 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
   };
 
   // Fetch delivery status for orders sent to delivery company
-  const fetchDeliveryStatus = useCallback(async (orderId) => {
-    // Check if already loading or loaded
+  const fetchDeliveryStatus = useCallback(async (orderId, order = null) => {
+    // If order not provided, try to find it in allOrders
+    let orderToCheck = order;
+    if (!orderToCheck) {
+      orderToCheck = allOrders.find(o => o.id === orderId);
+    }
+    
+    // Check if order is sent to delivery company - if not, don't make API call
+    if (orderToCheck && !orderToCheck.isSentToDeliveryCompany) {
+      // Order not sent to delivery company, set null and return
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
+      return;
+    }
+    
+    // Check if order is already marked as closed in backend (IsDeliveryStatusClosed flag)
+    // If closed, don't fetch again
+    if (orderToCheck && orderToCheck.isDeliveryStatusClosed === true) {
+      // Order delivery status is closed in backend, don't fetch again
+      return;
+    }
+    
+    // Also check if status is already loaded and is closed (for backward compatibility)
+    const existingStatus = deliveryStatuses[orderId];
+    if (existingStatus) {
+      // Check if it has isClosed flag (set when status is 10, 11, or 23)
+      if (existingStatus.isClosed === true) {
+        // Status is closed, don't fetch again
+        return;
+      }
+      // Also check by status ID for backward compatibility
+      if (existingStatus.status) {
+        const statusId = existingStatus.status.id || existingStatus.statusId;
+        // Status IDs: 10 = Closed
+        if (statusId === 10) {
+          // Status is closed, don't fetch again
+          return;
+        }
+      }
+    }
+    
+    // Check if already loading
     setLoadingDeliveryStatuses(prev => {
       if (prev[orderId]) return prev; // Already loading
       return { ...prev, [orderId]: true };
     });
     
-    setDeliveryStatuses(currentStatuses => {
-      if (currentStatuses[orderId]) {
-        // Already loaded, cancel loading
-        setLoadingDeliveryStatuses(prev => {
-          const updated = { ...prev };
-          delete updated[orderId];
-          return updated;
-        });
-        return currentStatuses;
-      }
-      return currentStatuses;
-    });
-    
     try {
       const statusData = await shipmentsService.getDeliveryStatus(orderId);
-      setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
+      
+      // Check if status is closed (10: Closed, 11: Cancelled, 23: Closed Returned)
+      // Also check by text if status.id is not available
+      const statusId = statusData?.status?.id || statusData?.statusId;
+      const statusText = statusData?.status?.arabic || statusData?.status?.english || '';
+      const isClosedByText = statusText.includes('مغلق') || 
+                            statusText.includes('Cancelled') || 
+                            statusText.includes('Closed Returned') ||
+                            statusText.includes('Closed');
+      
+      if (statusId === 10 ) {
+        // Status is closed - save it with isClosed flag (won't fetch again)
+        setDeliveryStatuses(prev => ({ ...prev, [orderId]: { ...statusData, isClosed: true } }));
+      } else {
+        // Status is not closed - save normally
+        setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
+      }
     } catch (error) {
+      // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
+      const errorCode = error.response?.data?.code;
+      if (errorCode !== 'NO_SHIPMENT') {
       console.error(`Error fetching delivery status for order ${orderId}:`, error);
+      }
       // Set null to indicate failed to load
       setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
     } finally {
@@ -182,7 +228,7 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         return updated;
       });
     }
-  }, []);
+  }, [allOrders]);
 
   // Fetch all orders from API
   const fetchOrders = useCallback(async () => {
@@ -253,12 +299,12 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           setCache(cacheKey, response, 5 * 60 * 1000);
         }
         
-        // ✅ جلب حالة التوصيل تلقائياً لجميع الطلبات
+        // ✅ جلب حالة التوصيل تلقائياً فقط للطلبات المرسلة لشركة التوصيل
         // هذا يوفر الوقت للمستخدم ويقلل الحاجة للنقر على كل طلب
         ordersList.forEach(order => {
-          // فقط إذا لم يتم جلبها من قبل
-          if (!deliveryStatuses[order.id] && !loadingDeliveryStatuses[order.id]) {
-            fetchDeliveryStatus(order.id).catch(() => {
+          // فقط إذا لم يتم جلبها من قبل وكانت مرسلة لشركة التوصيل
+          if (!deliveryStatuses[order.id] && !loadingDeliveryStatuses[order.id] && order.isSentToDeliveryCompany) {
+            fetchDeliveryStatus(order.id, order).catch(() => {
               // تجاهل الأخطاء (404 للطلبات بدون شحنة)
             });
           }
@@ -838,16 +884,30 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
     setOpenDeliveryStatusDialog(true);
     setDeliveryStatusData(null);
     
+    // Only fetch if order is sent to delivery company
+    if (!order.isSentToDeliveryCompany) {
+      setDeliveryStatusData({ status: { arabic: "لم يتم إرسال الطلب لشركة التوصيل بعد", english: "Order not sent to delivery company yet" } });
+      setDeliveryStatusLoading(false);
+      return;
+    }
+    
     try {
       const statusData = await shipmentsService.getDeliveryStatus(order.id);
       setDeliveryStatusData(statusData);
     } catch (error) {
+      // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
+      const errorCode = error.response?.data?.code;
+      if (errorCode !== 'NO_SHIPMENT') {
       console.error('Error fetching delivery status:', error);
       setSnackbar({
         open: true,
         message: `حدث خطأ أثناء جلب حالة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
         severity: 'error'
       });
+      } else {
+        // If NO_SHIPMENT, just show a message in the dialog without a snackbar
+        setDeliveryStatusData({ status: { arabic: "لم يتم إنشاء شحنة بعد", english: "No shipment created yet" } });
+      }
     } finally {
       setDeliveryStatusLoading(false);
     }
@@ -1605,12 +1665,28 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                             const statusData = deliveryStatuses[order.id];
                             const isLoading = loadingDeliveryStatuses[order.id];
                             
-                            // ✅ إذا لم يتم جلب البيانات بعد، ابدأ الجلب تلقائياً
+                            // If order is not sent to delivery company, don't show loading or fetch status
+                            if (!order.isSentToDeliveryCompany) {
+                              return (
+                                <Typography variant="body2" color="text.secondary">
+                                  -
+                                </Typography>
+                              );
+                            }
+                            
+                            // ✅ إذا لم يتم جلب البيانات بعد وكان الطلب مرسل لشركة التوصيل، ابدأ الجلب تلقائياً
+                            // لكن لا نعيد الجلب إذا كانت الحالة مغلقة (10: Closed, 11: Cancelled, 23: Closed Returned)
                             if (statusData === undefined && !isLoading) {
                               // جلب تلقائي في الخلفية
-                              fetchDeliveryStatus(order.id).catch(() => {
+                              fetchDeliveryStatus(order.id, order).catch(() => {
                                 // تجاهل الأخطاء (404 للطلبات بدون شحنة)
                               });
+                            } else if (statusData && statusData.status) {
+                              // إذا كانت الحالة مغلقة، لا نعيد الجلب
+                              const statusId = statusData.status.id || statusData.statusId;
+                              if (statusId === 10 ) {
+                                // Status is closed, don't fetch again - already displayed
+                              }
                             }
                             
                             if (isLoading) {
@@ -1626,19 +1702,34 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                             
                             if (statusData === null) {
                               // We checked but no shipment exists
+                              // Order is sent to delivery company but no shipment yet
                               return (
-                                <Typography variant="body2" color="text.secondary">
-                                  -
-                                </Typography>
+                                <Chip
+                                  label="في انتظار الشحنة"
+                                  sx={{
+                                    backgroundColor: '#ff9800',
+                                    color: '#ffffff',
+                                    fontWeight: 600,
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                  }}
+                                />
                               );
                             }
                             
                             if (statusData && statusData.status) {
+                              const statusLabel = statusData.status.arabic || statusData.status.english || 'غير معروف';
+                              // Check if status is closed by text (مغلق, Cancelled, Closed Returned)
+                              const isClosedByText = statusLabel.includes('مغلق') || 
+                                                     statusLabel.includes('Cancelled') || 
+                                                     statusLabel.includes('Closed Returned') ||
+                                                     statusLabel.includes('Closed');
+                              
                               return (
                                 <Chip
-                                  label={statusData.status.arabic || statusData.status.english || 'غير معروف'}
+                                  label={statusLabel.trim()}
                                   sx={{
-                                    backgroundColor: statusData.status.color || '#1976d2',
+                                    backgroundColor: statusData.status.color || (isClosedByText ? '#4caf50' : '#1976d2'),
                                     color: '#ffffff',
                                     fontWeight: 600,
                                     fontSize: '0.75rem',
@@ -1659,10 +1750,19 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                               );
                             }
                             
+                            // If statusData exists but no status object, show default
+                            if (statusData) {
+                              return (
+                                <Typography variant="body2" color="text.secondary">
+                                  -
+                                </Typography>
+                              );
+                            }
+                            
                             // جاري التحميل - اعرض مؤشر التحميل
                             return (
                               <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                جاري التحميل...
+                               طلبات جاهزة
                               </Typography>
                             );
                           })()}
@@ -1944,20 +2044,20 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Typography variant="body2">{selectedOrder.client.phone}</Typography>
                           <Tooltip title="انقر للتواصل مع الزبون عبر الواتساب">
-                            <IconButton
-                              size="small"
-                              onClick={() => {
+                          <IconButton
+                            size="small"
+                            onClick={() => {
                                 openWhatsApp(selectedOrder.client.phone);
-                              }}
-                              sx={{
-                                color: '#25D366',
-                                '&:hover': {
-                                  backgroundColor: 'rgba(37, 211, 102, 0.1)',
-                                },
-                              }}
-                            >
-                              <WhatsAppIcon fontSize="small" />
-                            </IconButton>
+                            }}
+                            sx={{
+                              color: '#25D366',
+                              '&:hover': {
+                                backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                              },
+                            }}
+                          >
+                            <WhatsAppIcon fontSize="small" />
+                          </IconButton>
                           </Tooltip>
                         </Box>
                       ) : (

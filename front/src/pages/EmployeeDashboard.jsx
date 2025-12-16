@@ -396,7 +396,46 @@ const EmployeeDashboard = () => {
   };
 
   // Fetch delivery status for orders sent to delivery company
-  const fetchDeliveryStatus = async (orderId) => {
+  const fetchDeliveryStatus = async (orderId, order = null) => {
+    // If order not provided, try to find it in ordersList
+    let orderToCheck = order;
+    if (!orderToCheck) {
+      orderToCheck = ordersList.find(o => o.id === orderId);
+    }
+    
+    // Check if order is sent to delivery company - if not, don't make API call
+    if (orderToCheck && !orderToCheck.isSentToDeliveryCompany) {
+      // Order not sent to delivery company, set null and return
+      setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
+      return;
+    }
+    
+    // Check if order is already marked as closed in backend (IsDeliveryStatusClosed flag)
+    // If closed, don't fetch again
+    if (orderToCheck && orderToCheck.isDeliveryStatusClosed === true) {
+      // Order delivery status is closed in backend, don't fetch again
+      return;
+    }
+    
+    // Also check if status is already loaded and is closed (for backward compatibility)
+    const existingStatus = deliveryStatuses[orderId];
+    if (existingStatus) {
+      // Check if it has isClosed flag (set when status is 10: Closed)
+      if (existingStatus.isClosed === true) {
+        // Status is closed, don't fetch again
+        return;
+      }
+      // Also check by status ID for backward compatibility
+      if (existingStatus.status) {
+        const statusId = existingStatus.status.id || existingStatus.statusId;
+        // Status IDs: 10 = Closed
+        if (statusId === 10) {
+          // Status is closed, don't fetch again
+          return;
+        }
+      }
+    }
+    
     // Check if already loading or loaded
     if (loadingDeliveryStatuses[orderId] || deliveryStatuses[orderId] !== undefined) {
       return;
@@ -406,8 +445,23 @@ const EmployeeDashboard = () => {
     
     try {
       const statusData = await shipmentsService.getDeliveryStatus(orderId);
-      setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
+      
+      // Check if status is closed (10: Closed only)
+      // If closed, save it with isClosed flag and don't fetch again
+      const statusId = statusData?.status?.id || statusData?.statusId;
+      if (statusId === 10) {
+        // Status is closed - save it with isClosed flag (won't fetch again)
+        setDeliveryStatuses(prev => ({ ...prev, [orderId]: { ...statusData, isClosed: true } }));
+      } else {
+        // Status is not closed - save normally
+        setDeliveryStatuses(prev => ({ ...prev, [orderId]: statusData }));
+      }
     } catch (error) {
+      // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
+      const errorCode = error.response?.data?.code;
+      if (errorCode !== 'NO_SHIPMENT') {
+        console.error(`Error fetching delivery status for order ${orderId}:`, error);
+      }
       setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
     } finally {
       setLoadingDeliveryStatuses(prev => {
@@ -454,8 +508,12 @@ const EmployeeDashboard = () => {
                   [orderId]: statusData
                 }));
               } else {
-                // إذا لم تكن البيانات كاملة، نجلب من API
-                fetchDeliveryStatus(orderId);
+                // إذا لم تكن البيانات كاملة، نجلب من API فقط إذا كان الطلب مرسل لشركة التوصيل
+                // Find order in ordersList to check isSentToDeliveryCompany
+                const order = ordersList.find(o => o.id === orderId);
+                if (order && order.isSentToDeliveryCompany) {
+                  fetchDeliveryStatus(orderId, order);
+                }
               }
             }
           },
@@ -481,7 +539,12 @@ const EmployeeDashboard = () => {
                   [orderId]: statusData
                 }));
               } else {
-                fetchDeliveryStatus(orderId);
+                // Only fetch if order is sent to delivery company
+                // Find order in ordersList to check isSentToDeliveryCompany
+                const order = ordersList.find(o => o.id === orderId);
+                if (order && order.isSentToDeliveryCompany) {
+                  fetchDeliveryStatus(orderId, order);
+                }
               }
             }
           },
@@ -512,10 +575,10 @@ const EmployeeDashboard = () => {
       const isLoaded = deliveryStatuses[order.id] !== undefined;
       const isLoading = loadingDeliveryStatuses[order.id] === true;
       
-      // Only fetch if not already checked
-      if (!isLoaded && !isLoading) {
-        // Try to fetch - if no shipment exists, API will return error and we set null
-        fetchDeliveryStatus(order.id).catch(() => {
+      // Only fetch if not already checked AND order is sent to delivery company
+      if (!isLoaded && !isLoading && order.isSentToDeliveryCompany) {
+        // Only fetch for orders sent to delivery company
+        fetchDeliveryStatus(order.id, order).catch(() => {
           // Silently fail - this order just doesn't have a shipment
         });
       }
@@ -553,10 +616,11 @@ const EmployeeDashboard = () => {
       // تحديث العدد الإجمالي
       setTotalOrdersCount(response?.totalCount || orders.length);
       
-      // جلب حالة التوصيل لجميع الطلبات (مثل OrdersList.jsx)
-      // API سيرجع خطأ/فارغ إذا لم تكن هناك شحنة، وهذا طبيعي
+      // جلب حالة التوصيل فقط للطلبات المرسلة لشركة التوصيل
       orders.slice(0, 20).forEach(order => {
-        fetchDeliveryStatus(order.id);
+        if (order.isSentToDeliveryCompany) {
+          fetchDeliveryStatus(order.id, order);
+        }
       });
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -959,12 +1023,26 @@ const EmployeeDashboard = () => {
     setOpenDeliveryStatusDialog(true);
     setDeliveryStatusData(null);
     
+    // Only fetch if order is sent to delivery company
+    if (!order.isSentToDeliveryCompany) {
+      setDeliveryStatusData({ status: { arabic: "لم يتم إرسال الطلب لشركة التوصيل بعد", english: "Order not sent to delivery company yet" } });
+      setDeliveryStatusLoading(false);
+      return;
+    }
+    
     try {
       const statusData = await shipmentsService.getDeliveryStatus(order.id);
       setDeliveryStatusData(statusData);
     } catch (error) {
-      console.error('Error fetching delivery status:', error);
-      alert(`حدث خطأ أثناء جلب حالة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+      // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
+      const errorCode = error.response?.data?.code;
+      if (errorCode !== 'NO_SHIPMENT') {
+        console.error('Error fetching delivery status:', error);
+        alert(`حدث خطأ أثناء جلب حالة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+      } else {
+        // If NO_SHIPMENT, just show a message in the dialog without an alert
+        setDeliveryStatusData({ status: { arabic: "لم يتم إنشاء شحنة بعد", english: "No shipment created yet" } });
+      }
     } finally {
       setDeliveryStatusLoading(false);
     }
@@ -1495,6 +1573,15 @@ const EmployeeDashboard = () => {
                           const statusData = deliveryStatuses[order.id];
                           const isLoading = loadingDeliveryStatuses[order.id];
                           
+                          // If order is not sent to delivery company, don't show loading or fetch status
+                          if (!order.isSentToDeliveryCompany) {
+                            return (
+                              <Typography variant="body2" color="text.secondary">
+                                -
+                              </Typography>
+                            );
+                          }
+                          
                           if (isLoading) {
                             return (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1508,10 +1595,18 @@ const EmployeeDashboard = () => {
                           
                           if (statusData === null) {
                             // We checked but no shipment exists
+                            // Order is sent to delivery company but no shipment yet
                             return (
-                              <Typography variant="body2" color="text.secondary">
-                                -
-                              </Typography>
+                              <Chip
+                                label="في انتظار الشحنة"
+                                sx={{
+                                  backgroundColor: '#ff9800',
+                                  color: '#ffffff',
+                                  fontWeight: 600,
+                                  fontSize: '0.75rem',
+                                  cursor: 'pointer',
+                                }}
+                              />
                             );
                           }
                           
