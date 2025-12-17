@@ -44,6 +44,7 @@ import {
   Search,
   CameraAlt,
   LocalShipping,
+  CalendarToday,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -82,6 +83,14 @@ const PackagerDashboard = () => {
   const [shippingNotes, setShippingNotes] = useState('');
   const [shippingLoading, setShippingLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [selectedDate, setSelectedDate] = useState(() => {
+    // Default to today's date in YYYY-MM-DD format
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
 
   const getFullUrl = (inputUrl) => {
     if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
@@ -137,18 +146,19 @@ const PackagerDashboard = () => {
   };
 
   // Fetch completed orders (Status 4: COMPLETED) - Tab 1
-  // Only fetch orders from today
-  const fetchCompletedOrders = async (showLoading = false) => {
+  // Fetch orders from selected date
+  const fetchCompletedOrders = async (showLoading = false, dateString = null) => {
     if (showLoading) {
       setLoading(true);
     }
     try {
-      // Get today's date in ISO format (YYYY-MM-DDTHH:mm:ss)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to start of day
-      const todayISOString = today.toISOString();
+      // Use selected date or today's date
+      const dateToUse = dateString || selectedDate;
+      const [year, month, day] = dateToUse.split('-').map(Number);
+      // Create date in UTC at start of day to avoid timezone issues
+      const dateISOString = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0)).toISOString();
       
-      const completedOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.COMPLETED, todayISOString);
+      const completedOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.COMPLETED, dateISOString);
       setCompletedOrders(completedOrders || []);
     } catch (error) {
       console.error('Error fetching completed orders:', error);
@@ -158,6 +168,15 @@ const PackagerDashboard = () => {
         setLoading(false);
       }
     }
+  };
+
+  // Handle date change for completed orders
+  const handleDateChange = async (event) => {
+    const newDateString = event.target.value;
+    if (!newDateString) return;
+    
+    setSelectedDate(newDateString);
+    await fetchCompletedOrders(false, newDateString);
   };
 
   const fetchOrders = async (showLoading = false) => {
@@ -633,6 +652,14 @@ const PackagerDashboard = () => {
     try {
       await shipmentsService.createShipment(orderToShip.id, shippingNotes);
       
+      // Set order status to sent to delivery company after successful shipment
+      try {
+        await orderStatusService.setSentToDeliveryCompany(orderToShip.id);
+      } catch (statusError) {
+        console.error('Error setting order status to sent to delivery company:', statusError);
+        // Don't show error to user - shipment was created successfully
+      }
+      
       // Close dialog first
       handleCloseShippingDialog();
       
@@ -1023,6 +1050,75 @@ const PackagerDashboard = () => {
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Date picker for completed orders tab */}
+              {currentTab === 1 && (
+                <TextField
+                  type="date"
+                  size="small"
+                  label="اختر التاريخ"
+                  value={selectedDate}
+                  onChange={handleDateChange}
+                  onClick={(e) => {
+                    // Open date picker when clicking anywhere on the input
+                    const input = e.currentTarget.querySelector('input');
+                    if (input) {
+                      input.showPicker?.();
+                    }
+                  }}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginRight: 1,
+                          color: calmPalette.primary,
+                          pointerEvents: 'none', // Allow clicks to pass through to input
+                        }}
+                      >
+                        <CalendarToday fontSize="small" />
+                      </Box>
+                    ),
+                  }}
+                  inputProps={{
+                    onClick: (e) => {
+                      // Open date picker when clicking on the input field
+                      e.currentTarget.showPicker?.();
+                    },
+                  }}
+                  sx={{
+                    backgroundColor: "rgba(255,255,255,0.85)",
+                    backdropFilter: 'blur(10px)',
+                    borderRadius: 3,
+                    boxShadow: '0 4px 20px rgba(94, 78, 62, 0.1)',
+                    minWidth: 200,
+                    cursor: 'pointer',
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 3,
+                      paddingLeft: 1,
+                      cursor: 'pointer',
+                      '& input': {
+                        cursor: 'pointer',
+                      },
+                      '& fieldset': {
+                        borderColor: 'rgba(94, 78, 62, 0.2)',
+                        borderWidth: 2,
+                      },
+                      '&:hover fieldset': {
+                        borderColor: calmPalette.primary + '80',
+                        borderWidth: 2,
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: calmPalette.primary,
+                        borderWidth: 2,
+                      },
+                    },
+                  }}
+                />
+              )}
               <Box sx={{ flex: 1, minWidth: 400, position: 'relative' }}>
                 <TextField
                   fullWidth
@@ -1559,7 +1655,9 @@ const PackagerDashboard = () => {
                                             const numericStatus = typeof order.status === 'number' 
                                               ? order.status 
                                               : parseInt(order.status, 10);
-                                            return numericStatus !== ORDER_STATUS.COMPLETED;
+                                            // الزر مفعّل فقط عندما يكون الطلب مكتملاً وغير مرسل لشركة التوصيل
+                                            return numericStatus !== ORDER_STATUS.COMPLETED || 
+                                                   numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY;
                                           })()
                                         }
                                         sx={{ 

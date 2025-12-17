@@ -846,14 +846,13 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
     try {
       await shipmentsService.createShipment(orderToShip.id, shippingNotes);
       
-      // DISABLED: Set order status to sent to delivery company after successful shipment
-      // This is now handled automatically by the backend when shipment is created via webhook
-      // try {
-      //   await orderStatusService.setSentToDeliveryCompany(orderToShip.id);
-      // } catch (statusError) {
-      //   console.error('Error setting order status to sent to delivery company:', statusError);
-      //   // Don't show error to user - shipment was created successfully
-      // }
+      // Set order status to sent to delivery company after successful shipment
+      try {
+        await orderStatusService.setSentToDeliveryCompany(orderToShip.id);
+      } catch (statusError) {
+        console.error('Error setting order status to sent to delivery company:', statusError);
+        // Don't show error to user - shipment was created successfully
+      }
       
       // Close dialog first
       handleCloseShippingDialog();
@@ -1878,8 +1877,9 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                                       const numericStatus = typeof order.status === 'number' 
                                         ? order.status 
                                         : parseInt(order.status, 10);
-                                      // الزر مفعّل فقط عندما يكون الطلب مكتملاً
-                                      return numericStatus !== ORDER_STATUS.COMPLETED;
+                                      // الزر مفعّل فقط عندما يكون الطلب مكتملاً وغير مرسل لشركة التوصيل
+                                      return numericStatus !== ORDER_STATUS.COMPLETED || 
+                                             numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY;
                                     })()
                                   }
                                   sx={{
