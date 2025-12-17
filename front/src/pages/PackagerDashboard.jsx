@@ -27,6 +27,8 @@ import {
   Tabs,
   Tab,
   Tooltip,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import {
   Logout,
@@ -41,10 +43,11 @@ import {
   Visibility,
   Search,
   CameraAlt,
+  LocalShipping,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService } from "../services/api";
+import { ordersService, orderStatusService, shipmentsService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
@@ -74,6 +77,11 @@ const PackagerDashboard = () => {
   const MAX_CONCURRENT_LOADS = 3; // Maximum concurrent image loads
   const [page, setPage] = useState(0); // Current page for pagination
   const [rowsPerPage, setRowsPerPage] = useState(5); // Number of rows per page
+  const [openShippingDialog, setOpenShippingDialog] = useState(false);
+  const [orderToShip, setOrderToShip] = useState(null);
+  const [shippingNotes, setShippingNotes] = useState('');
+  const [shippingLoading, setShippingLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const getFullUrl = (inputUrl) => {
     if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
@@ -587,6 +595,74 @@ const PackagerDashboard = () => {
       alert(`حدث خطأ أثناء تحديث حالة الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
     } finally {
       setUpdatingOrderId(null);
+    }
+  };
+
+  // Handle shipping click - إرسال الطلب لشركة التوصيل
+  const handleShippingClick = (order) => {
+    // التحقق من أن الطلب مكتمل قبل السماح بالإرسال
+    const numericStatus = typeof order.status === 'number' 
+      ? order.status 
+      : parseInt(order.status, 10);
+    
+    if (numericStatus !== ORDER_STATUS.COMPLETED) {
+      setSnackbar({
+        open: true,
+        message: 'الطلب يجب أن يكون مكتملاً لإرساله لشركة التوصيل',
+        severity: 'warning'
+      });
+      return;
+    }
+    
+    setOrderToShip(order);
+    setShippingNotes('');
+    setOpenShippingDialog(true);
+  };
+
+  const handleCloseShippingDialog = () => {
+    if (shippingLoading) return;
+    setOpenShippingDialog(false);
+    setOrderToShip(null);
+    setShippingNotes('');
+  };
+
+  const handleConfirmShipping = async () => {
+    if (!orderToShip) return;
+
+    setShippingLoading(true);
+    try {
+      await shipmentsService.createShipment(orderToShip.id, shippingNotes);
+      
+      // Close dialog first
+      handleCloseShippingDialog();
+      
+      // Show success toast
+      setSnackbar({
+        open: true,
+        message: `تم إرسال الطلب ${orderToShip.orderNumber || `#${orderToShip.id}`} إلى شركة التوصيل بنجاح`,
+        severity: 'success'
+      });
+      
+      // Refresh orders list from server
+      try {
+        await fetchOrders(false);
+      } catch (refreshError) {
+        console.error('Error refreshing orders after shipping:', refreshError);
+      }
+    } catch (error) {
+      console.error('Error sending order to delivery company:', error);
+      
+      // Close dialog first even on error
+      handleCloseShippingDialog();
+      
+      // Show error toast
+      setSnackbar({
+        open: true,
+        message: `حدث خطأ أثناء إرسال الطلب إلى شركة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
+        severity: 'error'
+      });
+    } finally {
+      setShippingLoading(false);
     }
   };
 
@@ -1451,6 +1527,59 @@ const PackagerDashboard = () => {
                                     )}
                                   </Button>
                                 )}
+                                {/* Show "إرسال لشركة التوصيل" button only for COMPLETED orders (Tab 1) */}
+                                {currentTab === 1 && (
+                                  <Tooltip 
+                                    title={
+                                      (() => {
+                                        const numericStatus = typeof order.status === 'number' 
+                                          ? order.status 
+                                          : parseInt(order.status, 10);
+                                        if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                                          return "تم الإرسال لشركة التوصيل مسبقاً";
+                                        } else if (numericStatus !== ORDER_STATUS.COMPLETED) {
+                                          return "الطلب يجب أن يكون مكتملاً لإرساله لشركة التوصيل";
+                                        } else {
+                                          return "إرسال الطلب لشركة التوصيل";
+                                        }
+                                      })()
+                                    } 
+                                    arrow 
+                                    placement="top"
+                                  >
+                                    <span>
+                                      <Button
+                                        size="small"
+                                        variant="contained"
+                                        color="primary"
+                                        startIcon={<LocalShipping />}
+                                        onClick={() => handleShippingClick(order)}
+                                        disabled={
+                                          (() => {
+                                            const numericStatus = typeof order.status === 'number' 
+                                              ? order.status 
+                                              : parseInt(order.status, 10);
+                                            return numericStatus !== ORDER_STATUS.COMPLETED;
+                                          })()
+                                        }
+                                        sx={{ 
+                                          minWidth: 90, 
+                                          flexShrink: 0,
+                                          backgroundColor: '#2e7d32',
+                                          '&:hover': {
+                                            backgroundColor: '#1b5e20',
+                                          },
+                                          '&:disabled': {
+                                            backgroundColor: 'rgba(0, 0, 0, 0.12)',
+                                            color: 'rgba(0, 0, 0, 0.26)',
+                                          }
+                                        }}
+                                      >
+                                        إرسال
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
+                                )}
                               </Box>
                                 </TableCell>
                               </>
@@ -2038,6 +2167,76 @@ const PackagerDashboard = () => {
         onSave={handleSaveNotes}
         user={user}
       />
+
+      {/* Shipping Dialog */}
+      <GlassDialog
+        open={openShippingDialog}
+        onClose={handleCloseShippingDialog}
+        maxWidth="sm"
+        title="إرسال إلى شركة التوصيل"
+        actions={
+          <>
+            <Button 
+              onClick={handleCloseShippingDialog} 
+              disabled={shippingLoading}
+              variant="outlined"
+            >
+              إلغاء
+            </Button>
+            <Button
+              onClick={handleConfirmShipping}
+              color="success"
+              variant="contained"
+              disabled={shippingLoading}
+              startIcon={shippingLoading ? <CircularProgress size={20} /> : <LocalShipping />}
+              sx={{
+                backgroundColor: '#2e7d32',
+                '&:hover': {
+                  backgroundColor: '#1b5e20',
+                }
+              }}
+            >
+              {shippingLoading ? 'جاري الإرسال...' : 'إرسال'}
+            </Button>
+          </>
+        }
+      >
+        <Box sx={{ padding: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            إرسال الطلب <strong>{orderToShip?.orderNumber || `#${orderToShip?.id}`}</strong> إلى شركة التوصيل
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            يمكنك إضافة ملاحظات خاصة بشركة التوصيل (اختياري)
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="ملاحظات شركة التوصيل"
+            value={shippingNotes}
+            onChange={(e) => setShippingNotes(e.target.value)}
+            placeholder="أدخل أي ملاحظات خاصة بشركة التوصيل..."
+            disabled={shippingLoading}
+            sx={{ mt: 2 }}
+          />
+        </Box>
+      </GlassDialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

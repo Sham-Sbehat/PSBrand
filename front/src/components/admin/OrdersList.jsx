@@ -813,6 +813,20 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
   };
 
   const handleShippingClick = (order) => {
+    // التحقق من أن الطلب مكتمل قبل السماح بالإرسال
+    const numericStatus = typeof order.status === 'number' 
+      ? order.status 
+      : parseInt(order.status, 10);
+    
+    if (numericStatus !== ORDER_STATUS.COMPLETED) {
+      setSnackbar({
+        open: true,
+        message: 'الطلب يجب أن يكون مكتملاً لإرساله لشركة التوصيل',
+        severity: 'warning'
+      });
+      return;
+    }
+    
     setOrderToShip(order);
     setShippingNotes('');
     setOpenShippingDialog(true);
@@ -1839,9 +1853,18 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                             </Button>
                             <Tooltip 
                               title={
-                                order.status === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY 
-                                  ? "تم الإرسال لشركة التوصيل مسبقاً" 
-                                  : "إرسال الطلب لشركة التوصيل"
+                                (() => {
+                                  const numericStatus = typeof order.status === 'number' 
+                                    ? order.status 
+                                    : parseInt(order.status, 10);
+                                  if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                                    return "تم الإرسال لشركة التوصيل مسبقاً";
+                                  } else if (numericStatus !== ORDER_STATUS.COMPLETED) {
+                                    return "الطلب يجب أن يكون مكتملاً لإرساله لشركة التوصيل";
+                                  } else {
+                                    return "إرسال الطلب لشركة التوصيل";
+                                  }
+                                })()
                               } 
                               arrow 
                               placement="top"
@@ -1855,11 +1878,8 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                                       const numericStatus = typeof order.status === 'number' 
                                         ? order.status 
                                         : parseInt(order.status, 10);
-                                      const hasDeliveryStatus = deliveryStatuses[order.id] && 
-                                                               deliveryStatuses[order.id] !== null;
-                                      return numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ||
-                                             numericStatus === ORDER_STATUS.CANCELLED ||
-                                             hasDeliveryStatus;
+                                      // الزر مفعّل فقط عندما يكون الطلب مكتملاً
+                                      return numericStatus !== ORDER_STATUS.COMPLETED;
                                     })()
                                   }
                                   sx={{
