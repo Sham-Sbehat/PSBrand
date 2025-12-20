@@ -26,7 +26,7 @@ import {
   TextField,
   Tooltip,
 } from "@mui/material";
-import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, Search, CameraAlt } from "@mui/icons-material";
+import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, Search, CameraAlt, ArrowBack } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService } from "../services/api";
@@ -821,6 +821,30 @@ const PreparerDashboard = () => {
     } catch (error) {
       console.error('Error updating order status:', error);
       alert(`حدث خطأ أثناء تحديث حالة الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  // Handle returning order from OPEN_ORDER to IN_PREPARATION (إرجاع الطلب)
+  const handleReturnOrder = async (orderId) => {
+    setUpdatingOrderId(orderId);
+    try {
+      // Move from "الطلب مفتوح" (OPEN_ORDER) back to "في مرحلة التحضير" (IN_PREPARATION)
+      await orderStatusService.setInPreparation(orderId);
+      
+      // Update local state immediately
+      setMyOpenOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+      
+      // After successful update, refresh the orders list
+      setTimeout(() => {
+        fetchAllOrders(false); // Don't show loading after action
+        setCurrentTab(0); // Switch to "الطلبات المتاحة" tab
+      }, 500);
+      
+    } catch (error) {
+      console.error('Error returning order:', error);
+      alert(`حدث خطأ أثناء إرجاع الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
     } finally {
       setUpdatingOrderId(null);
     }
@@ -1694,6 +1718,30 @@ const InfoItem = ({ label, value }) => (
                             }}
                           >
                             عرض التفاصيل
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="warning"
+                            startIcon={<ArrowBack />}
+                            onClick={() => handleReturnOrder(order.id)}
+                            disabled={
+                              order.status !== ORDER_STATUS.OPEN_ORDER ||
+                              updatingOrderId === order.id
+                            }
+                            sx={{ 
+                              minWidth: '120px',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            {updatingOrderId === order.id ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <CircularProgress size={14} color="inherit" />
+                                جاري...
+                              </Box>
+                            ) : (
+                              'إرجاع الطلب'
+                            )}
                           </Button>
                           <Button
                             size="small"

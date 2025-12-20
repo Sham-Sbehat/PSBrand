@@ -1659,14 +1659,46 @@ const EmployeeDashboard = () => {
                           >
                             عرض 
                           </Button>
-                          <Button
-                            size="small"
-                            variant="contained"
-                            sx={{ minWidth: 100 }}
-                            onClick={() => handleOpenEditOrder(order)}
+                          <Tooltip 
+                            title={
+                              (() => {
+                                const numericStatus = typeof order.status === 'number' 
+                                  ? order.status 
+                                  : parseInt(order.status, 10);
+                                if (numericStatus === ORDER_STATUS.IN_PACKAGING) {
+                                  return "لا يمكن تعديل الطلب في مرحلة التغليف";
+                                } else if (numericStatus === ORDER_STATUS.COMPLETED) {
+                                  return "لا يمكن تعديل الطلب المكتمل";
+                                } else if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                                  return "لا يمكن تعديل الطلب المرسل لشركة التوصيل";
+                                }
+                                return "تعديل الطلب";
+                              })()
+                            } 
+                            arrow 
+                            placement="top"
                           >
-                            تعديل
-                          </Button>
+                            <span>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                sx={{ minWidth: 100 }}
+                                onClick={() => handleOpenEditOrder(order)}
+                                disabled={
+                                  (() => {
+                                    const numericStatus = typeof order.status === 'number' 
+                                      ? order.status 
+                                      : parseInt(order.status, 10);
+                                    return numericStatus === ORDER_STATUS.IN_PACKAGING ||
+                                           numericStatus === ORDER_STATUS.COMPLETED ||
+                                           numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY;
+                                  })()
+                                }
+                              >
+                                تعديل
+                              </Button>
+                            </span>
+                          </Tooltip>
                           {order.status !== ORDER_STATUS.CANCELLED &&
                             order.status !== ORDER_STATUS.COMPLETED && (
                               <Button
@@ -1714,13 +1746,46 @@ const EmployeeDashboard = () => {
         contentSx={{ padding: 3, maxHeight: "85vh", overflowY: "auto" }}
         actions={
           <Box sx={{ display: "flex", gap: 2 }}>
-            <Button
-              variant="outlined"
-              onClick={() => selectedOrder && handleOpenEditOrder(selectedOrder)}
-              disabled={!selectedOrder || editLoading}
+            <Tooltip 
+              title={
+                selectedOrder && (() => {
+                  const numericStatus = typeof selectedOrder.status === 'number' 
+                    ? selectedOrder.status 
+                    : parseInt(selectedOrder.status, 10);
+                  if (numericStatus === ORDER_STATUS.IN_PACKAGING) {
+                    return "لا يمكن تعديل الطلب في مرحلة التغليف";
+                  } else if (numericStatus === ORDER_STATUS.COMPLETED) {
+                    return "لا يمكن تعديل الطلب المكتمل";
+                  } else if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                    return "لا يمكن تعديل الطلب المرسل لشركة التوصيل";
+                  }
+                  return "تعديل الطلب";
+                })()
+              } 
+              arrow 
+              placement="top"
             >
-              تعديل
-            </Button>
+              <span>
+                <Button
+                  variant="outlined"
+                  onClick={() => selectedOrder && handleOpenEditOrder(selectedOrder)}
+                  disabled={
+                    !selectedOrder || 
+                    editLoading ||
+                    (selectedOrder && (() => {
+                      const numericStatus = typeof selectedOrder.status === 'number' 
+                        ? selectedOrder.status 
+                        : parseInt(selectedOrder.status, 10);
+                      return numericStatus === ORDER_STATUS.IN_PACKAGING ||
+                             numericStatus === ORDER_STATUS.COMPLETED ||
+                             numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY;
+                    })())
+                  }
+                >
+                  تعديل
+                </Button>
+              </span>
+            </Tooltip>
             <Button onClick={handleCloseDetailsModal} variant="contained">
               إغلاق
             </Button>

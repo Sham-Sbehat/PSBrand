@@ -24,6 +24,7 @@ import {
   Snackbar,
   Alert,
   InputAdornment,
+  Menu,
 } from "@mui/material";
 import {
   Visibility,
@@ -39,6 +40,7 @@ import {
   History,
   Clear,
   CalendarToday,
+  Edit,
 } from "@mui/icons-material";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { useApp } from "../../context/AppContext";
@@ -52,6 +54,7 @@ import {
   FABRIC_TYPE_LABELS,
   SIZE_LABELS,
   COLOR_LABELS,
+  USER_ROLES,
 } from "../../constants";
 import NotesDialog from "../common/NotesDialog";
 import GlassDialog from "../common/GlassDialog";
@@ -129,6 +132,9 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
   const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
   const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
   const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true/false }
+  const [updatingStatusOrderId, setUpdatingStatusOrderId] = useState(null); // Track which order status is being updated
+  const [statusMenuAnchor, setStatusMenuAnchor] = useState(null); // Anchor for status change menu
+  const [orderForStatusChange, setOrderForStatusChange] = useState(null); // Order whose status is being changed
 
   const getFullUrl = (url) => {
     if (!url || typeof url !== 'string') return url;
@@ -793,6 +799,44 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
       alert('حدث خطأ أثناء جلب بيانات الطلب للتعديل');
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  // Handle status change for admin
+  const handleStatusChange = async (orderId, newStatus) => {
+    setUpdatingStatusOrderId(orderId);
+    try {
+      await ordersService.updateOrderStatus(orderId, newStatus);
+      
+      // Update order status locally
+      setAllOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+      
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: 'تم تحديث حالة الطلب بنجاح',
+        severity: 'success'
+      });
+      
+      // Refresh orders list from server
+      try {
+        await fetchOrders();
+      } catch (refreshError) {
+        console.error('Error refreshing orders after status change:', refreshError);
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      setSnackbar({
+        open: true,
+        message: `حدث خطأ أثناء تحديث حالة الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
+        severity: 'error'
+      });
+    } finally {
+      setUpdatingStatusOrderId(null);
     }
   };
 
@@ -1643,11 +1687,35 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                         </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip
-                            label={getStatusLabel(order.status)}
-                            color={getStatusColor(order.status)}
-                            size="small"
-                          />
+                            <Chip
+                              label={getStatusLabel(order.status)}
+                              color={getStatusColor(order.status)}
+                              size="small"
+                            />
+                            {user?.role === USER_ROLES.ADMIN && (
+                              <Tooltip title="تغيير الحالة">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => {
+                                    setOrderForStatusChange(order);
+                                    setStatusMenuAnchor(e.currentTarget);
+                                  }}
+                                  disabled={updatingStatusOrderId === order.id}
+                                  sx={{
+                                    padding: '4px',
+                                    '&:hover': {
+                                      backgroundColor: 'action.hover',
+                                    },
+                                  }}
+                                >
+                                  {updatingStatusOrderId === order.id ? (
+                                    <CircularProgress size={16} />
+                                  ) : (
+                                    <Edit fontSize="small" sx={{ fontSize: '16px' }} />
+                                  )}
+                                </IconButton>
+                              </Tooltip>
+                            )}
                             {order.needsPhotography && (
                               <Tooltip title="يحتاج تصوير">
                                 <CameraAlt sx={{ color: 'primary.main', fontSize: 20 }} />
@@ -1816,21 +1884,53 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                             >
                               عرض
                             </Button>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              color="primary"
-                              onClick={() => handleEditClick(order)}
-                              sx={{ 
-                                fontSize: '0.8rem',
-                                padding: '5px 10px',
-                                minWidth: 'auto',
-                                minHeight: '36px',
-                                height: '36px',
-                              }}
+                            <Tooltip 
+                              title={
+                                (() => {
+                                  const numericStatus = typeof order.status === 'number' 
+                                    ? order.status 
+                                    : parseInt(order.status, 10);
+                                  if (numericStatus === ORDER_STATUS.IN_PACKAGING) {
+                                    return "لا يمكن تعديل الطلب في مرحلة التغليف";
+                                  } else if (numericStatus === ORDER_STATUS.COMPLETED) {
+                                    return "لا يمكن تعديل الطلب المكتمل";
+                                  } else if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
+                                    return "لا يمكن تعديل الطلب المرسل لشركة التوصيل";
+                                  }
+                                  return "تعديل الطلب";
+                                })()
+                              } 
+                              arrow 
+                              placement="top"
                             >
-                              تعديل
-                            </Button>
+                              <span>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="primary"
+                                  onClick={() => handleEditClick(order)}
+                                  disabled={
+                                    (() => {
+                                      const numericStatus = typeof order.status === 'number' 
+                                        ? order.status 
+                                        : parseInt(order.status, 10);
+                                      return numericStatus === ORDER_STATUS.IN_PACKAGING ||
+                                             numericStatus === ORDER_STATUS.COMPLETED ||
+                                             numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY;
+                                    })()
+                                  }
+                                  sx={{ 
+                                    fontSize: '0.8rem',
+                                    padding: '5px 10px',
+                                    minWidth: 'auto',
+                                    minHeight: '36px',
+                                    height: '36px',
+                                  }}
+                                >
+                                  تعديل
+                                </Button>
+                              </span>
+                            </Tooltip>
                             <Button
                               size="small"
                               variant="contained"
@@ -1856,8 +1956,13 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                                   const numericStatus = typeof order.status === 'number' 
                                     ? order.status 
                                     : parseInt(order.status, 10);
-                                  if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
-                                    return "تم الإرسال لشركة التوصيل مسبقاً";
+                                  const hasDeliveryStatus = deliveryStatuses[order.id] && 
+                                                           deliveryStatuses[order.id] !== null;
+                                  const isSentToDelivery = order.isSentToDeliveryCompany === true;
+                                  if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY || 
+                                      hasDeliveryStatus || 
+                                      isSentToDelivery) {
+                                    return "تم الإرسال لشركة التوصيل";
                                   } else if (numericStatus !== ORDER_STATUS.COMPLETED) {
                                     return "الطلب يجب أن يكون مكتملاً لإرساله لشركة التوصيل";
                                   } else {
@@ -1877,9 +1982,15 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                                       const numericStatus = typeof order.status === 'number' 
                                         ? order.status 
                                         : parseInt(order.status, 10);
+                                      // التحقق من وجود shipment أو delivery status
+                                      const hasDeliveryStatus = deliveryStatuses[order.id] && 
+                                                               deliveryStatuses[order.id] !== null;
+                                      const isSentToDelivery = order.isSentToDeliveryCompany === true;
                                       // الزر مفعّل فقط عندما يكون الطلب مكتملاً وغير مرسل لشركة التوصيل
                                       return numericStatus !== ORDER_STATUS.COMPLETED || 
-                                             numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY;
+                                             numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ||
+                                             hasDeliveryStatus ||
+                                             isSentToDelivery;
                                     })()
                                   }
                                   sx={{
@@ -2873,6 +2984,60 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           )}
         </Box>
       </GlassDialog>
+
+      {/* Status Change Menu for Admin */}
+      <Menu
+        anchorEl={statusMenuAnchor}
+        open={Boolean(statusMenuAnchor)}
+        onClose={() => {
+          setStatusMenuAnchor(null);
+          setOrderForStatusChange(null);
+        }}
+        PaperProps={{
+          sx: {
+            minWidth: 200,
+            maxHeight: 400,
+          }
+        }}
+      >
+        {orderForStatusChange && Object.entries(ORDER_STATUS_LABELS).map(([statusValue, statusLabel]) => {
+          const numericStatus = parseInt(statusValue, 10);
+          const isSelected = orderForStatusChange.status === numericStatus;
+          return (
+            <MenuItem
+              key={statusValue}
+              selected={isSelected}
+              onClick={() => {
+                if (!isSelected) {
+                  handleStatusChange(orderForStatusChange.id, numericStatus);
+                }
+                setStatusMenuAnchor(null);
+                setOrderForStatusChange(null);
+              }}
+              sx={{
+                backgroundColor: isSelected ? 'action.selected' : 'transparent',
+                '&:hover': {
+                  backgroundColor: 'action.hover',
+                },
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                <Chip
+                  label={statusLabel}
+                  color={getStatusColor(numericStatus)}
+                  size="small"
+                  sx={{ height: '20px', fontSize: '0.7rem' }}
+                />
+                {isSelected && (
+                  <Box sx={{ marginLeft: 'auto', color: 'primary.main' }}>
+                    ✓
+                  </Box>
+                )}
+              </Box>
+            </MenuItem>
+          );
+        })}
+      </Menu>
 
       {/* Snackbar Toast */}
       <Snackbar

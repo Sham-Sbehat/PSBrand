@@ -1631,8 +1631,9 @@ const PackagerDashboard = () => {
                                         const numericStatus = typeof order.status === 'number' 
                                           ? order.status 
                                           : parseInt(order.status, 10);
-                                        if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY) {
-                                          return "تم الإرسال لشركة التوصيل مسبقاً";
+                                        const isSentToDelivery = order.isSentToDeliveryCompany === true;
+                                        if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY || isSentToDelivery) {
+                                          return "تم الإرسال لشركة التوصيل";
                                         } else if (numericStatus !== ORDER_STATUS.COMPLETED) {
                                           return "الطلب يجب أن يكون مكتملاً لإرساله لشركة التوصيل";
                                         } else {
@@ -1655,9 +1656,12 @@ const PackagerDashboard = () => {
                                             const numericStatus = typeof order.status === 'number' 
                                               ? order.status 
                                               : parseInt(order.status, 10);
+                                            // التحقق من وجود shipment
+                                            const isSentToDelivery = order.isSentToDeliveryCompany === true;
                                             // الزر مفعّل فقط عندما يكون الطلب مكتملاً وغير مرسل لشركة التوصيل
                                             return numericStatus !== ORDER_STATUS.COMPLETED || 
-                                                   numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY;
+                                                   numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ||
+                                                   isSentToDelivery;
                                           })()
                                         }
                                         sx={{ 
