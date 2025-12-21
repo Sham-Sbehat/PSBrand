@@ -3030,20 +3030,12 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           }
         }}
       >
-        {orderForStatusChange && [
-          ORDER_STATUS.PENDING_PRINTING,
-          ORDER_STATUS.IN_PRINTING,
-          ORDER_STATUS.IN_PREPARATION,
-          ORDER_STATUS.OPEN_ORDER,
-          ORDER_STATUS.IN_PACKAGING,
-          ORDER_STATUS.COMPLETED,
-          ORDER_STATUS.CANCELLED,
-        ].map((numericStatus) => {
+         {orderForStatusChange && Object.entries(ORDER_STATUS_LABELS).map(([statusValue, statusLabel]) => {
+          const numericStatus = parseInt(statusValue, 10);
           const isSelected = orderForStatusChange.status === numericStatus;
-          const statusLabel = ORDER_STATUS_LABELS[numericStatus];
           return (
             <MenuItem
-              key={numericStatus}
+              key={statusValue}
               selected={isSelected}
               onClick={() => {
                 if (!isSelected) {
