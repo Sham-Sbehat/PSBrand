@@ -84,14 +84,7 @@ const PackagerDashboard = () => {
   const [shippingNotes, setShippingNotes] = useState('');
   const [shippingLoading, setShippingLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [selectedDate, setSelectedDate] = useState(() => {
-    // Default to today's date in YYYY-MM-DD format
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  });
+  const [selectedDate, setSelectedDate] = useState(null); // No date filter by default
 
   const getFullUrl = (inputUrl) => {
     if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
@@ -147,17 +140,20 @@ const PackagerDashboard = () => {
   };
 
   // Fetch completed orders (Status 4: COMPLETED) - Tab 1
-  // Fetch orders from selected date
+  // Fetch orders from selected date (only if date is provided)
   const fetchCompletedOrders = async (showLoading = false, dateString = null) => {
     if (showLoading) {
       setLoading(true);
     }
     try {
-      // Use selected date or today's date
-      const dateToUse = dateString || selectedDate;
-      const [year, month, day] = dateToUse.split('-').map(Number);
-      // Create date in UTC at start of day to avoid timezone issues
-      const dateISOString = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0)).toISOString();
+      // Only use date if explicitly provided (from date picker)
+      // If dateString is null, fetch all completed orders without date filter
+      let dateISOString = null;
+      if (dateString) {
+        const [year, month, day] = dateString.split('-').map(Number);
+        // Create date in UTC at start of day to avoid timezone issues
+        dateISOString = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0)).toISOString();
+      }
       
       const completedOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.COMPLETED, dateISOString);
       setCompletedOrders(completedOrders || []);
@@ -179,6 +175,8 @@ const PackagerDashboard = () => {
     try {
       const response = await ordersService.getConfirmedDeliveryOrders();
       
+      console.log('GetConfirmedDeliveryOrders response:', response);
+      
       // Handle different response formats
       let orders = [];
       if (Array.isArray(response)) {
@@ -188,10 +186,26 @@ const PackagerDashboard = () => {
       } else if (response && Array.isArray(response.orders)) {
         orders = response.orders;
       } else if (response && typeof response === 'object') {
-        // If it's a single object, convert to array
-        orders = [response];
+        // Check if response has order properties directly (single order object)
+        // or if it's a wrapper object
+        if (response.id || response.orderId || response.orderNumber) {
+          // It's a single order object
+          orders = [response];
+        } else if (response.items && Array.isArray(response.items)) {
+          orders = response.items;
+        } else {
+          // Try to find any array property
+          const arrayKeys = Object.keys(response).filter(key => Array.isArray(response[key]));
+          if (arrayKeys.length > 0) {
+            orders = response[arrayKeys[0]];
+          } else {
+            // Last resort: convert single object to array
+            orders = [response];
+          }
+        }
       }
       
+      console.log('Processed orders:', orders);
       setConfirmedDeliveryOrders(orders);
     } catch (error) {
       console.error('Error fetching confirmed delivery orders:', error);
@@ -206,10 +220,11 @@ const PackagerDashboard = () => {
   // Handle date change for completed orders
   const handleDateChange = async (event) => {
     const newDateString = event.target.value;
-    if (!newDateString) return;
+    setSelectedDate(newDateString || null);
     
-    setSelectedDate(newDateString);
-    await fetchCompletedOrders(false, newDateString);
+    // If date is cleared, fetch all orders without date filter
+    // If date is selected, fetch orders for that date
+    await fetchCompletedOrders(false, newDateString || null);
   };
 
   const fetchOrders = async (showLoading = false) => {
@@ -1113,8 +1128,8 @@ const PackagerDashboard = () => {
                 <TextField
                   type="date"
                   size="small"
-                  label="اختر التاريخ"
-                  value={selectedDate}
+                  label="اختر التاريخ (اختياري)"
+                  value={selectedDate || ''}
                   onChange={handleDateChange}
                   onClick={(e) => {
                     // Open date picker when clicking anywhere on the input
@@ -1313,9 +1328,10 @@ const PackagerDashboard = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedRows.map(({ order, design, isFirstRow }) => {
+                      paginatedRows.map(({ order, design, isFirstRow }, index) => {
                       const status = getStatusLabel(order.status);
                       const designs = order.orderDesigns || [];
+                      const isEven = index % 2 === 0;
                       
                       // If no design (order has no designs)
                       if (!design) {
@@ -1324,6 +1340,22 @@ const PackagerDashboard = () => {
                             key={`order-${order.id}`}
                             hover
                             sx={{
+                              backgroundColor: currentTab === 0 
+                                ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
+                                : currentTab === 1
+                                ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
+                                : currentTab === 2
+                                ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
+                                : (isEven ? 'rgba(0, 0, 0, 0.02)' : 'transparent'),
+                              "&:hover": {
+                                backgroundColor: currentTab === 0 
+                                  ? 'rgba(75, 61, 49, 0.25)' 
+                                  : currentTab === 1
+                                  ? 'rgba(75, 61, 49, 0.25)'
+                                  : currentTab === 2
+                                  ? 'rgba(75, 61, 49, 0.25)'
+                                  : 'rgba(0, 0, 0, 0.05)',
+                              },
                               "&:last-child td, &:last-child th": { border: 0 },
                             }}
                           >
@@ -1401,6 +1433,22 @@ const PackagerDashboard = () => {
                             key={`order-${order.id}-design-${design.id || Math.random()}`}
                             hover
                             sx={{
+                              backgroundColor: currentTab === 0 
+                                ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
+                                : currentTab === 1
+                                ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
+                                : currentTab === 2
+                                ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
+                                : (isEven ? 'rgba(0, 0, 0, 0.02)' : 'transparent'),
+                              "&:hover": {
+                                backgroundColor: currentTab === 0 
+                                  ? 'rgba(75, 61, 49, 0.25)' 
+                                  : currentTab === 1
+                                  ? 'rgba(75, 61, 49, 0.25)'
+                                  : currentTab === 2
+                                  ? 'rgba(75, 61, 49, 0.25)'
+                                  : 'rgba(0, 0, 0, 0.05)',
+                              },
                               "&:last-child td, &:last-child th": { border: 0 },
                             }}
                           >
@@ -1778,9 +1826,48 @@ const PackagerDashboard = () => {
         subtitle={selectedOrder?.orderNumber}
         contentSx={{ padding: 0 }}
         actions={
-          <Button onClick={handleCloseDialog} variant="contained">
-            إغلاق
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {selectedOrder && (() => {
+              const numericStatus = typeof selectedOrder.status === 'number' 
+                ? selectedOrder.status 
+                : parseInt(selectedOrder.status, 10);
+              const isSentToDelivery = selectedOrder.isSentToDeliveryCompany === true;
+              const canSendToDelivery = numericStatus === ORDER_STATUS.COMPLETED && 
+                                       numericStatus !== ORDER_STATUS.SENT_TO_DELIVERY_COMPANY &&
+                                       !isSentToDelivery;
+              
+              return canSendToDelivery ? (
+                <Tooltip 
+                  title="إرسال الطلب لشركة التوصيل"
+                  arrow 
+                  placement="top"
+                >
+                  <span>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<LocalShipping />}
+                      onClick={() => {
+                        handleShippingClick(selectedOrder);
+                        handleCloseDialog();
+                      }}
+                      sx={{
+                        backgroundColor: '#2e7d32',
+                        '&:hover': {
+                          backgroundColor: '#1b5e20',
+                        },
+                      }}
+                    >
+                      إرسال لشركة التوصيل
+                    </Button>
+                  </span>
+                </Tooltip>
+              ) : null;
+            })()}
+            <Button onClick={handleCloseDialog} variant="contained">
+              إغلاق
+            </Button>
+          </Box>
         }
       >
         {selectedOrder && (

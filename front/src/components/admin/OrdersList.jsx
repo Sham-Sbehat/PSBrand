@@ -309,7 +309,11 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         // هذا يوفر الوقت للمستخدم ويقلل الحاجة للنقر على كل طلب
         ordersList.forEach(order => {
           // فقط إذا لم يتم جلبها من قبل وكانت مرسلة لشركة التوصيل
-          if (!deliveryStatuses[order.id] && !loadingDeliveryStatuses[order.id] && order.isSentToDeliveryCompany) {
+          // ولا تكون حالة التوصيل مغلقة
+          if (!deliveryStatuses[order.id] && 
+              !loadingDeliveryStatuses[order.id] && 
+              order.isSentToDeliveryCompany &&
+              !order.isDeliveryStatusClosed) {
             fetchDeliveryStatus(order.id, order).catch(() => {
               // تجاهل الأخطاء (404 للطلبات بدون شحنة)
             });

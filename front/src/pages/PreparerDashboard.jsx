@@ -2120,9 +2120,60 @@ const InfoItem = ({ label, value }) => (
         subtitle={selectedOrder?.orderNumber}
         contentSx={{ padding: 3, maxHeight: "85vh", overflowY: "auto" }}
         actions={
-          <Button onClick={handleCloseDetailsModal} variant="contained">
-            إغلاق
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {selectedOrder && (() => {
+              const numericStatus = typeof selectedOrder.status === 'number' 
+                ? selectedOrder.status 
+                : parseInt(selectedOrder.status, 10);
+              const canOpenOrder = numericStatus === ORDER_STATUS.IN_PREPARATION;
+              const canSendToPackaging = numericStatus === ORDER_STATUS.OPEN_ORDER;
+              
+              return (
+                <>
+                  {canOpenOrder && (
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={async () => {
+                        await handleOpenOrder(selectedOrder.id);
+                        handleCloseDetailsModal();
+                      }}
+                      sx={{
+                        backgroundColor: '#1976d2',
+                        '&:hover': {
+                          backgroundColor: '#1565c0',
+                        },
+                      }}
+                    >
+                      فتح الطلب
+                    </Button>
+                  )}
+                  {canSendToPackaging && (
+                    <Button
+                      variant="contained"
+                      color="success"
+                      onClick={async () => {
+                        await handleStatusUpdate(selectedOrder.id);
+                        handleCloseDetailsModal();
+                      }}
+                      disabled={updatingOrderId === selectedOrder.id}
+                      sx={{
+                        backgroundColor: '#2e7d32',
+                        '&:hover': {
+                          backgroundColor: '#1b5e20',
+                        },
+                      }}
+                    >
+                      {updatingOrderId === selectedOrder.id ? 'جاري التحميل...' : 'إرسال للتغليف'}
+                    </Button>
+                  )}
+                </>
+              );
+            })()}
+            <Button onClick={handleCloseDetailsModal} variant="contained">
+              إغلاق
+            </Button>
+          </Box>
         }
       >
         {selectedOrder && (
