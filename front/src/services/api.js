@@ -336,6 +336,12 @@ export const ordersService = {
     const response = await api.patch(`/Orders/${orderId}/Notes`, { notes });
     return response.data;
   },
+
+  // Get confirmed delivery orders
+  getConfirmedDeliveryOrders: async () => {
+    const response = await api.get(`/Orders/GetConfirmedDeliveryOrders`);
+    return response.data;
+  },
 };
 
 // Order Status Service

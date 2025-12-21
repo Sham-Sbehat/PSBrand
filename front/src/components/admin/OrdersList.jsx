@@ -827,6 +827,9 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         case ORDER_STATUS.COMPLETED:
           statusUpdatePromise = orderStatusService.setCompleted(orderId);
           break;
+        case ORDER_STATUS.SENT_TO_DELIVERY_COMPANY:
+          statusUpdatePromise = orderStatusService.setSentToDeliveryCompany(orderId);
+          break;
         case ORDER_STATUS.CANCELLED:
           statusUpdatePromise = orderStatusService.setCancelled(orderId);
           break;

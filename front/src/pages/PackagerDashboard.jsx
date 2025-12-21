@@ -62,6 +62,7 @@ const PackagerDashboard = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const [packagedOrders, setPackagedOrders] = useState([]); // Tab 0: Status 8 (IN_PACKAGING)
   const [completedOrders, setCompletedOrders] = useState([]); // Tab 1: Status 4 (COMPLETED)
+  const [confirmedDeliveryOrders, setConfirmedDeliveryOrders] = useState([]); // Tab 2: Confirmed Delivery Orders
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // Can be string or array
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -170,6 +171,38 @@ const PackagerDashboard = () => {
     }
   };
 
+  // Fetch confirmed delivery orders - Tab 2
+  const fetchConfirmedDeliveryOrders = async (showLoading = false) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+    try {
+      const response = await ordersService.getConfirmedDeliveryOrders();
+      
+      // Handle different response formats
+      let orders = [];
+      if (Array.isArray(response)) {
+        orders = response;
+      } else if (response && Array.isArray(response.data)) {
+        orders = response.data;
+      } else if (response && Array.isArray(response.orders)) {
+        orders = response.orders;
+      } else if (response && typeof response === 'object') {
+        // If it's a single object, convert to array
+        orders = [response];
+      }
+      
+      setConfirmedDeliveryOrders(orders);
+    } catch (error) {
+      console.error('Error fetching confirmed delivery orders:', error);
+      setConfirmedDeliveryOrders([]);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
+
   // Handle date change for completed orders
   const handleDateChange = async (event) => {
     const newDateString = event.target.value;
@@ -182,7 +215,8 @@ const PackagerDashboard = () => {
   const fetchOrders = async (showLoading = false) => {
     await Promise.all([
       fetchPackagedOrders(showLoading),
-      fetchCompletedOrders(false) // Don't show loading for second call
+      fetchCompletedOrders(false), // Don't show loading for second call
+      fetchConfirmedDeliveryOrders(false) // Don't show loading for third call
     ]);
   };
 
@@ -835,12 +869,15 @@ const PackagerDashboard = () => {
 
   // Filter orders based on current tab
   const getFilteredOrders = () => {
-    const orders = currentTab === 0 ? packagedOrders : completedOrders;
+    const orders = currentTab === 0 ? packagedOrders : currentTab === 1 ? completedOrders : confirmedDeliveryOrders;
     const search = currentTab === 0 ? searchQueryPackaged : searchQuery;
     
-    if (!search.trim()) return orders;
+    // Ensure orders is always an array
+    const ordersArray = Array.isArray(orders) ? orders : [];
     
-    return orders.filter((order) => {
+    if (!search.trim()) return ordersArray;
+    
+    return ordersArray.filter((order) => {
       const clientName = order.client?.name || "";
       const clientPhone = order.client?.phone || "";
       const orderNumber = order.orderNumber || `#${order.id}` || "";
@@ -907,8 +944,12 @@ const PackagerDashboard = () => {
   }, []);
 
 
-  const handleTabChange = (event, newValue) => {
+  const handleTabChange = async (event, newValue) => {
     setCurrentTab(newValue);
+    // Fetch confirmed delivery orders when switching to tab 2
+    if (newValue === 2) {
+      await fetchConfirmedDeliveryOrders(true);
+    }
   };
 
     return (
@@ -1028,6 +1069,19 @@ const PackagerDashboard = () => {
                   },
                 }}
               />
+              <Tab
+                label={`طلبات التوصيل المؤكدة (${confirmedDeliveryOrders.length})`}
+                icon={<LocalShipping />}
+                iconPosition="start"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "1rem",
+                  color: calmPalette.textMuted,
+                  "&.Mui-selected": {
+                    color: "#f7f2ea",
+                  },
+                }}
+              />
             </Tabs>
           </Box>
 
@@ -1042,10 +1096,14 @@ const PackagerDashboard = () => {
             }}
           >
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              <Inventory sx={{ verticalAlign: "middle", mr: 1 }} />
+              {currentTab === 0 && <Inventory sx={{ verticalAlign: "middle", mr: 1 }} />}
+              {currentTab === 1 && <CheckCircle sx={{ verticalAlign: "middle", mr: 1 }} />}
+              {currentTab === 2 && <LocalShipping sx={{ verticalAlign: "middle", mr: 1 }} />}
               {currentTab === 0 
                 ? `في مرحلة التغليف (${filteredOrders.length})`
-                : `الطلبات المكتملة (${filteredOrders.length})`
+                : currentTab === 1
+                ? `الطلبات المكتملة (${filteredOrders.length})`
+                : `طلبات التوصيل المؤكدة (${filteredOrders.length})`
               }
             </Typography>
 
