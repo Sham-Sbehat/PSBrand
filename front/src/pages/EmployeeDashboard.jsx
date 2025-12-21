@@ -223,7 +223,7 @@ const EmployeeDashboard = () => {
     periodDescription: ''
   });
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortByDate, setSortByDate] = useState('createdAt'); // 'createdAt' or 'orderDate'
+  const [sortByDate, setSortByDate] = useState('orderDate'); // 'orderDate' = تاريخ الإنشاء, 'createdAt' = تاريخ الطلب
 
   const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
   const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
@@ -1427,8 +1427,8 @@ const EmployeeDashboard = () => {
                 }}
                 sx={{ minWidth: 180 }}
               >
-                <MenuItem value="createdAt">تاريخ الإنشاء</MenuItem>
-                <MenuItem value="orderDate">تاريخ الطلب</MenuItem>
+                <MenuItem value="orderDate">تاريخ ادخال الطلب</MenuItem>
+                <MenuItem value="createdAt">تاريخ الطلب</MenuItem>
               </TextField>
             </Box>
             {searchQuery && (
