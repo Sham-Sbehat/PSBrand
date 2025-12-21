@@ -806,7 +806,37 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
   const handleStatusChange = async (orderId, newStatus) => {
     setUpdatingStatusOrderId(orderId);
     try {
-      await ordersService.updateOrderStatus(orderId, newStatus);
+      // Use specific API for each status
+      let statusUpdatePromise;
+      switch (newStatus) {
+        case ORDER_STATUS.PENDING_PRINTING:
+          statusUpdatePromise = orderStatusService.setPendingPrinting(orderId);
+          break;
+        case ORDER_STATUS.IN_PRINTING:
+          statusUpdatePromise = orderStatusService.setInPrinting(orderId);
+          break;
+        case ORDER_STATUS.IN_PREPARATION:
+          statusUpdatePromise = orderStatusService.setInPreparation(orderId);
+          break;
+        case ORDER_STATUS.OPEN_ORDER:
+          statusUpdatePromise = orderStatusService.setOpenOrder(orderId);
+          break;
+        case ORDER_STATUS.IN_PACKAGING:
+          statusUpdatePromise = orderStatusService.setInPackaging(orderId);
+          break;
+        case ORDER_STATUS.COMPLETED:
+          statusUpdatePromise = orderStatusService.setCompleted(orderId);
+          break;
+        case ORDER_STATUS.CANCELLED:
+          statusUpdatePromise = orderStatusService.setCancelled(orderId);
+          break;
+        default:
+          // Fallback to general API if status not found
+          statusUpdatePromise = ordersService.updateOrderStatus(orderId, newStatus);
+          break;
+      }
+      
+      await statusUpdatePromise;
       
       // Update order status locally
       setAllOrders(prevOrders => 
@@ -3000,12 +3030,20 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           }
         }}
       >
-        {orderForStatusChange && Object.entries(ORDER_STATUS_LABELS).map(([statusValue, statusLabel]) => {
-          const numericStatus = parseInt(statusValue, 10);
+        {orderForStatusChange && [
+          ORDER_STATUS.PENDING_PRINTING,
+          ORDER_STATUS.IN_PRINTING,
+          ORDER_STATUS.IN_PREPARATION,
+          ORDER_STATUS.OPEN_ORDER,
+          ORDER_STATUS.IN_PACKAGING,
+          ORDER_STATUS.COMPLETED,
+          ORDER_STATUS.CANCELLED,
+        ].map((numericStatus) => {
           const isSelected = orderForStatusChange.status === numericStatus;
+          const statusLabel = ORDER_STATUS_LABELS[numericStatus];
           return (
             <MenuItem
-              key={statusValue}
+              key={numericStatus}
               selected={isSelected}
               onClick={() => {
                 if (!isSelected) {

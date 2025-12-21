@@ -340,6 +340,11 @@ export const ordersService = {
 
 // Order Status Service
 export const orderStatusService = {
+  setPendingPrinting: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetPendingPrinting/${orderId}`);
+    return response.data;
+  },
+
   setInPrinting: async (orderId) => {
     const response = await api.post(`/OrderStatus/SetInPrinting/${orderId}`);
     return response.data;
@@ -347,6 +352,11 @@ export const orderStatusService = {
 
   setInPreparation: async (orderId) => {
     const response = await api.post(`/OrderStatus/SetInPreparation/${orderId}`);
+    return response.data;
+  },
+
+  setOpenOrder: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetOpenOrder/${orderId}`);
     return response.data;
   },
 
@@ -360,20 +370,13 @@ export const orderStatusService = {
     return response.data;
   },
 
-  setCancelled: async (orderId) => {
-    const response = await api.post(`/OrderStatus/SetCancelled/${orderId}`);
-    return response.data;
-  },
-
-  // New: mark order as OpenOrder
-  setOpenOrder: async (orderId) => {
-    const response = await api.post(`/OrderStatus/SetOpenOrder/${orderId}`);
-    return response.data;
-  },
-
-  // New: mark order as sent to delivery company
   setSentToDeliveryCompany: async (orderId) => {
     const response = await api.post(`/OrderStatus/SetSentToDeliveryCompany/${orderId}`);
+    return response.data;
+  },
+
+  setCancelled: async (orderId) => {
+    const response = await api.post(`/OrderStatus/SetCancelled/${orderId}`);
     return response.data;
   },
 };
