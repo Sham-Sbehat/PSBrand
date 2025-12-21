@@ -23,6 +23,7 @@ import {
   CircularProgress,
   Divider,
   Tooltip,
+  MenuItem,
 } from "@mui/material";
 import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf, Search, WhatsApp as WhatsAppIcon, CameraAlt, History, ArrowForward } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -222,6 +223,7 @@ const EmployeeDashboard = () => {
     periodDescription: ''
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortByDate, setSortByDate] = useState('createdAt'); // 'createdAt' or 'orderDate'
 
   const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
   const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
@@ -1346,16 +1348,24 @@ const EmployeeDashboard = () => {
                 marginBottom: 2,
                 marginTop: 2,
                 position: 'relative',
-                width: '30%',
-                minWidth: 400,
+                display: 'flex',
+                gap: 2,
+                alignItems: 'center',
+                flexWrap: 'wrap',
               }}
             >
-              <TextField
-                fullWidth
-                size="medium"
-                placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+              <Box
+                sx={{
+                  width: '30%',
+                  minWidth: 400,
+                }}
+              >
+                <TextField
+                  fullWidth
+                  size="medium"
+                  placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 InputProps={{
                   startAdornment: (
                     <Box
@@ -1406,25 +1416,40 @@ const EmployeeDashboard = () => {
                   },
                 }}
               />
-              {searchQuery && (
-                <Box
-                  sx={{
-                    marginTop: 1.5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    backgroundColor: calmPalette.primary + '15',
-                    padding: '8px 16px',
-                    borderRadius: 2,
-                    width: 'fit-content',
-                    border: `1px solid ${calmPalette.primary}30`,
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      backgroundColor: calmPalette.primary + '25',
-                      transform: 'translateX(4px)',
-                    },
-                  }}
-                >
+              </Box>
+              <TextField
+                select
+                size="small"
+                label="ترتيب حسب التاريخ"
+                value={sortByDate}
+                onChange={(e) => {
+                  setSortByDate(e.target.value);
+                }}
+                sx={{ minWidth: 180 }}
+              >
+                <MenuItem value="createdAt">تاريخ الإنشاء</MenuItem>
+                <MenuItem value="orderDate">تاريخ الطلب</MenuItem>
+              </TextField>
+            </Box>
+            {searchQuery && (
+              <Box
+                sx={{
+                  marginTop: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  backgroundColor: calmPalette.primary + '15',
+                  padding: '8px 16px',
+                  borderRadius: 2,
+                  width: 'fit-content',
+                  border: `1px solid ${calmPalette.primary}30`,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    backgroundColor: calmPalette.primary + '25',
+                    transform: 'translateX(4px)',
+                  },
+                }}
+              >
                   <Search sx={{ fontSize: 18, color: calmPalette.primary }} />
                   <Typography
                     variant="body2"
@@ -1448,7 +1473,6 @@ const EmployeeDashboard = () => {
                   </Typography>
                 </Box>
               )}
-            </Box>
             <TableContainer
               sx={{
                 borderRadius: 3,
@@ -1490,7 +1514,21 @@ const EmployeeDashboard = () => {
                         })
                       : ordersList;
                     
-                    if (filteredOrders.length === 0) {
+                    // Sort by date (newest first) - use selected date field (createdAt or orderDate)
+                    const sortedOrders = [...filteredOrders].sort((a, b) => {
+                      const dateA = sortByDate === 'orderDate' 
+                        ? (a.orderDate || a.createdAt || '')
+                        : (a.createdAt || a.orderDate || '');
+                      const dateB = sortByDate === 'orderDate'
+                        ? (b.orderDate || b.createdAt || '')
+                        : (b.createdAt || b.orderDate || '');
+                      if (!dateA && !dateB) return 0;
+                      if (!dateA) return 1;
+                      if (!dateB) return -1;
+                      return new Date(dateB) - new Date(dateA); // Newest first
+                    });
+                    
+                    if (sortedOrders.length === 0) {
                       return (
                         <TableRow>
                           <TableCell colSpan={8} align="center">
@@ -1504,7 +1542,7 @@ const EmployeeDashboard = () => {
                       );
                     }
                     
-                    return filteredOrders.map((order) => {
+                    return sortedOrders.map((order) => {
                       const status = getStatusLabel(order.status);
                       return (
                         <TableRow
