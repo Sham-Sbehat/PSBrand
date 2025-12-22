@@ -28,7 +28,7 @@ import {
 import { Logout, Assignment, CheckCircle, Pending, Close, Visibility, Note, Edit, Save, Image as ImageIcon, PictureAsPdf, Search, WhatsApp as WhatsAppIcon, CameraAlt, History, ArrowForward } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService, shipmentsService } from "../services/api";
+import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS } from "../constants";
 import { openWhatsApp } from "../utils";
@@ -137,29 +137,7 @@ const formatCurrency = (value) => {
   })} ₪`;
 };
 
-const getFabricLabel = (fabricType) => {
-  if (fabricType === null || fabricType === undefined) return "-";
-  const numeric = typeof fabricType === "number" ? fabricType : parseInt(fabricType, 10);
-  return FABRIC_TYPE_LABELS[numeric] || fabricType || "-";
-};
-
-const getSizeLabel = (size) => {
-  if (size === null || size === undefined) return "-";
-  if (typeof size === "number") {
-    return SIZE_LABELS[size] || size;
-  }
-  const numeric = parseInt(size, 10);
-  if (!Number.isNaN(numeric) && SIZE_LABELS[numeric]) {
-    return SIZE_LABELS[numeric];
-  }
-  return size;
-};
-
-const getColorLabel = (color) => {
-  if (color === null || color === undefined) return "-";
-  const numeric = typeof color === "number" ? color : parseInt(color, 10);
-  return COLOR_LABELS[numeric] || color || "-";
-};
+// getFabricLabel, getSizeLabel, and getColorLabel are now defined inside component to access API data
 
 const InfoItem = ({ label, value }) => (
   <Box
@@ -201,6 +179,12 @@ const EmployeeDashboard = () => {
   const [imageDialogOpen, setImageDialogOpen] = useState(false); // Image dialog state
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState(null);
+  const [colors, setColors] = useState([]);
+  const [loadingColors, setLoadingColors] = useState(false);
+  const [sizes, setSizes] = useState([]);
+  const [loadingSizes, setLoadingSizes] = useState(false);
+  const [fabricTypes, setFabricTypes] = useState([]);
+  const [loadingFabricTypes, setLoadingFabricTypes] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [openDeliveryStatusDialog, setOpenDeliveryStatusDialog] = useState(false);
   const [deliveryStatusData, setDeliveryStatusData] = useState(null);
@@ -261,6 +245,149 @@ const EmployeeDashboard = () => {
     selectedOrder?.employeeName ||
     selectedOrder?.salesRep?.name ||
     "-";
+
+  // Load colors from API
+  const loadColors = async () => {
+    console.log('🔄 [EmployeeDashboard] Loading colors from API...');
+    setLoadingColors(true);
+    try {
+      const colorsData = await colorsService.getAllColors();
+      console.log('✅ [EmployeeDashboard] Colors loaded:', colorsData);
+      setColors(Array.isArray(colorsData) ? colorsData : []);
+    } catch (error) {
+      console.error('❌ [EmployeeDashboard] Error loading colors:', error);
+      setColors([]);
+    } finally {
+      setLoadingColors(false);
+    }
+  };
+
+  // Load sizes from API
+  const loadSizes = async () => {
+    console.log('🔄 [EmployeeDashboard] Loading sizes from API...');
+    setLoadingSizes(true);
+    try {
+      const sizesData = await sizesService.getAllSizes();
+      console.log('✅ [EmployeeDashboard] Sizes loaded:', sizesData);
+      setSizes(Array.isArray(sizesData) ? sizesData : []);
+    } catch (error) {
+      console.error('❌ [EmployeeDashboard] Error loading sizes:', error);
+      setSizes([]);
+    } finally {
+      setLoadingSizes(false);
+    }
+  };
+
+  // Load fabric types from API
+  const loadFabricTypes = async () => {
+    console.log('🔄 [EmployeeDashboard] Loading fabric types from API...');
+    setLoadingFabricTypes(true);
+    try {
+      const fabricTypesData = await fabricTypesService.getAllFabricTypes();
+      console.log('✅ [EmployeeDashboard] Fabric types loaded:', fabricTypesData);
+      setFabricTypes(Array.isArray(fabricTypesData) ? fabricTypesData : []);
+    } catch (error) {
+      console.error('❌ [EmployeeDashboard] Error loading fabric types:', error);
+      setFabricTypes([]);
+    } finally {
+      setLoadingFabricTypes(false);
+    }
+  };
+
+  // Helper function to convert color ID to nameAr from API
+  const getColorLabel = (color) => {
+    if (color === null || color === undefined) return "-";
+    
+    // Convert to number if string
+    const colorId = typeof color === 'string' && !isNaN(color) && color !== '' 
+      ? Number(color) 
+      : (typeof color === 'number' ? color : null);
+    
+    if (colorId === null) {
+      // If it's already a name (string), return it
+      return color;
+    }
+    
+    // Try to find color from API by ID - mapping on ID
+    if (colors.length > 0) {
+      const colorObj = colors.find(c => c.id === colorId);
+      if (colorObj) {
+        // Return nameAr (Arabic name) from API
+        return colorObj.nameAr || colorObj.name || "-";
+      }
+    }
+    
+    // Fallback to static labels if API colors not loaded yet
+    return COLOR_LABELS[colorId] || color || "-";
+  };
+
+  // Helper function to convert size ID to nameAr from API
+  const getSizeLabel = (size) => {
+    if (size === null || size === undefined) return "-";
+    
+    // Convert to number if string
+    const sizeId = typeof size === 'string' && !isNaN(size) && size !== '' 
+      ? Number(size) 
+      : (typeof size === 'number' ? size : null);
+    
+    if (sizeId === null) {
+      // If it's already a name (string), return it
+      return size;
+    }
+    
+    // Try to find size from API by ID - mapping on ID
+    if (sizes.length > 0) {
+      const sizeObj = sizes.find(s => s.id === sizeId);
+      if (sizeObj) {
+        // Return nameAr (Arabic name) from API
+        return sizeObj.nameAr || sizeObj.name || "-";
+      }
+    }
+    
+    // Fallback to static labels if API sizes not loaded yet
+    if (typeof size === 'number') {
+      return SIZE_LABELS[size] || size;
+    }
+    const numeric = parseInt(size, 10);
+    if (!Number.isNaN(numeric) && SIZE_LABELS[numeric]) {
+      return SIZE_LABELS[numeric];
+    }
+    return size;
+  };
+
+  // Helper function to convert fabric type ID to nameAr from API
+  const getFabricLabel = (fabricType) => {
+    if (fabricType === null || fabricType === undefined) return "-";
+    
+    // Convert to number if string
+    const fabricTypeId = typeof fabricType === 'string' && !isNaN(fabricType) && fabricType !== '' 
+      ? Number(fabricType) 
+      : (typeof fabricType === 'number' ? fabricType : null);
+    
+    if (fabricTypeId === null) {
+      // If it's already a name (string), return it
+      return fabricType;
+    }
+    
+    // Try to find fabric type from API by ID - mapping on ID
+    if (fabricTypes.length > 0) {
+      const fabricTypeObj = fabricTypes.find(f => f.id === fabricTypeId);
+      if (fabricTypeObj) {
+        // Return nameAr (Arabic name) from API
+        return fabricTypeObj.nameAr || fabricTypeObj.name || "-";
+      }
+    }
+    
+    // Fallback to static labels if API fabric types not loaded yet
+    const numeric = typeof fabricType === 'number' ? fabricType : parseInt(fabricType, 10);
+    return FABRIC_TYPE_LABELS[numeric] || fabricType || "-";
+  };
+
+  useEffect(() => {
+    loadColors();
+    loadSizes();
+    loadFabricTypes();
+  }, []);
 
   // Load cities and areas for modification display
   useEffect(() => {
@@ -1289,7 +1416,7 @@ const EmployeeDashboard = () => {
                         gutterBottom
                       >
                         <strong>المقاس:</strong> {order.size} |{" "}
-                        <strong>اللون:</strong> {order.color}
+                        <strong>اللون:</strong> {getColorLabel(order.color)}
                       </Typography>
                       <Typography
                         variant="body2"

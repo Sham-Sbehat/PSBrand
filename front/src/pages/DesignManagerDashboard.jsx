@@ -45,7 +45,7 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService, shipmentsService } from "../services/api";
+import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, USER_ROLES } from "../constants";
@@ -77,6 +77,12 @@ const DesignManagerDashboard = () => {
   const MAX_CONCURRENT_LOADS = 3; // Maximum concurrent image loads
   const [page, setPage] = useState(0); // Current page for pagination
   const [rowsPerPage, setRowsPerPage] = useState(5); // Number of rows per page
+  const [colors, setColors] = useState([]);
+  const [loadingColors, setLoadingColors] = useState(false);
+  const [sizes, setSizes] = useState([]);
+  const [loadingSizes, setLoadingSizes] = useState(false);
+  const [fabricTypes, setFabricTypes] = useState([]);
+  const [loadingFabricTypes, setLoadingFabricTypes] = useState(false);
 
   const getFullUrl = (inputUrl) => {
     if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
@@ -154,6 +160,13 @@ const DesignManagerDashboard = () => {
       fetchInPrintingOrders(false) // Don't show loading for second call
     ]);
   };
+
+  // Load colors, sizes, and fabric types on component mount
+  useEffect(() => {
+    loadColors();
+    loadSizes();
+    loadFabricTypes();
+  }, []);
 
   useEffect(() => {
     fetchOrders(true); // Show loading on initial fetch only
@@ -668,8 +681,66 @@ const DesignManagerDashboard = () => {
     }
   };
 
+  // Load colors from API
+  const loadColors = async () => {
+    setLoadingColors(true);
+    try {
+      const colorsData = await colorsService.getAllColors();
+      setColors(Array.isArray(colorsData) ? colorsData : []);
+    } catch (error) {
+      console.error('Error loading colors:', error);
+      setColors([]);
+    } finally {
+      setLoadingColors(false);
+    }
+  };
+
+  // Load sizes from API
+  const loadSizes = async () => {
+    setLoadingSizes(true);
+    try {
+      const sizesData = await sizesService.getAllSizes();
+      setSizes(Array.isArray(sizesData) ? sizesData : []);
+    } catch (error) {
+      console.error('Error loading sizes:', error);
+      setSizes([]);
+    } finally {
+      setLoadingSizes(false);
+    }
+  };
+
+  // Load fabric types from API
+  const loadFabricTypes = async () => {
+    setLoadingFabricTypes(true);
+    try {
+      const fabricTypesData = await fabricTypesService.getAllFabricTypes();
+      setFabricTypes(Array.isArray(fabricTypesData) ? fabricTypesData : []);
+    } catch (error) {
+      console.error('Error loading fabric types:', error);
+      setFabricTypes([]);
+    } finally {
+      setLoadingFabricTypes(false);
+    }
+  };
+
   const getFabricLabel = (fabricType) => {
     if (fabricType === null || fabricType === undefined) return "-";
+    
+    const fabricTypeId = typeof fabricType === 'string' && !isNaN(fabricType) && fabricType !== '' 
+      ? Number(fabricType) 
+      : (typeof fabricType === 'number' ? fabricType : null);
+    
+    if (fabricTypeId === null) {
+      return fabricType;
+    }
+    
+    if (fabricTypes.length > 0) {
+      const fabricTypeObj = fabricTypes.find(f => f.id === fabricTypeId);
+      if (fabricTypeObj) {
+        return fabricTypeObj.nameAr || fabricTypeObj.name || "-";
+      }
+    }
+    
     const numeric = typeof fabricType === "number" ? fabricType : parseInt(fabricType, 10);
     return FABRIC_TYPE_LABELS[numeric] || fabricType || "-";
   };
@@ -677,6 +748,22 @@ const DesignManagerDashboard = () => {
   const getSizeLabel = (size) => {
     if (size === null || size === undefined) return "-";
     if (typeof size === "string" && !size.trim()) return "-";
+    
+    const sizeId = typeof size === 'string' && !isNaN(size) && size !== '' 
+      ? Number(size) 
+      : (typeof size === 'number' ? size : null);
+    
+    if (sizeId === null) {
+      return size;
+    }
+    
+    if (sizes.length > 0) {
+      const sizeObj = sizes.find(s => s.id === sizeId);
+      if (sizeObj) {
+        return sizeObj.nameAr || sizeObj.name || "-";
+      }
+    }
+    
     if (typeof size === "number") {
       return SIZE_LABELS[size] || size;
     }
@@ -689,6 +776,22 @@ const DesignManagerDashboard = () => {
 
   const getColorLabel = (color) => {
     if (color === null || color === undefined) return "-";
+    
+    const colorId = typeof color === 'string' && !isNaN(color) && color !== '' 
+      ? Number(color) 
+      : (typeof color === 'number' ? color : null);
+    
+    if (colorId === null) {
+      return color;
+    }
+    
+    if (colors.length > 0) {
+      const colorObj = colors.find(c => c.id === colorId);
+      if (colorObj) {
+        return colorObj.nameAr || colorObj.name || "-";
+      }
+    }
+    
     const numeric = typeof color === "number" ? color : parseInt(color, 10);
     return COLOR_LABELS[numeric] || color || "-";
   };

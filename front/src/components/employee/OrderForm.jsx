@@ -322,7 +322,7 @@ const OrderForm = ({
             id: itemIdx + 1,
             serverId: item?.id || null,
             fabricType: getFabricLabel(item?.fabricType),
-            color: getColorLabel(item?.color),
+            color: item?.color || "", // Keep as ID, we'll convert to nameAr only for display
             size: getSizeLabel(item?.size),
             quantity: item?.quantity || 1,
             unitPrice: item?.unitPrice || 0,
@@ -472,12 +472,14 @@ const OrderForm = ({
   };
 
   const loadColors = async () => {
+    console.log('🔄 Loading colors from API...');
     setLoadingColors(true);
     try {
       const colorsData = await colorsService.getAllColors();
+      console.log('✅ Colors loaded from API:', colorsData);
       setColors(Array.isArray(colorsData) ? colorsData : []);
     } catch (error) {
-      console.error('Error loading colors:', error);
+      console.error('❌ Error loading colors:', error);
       // Fallback to static colors if API fails
       setColors([]);
     } finally {
@@ -486,8 +488,44 @@ const OrderForm = ({
   };
 
   useEffect(() => {
+    console.log('🔄 useEffect triggered, loading colors...');
     loadColors();
   }, []);
+
+  // Helper function to convert color ID to nameAr from API (available throughout component)
+  const getColorLabel = (value) => {
+    if (value === null || value === undefined || value === "") return "";
+    
+    // Convert value to number if it's a string number
+    const colorId = typeof value === 'string' && !isNaN(value) && value !== '' 
+      ? Number(value) 
+      : (typeof value === 'number' ? value : null);
+    
+    if (colorId === null) {
+      // If value is already a name (string), return it as is
+      return value;
+    }
+    
+    // Try to find color from API by ID - mapping on ID
+    console.log('🔍 [getColorLabel] Looking for color ID:', colorId, 'Colors array length:', colors.length);
+    if (colors.length > 0) {
+      const color = colors.find(c => c.id === colorId);
+      console.log('🎨 [getColorLabel] Found color:', color);
+      if (color) {
+        // Return nameAr (Arabic name) from API
+        const result = color.nameAr || color.name || "";
+        console.log('✅ [getColorLabel] Returning:', result);
+        return result;
+      }
+    } else {
+      console.log('⚠️ [getColorLabel] Colors array is empty, API might not be loaded yet');
+    }
+    
+    // Fallback to static labels if API colors not loaded yet
+    const fallback = COLOR_LABELS[colorId] || value || "";
+    console.log('⚠️ [getColorLabel] Using fallback:', fallback);
+    return fallback;
+  };
 
   // Handle customer form submission
   const onCustomerSubmit = async (data) => {
@@ -2788,7 +2826,7 @@ const OrderForm = ({
                             <FormControl fullWidth>
                               <InputLabel>اللون</InputLabel>
                               <Select
-                                value={item.color}
+                                value={getColorLabel(item.color)}
                                 label="اللون"
                                 onChange={(e) =>
                                   updateOrderItem(
