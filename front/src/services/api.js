@@ -235,7 +235,7 @@ export const ordersService = {
     console.log('Attempting to delete order with ID:', id);
     try {
       // Swagger shows: DELETE /api/Orders/DeleteOrder{id} (without / before number)
-      const response = await api.delete(`/Orders/DeleteOrder/${id}`);
+      const response = await api.delete(`/Orders/DeleteOrder${id}`);
       console.log('Delete response status:', response.status);
       console.log('Delete response:', response);
       // 204 No Content has no response body
@@ -452,12 +452,99 @@ export const clientsService = {
   },
 
   updateClient: async (id, clientData) => {
-    const response = await api.put(`/Client/UpdateClient/${id}`, clientData);
+    // Correct endpoint format: /Client/UpdateClient{id} (without / before id)
+    const response = await api.put(`/Client/UpdateClient${id}`, clientData);
     return response.data;
   },
 
   deleteClient: async (id) => {
-    const response = await api.delete(`/Client/DeleteClient/${id}`);
+    // Correct endpoint format: /Client/DeleteClient{id} (without / before id)
+    const response = await api.delete(`/Client/DeleteClient${id}`);
+    // 204 No Content has no response body
+    return { success: true, status: response.status };
+  },
+};
+
+// Colors Service
+export const colorsService = {
+  getAllColors: async () => {
+    const response = await api.get("/Colors");
+    return response.data;
+  },
+
+  getColorById: async (id) => {
+    const response = await api.get(`/Colors/${id}`);
+    return response.data;
+  },
+
+  createColor: async (colorData) => {
+    const response = await api.post("/Colors", colorData);
+    return response.data;
+  },
+
+  updateColor: async (id, colorData) => {
+    const response = await api.put(`/Colors/${id}`, colorData);
+    return response.data;
+  },
+
+  deleteColor: async (id) => {
+    const response = await api.delete(`/Colors/${id}`);
+    return response.data;
+  },
+};
+
+// Sizes Service
+export const sizesService = {
+  getAllSizes: async () => {
+    const response = await api.get("/Sizes");
+    return response.data;
+  },
+
+  getSizeById: async (id) => {
+    const response = await api.get(`/Sizes/${id}`);
+    return response.data;
+  },
+
+  createSize: async (sizeData) => {
+    const response = await api.post("/Sizes", sizeData);
+    return response.data;
+  },
+
+  updateSize: async (id, sizeData) => {
+    const response = await api.put(`/Sizes/${id}`, sizeData);
+    return response.data;
+  },
+
+  deleteSize: async (id) => {
+    const response = await api.delete(`/Sizes/${id}`);
+    return response.data;
+  },
+};
+
+// Fabric Types Service
+export const fabricTypesService = {
+  getAllFabricTypes: async () => {
+    const response = await api.get("/FabricTypes");
+    return response.data;
+  },
+
+  getFabricTypeById: async (id) => {
+    const response = await api.get(`/FabricTypes/${id}`);
+    return response.data;
+  },
+
+  createFabricType: async (fabricTypeData) => {
+    const response = await api.post("/FabricTypes", fabricTypeData);
+    return response.data;
+  },
+
+  updateFabricType: async (id, fabricTypeData) => {
+    const response = await api.put(`/FabricTypes/${id}`, fabricTypeData);
+    return response.data;
+  },
+
+  deleteFabricType: async (id) => {
+    const response = await api.delete(`/FabricTypes/${id}`);
     return response.data;
   },
 };

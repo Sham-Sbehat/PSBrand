@@ -58,6 +58,7 @@ import {
   clientsService,
   deliveryService,
   shipmentsService,
+  colorsService,
 } from "../../services/api";
 import {
   ORDER_STATUS,
@@ -147,6 +148,10 @@ const OrderForm = ({
   const [selectedAreaId, setSelectedAreaId] = useState(null);
   const [loadingCities, setLoadingCities] = useState(false);
   const [loadingAreas, setLoadingAreas] = useState(false);
+
+  // Colors from API
+  const [colors, setColors] = useState([]);
+  const [loadingColors, setLoadingColors] = useState(false);
 
   // Customer dialog shipping info (separate from main form)
   const [dialogShippingAddress, setDialogShippingAddress] = useState("");
@@ -293,6 +298,12 @@ const OrderForm = ({
 
     const getColorLabel = (value) => {
       if (value === null || value === undefined) return "";
+      // Try to find color from API first
+      if (colors.length > 0) {
+        const color = colors.find(c => c.id === value);
+        if (color) return color.nameAr || color.name || "";
+      }
+      // Fallback to static labels
       return COLOR_LABELS[value] || value || "";
     };
 
@@ -459,6 +470,24 @@ const OrderForm = ({
       setLoadingClients(false);
     }
   };
+
+  const loadColors = async () => {
+    setLoadingColors(true);
+    try {
+      const colorsData = await colorsService.getAllColors();
+      setColors(Array.isArray(colorsData) ? colorsData : []);
+    } catch (error) {
+      console.error('Error loading colors:', error);
+      // Fallback to static colors if API fails
+      setColors([]);
+    } finally {
+      setLoadingColors(false);
+    }
+  };
+
+  useEffect(() => {
+    loadColors();
+  }, []);
 
   // Handle customer form submission
   const onCustomerSubmit = async (data) => {
@@ -997,7 +1026,18 @@ const OrderForm = ({
         designPayload.orderDesignItems = order.items.map((item) => {
           const itemPayload = {
             size: getSizeValueByLabel(item.size),
-            color: getEnumValueFromLabel(item.color, COLOR_LABELS),
+            color: (() => {
+              // Try to find color by Arabic name from API
+              if (colors.length > 0) {
+                const color = colors.find(c => 
+                  (c.nameAr && c.nameAr === item.color) || 
+                  (c.name && c.name === item.color)
+                );
+                if (color) return color.id;
+              }
+              // Fallback to static enum lookup
+              return getEnumValueFromLabel(item.color, COLOR_LABELS);
+            })(),
             fabricType: getEnumValueFromLabel(
               item.fabricType,
               FABRIC_TYPE_LABELS
@@ -2759,16 +2799,28 @@ const OrderForm = ({
                                   )
                                 }
                                 sx={{ minWidth: 120 }}
+                                disabled={loadingColors}
                               >
-                                <MenuItem value="أسود">أسود</MenuItem>
-                                <MenuItem value="أبيض">أبيض</MenuItem>
-                                <MenuItem value="سكني">سكني</MenuItem>
-                                <MenuItem value="أزرق">أزرق</MenuItem>
-                                <MenuItem value="بني">بني</MenuItem>
-                                <MenuItem value="بنفسجي">بنفسجي</MenuItem>
-                                <MenuItem value="زهري">زهري</MenuItem>
-                                <MenuItem value="بيج">بيج</MenuItem>
-                                <MenuItem value="خمري">خمري</MenuItem>
+                                {colors.length > 0 ? (
+                                  colors.map((color) => (
+                                    <MenuItem key={color.id} value={color.nameAr || color.name}>
+                                      {color.nameAr || color.name}
+                                    </MenuItem>
+                                  ))
+                                ) : (
+                                  // Fallback to static colors if API hasn't loaded yet
+                                  <>
+                                    <MenuItem value="أسود">أسود</MenuItem>
+                                    <MenuItem value="أبيض">أبيض</MenuItem>
+                                    <MenuItem value="سكني">سكني</MenuItem>
+                                    <MenuItem value="أزرق">أزرق</MenuItem>
+                                    <MenuItem value="بني">بني</MenuItem>
+                                    <MenuItem value="بنفسجي">بنفسجي</MenuItem>
+                                    <MenuItem value="زهري">زهري</MenuItem>
+                                    <MenuItem value="بيج">بيج</MenuItem>
+                                    <MenuItem value="خمري">خمري</MenuItem>
+                                  </>
+                                )}
                               </Select>
                             </FormControl>
                           </Grid>

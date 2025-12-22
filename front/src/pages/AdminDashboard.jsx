@@ -29,6 +29,7 @@ import {
   AccountBalance,
   CalendarToday,
   Clear,
+  Settings,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -38,6 +39,7 @@ import OrdersList from "../components/admin/OrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
 import SellerManagement from "../components/admin/SellerManagement";
 import FinancialManagement from "../components/admin/FinancialManagement";
+import ManagementDashboard from "../components/admin/ManagementDashboard";
 import NotificationsBell from "../components/common/NotificationsBell";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
@@ -443,6 +445,27 @@ const AdminDashboard = () => {
                 }
               }}
             />
+            <Tab
+              label="الإدارة"
+              icon={<Settings />}
+              iconPosition="start"
+              sx={{
+                fontWeight: 600,
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
+                color: calmPalette.textMuted,
+                minHeight: { xs: 48, sm: 64 },
+                padding: { xs: '8px 12px', sm: '12px 16px' },
+                "&.Mui-selected": {
+                  color: "#f7f2ea",
+                },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 1 },
+                  '& svg': {
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                  }
+                }
+              }}
+            />
           </Tabs>
         </Box>
 
@@ -571,6 +594,7 @@ const AdminDashboard = () => {
               <OrdersList dateFilter={dailyOrdersDate} />
             </Box>
           )}
+          {currentTab === 5 && <ManagementDashboard />}
         </Box>
       </Container>
     </Box>
