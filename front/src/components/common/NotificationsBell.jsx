@@ -5,7 +5,7 @@ import { notificationsService } from "../../services/api";
 import NotificationsPanel from "./NotificationsPanel";
 import GlassDialog from "./GlassDialog";
 import calmPalette from "../../theme/calmPalette";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS } from "../../constants";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, SIZE_LABELS, FABRIC_TYPE_LABELS } from "../../constants";
 
 const NotificationsBell = ({ onNewNotification }) => {
   const [anchorEl, setAnchorEl] = useState(null);
@@ -164,7 +164,8 @@ const NotificationsBell = ({ onNewNotification }) => {
   const getColorLabel = (color) => {
     if (color === null || color === undefined) return "-";
     const numeric = typeof color === "number" ? color : parseInt(color, 10);
-    return COLOR_LABELS[numeric] || color || "-";
+    // Return color as-is if API colors not loaded yet
+    return color || "-";
   };
 
   const getSizeLabel = (size) => {

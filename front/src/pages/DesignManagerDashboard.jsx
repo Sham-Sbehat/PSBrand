@@ -48,7 +48,7 @@ import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
-import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, USER_ROLES } from "../constants";
+import { SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, USER_ROLES } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
 import calmPalette from "../theme/calmPalette";
@@ -382,7 +382,6 @@ const DesignManagerDashboard = () => {
           }
           
         } catch (fetchError) {
-          console.warn('Fetch method failed, trying manual conversion:', fetchError);
           
           // Method 2: Manual base64 to blob conversion (more reliable for large files)
           try {
@@ -460,7 +459,6 @@ const DesignManagerDashboard = () => {
             }
            
           } catch (sigError) {
-            console.warn('Could not detect file type from signature, using default:', sigError);
           }
         }
         
@@ -792,8 +790,8 @@ const DesignManagerDashboard = () => {
       }
     }
     
-    const numeric = typeof color === "number" ? color : parseInt(color, 10);
-    return COLOR_LABELS[numeric] || color || "-";
+    // Return color as-is if API colors not loaded yet
+    return color || "-";
   };
 
   const InfoItem = ({ label, value }) => (

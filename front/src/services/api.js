@@ -232,17 +232,12 @@ export const ordersService = {
   },
 
   deleteOrder: async (id) => {
-    console.log('Attempting to delete order with ID:', id);
     try {
       // Swagger shows: DELETE /api/Orders/DeleteOrder{id} (without / before number)
-      const response = await api.delete(`/Orders/DeleteOrder${id}`);
-      console.log('Delete response status:', response.status);
-      console.log('Delete response:', response);
+      const response = await api.delete(`/Orders/DeleteOrder/${id}`);
       // 204 No Content has no response body
       return { success: true, status: response.status };
     } catch (error) {
-      console.error('Delete error:', error);
-      console.error('Error response:', error.response);
       throw error;
     }
   },

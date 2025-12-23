@@ -53,7 +53,6 @@ import {
   ORDER_STATUS_COLORS,
   FABRIC_TYPE_LABELS,
   SIZE_LABELS,
-  COLOR_LABELS,
   USER_ROLES,
 } from "../../constants";
 import NotesDialog from "../common/NotesDialog";
@@ -527,7 +526,6 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           alert('الصورة غير متوفرة');
         }
       } catch (error) {
-        console.error('Error fetching order image:', error);
         alert('حدث خطأ أثناء جلب الصورة');
       } finally {
         setLoadingImage(null);
@@ -572,12 +570,6 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
 
         // Clean base64 string (remove whitespace, newlines, etc.)
         const cleanBase64 = base64Data.replace(/\s/g, '');
-        
-        console.log('Processing base64 file:', {
-          originalLength: base64Data.length,
-          cleanedLength: cleanBase64.length,
-          mimeType: mimeType
-        });
 
         // Method 1: Try using fetch API first
         let blob;
@@ -589,12 +581,7 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
             throw new Error('الملف فارغ بعد التحويل');
           }
           
-          console.log('Blob created via fetch:', {
-            size: blob.size,
-            type: blob.type
-          });
         } catch (fetchError) {
-          console.warn('Fetch method failed, trying manual conversion:', fetchError);
           
           // Method 2: Manual base64 to blob conversion (more reliable for large files)
           try {
@@ -621,10 +608,6 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
               throw new Error('الملف فارغ بعد التحويل');
             }
             
-            console.log('Blob created via manual conversion:', {
-              size: blob.size,
-              type: blob.type
-            });
           } catch (manualError) {
            
             throw new Error('فشل في تحويل الملف. قد يكون الملف تالفاً أو كبيراً جداً.');
@@ -674,24 +657,14 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
               }
             }
             
-            console.log('File type detected from signature:', fileExtension);
           } catch (sigError) {
-            console.warn('Could not detect file type from signature, using default:', sigError);
           }
         }
         
         fileName = `${fileName}.${fileExtension}`;
         
-        console.log('File info:', {
-          mimeType: mimeType,
-          fileExtension: fileExtension,
-          fileName: fileName,
-          blobSize: blob.size
-        });
-        
         // Create blob URL for download
         const blobUrl = URL.createObjectURL(blob);
-        console.log('Blob URL created:', blobUrl, 'Size:', blob.size);
         
         // Download file directly
         const link = document.createElement('a');
@@ -699,8 +672,6 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         link.download = fileName;
         link.style.display = 'none';
         document.body.appendChild(link);
-        
-        console.log('Triggering download...');
         link.click();
         
         // Remove link and cleanup after download
@@ -708,7 +679,6 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           document.body.removeChild(link);
           // Give more time for download to complete before revoking
           setTimeout(() => {
-            console.log('Revoking blob URL');
             URL.revokeObjectURL(blobUrl);
           }, 10000); // 10 seconds - enough time for download
         }, 1000);
@@ -747,11 +717,8 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
     if (fileUrl === 'image_data_excluded' && orderId) {
       setLoadingImage(`file-${orderId}-${designId}`);
       try {
-        console.log('Fetching full order to get file...', { orderId, designId });
         const fullOrder = await ordersService.getOrderById(orderId);
-        console.log('Full order received:', fullOrder);
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
-        console.log('Design found:', design);
         
         if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
           console.log('File found, opening...', {
@@ -1031,15 +998,10 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
     
     setDeleteLoading(true);
     try {
-      console.log('Deleting order with ID:', orderToDelete.id);
-      console.log('Order to delete:', orderToDelete);
-      
       // Ensure ID is a number
       const orderId = parseInt(orderToDelete.id);
-      console.log('Parsed order ID:', orderId);
       
       const response = await ordersService.deleteOrder(orderId);
-      console.log('Delete response:', response);
       
       // Remove the order from local state immediately for better UX
       setAllOrders((prevOrders) => 
@@ -1322,8 +1284,8 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
       }
     }
     
-    const numeric = typeof color === "number" ? color : parseInt(color, 10);
-    return COLOR_LABELS[numeric] || color || "-";
+    // Return color as-is if API colors not loaded yet
+    return color || "-";
   };
 
   const InfoItem = ({ label, value }) => (

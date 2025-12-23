@@ -163,7 +163,6 @@ const FinancialManagement = () => {
       const transactionsData = response?.transactions || response;
       setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
     } catch (error) {
-      console.error('Error fetching transactions:', error);
       setSnackbar({
         open: true,
         message: 'حدث خطأ أثناء جلب المعاملات المالية',
@@ -198,7 +197,6 @@ const FinancialManagement = () => {
       }
       setReportSummary(summary);
     } catch (error) {
-      console.error('Error fetching report summary:', error);
       setSnackbar({
         open: true,
         message: 'حدث خطأ أثناء جلب التقرير المالي',
@@ -239,7 +237,6 @@ const FinancialManagement = () => {
       const expenseData = await financialCategoriesService.getCategoriesByType(2);
       setExpenseCategories(Array.isArray(expenseData) ? expenseData : []);
     } catch (error) {
-      console.error('Error fetching categories:', error);
       setSnackbar({
         open: true,
         message: 'حدث خطأ أثناء جلب الفئات',
@@ -257,7 +254,6 @@ const FinancialManagement = () => {
       const sourcesData = await expenseSourcesService.getSources();
       setSources(Array.isArray(sourcesData) ? sourcesData : []);
     } catch (error) {
-      console.error('Error fetching sources:', error);
       setSnackbar({
         open: true,
         message: 'حدث خطأ أثناء جلب المصادر',
@@ -337,7 +333,6 @@ const FinancialManagement = () => {
       // Refresh categories
       await fetchCategories();
     } catch (error) {
-      console.error('Error saving category:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'حدث خطأ أثناء حفظ الفئة',
@@ -393,7 +388,6 @@ const FinancialManagement = () => {
       // Refresh categories
       await fetchCategories();
     } catch (error) {
-      console.error('Error deleting category:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'حدث خطأ أثناء حذف الفئة',
@@ -461,7 +455,6 @@ const FinancialManagement = () => {
       // Refresh sources list
       await fetchSources();
     } catch (error) {
-      console.error('Error saving source:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'حدث خطأ أثناء حفظ المصدر',
@@ -517,7 +510,6 @@ const FinancialManagement = () => {
       // Refresh sources list
       await fetchSources();
     } catch (error) {
-      console.error('Error deleting source:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'حدث خطأ أثناء حذف المصدر',
@@ -610,7 +602,6 @@ const FinancialManagement = () => {
       const currentSourceId = filterBySource ? parseInt(filterBySource) : null;
       await fetchTransactions(selectedMonth, selectedYear, currentCategoryId, currentSourceId);
     } catch (error) {
-      console.error('Error calculating orders income:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'حدث خطأ أثناء حساب إيرادات الطلبات',
@@ -767,7 +758,6 @@ const FinancialManagement = () => {
         description: '' 
       });
     } catch (error) {
-      console.error('Error saving transaction:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'حدث خطأ أثناء حفظ المعاملة المالية',
@@ -822,7 +812,6 @@ const FinancialManagement = () => {
       const sourceId = filterBySource ? parseInt(filterBySource) : null;
       await fetchTransactions(selectedMonth, selectedYear, categoryId, sourceId);
     } catch (error) {
-      console.error('Error deleting transaction:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'حدث خطأ أثناء حذف المعاملة المالية',

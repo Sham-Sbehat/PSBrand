@@ -50,7 +50,6 @@ const FabricTypesManagement = () => {
       const data = await fabricTypesService.getAllFabricTypes();
       setFabricTypes(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching fabric types:', error);
       setSnackbar({ open: true, message: 'فشل في تحميل أنواع الأقمشة', severity: 'error' });
       setFabricTypes([]);
     } finally {
@@ -95,7 +94,6 @@ const FabricTypesManagement = () => {
       handleCloseDialog();
       fetchFabricTypes();
     } catch (error) {
-      console.error('Error saving fabric type:', error);
       setSnackbar({ open: true, message: 'فشل في حفظ نوع القماش', severity: 'error' });
     }
   };
@@ -114,7 +112,6 @@ const FabricTypesManagement = () => {
       setDeleteDialog({ open: false, fabricTypeId: null, fabricTypeName: '' });
       fetchFabricTypes();
     } catch (error) {
-      console.error('Error deleting fabric type:', error);
       setSnackbar({ open: true, message: 'فشل في حذف نوع القماش', severity: 'error' });
     } finally {
       setDeletingId(null);

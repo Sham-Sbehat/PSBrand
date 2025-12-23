@@ -31,7 +31,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
-import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
+import { USER_ROLES, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
 import calmPalette from "../theme/calmPalette";
@@ -126,7 +126,6 @@ const PreparerDashboard = () => {
       const prepOrders = await ordersService.getOrdersByStatus(3);
       setAvailableOrders(prepOrders || []);
     } catch (error) {
-      console.error('Error fetching available orders:', error);
     } finally {
       if (showLoading) {
         setLoading(false);
@@ -150,7 +149,6 @@ const PreparerDashboard = () => {
       const myOrders = await ordersService.getOrdersForPreparer(currentUserId, ORDER_STATUS.OPEN_ORDER);
       setMyOpenOrders(myOrders || []);
     } catch (error) {
-      console.error('Error fetching my open orders:', error);
       setMyOpenOrders([]);
     } finally {
       if (showLoading) {
@@ -225,7 +223,6 @@ const PreparerDashboard = () => {
       // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
       const errorCode = error.response?.data?.code;
       if (errorCode !== 'NO_SHIPMENT') {
-        console.error(`Error fetching delivery status for order ${orderId}:`, error);
       }
       setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
     } finally {
@@ -273,7 +270,6 @@ const PreparerDashboard = () => {
         }
       });
     } catch (error) {
-      console.error('Error fetching completed orders:', error);
       setCompletedOrders([]);
     } finally {
       if (showLoading) {
@@ -297,7 +293,6 @@ const PreparerDashboard = () => {
       const colorsData = await colorsService.getAllColors();
       setColors(Array.isArray(colorsData) ? colorsData : []);
     } catch (error) {
-      console.error('Error loading colors:', error);
       setColors([]);
     } finally {
       setLoadingColors(false);
@@ -311,7 +306,6 @@ const PreparerDashboard = () => {
       const sizesData = await sizesService.getAllSizes();
       setSizes(Array.isArray(sizesData) ? sizesData : []);
     } catch (error) {
-      console.error('Error loading sizes:', error);
       setSizes([]);
     } finally {
       setLoadingSizes(false);
@@ -325,7 +319,6 @@ const PreparerDashboard = () => {
       const fabricTypesData = await fabricTypesService.getAllFabricTypes();
       setFabricTypes(Array.isArray(fabricTypesData) ? fabricTypesData : []);
     } catch (error) {
-      console.error('Error loading fabric types:', error);
       setFabricTypes([]);
     } finally {
       setLoadingFabricTypes(false);
@@ -344,7 +337,6 @@ const PreparerDashboard = () => {
         fetchCompletedOrders(false)
       ]);
     } catch (error) {
-      console.error('Error fetching orders:', error);
     } finally {
       if (showLoading) {
         setLoading(false);
@@ -421,8 +413,8 @@ const PreparerDashboard = () => {
       }
     }
     
-    const numeric = typeof color === "number" ? color : parseInt(color, 10);
-    return COLOR_LABELS[numeric] || color || "-";
+    // Return color as-is if API colors not loaded yet
+    return color || "-";
   };
 
   // Load colors, sizes, and fabric types on component mount
@@ -535,7 +527,6 @@ const PreparerDashboard = () => {
           },
           onDeliveryStatusChanged: (orderId, deliveryStatus) => {
             // Update delivery status in real-time when backend sends update
-            console.log('Delivery status updated via SignalR for order:', orderId, deliveryStatus);
             setDeliveryStatuses(prev => ({
               ...prev,
               [orderId]: deliveryStatus
@@ -601,7 +592,6 @@ const PreparerDashboard = () => {
           },
         });
       } catch (err) {
-        console.error('Failed to connect to updates hub:', err);
       }
     })();
 
@@ -670,7 +660,6 @@ const PreparerDashboard = () => {
         return fullImageUrl;
       }
     } catch (error) {
-      console.error('Error loading image:', error);
     } finally {
       setLoadingImage(null);
     }
@@ -757,7 +746,6 @@ const PreparerDashboard = () => {
           return;
         }
       } catch (error) {
-        console.error('Error fetching order file:', error);
         alert('حدث خطأ أثناء جلب الملف');
         setLoadingImage(null);
         return;
@@ -947,7 +935,6 @@ const PreparerDashboard = () => {
       }, 500);
       
     } catch (error) {
-      console.error('Error updating order status:', error);
       alert(`حدث خطأ أثناء تحديث حالة الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
     } finally {
       setUpdatingOrderId(null);
@@ -971,7 +958,6 @@ const PreparerDashboard = () => {
       }, 500);
       
     } catch (error) {
-      console.error('Error returning order:', error);
       alert(`حدث خطأ أثناء إرجاع الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
     } finally {
       setUpdatingOrderId(null);
@@ -994,7 +980,6 @@ const PreparerDashboard = () => {
       }, 500);
       
     } catch (error) {
-      console.error('Error setting order to OPEN_ORDER:', error);
       alert(`حدث خطأ أثناء فتح الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
     } finally {
       setUpdatingOrderId(null);
@@ -1021,7 +1006,6 @@ const PreparerDashboard = () => {
       // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
       const errorCode = error.response?.data?.code;
       if (errorCode !== 'NO_SHIPMENT') {
-        console.error('Error fetching delivery status:', error);
         alert(`حدث خطأ أثناء جلب حالة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
       } else {
         // If NO_SHIPMENT, just show a message in the dialog without an alert

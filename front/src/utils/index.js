@@ -256,7 +256,6 @@ export const storage = {
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
-      console.error('Error saving to localStorage:', error);
     }
   },
   
@@ -273,7 +272,6 @@ export const storage = {
         return item;
       }
     } catch (error) {
-      console.error('Error reading from localStorage:', error);
       return null;
     }
   },
@@ -282,7 +280,6 @@ export const storage = {
     try {
       localStorage.removeItem(key);
     } catch (error) {
-      console.error('Error removing from localStorage:', error);
     }
   },
   
@@ -290,7 +287,6 @@ export const storage = {
     try {
       localStorage.clear();
     } catch (error) {
-      console.error('Error clearing localStorage:', error);
     }
   },
 };

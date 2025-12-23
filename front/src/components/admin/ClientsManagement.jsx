@@ -61,7 +61,6 @@ const ClientsManagement = () => {
       const data = await clientsService.getAllClients();
       setClients(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching clients:', error);
       setSnackbar({ open: true, message: 'فشل في تحميل العملاء', severity: 'error' });
       setClients([]);
     } finally {
@@ -80,7 +79,6 @@ const ClientsManagement = () => {
       const data = await clientsService.searchClients(searchQuery);
       setClients(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error searching clients:', error);
       setSnackbar({ open: true, message: 'فشل في البحث عن العملاء', severity: 'error' });
     } finally {
       setLoading(false);
@@ -145,7 +143,6 @@ const ClientsManagement = () => {
       handleCloseDialog();
       fetchClients();
     } catch (error) {
-      console.error('Error saving client:', error);
       setSnackbar({ open: true, message: 'فشل في حفظ العميل', severity: 'error' });
     }
   };
@@ -164,7 +161,6 @@ const ClientsManagement = () => {
       setDeleteDialog({ open: false, clientId: null, clientName: '' });
       fetchClients();
     } catch (error) {
-      console.error('Error deleting client:', error);
       setSnackbar({ open: true, message: 'فشل في حذف العميل', severity: 'error' });
     } finally {
       setDeletingId(null);

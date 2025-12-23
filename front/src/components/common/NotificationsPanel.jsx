@@ -13,10 +13,6 @@ import {
 import calmPalette from "../../theme/calmPalette";
 
 const getNotificationIcon = (type) => {
-  // Log notification type for debugging
-  if (type && !["shipment_cancelled", "shipment_followup", "order_created", "order_completed"].includes(type)) {
-    console.log("Notification type:", type);
-  }
 
   const typeLower = (type || "").toLowerCase();
   

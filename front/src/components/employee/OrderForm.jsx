@@ -67,8 +67,6 @@ import {
   FABRIC_TYPE_LABELS,
   SIZE_ENUM,
   SIZE_LABELS,
-  COLOR_ENUM,
-  COLOR_LABELS,
   getSizeValueByLabel,
   getSizeLabelByValue,
 } from "../../constants";
@@ -303,8 +301,8 @@ const OrderForm = ({
         const color = colors.find(c => c.id === value);
         if (color) return color.nameAr || color.name || "";
       }
-      // Fallback to static labels
-      return COLOR_LABELS[value] || value || "";
+      // Return value as-is if API colors not loaded yet
+      return value || "";
     };
 
     const getSizeLabel = (value) => {
@@ -472,14 +470,11 @@ const OrderForm = ({
   };
 
   const loadColors = async () => {
-    console.log('🔄 Loading colors from API...');
     setLoadingColors(true);
     try {
       const colorsData = await colorsService.getAllColors();
-      console.log('✅ Colors loaded from API:', colorsData);
       setColors(Array.isArray(colorsData) ? colorsData : []);
     } catch (error) {
-      console.error('❌ Error loading colors:', error);
       // Fallback to static colors if API fails
       setColors([]);
     } finally {
@@ -488,7 +483,6 @@ const OrderForm = ({
   };
 
   useEffect(() => {
-    console.log('🔄 useEffect triggered, loading colors...');
     loadColors();
   }, []);
 
@@ -507,24 +501,16 @@ const OrderForm = ({
     }
     
     // Try to find color from API by ID - mapping on ID
-    console.log('🔍 [getColorLabel] Looking for color ID:', colorId, 'Colors array length:', colors.length);
     if (colors.length > 0) {
       const color = colors.find(c => c.id === colorId);
-      console.log('🎨 [getColorLabel] Found color:', color);
       if (color) {
         // Return nameAr (Arabic name) from API
-        const result = color.nameAr || color.name || "";
-        console.log('✅ [getColorLabel] Returning:', result);
-        return result;
+        return color.nameAr || color.name || "";
       }
-    } else {
-      console.log('⚠️ [getColorLabel] Colors array is empty, API might not be loaded yet');
     }
     
-    // Fallback to static labels if API colors not loaded yet
-    const fallback = COLOR_LABELS[colorId] || value || "";
-    console.log('⚠️ [getColorLabel] Using fallback:', fallback);
-    return fallback;
+    // Return value as-is if API colors not loaded yet
+    return value || "";
   };
 
   // Handle customer form submission
@@ -1073,8 +1059,8 @@ const OrderForm = ({
                 );
                 if (color) return color.id;
               }
-              // Fallback to static enum lookup
-              return getEnumValueFromLabel(item.color, COLOR_LABELS);
+              // If color not found in API, return 0 (will be handled by backend validation)
+              return 0;
             })(),
             fabricType: getEnumValueFromLabel(
               item.fabricType,

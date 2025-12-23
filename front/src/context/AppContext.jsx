@@ -60,21 +60,12 @@ export const AppProvider = ({ children }) => {
       const savedUser = rawUser ? JSON.parse(rawUser) : null;
       const savedToken = sessionToken || localToken || null;
       
-      console.log('Initializing app with:', { savedUser, savedToken });
-      console.log('Raw localStorage values:', {
-        authToken: localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN),
-        userData: localStorage.getItem(STORAGE_KEYS.USER_DATA)
-      });
-      
       if (savedUser && savedToken) {
         try {
           setUser(savedUser);
-          console.log('User restored from storage:', savedUser);
         } catch (error) {
           console.error('خطأ في تحميل بيانات المستخدم:', error);
         }
-      } else {
-        console.log('No saved user or token found');
       }
     };
 

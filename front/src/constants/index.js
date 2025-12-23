@@ -131,36 +131,9 @@ export const FABRIC_TYPE_LABELS = {
   [FABRIC_TYPE_ENUM.TrackSuit]: 'ترنج'
 };
 
-// Color Enum (matching backend)
-export const COLOR_ENUM = {
-  Black: 1,         // أسود
-  White: 2,         // أبيض
-  Skin: 3,          // سكني
-  Blue: 4,          // أزرق
-  Brown: 5,         // بني
-  Purple: 6,        // بنفسجي
-  Pink: 7,          // زهري
-  Beige: 8,         // بيج
-  Burgundy: 9       // خمري
-};
-
-// Color Labels (Arabic)
-export const COLOR_LABELS = {
-  [COLOR_ENUM.Black]: 'أسود',
-  [COLOR_ENUM.White]: 'أبيض',
-  [COLOR_ENUM.Skin]: 'سكني',
-  [COLOR_ENUM.Blue]: 'أزرق',
-  [COLOR_ENUM.Brown]: 'بني',
-  [COLOR_ENUM.Purple]: 'بنفسجي',
-  [COLOR_ENUM.Pink]: 'زهري',
-  [COLOR_ENUM.Beige]: 'بيج',
-  [COLOR_ENUM.Burgundy]: 'خمري'
-};
-
 // Legacy arrays for backward compatibility (deprecated)
 export const FABRIC_TYPES = Object.values(FABRIC_TYPE_LABELS);
 export const SIZES = Object.values(SIZE_LABELS);
-export const COLORS = Object.values(COLOR_LABELS);
 
 
 // Helper function to get size label by value (handles conflicts)

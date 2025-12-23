@@ -51,7 +51,6 @@ const ColorsManagement = () => {
       const data = await colorsService.getAllColors();
       setColors(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching colors:', error);
       setSnackbar({ open: true, message: 'فشل في تحميل الألوان', severity: 'error' });
       setColors([]);
     } finally {
@@ -97,7 +96,6 @@ const ColorsManagement = () => {
       handleCloseDialog();
       fetchColors();
     } catch (error) {
-      console.error('Error saving color:', error);
       setSnackbar({ open: true, message: 'فشل في حفظ اللون', severity: 'error' });
     }
   };
@@ -116,7 +114,6 @@ const ColorsManagement = () => {
       setDeleteDialog({ open: false, colorId: null, colorName: '' });
       fetchColors();
     } catch (error) {
-      console.error('Error deleting color:', error);
       setSnackbar({ open: true, message: 'فشل في حذف اللون', severity: 'error' });
     } finally {
       setDeletingId(null);

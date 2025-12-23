@@ -30,7 +30,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
-import { USER_ROLES, COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS } from "../constants";
+import { USER_ROLES, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS } from "../constants";
 import { openWhatsApp } from "../utils";
 import OrderForm from "../components/employee/OrderForm";
 import GlassDialog from "../components/common/GlassDialog";
@@ -248,14 +248,11 @@ const EmployeeDashboard = () => {
 
   // Load colors from API
   const loadColors = async () => {
-    console.log('🔄 [EmployeeDashboard] Loading colors from API...');
     setLoadingColors(true);
     try {
       const colorsData = await colorsService.getAllColors();
-      console.log('✅ [EmployeeDashboard] Colors loaded:', colorsData);
       setColors(Array.isArray(colorsData) ? colorsData : []);
     } catch (error) {
-      console.error('❌ [EmployeeDashboard] Error loading colors:', error);
       setColors([]);
     } finally {
       setLoadingColors(false);
@@ -264,14 +261,11 @@ const EmployeeDashboard = () => {
 
   // Load sizes from API
   const loadSizes = async () => {
-    console.log('🔄 [EmployeeDashboard] Loading sizes from API...');
     setLoadingSizes(true);
     try {
       const sizesData = await sizesService.getAllSizes();
-      console.log('✅ [EmployeeDashboard] Sizes loaded:', sizesData);
       setSizes(Array.isArray(sizesData) ? sizesData : []);
     } catch (error) {
-      console.error('❌ [EmployeeDashboard] Error loading sizes:', error);
       setSizes([]);
     } finally {
       setLoadingSizes(false);
@@ -280,14 +274,11 @@ const EmployeeDashboard = () => {
 
   // Load fabric types from API
   const loadFabricTypes = async () => {
-    console.log('🔄 [EmployeeDashboard] Loading fabric types from API...');
     setLoadingFabricTypes(true);
     try {
       const fabricTypesData = await fabricTypesService.getAllFabricTypes();
-      console.log('✅ [EmployeeDashboard] Fabric types loaded:', fabricTypesData);
       setFabricTypes(Array.isArray(fabricTypesData) ? fabricTypesData : []);
     } catch (error) {
-      console.error('❌ [EmployeeDashboard] Error loading fabric types:', error);
       setFabricTypes([]);
     } finally {
       setLoadingFabricTypes(false);
@@ -318,7 +309,8 @@ const EmployeeDashboard = () => {
     }
     
     // Fallback to static labels if API colors not loaded yet
-    return COLOR_LABELS[colorId] || color || "-";
+    // Return color as-is if API colors not loaded yet
+    return color || "-";
   };
 
   // Helper function to convert size ID to nameAr from API

@@ -51,7 +51,7 @@ import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates } from "../services/realtime";
-import { COLOR_LABELS, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
+import { SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
 import calmPalette from "../theme/calmPalette";
@@ -85,6 +85,12 @@ const PackagerDashboard = () => {
   const [shippingLoading, setShippingLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [selectedDate, setSelectedDate] = useState(null); // No date filter by default
+  const [colors, setColors] = useState([]);
+  const [sizes, setSizes] = useState([]);
+  const [fabricTypes, setFabricTypes] = useState([]);
+  const [loadingColors, setLoadingColors] = useState(false);
+  const [loadingSizes, setLoadingSizes] = useState(false);
+  const [loadingFabricTypes, setLoadingFabricTypes] = useState(false);
 
   const getFullUrl = (inputUrl) => {
     if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
@@ -175,8 +181,6 @@ const PackagerDashboard = () => {
     try {
       const response = await ordersService.getConfirmedDeliveryOrders();
       
-      console.log('GetConfirmedDeliveryOrders response:', response);
-      
       // Handle different response formats
       let orders = [];
       if (Array.isArray(response)) {
@@ -205,7 +209,6 @@ const PackagerDashboard = () => {
         }
       }
       
-      console.log('Processed orders:', orders);
       setConfirmedDeliveryOrders(orders);
     } catch (error) {
       console.error('Error fetching confirmed delivery orders:', error);
@@ -459,7 +462,6 @@ const PackagerDashboard = () => {
           }
           
         } catch (fetchError) {
-          console.warn('Fetch method failed, trying manual conversion:', fetchError);
           
           // Method 2: Manual base64 to blob conversion (more reliable for large files)
           try {
@@ -537,7 +539,6 @@ const PackagerDashboard = () => {
             }
            
           } catch (sigError) {
-            console.warn('Could not detect file type from signature, using default:', sigError);
           }
         }
         
@@ -607,7 +608,6 @@ const PackagerDashboard = () => {
           alert('الملف غير متوفر في قاعدة البيانات');
         }
       } catch (error) {
-        console.error('Error fetching order file:', error);
         alert('حدث خطأ أثناء جلب الملف: ' + (error.message || 'خطأ غير معروف'));
       } finally {
         setLoadingImage(null);
@@ -666,7 +666,6 @@ const PackagerDashboard = () => {
       }, 500);
       
     } catch (error) {
-      console.error('Error updating order status:', error);
       alert(`حدث خطأ أثناء تحديث حالة الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
     } finally {
       setUpdatingOrderId(null);
@@ -712,7 +711,6 @@ const PackagerDashboard = () => {
       try {
         await orderStatusService.setSentToDeliveryCompany(orderToShip.id);
       } catch (statusError) {
-        console.error('Error setting order status to sent to delivery company:', statusError);
         // Don't show error to user - shipment was created successfully
       }
       
@@ -825,7 +823,6 @@ const PackagerDashboard = () => {
       const colorsData = await colorsService.getAllColors();
       setColors(Array.isArray(colorsData) ? colorsData : []);
     } catch (error) {
-      console.error('Error loading colors:', error);
       setColors([]);
     } finally {
       setLoadingColors(false);
@@ -839,7 +836,6 @@ const PackagerDashboard = () => {
       const sizesData = await sizesService.getAllSizes();
       setSizes(Array.isArray(sizesData) ? sizesData : []);
     } catch (error) {
-      console.error('Error loading sizes:', error);
       setSizes([]);
     } finally {
       setLoadingSizes(false);
@@ -853,7 +849,6 @@ const PackagerDashboard = () => {
       const fabricTypesData = await fabricTypesService.getAllFabricTypes();
       setFabricTypes(Array.isArray(fabricTypesData) ? fabricTypesData : []);
     } catch (error) {
-      console.error('Error loading fabric types:', error);
       setFabricTypes([]);
     } finally {
       setLoadingFabricTypes(false);
@@ -929,8 +924,8 @@ const PackagerDashboard = () => {
       }
     }
     
-    const numeric = typeof color === "number" ? color : parseInt(color, 10);
-    return COLOR_LABELS[numeric] || color || "-";
+    // Return color as-is if API colors not loaded yet
+    return color || "-";
   };
 
   const InfoItem = ({ label, value }) => (

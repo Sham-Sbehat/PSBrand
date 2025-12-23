@@ -25,7 +25,6 @@ export const setCache = (key, data, ttl = DEFAULT_CACHE_TTL, useSessionStorage =
     storage.setItem(cacheKey, JSON.stringify(data));
     storage.setItem(expiryKey, expiryTime.toString());
   } catch (error) {
-    console.warn('Failed to set cache:', error);
     // If storage is full, clear old cache entries
     if (error.name === 'QuotaExceededError') {
       clearExpiredCache();
@@ -62,7 +61,6 @@ export const getCache = (key, useSessionStorage = false) => {
     
     return JSON.parse(cachedData);
   } catch (error) {
-    console.warn('Failed to get cache:', error);
     return null;
   }
 };
@@ -81,7 +79,6 @@ export const clearCache = (key, useSessionStorage = false) => {
     storage.removeItem(cacheKey);
     storage.removeItem(expiryKey);
   } catch (error) {
-    console.warn('Failed to clear cache:', error);
   }
 };
 
@@ -112,7 +109,6 @@ export const clearExpiredCache = () => {
       });
     });
   } catch (error) {
-    console.warn('Failed to clear expired cache:', error);
   }
 };
 
@@ -136,7 +132,6 @@ export const clearAllCache = () => {
       keysToRemove.forEach(key => storage.removeItem(key));
     });
   } catch (error) {
-    console.warn('Failed to clear all cache:', error);
   }
 };
 
