@@ -473,9 +473,26 @@ const OrderForm = ({
   const loadAllClients = async () => {
     setLoadingClients(true);
     try {
-      const clients = await clientsService.getAllClients();
-      setAllClients(clients || []);
+      const response = await clientsService.getAllClients();
+      // Handle both array and object responses
+      let clients = [];
+      if (Array.isArray(response)) {
+        clients = response;
+      } else if (response && Array.isArray(response.clients)) {
+        clients = response.clients;
+      } else if (response && Array.isArray(response.data)) {
+        clients = response.data;
+      } else if (response && typeof response === 'object') {
+        // If it's an object, try to find any array property
+        const arrayKey = Object.keys(response).find(key => Array.isArray(response[key]));
+        if (arrayKey) {
+          clients = response[arrayKey];
+        }
+      }
+      setAllClients(clients);
     } catch (error) {
+      console.error('Error loading clients:', error);
+      setAllClients([]);
     } finally {
       setLoadingClients(false);
     }
@@ -1269,7 +1286,7 @@ const OrderForm = ({
           : "";
 
       // Get current client data
-      const currentClient = allClients.find((c) => c.id === clientId);
+      const currentClient = Array.isArray(allClients) ? allClients.find((c) => c.id === clientId) : null;
 
       // Prepare client object with shipping company information (only necessary fields)
       const clientWithShippingInfo = {
@@ -2012,14 +2029,14 @@ const OrderForm = ({
                 <Grid item xs={12} sm={6}>
                   <Autocomplete
                     fullWidth
-                    options={allClients}
+                    options={Array.isArray(allClients) ? allClients : []}
                     getOptionLabel={(option) => option.phone?.toString() || ""}
                     isOptionEqualToValue={(option, value) =>
                       option.id === value?.id
                     }
                     loading={loadingClients}
                     value={
-                      allClients.find((client) => client.id === clientId) ||
+                      (Array.isArray(allClients) && allClients.find((client) => client.id === clientId)) ||
                       null
                     }
                     onChange={(event, newValue) =>

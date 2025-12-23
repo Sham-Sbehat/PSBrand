@@ -30,10 +30,11 @@ import {
   CalendarToday,
   Clear,
   Settings,
+  Business,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService } from "../services/api";
+import { ordersService, clientsService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import OrdersList from "../components/admin/OrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
@@ -52,6 +53,7 @@ const AdminDashboard = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const [allOrders, setAllOrders] = useState([]);
   const [newNotificationReceived, setNewNotificationReceived] = useState(null);
+  const [clientsCount, setClientsCount] = useState(0);
   
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -82,6 +84,38 @@ const AdminDashboard = () => {
     };
 
     fetchOrders();
+
+    // Fetch clients count
+    const fetchClientsCount = async () => {
+      try {
+        const response = await clientsService.getAllClients();
+        // Handle both array and object responses
+        let clients = [];
+        if (Array.isArray(response)) {
+          clients = response;
+        } else if (response && Array.isArray(response.clients)) {
+          clients = response.clients;
+        } else if (response && Array.isArray(response.data)) {
+          clients = response.data;
+        } else if (response && typeof response === 'object') {
+          // If it's an object, try to find any array property
+          const arrayKey = Object.keys(response).find(key => Array.isArray(response[key]));
+          if (arrayKey) {
+            clients = response[arrayKey];
+          }
+        }
+        if (isMounted) {
+          setClientsCount(clients.length);
+        }
+      } catch (error) {
+        console.error("Error fetching clients:", error);
+        if (isMounted) {
+          setClientsCount(0);
+        }
+      }
+    };
+
+    fetchClientsCount();
 
     let unsubscribe;
     (async () => {
@@ -138,6 +172,11 @@ const AdminDashboard = () => {
       title: "عدد الموظفين",
       value: employees.length,
       icon: People,
+    },
+    {
+      title: "عدد العملاء",
+      value: clientsCount,
+      icon: Business,
     },
   ];
 

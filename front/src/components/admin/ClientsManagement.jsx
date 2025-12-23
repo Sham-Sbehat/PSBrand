@@ -34,6 +34,8 @@ import calmPalette from '../../theme/calmPalette';
 
 const ClientsManagement = () => {
   const [clients, setClients] = useState([]);
+  const [clientsCount, setClientsCount] = useState(0);
+  const [displayedCount, setDisplayedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
@@ -55,12 +57,66 @@ const ClientsManagement = () => {
     fetchClients();
   }, []);
 
+  // Animate count from 0 to clientsCount
+  useEffect(() => {
+    if (clientsCount === 0) {
+      setDisplayedCount(0);
+      return;
+    }
+
+    const duration = 600; // 0.6 seconds - fast but smooth
+    const steps = 20; // Less steps for faster increments
+    const increment = clientsCount / steps;
+    const stepDuration = duration / steps;
+
+    let currentStep = 0;
+    const timer = setInterval(() => {
+      currentStep++;
+      // Use exponential easing for faster start, slower end
+      const progress = currentStep / steps;
+      const easedProgress = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+      const nextValue = Math.min(Math.ceil(clientsCount * easedProgress), clientsCount);
+      setDisplayedCount(nextValue);
+
+      if (currentStep >= steps || nextValue >= clientsCount) {
+        setDisplayedCount(clientsCount);
+        clearInterval(timer);
+      }
+    }, stepDuration);
+
+    return () => clearInterval(timer);
+  }, [clientsCount]);
+
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const data = await clientsService.getAllClients();
-      setClients(Array.isArray(data) ? data : []);
+      const response = await clientsService.getAllClients();
+      // Handle both array and object responses
+      let clients = [];
+      let count = 0;
+      if (Array.isArray(response)) {
+        clients = response;
+        count = response.length;
+      } else if (response && Array.isArray(response.clients)) {
+        clients = response.clients;
+        count = response.count || response.clients.length;
+      } else if (response && Array.isArray(response.data)) {
+        clients = response.data;
+        count = response.count || response.data.length;
+      } else if (response && typeof response === 'object') {
+        // If it's an object, try to find any array property
+        const arrayKey = Object.keys(response).find(key => Array.isArray(response[key]));
+        if (arrayKey) {
+          clients = response[arrayKey];
+          count = response.count || clients.length;
+        } else if (response.count !== undefined) {
+          count = response.count;
+        }
+      }
+      setClients(clients);
+      setClientsCount(count);
     } catch (error) {
+      console.error('Error fetching clients:', error);
       setSnackbar({ open: true, message: 'فشل في تحميل العملاء', severity: 'error' });
       setClients([]);
     } finally {
@@ -76,9 +132,33 @@ const ClientsManagement = () => {
 
     try {
       setLoading(true);
-      const data = await clientsService.searchClients(searchQuery);
-      setClients(Array.isArray(data) ? data : []);
+      const response = await clientsService.searchClients(searchQuery);
+      // Handle both array and object responses
+      let clients = [];
+      let count = 0;
+      if (Array.isArray(response)) {
+        clients = response;
+        count = response.length;
+      } else if (response && Array.isArray(response.clients)) {
+        clients = response.clients;
+        count = response.count || response.clients.length;
+      } else if (response && Array.isArray(response.data)) {
+        clients = response.data;
+        count = response.count || response.data.length;
+      } else if (response && typeof response === 'object') {
+        // If it's an object, try to find any array property
+        const arrayKey = Object.keys(response).find(key => Array.isArray(response[key]));
+        if (arrayKey) {
+          clients = response[arrayKey];
+          count = response.count || clients.length;
+        } else if (response.count !== undefined) {
+          count = response.count;
+        }
+      }
+      setClients(clients);
+      setClientsCount(count);
     } catch (error) {
+      console.error('Error searching clients:', error);
       setSnackbar({ open: true, message: 'فشل في البحث عن العملاء', severity: 'error' });
     } finally {
       setLoading(false);
@@ -196,9 +276,79 @@ const ClientsManagement = () => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Person sx={{ fontSize: 32, color: calmPalette.primary }} />
-            <Typography variant="h5" sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
-              إدارة العملاء
-            </Typography>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
+                إدارة العملاء
+              </Typography>
+              {(clientsCount > 0 || displayedCount > 0) && (
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1.5, 
+                    marginTop: 1,
+                    padding: '8px 16px',
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(156, 39, 176, 0.1) 100%)',
+                    border: '1px solid rgba(33, 150, 243, 0.2)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, rgba(33, 150, 243, 0.15) 0%, rgba(156, 39, 176, 0.15) 100%)',
+                      borderColor: 'rgba(33, 150, 243, 0.4)',
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 12px rgba(33, 150, 243, 0.2)',
+                    },
+                  }}
+                >
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      color: calmPalette.textPrimary,
+                      fontWeight: 600,
+                      fontSize: '1rem',
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    إجمالي العملاء:
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: { xs: '1.75rem', sm: '2.25rem', md: '2.5rem' },
+                      background: 'linear-gradient(135deg, #2196F3 0%, #9C27B0 50%, #E91E63 100%)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      transition: 'all 0.3s ease',
+                      display: 'inline-block',
+                      minWidth: '60px',
+                      textAlign: 'left',
+                      letterSpacing: '0.02em',
+                      textShadow: '0 2px 4px rgba(33, 150, 243, 0.3)',
+                      position: 'relative',
+                      '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        bottom: '-2px',
+                        left: 0,
+                        right: 0,
+                        height: '3px',
+                        background: 'linear-gradient(90deg, #2196F3 0%, #9C27B0 50%, #E91E63 100%)',
+                        borderRadius: '2px',
+                        opacity: 0.6,
+                      },
+                      '&:hover': {
+                        transform: 'scale(1.15)',
+                        filter: 'brightness(1.1)',
+                      },
+                    }}
+                  >
+                    {displayedCount.toLocaleString()}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
           </Box>
           <Button
             variant="contained"
