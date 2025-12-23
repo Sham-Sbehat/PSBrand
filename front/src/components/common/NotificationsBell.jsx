@@ -5,7 +5,7 @@ import { notificationsService } from "../../services/api";
 import NotificationsPanel from "./NotificationsPanel";
 import GlassDialog from "./GlassDialog";
 import calmPalette from "../../theme/calmPalette";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, SIZE_LABELS, FABRIC_TYPE_LABELS } from "../../constants";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../../constants";
 
 const NotificationsBell = ({ onNewNotification }) => {
   const [anchorEl, setAnchorEl] = useState(null);
@@ -170,20 +170,14 @@ const NotificationsBell = ({ onNewNotification }) => {
 
   const getSizeLabel = (size) => {
     if (size === null || size === undefined) return "-";
-    if (typeof size === "number") {
-      return SIZE_LABELS[size] || size;
-    }
-    const numeric = parseInt(size, 10);
-    if (!Number.isNaN(numeric) && SIZE_LABELS[numeric]) {
-      return SIZE_LABELS[numeric];
-    }
-    return size;
+    // Return size as-is if API sizes not loaded yet
+    return size || "-";
   };
 
   const getFabricLabel = (fabricType) => {
     if (fabricType === null || fabricType === undefined) return "-";
-    const numeric = typeof fabricType === "number" ? fabricType : parseInt(fabricType, 10);
-    return FABRIC_TYPE_LABELS[numeric] || fabricType || "-";
+    // Return fabricType as-is if API fabricTypes not loaded yet
+    return fabricType || "-";
   };
 
   return (

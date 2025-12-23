@@ -49,6 +49,7 @@ export const USER_ROLE_LABELS = {
   [USER_ROLES.PACKAGER]: 'مسؤول تغليف الطلبات',
 };
 
+
 // Size Enum (matching backend exactly)
 export const SIZE_ENUM = {
   Size2: 2,
@@ -131,10 +132,22 @@ export const FABRIC_TYPE_LABELS = {
   [FABRIC_TYPE_ENUM.TrackSuit]: 'ترنج'
 };
 
+// Color Labels (Arabic) - Fallback for when API data is not available
+export const COLOR_LABELS = {
+  1: 'أسود',
+  2: 'أبيض',
+  3: 'سكني',
+  4: 'أزرق',
+  5: 'بني',
+  6: 'بنفسجي',
+  7: 'زهري',
+  8: 'بيج',
+  9: 'خمري'
+};
+
 // Legacy arrays for backward compatibility (deprecated)
 export const FABRIC_TYPES = Object.values(FABRIC_TYPE_LABELS);
 export const SIZES = Object.values(SIZE_LABELS);
-
 
 // Helper function to get size label by value (handles conflicts)
 export const getSizeLabelByValue = (value) => {

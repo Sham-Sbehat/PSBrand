@@ -31,7 +31,7 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
-import { USER_ROLES, SIZE_LABELS, FABRIC_TYPE_LABELS, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../constants";
+import { USER_ROLES, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, SIZE_LABELS, FABRIC_TYPE_LABELS, COLOR_LABELS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
 import calmPalette from "../theme/calmPalette";
@@ -345,76 +345,197 @@ const PreparerDashboard = () => {
   };
 
   // Helper functions to convert IDs to nameAr from API
-  const getFabricLabel = (fabricType) => {
-    if (fabricType === null || fabricType === undefined) return "-";
-    
-    const fabricTypeId = typeof fabricType === 'string' && !isNaN(fabricType) && fabricType !== '' 
-      ? Number(fabricType) 
-      : (typeof fabricType === 'number' ? fabricType : null);
-    
-    if (fabricTypeId === null) {
-      return fabricType;
+  const getFabricLabel = (item) => {
+    // If item is a primitive value (backward compatibility)
+    if (typeof item !== 'object' || item === null) {
+      const fabricType = item;
+      if (fabricType === null || fabricType === undefined) return "-";
+      
+      const fabricTypeId = typeof fabricType === 'string' && !isNaN(fabricType) && fabricType !== '' 
+        ? Number(fabricType) 
+        : (typeof fabricType === 'number' ? fabricType : null);
+      
+      if (fabricTypeId === null) {
+        return fabricType;
+      }
+      
+      // Use constants for legacy values
+      if (FABRIC_TYPE_LABELS[fabricTypeId]) {
+        return FABRIC_TYPE_LABELS[fabricTypeId];
+      }
+      
+      if (fabricTypes.length > 0) {
+        const fabricTypeObj = fabricTypes.find(f => f.id === fabricTypeId);
+        if (fabricTypeObj) {
+          return fabricTypeObj.name || fabricTypeObj.nameAr || "-";
+        }
+      }
+      
+      return fabricType || "-";
     }
     
+    // New format: check if fabricTypeId is null (legacy order)
+    if (item.fabricTypeId === null || item.fabricTypeId === undefined) {
+      // Legacy order - use constants mapping
+      const fabricType = item.fabricType;
+      if (fabricType === null || fabricType === undefined) return "-";
+      const fabricTypeId = typeof fabricType === 'string' && !isNaN(fabricType) && fabricType !== '' 
+        ? Number(fabricType) 
+        : (typeof fabricType === 'number' ? fabricType : null);
+      if (fabricTypeId !== null && FABRIC_TYPE_LABELS[fabricTypeId]) {
+        return FABRIC_TYPE_LABELS[fabricTypeId];
+      }
+      return fabricType || "-";
+    }
+    
+    // New order - use API values
+    if (item.fabricTypeNameAr) {
+      return item.fabricTypeNameAr;
+    }
+    
+    // Fallback to API lookup
     if (fabricTypes.length > 0) {
-      const fabricTypeObj = fabricTypes.find(f => f.id === fabricTypeId);
+      const fabricTypeObj = fabricTypes.find(f => f.id === item.fabricTypeId);
       if (fabricTypeObj) {
-        return fabricTypeObj.nameAr || fabricTypeObj.name || "-";
+        return fabricTypeObj.name || fabricTypeObj.nameAr || "-";
       }
     }
     
-    const numeric = typeof fabricType === "number" ? fabricType : parseInt(fabricType, 10);
-    return FABRIC_TYPE_LABELS[numeric] || fabricType || "-";
+    return "-";
   };
 
-  const getSizeLabel = (size) => {
-    if (size === null || size === undefined) return "-";
-    
-    const sizeId = typeof size === 'string' && !isNaN(size) && size !== '' 
-      ? Number(size) 
-      : (typeof size === 'number' ? size : null);
-    
-    if (sizeId === null) {
-      return size;
+  const getSizeLabel = (item) => {
+    // If item is a primitive value (backward compatibility)
+    if (typeof item !== 'object' || item === null) {
+      const size = item;
+      if (size === null || size === undefined) return "-";
+      if (typeof size === "string" && !size.trim()) return "-";
+      
+      // Convert to number if it's a string number
+      const sizeId = typeof size === 'string' && !isNaN(size) && size !== '' 
+        ? Number(size) 
+        : (typeof size === 'number' ? size : null);
+      
+      // If it's not a number, it might already be a name - return it
+      if (sizeId === null) {
+        return size;
+      }
+      
+      // Use constants for legacy values
+      if (SIZE_LABELS[sizeId]) {
+        return SIZE_LABELS[sizeId];
+      }
+      
+      if (sizes.length > 0) {
+        // Try to find by legacyValue (the numeric value like 2, 4, 6, 101, 102, etc.)
+        let sizeObj = sizes.find(s => s.legacyValue === sizeId);
+        if (sizeObj) {
+          return sizeObj.name || sizeObj.nameAr || "-";
+        }
+        
+        // Try exact match by ID as fallback
+        sizeObj = sizes.find(s => s.id === sizeId);
+        if (sizeObj) {
+          return sizeObj.name || sizeObj.nameAr || "-";
+        }
+        
+        // Try to match by converting to string and comparing
+        sizeObj = sizes.find(s => String(s.id) === String(sizeId) || String(s.legacyValue) === String(sizeId));
+        if (sizeObj) {
+          return sizeObj.name || sizeObj.nameAr || "-";
+        }
+      }
+      
+      return size || "-";
     }
     
+    // New format: check if sizeId is null (legacy order)
+    if (item.sizeId === null || item.sizeId === undefined) {
+      // Legacy order - use constants mapping
+      const size = item.size;
+      if (size === null || size === undefined) return "-";
+      const sizeId = typeof size === 'string' && !isNaN(size) && size !== '' 
+        ? Number(size) 
+        : (typeof size === 'number' ? size : null);
+      if (sizeId !== null && SIZE_LABELS[sizeId]) {
+        return SIZE_LABELS[sizeId];
+      }
+      return size || "-";
+    }
+    
+    // New order - use API values
+    if (item.sizeName) {
+      return item.sizeName;
+    }
+    
+    // Fallback to API lookup
     if (sizes.length > 0) {
-      const sizeObj = sizes.find(s => s.id === sizeId);
+      const sizeObj = sizes.find(s => s.id === item.sizeId || s.legacyValue === item.sizeId);
       if (sizeObj) {
-        return sizeObj.nameAr || sizeObj.name || "-";
+        return sizeObj.name || sizeObj.nameAr || "-";
       }
     }
     
-    if (typeof size === "number") {
-      return SIZE_LABELS[size] || size;
-    }
-    const numeric = parseInt(size, 10);
-    if (!Number.isNaN(numeric) && SIZE_LABELS[numeric]) {
-      return SIZE_LABELS[numeric];
-    }
-    return size;
+    return "-";
   };
 
-  const getColorLabel = (color) => {
-    if (color === null || color === undefined) return "-";
-    
-    const colorId = typeof color === 'string' && !isNaN(color) && color !== '' 
-      ? Number(color) 
-      : (typeof color === 'number' ? color : null);
-    
-    if (colorId === null) {
-      return color;
+  const getColorLabel = (item) => {
+    // If item is a primitive value (backward compatibility)
+    if (typeof item !== 'object' || item === null) {
+      const color = item;
+      if (color === null || color === undefined) return "-";
+      
+      const colorId = typeof color === 'string' && !isNaN(color) && color !== '' 
+        ? Number(color) 
+        : (typeof color === 'number' ? color : null);
+      
+      if (colorId === null) {
+        return color;
+      }
+      
+      // Use constants for legacy values
+      if (COLOR_LABELS[colorId]) {
+        return COLOR_LABELS[colorId];
+      }
+      
+      if (colors.length > 0) {
+        const colorObj = colors.find(c => c.id === colorId);
+        if (colorObj) {
+          return colorObj.name || colorObj.nameAr || "-";
+        }
+      }
+      
+      return color || "-";
     }
     
+    // New format: check if colorId is null (legacy order)
+    if (item.colorId === null || item.colorId === undefined) {
+      // Legacy order - use constants mapping
+      const color = item.color;
+      if (color === null || color === undefined) return "-";
+      const colorId = typeof color === 'string' && !isNaN(color) && color !== '' 
+        ? Number(color) 
+        : (typeof color === 'number' ? color : null);
+      if (colorId !== null && COLOR_LABELS[colorId]) {
+        return COLOR_LABELS[colorId];
+      }
+      return color || "-";
+    }
+    
+    // New order - use API values
+    if (item.colorNameAr) {
+      return item.colorNameAr;
+    }
+    
+    // Fallback to API lookup
     if (colors.length > 0) {
-      const colorObj = colors.find(c => c.id === colorId);
+      const colorObj = colors.find(c => c.id === item.colorId);
       if (colorObj) {
-        return colorObj.nameAr || colorObj.name || "-";
+        return colorObj.name || colorObj.nameAr || "-";
       }
     }
     
-    // Return color as-is if API colors not loaded yet
-    return color || "-";
+    return "-";
   };
 
   // Load colors, sizes, and fabric types on component mount
@@ -2486,9 +2607,9 @@ const InfoItem = ({ label, value }) => (
                                 <TableBody>
                                   {designItems.map((item, idx) => (
                                     <TableRow key={item?.id || idx}>
-                                      <TableCell>{getFabricLabel(item?.fabricType)}</TableCell>
-                                      <TableCell>{getColorLabel(item?.color)}</TableCell>
-                                      <TableCell align="center">{getSizeLabel(item?.size)}</TableCell>
+                                      <TableCell>{getFabricLabel(item)}</TableCell>
+                                      <TableCell>{getColorLabel(item)}</TableCell>
+                                      <TableCell align="center">{getSizeLabel(item)}</TableCell>
                                       <TableCell align="center">{item?.quantity ?? "-"}</TableCell>
                                       <TableCell align="center">{formatCurrency(item?.unitPrice)}</TableCell>
                                       <TableCell align="center">{formatCurrency(item?.totalPrice)}</TableCell>

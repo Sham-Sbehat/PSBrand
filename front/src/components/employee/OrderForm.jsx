@@ -59,16 +59,12 @@ import {
   deliveryService,
   shipmentsService,
   colorsService,
+  sizesService,
+  fabricTypesService,
 } from "../../services/api";
 import {
   ORDER_STATUS,
   USER_ROLES,
-  FABRIC_TYPE_ENUM,
-  FABRIC_TYPE_LABELS,
-  SIZE_ENUM,
-  SIZE_LABELS,
-  getSizeValueByLabel,
-  getSizeLabelByValue,
 } from "../../constants";
 import {
   generateOrderNumber,
@@ -150,6 +146,14 @@ const OrderForm = ({
   // Colors from API
   const [colors, setColors] = useState([]);
   const [loadingColors, setLoadingColors] = useState(false);
+  
+  // Sizes from API
+  const [sizes, setSizes] = useState([]);
+  const [loadingSizes, setLoadingSizes] = useState(false);
+  
+  // Fabric Types from API
+  const [fabricTypes, setFabricTypes] = useState([]);
+  const [loadingFabricTypes, setLoadingFabricTypes] = useState(false);
 
   // Customer dialog shipping info (separate from main form)
   const [dialogShippingAddress, setDialogShippingAddress] = useState("");
@@ -291,7 +295,12 @@ const OrderForm = ({
 
     const getFabricLabel = (value) => {
       if (value === null || value === undefined) return "";
-      return FABRIC_TYPE_LABELS[value] || value || "";
+      // Try to find fabric type from API first
+      if (fabricTypes.length > 0) {
+        const fabricType = fabricTypes.find(f => f.id === value || f.nameAr === value || f.name === value);
+        if (fabricType) return fabricType.nameAr || fabricType.name || "";
+      }
+      return value || "";
     };
 
     const getColorLabel = (value) => {
@@ -307,9 +316,12 @@ const OrderForm = ({
 
     const getSizeLabel = (value) => {
       if (value === null || value === undefined) return "";
-      const label = getSizeLabelByValue(value);
-      if (label && label !== "Unknown") return label;
-      if (SIZE_LABELS[value]) return SIZE_LABELS[value];
+      // Try to find size from API first
+      if (sizes.length > 0) {
+        const size = sizes.find(s => s.id === value || s.nameAr === value || s.name === value);
+        if (size) return size.name || size.nameAr || "";
+      }
+      // Return value as-is if API sizes not loaded yet
       return value || "";
     };
 
@@ -482,8 +494,34 @@ const OrderForm = ({
     }
   };
 
+  const loadSizes = async () => {
+    setLoadingSizes(true);
+    try {
+      const sizesData = await sizesService.getAllSizes();
+      setSizes(Array.isArray(sizesData) ? sizesData : []);
+    } catch (error) {
+      setSizes([]);
+    } finally {
+      setLoadingSizes(false);
+    }
+  };
+
+  const loadFabricTypes = async () => {
+    setLoadingFabricTypes(true);
+    try {
+      const fabricTypesData = await fabricTypesService.getAllFabricTypes();
+      setFabricTypes(Array.isArray(fabricTypesData) ? fabricTypesData : []);
+    } catch (error) {
+      setFabricTypes([]);
+    } finally {
+      setLoadingFabricTypes(false);
+    }
+  };
+
   useEffect(() => {
     loadColors();
+    loadSizes();
+    loadFabricTypes();
   }, []);
 
   // Helper function to convert color ID to nameAr from API (available throughout component)
@@ -1048,24 +1086,119 @@ const OrderForm = ({
         }
 
         designPayload.orderDesignItems = order.items.map((item) => {
-          const itemPayload = {
-            size: getSizeValueByLabel(item.size),
-            color: (() => {
-              // Try to find color by Arabic name from API
-              if (colors.length > 0) {
-                const color = colors.find(c => 
-                  (c.nameAr && c.nameAr === item.color) || 
-                  (c.name && c.name === item.color)
-                );
+          // Find sizeId from API
+          const sizeId = (() => {
+            if (!item.size || item.size === "") {
+              return null;
+            }
+            
+            if (sizes.length > 0) {
+              // First, try exact match with nameAr or name
+              let size = sizes.find(s => 
+                (s.nameAr && s.nameAr.trim() === item.size.trim()) || 
+                (s.name && s.name.trim() === item.size.trim())
+              );
+              if (size) return size.id;
+              
+              // Try case-insensitive match
+              size = sizes.find(s => 
+                (s.nameAr && s.nameAr.trim().toLowerCase() === item.size.trim().toLowerCase()) || 
+                (s.name && s.name.trim().toLowerCase() === item.size.trim().toLowerCase())
+              );
+              if (size) return size.id;
+              
+              // Try to match by ID if item.size is a number
+              if (!isNaN(item.size) && item.size !== "") {
+                const numericId = parseInt(item.size);
+                size = sizes.find(s => s.id === numericId);
+                if (size) return size.id;
+              }
+            }
+            
+            return null; // Return null instead of 0 if not found
+          })();
+
+          // Find colorId from API
+          const colorId = (() => {
+            if (!item.color || item.color === "") {
+              return null;
+            }
+            
+            if (colors.length > 0) {
+              // First, try exact match with nameAr or name
+              let color = colors.find(c => 
+                (c.nameAr && c.nameAr.trim() === item.color.trim()) || 
+                (c.name && c.name.trim() === item.color.trim())
+              );
+              if (color) return color.id;
+              
+              // Try case-insensitive match
+              color = colors.find(c => 
+                (c.nameAr && c.nameAr.trim().toLowerCase() === item.color.trim().toLowerCase()) || 
+                (c.name && c.name.trim().toLowerCase() === item.color.trim().toLowerCase())
+              );
+              if (color) return color.id;
+              
+              // Try to match by ID if item.color is a number
+              if (!isNaN(item.color) && item.color !== "") {
+                const numericId = parseInt(item.color);
+                color = colors.find(c => c.id === numericId);
                 if (color) return color.id;
               }
-              // If color not found in API, return 0 (will be handled by backend validation)
-              return 0;
-            })(),
-            fabricType: getEnumValueFromLabel(
-              item.fabricType,
-              FABRIC_TYPE_LABELS
-            ),
+            }
+            return null; // Return null instead of 0 if not found
+          })();
+
+          // Find fabricTypeId from API
+          const fabricTypeId = (() => {
+            if (!item.fabricType || item.fabricType === "") {
+              return null;
+            }
+            
+            if (fabricTypes.length > 0) {
+              // First, try exact match with nameAr or name
+              let fabricType = fabricTypes.find(f => 
+                (f.nameAr && f.nameAr.trim() === item.fabricType.trim()) || 
+                (f.name && f.name.trim() === item.fabricType.trim())
+              );
+              if (fabricType) return fabricType.id;
+              
+              // Try case-insensitive match
+              fabricType = fabricTypes.find(f => 
+                (f.nameAr && f.nameAr.trim().toLowerCase() === item.fabricType.trim().toLowerCase()) || 
+                (f.name && f.name.trim().toLowerCase() === item.fabricType.trim().toLowerCase())
+              );
+              if (fabricType) return fabricType.id;
+              
+              // Try to match by ID if item.fabricType is a number
+              if (!isNaN(item.fabricType) && item.fabricType !== "") {
+                const numericId = parseInt(item.fabricType);
+                fabricType = fabricTypes.find(f => f.id === numericId);
+                if (fabricType) return fabricType.id;
+              }
+            }
+            
+            return null; // Return null instead of 0 if not found
+          })();
+
+          // Validate that all required IDs are found
+          if (!sizeId) {
+            throw new Error(`المقاس "${item.size}" غير موجود في قاعدة البيانات. يرجى اختيار مقاس صحيح.`);
+          }
+          if (!colorId) {
+            throw new Error(`اللون "${item.color}" غير موجود في قاعدة البيانات. يرجى اختيار لون صحيح.`);
+          }
+          if (!fabricTypeId) {
+            throw new Error(`نوع القماش "${item.fabricType}" غير موجود في قاعدة البيانات. يرجى اختيار نوع قماش صحيح.`);
+          }
+
+          const itemPayload = {
+            size: null,
+            color: null,
+            fabricType: null,
+            sizeId: sizeId,
+            colorId: colorId,
+            fabricTypeId: fabricTypeId,
             quantity: parseInt(item.quantity) || 1,
             unitPrice: parseFloat(item.unitPrice) || 0,
           };
@@ -2779,32 +2912,44 @@ const OrderForm = ({
                                   )
                                 }
                                 sx={{ minWidth: 150 }}
+                                disabled={loadingFabricTypes}
                               >
-                                <MenuItem value="قطن 200 غرام">
-                                  قطن 200 غرام
-                                </MenuItem>
-                                <MenuItem value="قطن 250 غرام">
-                                  قطن 250 غرام
-                                </MenuItem>
-                                <MenuItem value="100% قطن">100% قطن</MenuItem>
-                                <MenuItem value="فرنشتيري">فرنشتيري</MenuItem>
-                                <MenuItem value="كم خفيف">كم خفيف</MenuItem>
-                                <MenuItem value="هودي فوتر مبطن">
-                                  هودي فوتر مبطن
-                                </MenuItem>
-                                <MenuItem value="هودي 280 غرام">
-                                  هودي 280 غرام
-                                </MenuItem>
-                                <MenuItem value="هودي 330 غرام">
-                                  هودي 330 غرام
-                                </MenuItem>
-                                <MenuItem value="هودي 400 غرام">
-                                  هودي 400 غرام
-                                </MenuItem>
-                                <MenuItem value="جكيت فوتر">جكيت فوتر</MenuItem>
-                                <MenuItem value="سويت شيرت">سويت شيرت</MenuItem>
-                                <MenuItem value="نص سحاب">نص سحاب</MenuItem>
-                                <MenuItem value="ترنج">ترنج</MenuItem>
+                                {fabricTypes.length > 0 ? (
+                                  fabricTypes.map((fabricType) => (
+                                    <MenuItem key={fabricType.id} value={fabricType.nameAr || fabricType.name}>
+                                      {fabricType.nameAr || fabricType.name}
+                                    </MenuItem>
+                                  ))
+                                ) : (
+                                  // Fallback to static fabric types if API hasn't loaded yet
+                                  <>
+                                    <MenuItem value="قطن 200 غرام">
+                                      قطن 200 غرام
+                                    </MenuItem>
+                                    <MenuItem value="قطن 250 غرام">
+                                      قطن 250 غرام
+                                    </MenuItem>
+                                    <MenuItem value="100% قطن">100% قطن</MenuItem>
+                                    <MenuItem value="فرنشتيري">فرنشتيري</MenuItem>
+                                    <MenuItem value="كم خفيف">كم خفيف</MenuItem>
+                                    <MenuItem value="هودي فوتر مبطن">
+                                      هودي فوتر مبطن
+                                    </MenuItem>
+                                    <MenuItem value="هودي 280 غرام">
+                                      هودي 280 غرام
+                                    </MenuItem>
+                                    <MenuItem value="هودي 330 غرام">
+                                      هودي 330 غرام
+                                    </MenuItem>
+                                    <MenuItem value="هودي 400 غرام">
+                                      هودي 400 غرام
+                                    </MenuItem>
+                                    <MenuItem value="جكيت فوتر">جكيت فوتر</MenuItem>
+                                    <MenuItem value="سويت شيرت">سويت شيرت</MenuItem>
+                                    <MenuItem value="نص سحاب">نص سحاب</MenuItem>
+                                    <MenuItem value="ترنج">ترنج</MenuItem>
+                                  </>
+                                )}
                               </Select>
                             </FormControl>
                           </Grid>
@@ -2863,27 +3008,39 @@ const OrderForm = ({
                                   )
                                 }
                                 sx={{ minWidth: 100 }}
+                                disabled={loadingSizes}
                               >
-                                <MenuItem value="2">2</MenuItem>
-                                <MenuItem value="4">4</MenuItem>
-                                <MenuItem value="6">6</MenuItem>
-                                <MenuItem value="8">8</MenuItem>
-                                <MenuItem value="10">10</MenuItem>
-                                <MenuItem value="12">12</MenuItem>
-                                <MenuItem value="14">14</MenuItem>
-                                <MenuItem value="16">16</MenuItem>
-                                <MenuItem value="18">18</MenuItem>
-                                <MenuItem value="XS">XS</MenuItem>
-                                <MenuItem value="S">S</MenuItem>
-                                <MenuItem value="M">M</MenuItem>
-                                <MenuItem value="L">L</MenuItem>
-                                <MenuItem value="XL">XL</MenuItem>
-                                <MenuItem value="XXL">XXL</MenuItem>
-                                <MenuItem value="3XL">3XL</MenuItem>
-                                <MenuItem value="4XL">4XL</MenuItem>
-                                <MenuItem value="5XL">5XL</MenuItem>
-                                <MenuItem value="6XL">6XL</MenuItem>
-                                <MenuItem value="7XL">7XL</MenuItem>
+                                {sizes.length > 0 ? (
+                                  sizes.map((size) => (
+                                    <MenuItem key={size.id} value={size.name || size.nameAr}>
+                                      {size.name || size.nameAr}
+                                    </MenuItem>
+                                  ))
+                                ) : (
+                                  // Fallback to static sizes if API hasn't loaded yet
+                                  <>
+                                    <MenuItem value="2">2</MenuItem>
+                                    <MenuItem value="4">4</MenuItem>
+                                    <MenuItem value="6">6</MenuItem>
+                                    <MenuItem value="8">8</MenuItem>
+                                    <MenuItem value="10">10</MenuItem>
+                                    <MenuItem value="12">12</MenuItem>
+                                    <MenuItem value="14">14</MenuItem>
+                                    <MenuItem value="16">16</MenuItem>
+                                    <MenuItem value="18">18</MenuItem>
+                                    <MenuItem value="XS">XS</MenuItem>
+                                    <MenuItem value="S">S</MenuItem>
+                                    <MenuItem value="M">M</MenuItem>
+                                    <MenuItem value="L">L</MenuItem>
+                                    <MenuItem value="XL">XL</MenuItem>
+                                    <MenuItem value="XXL">XXL</MenuItem>
+                                    <MenuItem value="3XL">3XL</MenuItem>
+                                    <MenuItem value="4XL">4XL</MenuItem>
+                                    <MenuItem value="5XL">5XL</MenuItem>
+                                    <MenuItem value="6XL">6XL</MenuItem>
+                                    <MenuItem value="7XL">7XL</MenuItem>
+                                  </>
+                                )}
                               </Select>
                             </FormControl>
                           </Grid>
