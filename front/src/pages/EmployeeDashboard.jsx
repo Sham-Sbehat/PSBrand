@@ -1461,13 +1461,13 @@ const EmployeeDashboard = () => {
   const handleContactCustomer = async (order) => {
     if (!order) return;
 
-    // Determine new status (toggle)
-    const currentStatus = order.isContacted || order.isContactedWithClient;
+    // Determine current status (check both fields explicitly)
+    const currentStatus = order.isContacted === true || order.isContactedWithClient === true;
     const newStatus = !currentStatus;
 
     try {
-      // Update contacted status in backend
-      await ordersService.updateContactedStatus(order.id);
+      // Update contacted status in backend with new status value (toggle)
+      await ordersService.updateContactedStatus(order.id, newStatus);
 
       // Update local state with new status
       setOrdersList((prev) =>
@@ -2208,17 +2208,33 @@ const EmployeeDashboard = () => {
                                 >
                                   {order.isContacted ||
                                   order.isContactedWithClient ? (
-                                    <Tooltip title="تم التواصل مع الزبون">
-                                      <CheckCircle
+                                    <Tooltip title="تم التواصل مع الزبون (انقر للتغيير)">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() =>
+                                          handleContactCustomer(order)
+                                        }
                                         sx={{
                                           color: "#4caf50",
-                                          fontSize: 18,
-                                          cursor: "pointer",
+                                          padding: 0.25,
+                                          minWidth: "auto",
+                                          width: 24,
+                                          height: 24,
+                                          "&:hover": {
+                                            backgroundColor: "#4caf5015",
+                                            transform: "scale(1.1)",
+                                          },
+                                          transition: "all 0.2s",
+                                          "& .MuiSvgIcon-root": {
+                                            fontSize: 18,
+                                          },
                                         }}
-                                      />
+                                      >
+                                        <CheckCircle />
+                                      </IconButton>
                                     </Tooltip>
                                   ) : (
-                                    <Tooltip title="انقر لتحديث حالة التواصل">
+                                    <Tooltip title="لم يتم التواصل مع الزبون (انقر للتغيير)">
                                       <IconButton
                                         size="small"
                                         onClick={() =>

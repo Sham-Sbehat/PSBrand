@@ -333,10 +333,10 @@ export const ordersService = {
     return response.data;
   },
 
-  // Update contacted status
-  updateContactedStatus: async (orderId) => {
+  // Update contacted status (toggle)
+  updateContactedStatus: async (orderId, isContacted) => {
     const response = await api.patch(`/Orders/${orderId}/ContactedStatus`, {
-      isContactedWithClient: true
+      isContactedWithClient: isContacted
     });
     return response.data;
   },
