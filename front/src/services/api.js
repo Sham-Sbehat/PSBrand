@@ -516,10 +516,13 @@ export const colorsService = {
   },
 
   deleteColor: async (id) => {
-    const response = await api.delete(`/Colors/${id}`);
-    // Clear cache after deleting color
-    clearCache(CACHE_KEYS.COLORS);
-    return response.data;
+    try {
+      const response = await api.delete(`/Colors/${id}`);
+      return response.data;
+    } finally {
+      // Clear cache even if delete fails
+      clearCache(CACHE_KEYS.COLORS);
+    }
   },
 };
 
@@ -563,10 +566,13 @@ export const sizesService = {
   },
 
   deleteSize: async (id) => {
-    const response = await api.delete(`/Sizes/${id}`);
-    // Clear cache after deleting size
-    clearCache(CACHE_KEYS.SIZES);
-    return response.data;
+    try {
+      const response = await api.delete(`/Sizes/${id}`);
+      return response.data;
+    } finally {
+      // Clear cache even if delete fails
+      clearCache(CACHE_KEYS.SIZES);
+    }
   },
 };
 
@@ -610,10 +616,13 @@ export const fabricTypesService = {
   },
 
   deleteFabricType: async (id) => {
-    const response = await api.delete(`/FabricTypes/${id}`);
-    // Clear cache after deleting fabric type
-    clearCache(CACHE_KEYS.FABRIC_TYPES);
-    return response.data;
+    try {
+      const response = await api.delete(`/FabricTypes/${id}`);
+      return response.data;
+    } finally {
+      // Clear cache even if delete fails
+      clearCache(CACHE_KEYS.FABRIC_TYPES);
+    }
   },
 };
 
