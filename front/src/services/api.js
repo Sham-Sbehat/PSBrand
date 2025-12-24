@@ -332,9 +332,24 @@ export const ordersService = {
     return response.data;
   },
 
+  // Update contacted status
+  updateContactedStatus: async (orderId) => {
+    const response = await api.patch(`/Orders/${orderId}/ContactedStatus`, {
+      isContactedWithClient: true
+    });
+    return response.data;
+  },
+
   // Get confirmed delivery orders
-  getConfirmedDeliveryOrders: async () => {
-    const response = await api.get(`/Orders/GetConfirmedDeliveryOrders`);
+  getConfirmedDeliveryOrders: async (params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.page) queryParams.append('page', params.page);
+    if (params.pageSize) queryParams.append('pageSize', params.pageSize);
+    if (params.designerId) queryParams.append('designerId', params.designerId);
+    
+    const queryString = queryParams.toString();
+    const url = `/Orders/GetConfirmedDeliveryOrders${queryString ? `?${queryString}` : ''}`;
+    const response = await api.get(url);
     return response.data;
   },
 };

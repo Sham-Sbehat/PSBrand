@@ -40,7 +40,9 @@ export const subscribeToOrderUpdates = async ({
   onDeliveryStatusChanged,
   onShipmentStatusUpdated,
   onShipmentNoteAdded,
-  onNewNotification
+  onNewNotification,
+  onOrderContactedStatusChanged,
+  onOrderUpdated
 } = {}) => {
   const primaryBase = getApiBase();
   const candidates = [
@@ -92,6 +94,18 @@ export const subscribeToOrderUpdates = async ({
     if (onNewNotification) {
       connection.on("NewNotification", (notification) => {
         onNewNotification(notification);
+      });
+    }
+    // Add handler for contacted status changes
+    if (onOrderContactedStatusChanged) {
+      connection.on("OrderContactedStatusChanged", (orderId, isContacted) => {
+        onOrderContactedStatusChanged(orderId, isContacted);
+      });
+    }
+    // Add handler for general order updates
+    if (onOrderUpdated) {
+      connection.on("OrderUpdated", (orderData) => {
+        onOrderUpdated(orderData);
       });
     }
     

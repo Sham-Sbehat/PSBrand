@@ -41,6 +41,8 @@ import {
   Clear,
   CalendarToday,
   Edit,
+  CheckCircle,
+  ContactPhone,
 } from "@mui/icons-material";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { useApp } from "../../context/AppContext";
@@ -393,27 +395,39 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
           },
           onOrderStatusChanged: (orderData) => {
             // ✅ تحديث محلي بدل refresh كامل - يوفر API call و bandwidth
-            // لكن إذا كان هناك date filter، يجب إعادة جلب البيانات للحصول على totalSum المحدث
-            const currentDateFilter = dateFilterProp || dateFilter;
-            if (currentDateFilter) {
-              // إعادة جلب البيانات للحصول على totalSum المحدث
-              fetchOrders();
-              return;
-            }
-            
-              const order = typeof orderData === 'object' ? orderData : null;
+            const order = typeof orderData === 'object' ? orderData : null;
             if (order && order.id) {
+              // Check if contacted status changed
+              const hasContactedStatus = order.isContacted !== undefined || order.isContactedWithClient !== undefined;
+              
               setAllOrders(prev => {
                 const existingIndex = prev.findIndex(o => o.id === order.id);
                 if (existingIndex >= 0) {
-                  // تحديث الطلب الموجود فقط
+                  const existingOrder = prev[existingIndex];
+                  // تحديث الطلب الموجود فقط - يتضمن تحديث حالة التواصل إذا كانت موجودة
                   const updated = [...prev];
-                  updated[existingIndex] = { ...updated[existingIndex], ...order };
+                  updated[existingIndex] = { 
+                    ...existingOrder, 
+                    ...order,
+                    // تحديث حالة التواصل إذا كانت موجودة في البيانات الجديدة
+                    isContacted: order.isContacted !== undefined ? order.isContacted : (order.isContactedWithClient !== undefined ? order.isContactedWithClient : existingOrder.isContacted),
+                    isContactedWithClient: order.isContactedWithClient !== undefined ? order.isContactedWithClient : (order.isContacted !== undefined ? order.isContacted : existingOrder.isContactedWithClient)
+                  };
+                  
+                  // Log if contacted status changed
+                  if (hasContactedStatus && (
+                    existingOrder.isContacted !== updated[existingIndex].isContacted ||
+                    existingOrder.isContactedWithClient !== updated[existingIndex].isContactedWithClient
+                  )) {
+                    console.log('📞 Contacted status updated via OrderStatusChanged:', order.id, updated[existingIndex].isContactedWithClient);
+                  }
+                  
                   return updated;
                 }
                 // إذا لم يكن موجود، أضفه
                 return [order, ...prev];
               });
+              
               // مسح cache للطلبات
               Object.keys(CACHE_KEYS).forEach(key => {
                 if (key.includes('ORDERS')) {
@@ -422,7 +436,98 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
               });
             } else {
               // Fallback: refresh كامل فقط إذا لم تكن البيانات كاملة
-              fetchOrders();
+              const currentDateFilter = dateFilterProp || dateFilter;
+              if (currentDateFilter) {
+                fetchOrders();
+              }
+            }
+          },
+          onOrderContactedStatusChanged: async (orderId, isContacted) => {
+            // Update contacted status in real-time - fetch only the specific order
+            console.log('📞 Contacted status changed via SignalR:', orderId, isContacted);
+            
+            try {
+              // Fetch only the updated order from API
+              const updatedOrder = await ordersService.getOrderById(orderId);
+              
+              if (updatedOrder && updatedOrder.id) {
+                setAllOrders(prev => {
+                  const existingIndex = prev.findIndex(o => o.id === orderId);
+                  if (existingIndex >= 0) {
+                    const updated = [...prev];
+                    updated[existingIndex] = {
+                      ...updated[existingIndex],
+                      ...updatedOrder,
+                      // Ensure contacted status is updated
+                      isContacted: updatedOrder.isContacted !== undefined ? updatedOrder.isContacted : isContacted,
+                      isContactedWithClient: updatedOrder.isContactedWithClient !== undefined ? updatedOrder.isContactedWithClient : isContacted
+                    };
+                    return updated;
+                  }
+                  return prev;
+                });
+              }
+            } catch (error) {
+              // If API call fails, update locally from SignalR data
+              console.warn('Failed to fetch updated order, updating locally:', error);
+              setAllOrders(prev => {
+                const existingIndex = prev.findIndex(o => o.id === orderId);
+                if (existingIndex >= 0) {
+                  const updated = [...prev];
+                  updated[existingIndex] = {
+                    ...updated[existingIndex],
+                    isContacted: isContacted,
+                    isContactedWithClient: isContacted
+                  };
+                  return updated;
+                }
+                return prev;
+              });
+            }
+          },
+          // Also listen to OrderUpdated event (if backend sends it)
+          onOrderUpdated: async (orderData) => {
+            // Handle general order updates (may include contacted status)
+            const order = typeof orderData === 'object' ? orderData : null;
+            if (order && order.id) {
+              // If order data is complete, use it directly
+              if (order.isContacted !== undefined || order.isContactedWithClient !== undefined) {
+                setAllOrders(prev => {
+                  const existingIndex = prev.findIndex(o => o.id === order.id);
+                  if (existingIndex >= 0) {
+                    const updated = [...prev];
+                    updated[existingIndex] = {
+                      ...updated[existingIndex],
+                      ...order,
+                      isContacted: order.isContacted !== undefined ? order.isContacted : updated[existingIndex].isContacted,
+                      isContactedWithClient: order.isContactedWithClient !== undefined ? order.isContactedWithClient : updated[existingIndex].isContactedWithClient
+                    };
+                    return updated;
+                  }
+                  return prev;
+                });
+              } else {
+                // If data is incomplete, fetch the specific order
+                try {
+                  const updatedOrder = await ordersService.getOrderById(order.id);
+                  if (updatedOrder && updatedOrder.id) {
+                    setAllOrders(prev => {
+                      const existingIndex = prev.findIndex(o => o.id === order.id);
+                      if (existingIndex >= 0) {
+                        const updated = [...prev];
+                        updated[existingIndex] = {
+                          ...updated[existingIndex],
+                          ...updatedOrder
+                        };
+                        return updated;
+                      }
+                      return prev;
+                    });
+                  }
+                } catch (error) {
+                  console.warn('Failed to fetch updated order:', error);
+                }
+              }
             }
           },
           onDeliveryStatusChanged: (orderId, deliveryStatus) => {
@@ -1904,7 +2009,31 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                           "&:last-child td, &:last-child th": { border: 0 },
                         }}
                       >
-                        <TableCell>{order.orderNumber || `#${order.id}`}</TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {order.isContacted || order.isContactedWithClient ? (
+                              <Tooltip title="تم التواصل مع الزبون">
+                                <CheckCircle 
+                                  sx={{ 
+                                    color: '#4caf50', 
+                                    fontSize: 18,
+                                    cursor: 'pointer'
+                                  }} 
+                                />
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="لم يتم التواصل مع الزبون بعد">
+                                <ContactPhone 
+                                  sx={{ 
+                                    color: '#9e9e9e', 
+                                    fontSize: 18,
+                                  }} 
+                                />
+                              </Tooltip>
+                            )}
+                            <Typography variant="body2">{order.orderNumber || `#${order.id}`}</Typography>
+                          </Box>
+                        </TableCell>
                         <TableCell>{order.client?.name || "-"}</TableCell>
                         <TableCell>{order.designer?.name || "-"}</TableCell>
                         <TableCell>{order.preparer?.name || "-"}</TableCell>
