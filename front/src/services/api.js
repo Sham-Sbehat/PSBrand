@@ -1,6 +1,7 @@
 import axios from "axios";
 import { STORAGE_KEYS } from "../constants";
 import { storage } from "../utils";
+import { getCache, setCache, clearCache, CACHE_KEYS } from "../utils/cache";
 
 // Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
@@ -478,8 +479,21 @@ export const clientsService = {
 // Colors Service
 export const colorsService = {
   getAllColors: async () => {
+    // Check cache first (cache for 30 days - colors don't change often)
+    const cacheKey = CACHE_KEYS.COLORS;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch from API
     const response = await api.get("/Colors");
-    return response.data;
+    const colors = response.data;
+    
+    // Cache for 30 days
+    setCache(cacheKey, colors, 30 * 24 * 60 * 60 * 1000);
+    
+    return colors;
   },
 
   getColorById: async (id) => {
@@ -489,16 +503,22 @@ export const colorsService = {
 
   createColor: async (colorData) => {
     const response = await api.post("/Colors", colorData);
+    // Clear cache after creating new color
+    clearCache(CACHE_KEYS.COLORS);
     return response.data;
   },
 
   updateColor: async (id, colorData) => {
     const response = await api.put(`/Colors/${id}`, colorData);
+    // Clear cache after updating color
+    clearCache(CACHE_KEYS.COLORS);
     return response.data;
   },
 
   deleteColor: async (id) => {
     const response = await api.delete(`/Colors/${id}`);
+    // Clear cache after deleting color
+    clearCache(CACHE_KEYS.COLORS);
     return response.data;
   },
 };
@@ -506,8 +526,21 @@ export const colorsService = {
 // Sizes Service
 export const sizesService = {
   getAllSizes: async () => {
+    // Check cache first (cache for 30 days - sizes don't change often)
+    const cacheKey = CACHE_KEYS.SIZES;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch from API
     const response = await api.get("/Sizes");
-    return response.data;
+    const sizes = response.data;
+    
+    // Cache for 30 days
+    setCache(cacheKey, sizes, 30 * 24 * 60 * 60 * 1000);
+    
+    return sizes;
   },
 
   getSizeById: async (id) => {
@@ -517,16 +550,22 @@ export const sizesService = {
 
   createSize: async (sizeData) => {
     const response = await api.post("/Sizes", sizeData);
+    // Clear cache after creating new size
+    clearCache(CACHE_KEYS.SIZES);
     return response.data;
   },
 
   updateSize: async (id, sizeData) => {
     const response = await api.put(`/Sizes/${id}`, sizeData);
+    // Clear cache after updating size
+    clearCache(CACHE_KEYS.SIZES);
     return response.data;
   },
 
   deleteSize: async (id) => {
     const response = await api.delete(`/Sizes/${id}`);
+    // Clear cache after deleting size
+    clearCache(CACHE_KEYS.SIZES);
     return response.data;
   },
 };
@@ -534,8 +573,21 @@ export const sizesService = {
 // Fabric Types Service
 export const fabricTypesService = {
   getAllFabricTypes: async () => {
+    // Check cache first (cache for 30 days - fabric types don't change often)
+    const cacheKey = CACHE_KEYS.FABRIC_TYPES;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch from API
     const response = await api.get("/FabricTypes");
-    return response.data;
+    const fabricTypes = response.data;
+    
+    // Cache for 30 days
+    setCache(cacheKey, fabricTypes, 30 * 24 * 60 * 60 * 1000);
+    
+    return fabricTypes;
   },
 
   getFabricTypeById: async (id) => {
@@ -545,16 +597,22 @@ export const fabricTypesService = {
 
   createFabricType: async (fabricTypeData) => {
     const response = await api.post("/FabricTypes", fabricTypeData);
+    // Clear cache after creating new fabric type
+    clearCache(CACHE_KEYS.FABRIC_TYPES);
     return response.data;
   },
 
   updateFabricType: async (id, fabricTypeData) => {
     const response = await api.put(`/FabricTypes/${id}`, fabricTypeData);
+    // Clear cache after updating fabric type
+    clearCache(CACHE_KEYS.FABRIC_TYPES);
     return response.data;
   },
 
   deleteFabricType: async (id) => {
     const response = await api.delete(`/FabricTypes/${id}`);
+    // Clear cache after deleting fabric type
+    clearCache(CACHE_KEYS.FABRIC_TYPES);
     return response.data;
   },
 };
@@ -574,14 +632,42 @@ export const deliveryService = {
 // Shipments Service
 export const shipmentsService = {
   getCities: async () => {
+    // Check cache first (cache for 30 days - cities don't change often)
+    const cacheKey = CACHE_KEYS.CITIES;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch from API
     const response = await api.get('/Shipments/GetCities');
-    return response.data;
+    const cities = response.data;
+    
+    // Cache for 30 days
+    setCache(cacheKey, cities, 30 * 24 * 60 * 60 * 1000);
+    
+    return cities;
   },
   getAreas: async (cityId) => {
+    if (!cityId) return [];
+    
+    // Check cache first (cache for 30 days - areas don't change often)
+    const cacheKey = `${CACHE_KEYS.AREAS}_${cityId}`;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch from API
     const response = await api.get('/Shipments/GetAreas', {
       params: { cityId }
     });
-    return response.data;
+    const areas = response.data;
+    
+    // Cache for 30 days
+    setCache(cacheKey, areas, 30 * 24 * 60 * 60 * 1000);
+    
+    return areas;
   },
   createShipment: async (orderId, shippingNotes = '') => {
     const response = await api.post(`/Shipments/Create/${orderId}`, {

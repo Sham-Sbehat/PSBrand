@@ -147,5 +147,8 @@ export const CACHE_KEYS = {
   CLIENTS: 'clients',
   CATEGORIES: 'categories',
   SOURCES: 'sources',
+  COLORS: 'colors',
+  SIZES: 'sizes',
+  FABRIC_TYPES: 'fabric_types',
 };
 
