@@ -77,6 +77,7 @@ const OrderForm = ({
   mode = "create",
   initialOrder = null,
   onCancel,
+  onOpenDepositOrderDialog = null,
   onUpdate,
 }) => {
   const formInstanceId = useId();
@@ -1512,7 +1513,7 @@ const OrderForm = ({
     <Box>
       {/* Add Customer Button - Outside the form */}
       {!isEditMode && (
-        <Box sx={{ mb: 3, display: "flex", justifyContent: "flex-end" }}>
+        <Box sx={{ mb: 3, display: "flex", justifyContent: "flex-end", gap: 2 }}>
           <Button
             variant="contained"
             startIcon={<Person />}
@@ -1521,6 +1522,22 @@ const OrderForm = ({
           >
             إضافة عميل جديد
           </Button>
+          {onOpenDepositOrderDialog && (
+            <Button
+              variant="contained"
+              startIcon={<AttachMoney />}
+              onClick={onOpenDepositOrderDialog}
+              size="large"
+              sx={{
+                background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #e084e8 0%, #e04a5f 100%)",
+                },
+              }}
+            >
+              طلب عربون
+            </Button>
+          )}
         </Box>
       )}
 

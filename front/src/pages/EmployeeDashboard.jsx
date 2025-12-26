@@ -26,6 +26,7 @@ import {
   MenuItem,
   Tabs,
   Tab,
+  InputAdornment,
 } from "@mui/material";
 import {
   Logout,
@@ -47,6 +48,9 @@ import {
   Star,
   ContactPhone,
   CheckBox,
+  AttachMoney,
+  Person,
+  Delete,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -57,8 +61,10 @@ import {
   colorsService,
   sizesService,
   fabricTypesService,
+  depositOrdersService,
 } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
+import Swal from "sweetalert2";
 import {
   USER_ROLES,
   ORDER_STATUS_LABELS,
@@ -70,6 +76,7 @@ import {
 } from "../constants";
 import { openWhatsApp } from "../utils";
 import OrderForm from "../components/employee/OrderForm";
+import DepositOrderForm from "../components/employee/DepositOrderForm";
 import GlassDialog from "../components/common/GlassDialog";
 import NotificationsBell from "../components/common/NotificationsBell";
 import calmPalette from "../theme/calmPalette";
@@ -262,6 +269,14 @@ const EmployeeDashboard = () => {
     useState(false);
   const [confirmedDeliveryCount, setConfirmedDeliveryCount] = useState(0);
   const [deliveryCompanyFilter, setDeliveryCompanyFilter] = useState("all"); // 'all', 'no_shipment', 'has_shipment', or status IDs
+  const [openDepositOrderDialog, setOpenDepositOrderDialog] = useState(false);
+  const [depositOrdersCount, setDepositOrdersCount] = useState(0);
+  const [openDepositOrdersList, setOpenDepositOrdersList] = useState(false);
+  const [depositOrders, setDepositOrders] = useState([]);
+  const [loadingDepositOrders, setLoadingDepositOrders] = useState(false);
+  const [depositOrdersSearchQuery, setDepositOrdersSearchQuery] = useState("");
+  const [openEditDepositOrderDialog, setOpenEditDepositOrderDialog] = useState(false);
+  const [depositOrderToEdit, setDepositOrderToEdit] = useState(null);
 
   const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
   const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
@@ -593,7 +608,7 @@ const EmployeeDashboard = () => {
         const citiesData = await shipmentsService.getCities();
         const citiesArray = Array.isArray(citiesData) ? citiesData : [];
         setCities(citiesArray);
-
+        
         // Load areas for all cities
         const allAreas = [];
         for (const city of citiesArray) {
@@ -604,8 +619,8 @@ const EmployeeDashboard = () => {
               const areasArray = Array.isArray(areasData) ? areasData : [];
               areasArray.forEach((area) => {
                 if (area) {
-                  allAreas.push({
-                    ...area,
+                  allAreas.push({ 
+                    ...area, 
                     id: area.id || area.Id || area.areaId,
                     name: area.name || area.Name || area.areaName,
                     cityId: cityId,
@@ -635,7 +650,7 @@ const EmployeeDashboard = () => {
     if (!valueStr || valueStr === "null" || valueStr === "undefined") {
       return "(فارغ)";
     }
-
+    
     // Check if it's a city field
     if (
       fieldName &&
@@ -652,21 +667,21 @@ const EmployeeDashboard = () => {
           // Try multiple matching strategies
           return (
             cityIdStr === valueStr ||
-            cityIdStr === String(value) ||
-            (numValue && cityIdNum && numValue === cityIdNum) ||
+                 cityIdStr === String(value) || 
+                 (numValue && cityIdNum && numValue === cityIdNum) ||
             (cityId && String(cityId) === valueStr)
           );
         });
-        if (city) {
-          const cityName = city.name || city.Name || city.cityName;
-          if (cityName) {
-            return cityName;
-          }
-        }
-      }
+         if (city) {
+           const cityName = city.name || city.Name || city.cityName;
+           if (cityName) {
+             return cityName;
+           }
+         }
+       }
       return valueStr;
     }
-
+    
     // Check if it's an area/district field
     if (
       fieldName &&
@@ -683,21 +698,21 @@ const EmployeeDashboard = () => {
           // Try multiple matching strategies
           return (
             areaIdStr === valueStr ||
-            areaIdStr === String(value) ||
-            (numValue && areaIdNum && numValue === areaIdNum) ||
+                 areaIdStr === String(value) || 
+                 (numValue && areaIdNum && numValue === areaIdNum) ||
             (areaId && String(areaId) === valueStr)
           );
         });
-        if (area) {
-          const areaName = area.name || area.Name || area.areaName;
-          if (areaName) {
-            return areaName;
-          }
-        }
-      }
+         if (area) {
+           const areaName = area.name || area.Name || area.areaName;
+           if (areaName) {
+             return areaName;
+           }
+         }
+       }
       return valueStr;
     }
-
+    
     return valueStr;
   };
 
@@ -718,7 +733,7 @@ const EmployeeDashboard = () => {
     }
   };
 
-  const modificationHistory = selectedOrder?.isModified
+  const modificationHistory = selectedOrder?.isModified 
     ? parseModificationDetails(selectedOrder?.modificationDetails)
     : [];
 
@@ -739,6 +754,59 @@ const EmployeeDashboard = () => {
       } catch (error) {
         console.error("Error fetching orders count:", error);
       }
+    }
+  };
+
+  // Fetch deposit orders count by designer
+  const fetchDepositOrdersCount = async () => {
+    try {
+      if (user?.id) {
+        const response = await depositOrdersService.getAllDepositOrders({ designerId: user.id });
+        const ordersArray = Array.isArray(response) ? response : (response?.data || []);
+        setDepositOrdersCount(ordersArray.length);
+      }
+    } catch (error) {
+      console.error("Error fetching deposit orders count:", error);
+      setDepositOrdersCount(0);
+    }
+  };
+
+  // Fetch deposit orders list by designer
+  const fetchDepositOrders = async () => {
+    if (!user?.id) return;
+    setLoadingDepositOrders(true);
+    try {
+      const response = await depositOrdersService.getAllDepositOrders({ designerId: user.id });
+      const ordersArray = Array.isArray(response) ? response : (response?.data || []);
+      setDepositOrders(ordersArray);
+    } catch (error) {
+      console.error("Error fetching deposit orders:", error);
+      setDepositOrders([]);
+    } finally {
+      setLoadingDepositOrders(false);
+    }
+  };
+
+  // Handle toggle contacted status for deposit orders
+  const handleToggleContactedDepositOrder = async (order) => {
+    if (!order) return;
+    try {
+      await depositOrdersService.updateContactedStatus(
+        order.id,
+        !order.isContactedWithClient
+      );
+      // Update local state
+      setDepositOrders((prev) =>
+        prev.map((item) =>
+          item.id === order.id
+            ? { ...item, isContactedWithClient: !order.isContactedWithClient }
+            : item
+        )
+      );
+      // Update count
+      fetchDepositOrdersCount();
+    } catch (error) {
+      console.error("Error updating contacted status:", error);
     }
   };
 
@@ -790,9 +858,9 @@ const EmployeeDashboard = () => {
     ) {
       return;
     }
-
+    
     setLoadingDeliveryStatuses((prev) => ({ ...prev, [orderId]: true }));
-
+    
     try {
       const statusData = await shipmentsService.getDeliveryStatus(orderId);
 
@@ -830,19 +898,20 @@ const EmployeeDashboard = () => {
 
   useEffect(() => {
     fetchDesignerOrdersCount();
+    fetchDepositOrdersCount();
 
     // Subscribe to SignalR updates for real-time delivery status updates
     let unsubscribe;
     (async () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
-          onDeliveryStatusChanged: (orderId, deliveryStatus) => {
-            // Update delivery status in real-time when backend sends update
+           onDeliveryStatusChanged: (orderId, deliveryStatus) => {
+             // Update delivery status in real-time when backend sends update
             setDeliveryStatuses((prev) => ({
-              ...prev,
+               ...prev,
               [orderId]: deliveryStatus,
-            }));
-          },
+             }));
+           },
           onShipmentStatusUpdated: (shipmentData) => {
             // Handle shipment status update from webhook (ShipmentStatusUpdated event)
             const orderId = shipmentData?.orderId;
@@ -860,7 +929,7 @@ const EmployeeDashboard = () => {
                           arabic: shipmentData.status,
                           english: shipmentData.status,
                         }
-                      : shipmentData.status,
+                    : shipmentData.status,
                   lastUpdate: shipmentData.lastUpdate,
                 };
                 setDeliveryStatuses((prev) => ({
@@ -894,7 +963,7 @@ const EmployeeDashboard = () => {
                           arabic: shipmentData.status,
                           english: shipmentData.status,
                         }
-                      : shipmentData.status,
+                    : shipmentData.status,
                   note: shipmentData.note,
                   lastUpdate: shipmentData.entryDateTime,
                 };
@@ -912,10 +981,10 @@ const EmployeeDashboard = () => {
               }
             }
           },
-          onNewNotification: (notification) => {
-            setNewNotificationReceived(notification);
-            setTimeout(() => setNewNotificationReceived(null), 100);
-          },
+           onNewNotification: (notification) => {
+             setNewNotificationReceived(notification);
+             setTimeout(() => setNewNotificationReceived(null), 100);
+           },
         });
       } catch (err) {
         console.error("Failed to connect to updates hub:", err);
@@ -931,14 +1000,14 @@ const EmployeeDashboard = () => {
   // API will return error/empty if no shipment exists, which is fine
   useEffect(() => {
     if (!ordersList || ordersList.length === 0) return;
-
+    
     // Try to fetch delivery status for all orders
     // We check if already loaded/loading to avoid duplicate requests
     ordersList.forEach((order) => {
       // Check synchronously if already loaded or loading
       const isLoaded = deliveryStatuses[order.id] !== undefined;
       const isLoading = loadingDeliveryStatuses[order.id] === true;
-
+      
       // Only fetch if not already checked AND order is sent to delivery company
       if (!isLoaded && !isLoading && order.isSentToDeliveryCompany) {
         // Only fetch for orders sent to delivery company
@@ -957,7 +1026,7 @@ const EmployeeDashboard = () => {
 
   const loadOrdersByDate = async (dateString) => {
     if (user?.role !== USER_ROLES.DESIGNER || !user?.id) return;
-
+    
     setLoading(true);
     try {
       // تحويل التاريخ من YYYY-MM-DD إلى ISO string
@@ -967,12 +1036,12 @@ const EmployeeDashboard = () => {
         user.id,
         isoDateString
       );
-
+      
       // الـ API يرجع object يحتوي على orders array
       const orders =
         response?.orders || (Array.isArray(response) ? response : []);
       setOrdersList(Array.isArray(orders) ? orders : []);
-
+      
       // حفظ معلومات الـ summary
       setOrdersSummary({
         totalCount: response?.totalCount || orders.length,
@@ -980,10 +1049,10 @@ const EmployeeDashboard = () => {
         totalAmountWithoutDelivery: response?.totalAmountWithoutDelivery || 0,
         periodDescription: response?.periodDescription || "",
       });
-
+      
       // تحديث العدد الإجمالي
       setTotalOrdersCount(response?.totalCount || orders.length);
-
+      
       // جلب حالة التوصيل فقط للطلبات المرسلة لشركة التوصيل
       orders.slice(0, 20).forEach((order) => {
         if (order.isSentToDeliveryCompany) {
@@ -1008,16 +1077,21 @@ const EmployeeDashboard = () => {
       const day = String(today.getDate()).padStart(2, "0");
       const todayString = `${year}-${month}-${day}`;
       setSelectedDate(todayString);
-
+      
       await loadOrdersByDate(todayString);
       setOpenOrdersModal(true);
+    }
+    // If it's the second card (Deposit Orders), open deposit orders list
+    if (index === 1) {
+      await fetchDepositOrders();
+      setOpenDepositOrdersList(true);
     }
   };
 
   const handleDateChange = async (event) => {
     const newDateString = event.target.value;
     if (!newDateString || !user?.id) return;
-
+    
     setSelectedDate(newDateString);
     await loadOrdersByDate(newDateString);
   };
@@ -1104,7 +1178,7 @@ const EmployeeDashboard = () => {
       try {
         let base64Data = "";
         let mimeType = "application/pdf";
-
+        
         if (fileUrl.includes(",")) {
           const parts = fileUrl.split(",");
           base64Data = parts[1];
@@ -1117,7 +1191,7 @@ const EmployeeDashboard = () => {
         }
 
         const cleanBase64 = base64Data.replace(/\s/g, "");
-
+        
         let blob;
         try {
           const response = await fetch(fileUrl);
@@ -1132,7 +1206,7 @@ const EmployeeDashboard = () => {
             type: mimeType || "application/octet-stream",
           });
         }
-
+        
         if (blob.size === 0) {
           throw new Error("الملف فارغ");
         }
@@ -1159,7 +1233,7 @@ const EmployeeDashboard = () => {
         link.style.display = "none";
         document.body.appendChild(link);
         link.click();
-
+        
         setTimeout(() => {
           document.body.removeChild(link);
           setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
@@ -1188,11 +1262,11 @@ const EmployeeDashboard = () => {
     setOrderNotes(""); // Start with empty for new note
     setIsEditingNotes(false);
     setOpenDetailsModal(true);
-
+    
     // Load images for all designs when modal opens
     if (order?.orderDesigns) {
       order.orderDesigns.forEach((design) => {});
-
+      
       const loadPromises = order.orderDesigns.map((design) => {
         const images = getMockupImages(design);
         const hasExcludedImage = images.includes("image_data_excluded");
@@ -1201,7 +1275,7 @@ const EmployeeDashboard = () => {
         }
         return Promise.resolve(null);
       });
-
+      
       // Wait for all images to load, then update selectedOrder to trigger re-render
       Promise.all(loadPromises).then(() => {
         // Force re-render by updating selectedOrder
@@ -1243,8 +1317,8 @@ const EmployeeDashboard = () => {
       if (Array.isArray(payloadToSend.orderDesigns)) {
         payloadToSend.orderDesigns = payloadToSend.orderDesigns.map(
           (design) => ({
-            ...design,
-            orderId: payloadToSend.id,
+          ...design,
+          orderId: payloadToSend.id,
           })
         );
       }
@@ -1399,16 +1473,16 @@ const EmployeeDashboard = () => {
         calendar: "gregory",
       });
       const authorName = user?.name || "مستخدم غير معروف";
-
+      
       // Format: [DateTime] Author Name: Note Text
       const newNote = `[${dateTime}] ${authorName}: ${orderNotes.trim()}`;
-
+      
       // Append to existing notes or create new
       const existingNotes = selectedOrder.notes || "";
       const updatedNotes = existingNotes
         ? `${existingNotes}\n\n${newNote}`
         : newNote;
-
+      
       await ordersService.updateOrderNotes(selectedOrder.id, updatedNotes);
       // Update local state
       setSelectedOrder({ ...selectedOrder, notes: updatedNotes });
@@ -1529,7 +1603,7 @@ const EmployeeDashboard = () => {
       setDeliveryStatusLoading(false);
       return;
     }
-
+    
     try {
       const statusData = await shipmentsService.getDeliveryStatus(order.id);
       setDeliveryStatusData(statusData);
@@ -1581,6 +1655,11 @@ const EmployeeDashboard = () => {
           ? totalOrdersCount
           : employeeOrders.length,
       icon: Assignment,
+    },
+    {
+      title: "طلبات العربون",
+      value: depositOrdersCount,
+      icon: AttachMoney,
     },
   ];
 
@@ -1663,10 +1742,9 @@ const EmployeeDashboard = () => {
                     overflow: "hidden",
                     transition: "transform 0.2s, box-shadow 0.2s",
                     backdropFilter: "blur(6px)",
-                    cursor:
-                      index === 0 && user?.role === USER_ROLES.DESIGNER
-                        ? "pointer"
-                        : "default",
+                    cursor: (index === 0 && user?.role === USER_ROLES.DESIGNER) || index === 1
+                      ? "pointer"
+                      : "default",
                     "&::after": {
                       content: '""',
                       position: "absolute",
@@ -1726,9 +1804,10 @@ const EmployeeDashboard = () => {
         >
           <OrderForm
             onSuccess={() => {
-              setShowForm(false);
-              fetchDesignerOrdersCount(); // Refresh orders count after creating new order
+            setShowForm(false);
+            fetchDesignerOrdersCount(); // Refresh orders count after creating new order
             }}
+            onOpenDepositOrderDialog={() => setOpenDepositOrderDialog(true)}
           />
         </Box>
 
@@ -1870,26 +1949,26 @@ const EmployeeDashboard = () => {
         {/* Tab 0: All Orders */}
         {ordersModalTab === 0 && (
           <>
-            {loading ? (
+        {loading ? (
               <Box
                 sx={{ display: "flex", justifyContent: "center", padding: 4 }}
               >
                 <CircularProgress />
                 <Typography sx={{ ml: 2 }}>جاري التحميل...</Typography>
-              </Box>
-            ) : ordersList.length === 0 ? (
+          </Box>
+        ) : ordersList.length === 0 ? (
               <Box
                 sx={{ display: "flex", justifyContent: "center", padding: 4 }}
               >
-                <Typography>لا توجد طلبات</Typography>
-              </Box>
-            ) : (
-              <>
-                {/* Search Field */}
-                <Box
-                  sx={{
-                    marginBottom: 2,
-                    marginTop: 2,
+            <Typography>لا توجد طلبات</Typography>
+          </Box>
+        ) : (
+          <>
+            {/* Search Field */}
+            <Box 
+              sx={{ 
+                marginBottom: 2,
+                marginTop: 2,
                     position: "relative",
                     display: "flex",
                     gap: 2,
@@ -1900,67 +1979,67 @@ const EmployeeDashboard = () => {
                   <Box
                     sx={{
                       width: "30%",
-                      minWidth: 400,
-                    }}
-                  >
-                    <TextField
-                      fullWidth
-                      size="medium"
-                      placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <Box
-                            sx={{
+                minWidth: 400,
+              }}
+            >
+              <TextField
+                fullWidth
+                size="medium"
+                placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Box
+                      sx={{
                               display: "flex",
                               alignItems: "center",
-                              marginRight: 1,
+                        marginRight: 1,
                               color: searchQuery
                                 ? calmPalette.primary
                                 : "text.secondary",
                               transition: "color 0.3s ease",
-                            }}
-                          >
-                            <Search />
-                          </Box>
-                        ),
                       }}
-                      sx={{
-                        backgroundColor: "rgba(255,255,255,0.85)",
+                    >
+                      <Search />
+                    </Box>
+                  ),
+                }}
+                sx={{
+                  backgroundColor: "rgba(255,255,255,0.85)",
                         backdropFilter: "blur(10px)",
-                        borderRadius: 3,
+                  borderRadius: 3,
                         boxShadow: "0 4px 20px rgba(94, 78, 62, 0.1)",
                         transition: "all 0.3s ease",
                         "&:hover": {
                           boxShadow: "0 6px 25px rgba(94, 78, 62, 0.15)",
-                          backgroundColor: "rgba(255,255,255,0.95)",
-                        },
+                    backgroundColor: "rgba(255,255,255,0.95)",
+                  },
                         "& .MuiOutlinedInput-root": {
-                          borderRadius: 3,
-                          paddingLeft: 1,
+                    borderRadius: 3,
+                    paddingLeft: 1,
                           "& fieldset": {
                             borderColor: "rgba(94, 78, 62, 0.2)",
-                            borderWidth: 2,
+                      borderWidth: 2,
                             transition: "all 0.3s ease",
-                          },
+                    },
                           "&:hover fieldset": {
                             borderColor: calmPalette.primary + "80",
-                            borderWidth: 2,
-                          },
+                      borderWidth: 2,
+                    },
                           "&.Mui-focused fieldset": {
-                            borderColor: calmPalette.primary,
-                            borderWidth: 2,
-                            boxShadow: `0 0 0 3px ${calmPalette.primary}20`,
-                          },
+                      borderColor: calmPalette.primary,
+                      borderWidth: 2,
+                      boxShadow: `0 0 0 3px ${calmPalette.primary}20`,
+                    },
                           "& input": {
                             padding: "12px 14px",
                             fontSize: "0.95rem",
-                            fontWeight: 500,
-                          },
-                        },
-                      }}
-                    />
+                      fontWeight: 500,
+                    },
+                  },
+                }}
+              />
                   </Box>
                   <TextField
                     select
@@ -2012,85 +2091,85 @@ const EmployeeDashboard = () => {
                     <MenuItem value="23">طرود مرتجعه مغلقه</MenuItem>
                   </TextField>
                 </Box>
-                {searchQuery && (
-                  <Box
-                    sx={{
-                      marginTop: 1.5,
+              {searchQuery && (
+                <Box
+                  sx={{
+                    marginTop: 1.5,
                       display: "flex",
                       alignItems: "center",
-                      gap: 1,
+                    gap: 1,
                       backgroundColor: calmPalette.primary + "15",
                       padding: "8px 16px",
-                      borderRadius: 2,
+                    borderRadius: 2,
                       width: "fit-content",
-                      border: `1px solid ${calmPalette.primary}30`,
+                    border: `1px solid ${calmPalette.primary}30`,
                       transition: "all 0.3s ease",
                       "&:hover": {
                         backgroundColor: calmPalette.primary + "25",
                         transform: "translateX(4px)",
-                      },
+                    },
+                  }}
+                >
+                  <Search sx={{ fontSize: 18, color: calmPalette.primary }} />
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.primary,
+                      fontWeight: 600,
+                        fontSize: "0.9rem",
                     }}
                   >
-                    <Search sx={{ fontSize: 18, color: calmPalette.primary }} />
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: calmPalette.primary,
-                        fontWeight: 600,
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      {(() => {
-                        const filteredCount = searchQuery.trim()
-                          ? ordersList.filter((order) => {
+                    {(() => {
+                      const filteredCount = searchQuery.trim()
+                        ? ordersList.filter((order) => {
                               const clientName = order.client?.name || "";
                               const clientPhone = order.client?.phone || "";
-                              const query = searchQuery.toLowerCase().trim();
+                            const query = searchQuery.toLowerCase().trim();
                               return (
                                 clientName.toLowerCase().includes(query) ||
                                 clientPhone.includes(query)
                               );
-                            }).length
-                          : ordersList.length;
+                          }).length
+                        : ordersList.length;
                         return `تم العثور على ${filteredCount} ${
                           filteredCount === 1 ? "نتيجة" : "نتائج"
                         }`;
-                      })()}
-                    </Typography>
-                  </Box>
-                )}
-                <TableContainer
+                    })()}
+                  </Typography>
+                </Box>
+              )}
+            <TableContainer
+              sx={{
+                borderRadius: 3,
+                border: "1px solid rgba(94, 78, 62, 0.18)",
+                backgroundColor: "rgba(255,255,255,0.4)",
+              }}
+            >
+              <Table>
+                <TableHead
                   sx={{
-                    borderRadius: 3,
-                    border: "1px solid rgba(94, 78, 62, 0.18)",
-                    backgroundColor: "rgba(255,255,255,0.4)",
-                  }}
-                >
-                  <Table>
-                    <TableHead
-                      sx={{
-                        backgroundColor: "rgba(94, 78, 62, 0.08)",
+                    backgroundColor: "rgba(94, 78, 62, 0.08)",
                         "& th": {
                           fontWeight: 700,
                           color: calmPalette.textPrimary,
                         },
-                      }}
-                    >
-                      <TableRow>
-                        <TableCell>رقم الطلب</TableCell>
-                        <TableCell>اسم العميل</TableCell>
-                        <TableCell>الرقم</TableCell>
-                        <TableCell>الإجمالي</TableCell>
-                        <TableCell>الحالة</TableCell>
+                  }}
+                >
+                  <TableRow>
+                    <TableCell>رقم الطلب</TableCell>
+                    <TableCell>اسم العميل</TableCell>
+                    <TableCell>الرقم</TableCell>
+                    <TableCell>الإجمالي</TableCell>
+                    <TableCell>الحالة</TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>
                           حالة التوصيل
                         </TableCell>
-                        <TableCell>التاريخ</TableCell>
-                        <TableCell>الإجراءات</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(() => {
+                    <TableCell>التاريخ</TableCell>
+                    <TableCell>الإجراءات</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(() => {
                         let filteredOrders = ordersList;
 
                         // Apply search filter
@@ -2100,12 +2179,12 @@ const EmployeeDashboard = () => {
                             const clientPhone = order.client?.phone || "";
                             const orderNumber =
                               order.orderNumber || `#${order.id}` || "";
-                            const query = searchQuery.toLowerCase().trim();
-                            return (
-                              clientName.toLowerCase().includes(query) ||
-                              clientPhone.includes(query) ||
-                              orderNumber.toLowerCase().includes(query)
-                            );
+                          const query = searchQuery.toLowerCase().trim();
+                          return (
+                            clientName.toLowerCase().includes(query) || 
+                            clientPhone.includes(query) ||
+                            orderNumber.toLowerCase().includes(query)
+                          );
                           });
                         }
 
@@ -2168,10 +2247,10 @@ const EmployeeDashboard = () => {
                         );
 
                         if (sortedOrders.length === 0) {
-                          return (
-                            <TableRow>
-                              <TableCell colSpan={8} align="center">
-                                <Box sx={{ padding: 4 }}>
+                      return (
+                        <TableRow>
+                          <TableCell colSpan={8} align="center">
+                            <Box sx={{ padding: 4 }}>
                                   <Typography
                                     variant="body1"
                                     color="text.secondary"
@@ -2179,20 +2258,20 @@ const EmployeeDashboard = () => {
                                     {searchQuery.trim()
                                       ? "لا توجد نتائج للبحث"
                                       : "لا توجد طلبات"}
-                                  </Typography>
-                                </Box>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        }
-
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+                    
                         return sortedOrders.map((order) => {
-                          const status = getStatusLabel(order.status);
-                          return (
-                            <TableRow
-                              key={order.id}
-                              hover
-                              sx={{
+                      const status = getStatusLabel(order.status);
+                      return (
+                        <TableRow
+                          key={order.id}
+                          hover
+                          sx={{
                                 "&:nth-of-type(even)": {
                                   backgroundColor: "rgba(255,255,255,0.3)",
                                 },
@@ -2266,9 +2345,9 @@ const EmployeeDashboard = () => {
                                   </Typography>
                                 </Box>
                               </TableCell>
-                              <TableCell>{order.client?.name || "-"}</TableCell>
-                              <TableCell>
-                                {order.client?.phone ? (
+                      <TableCell>{order.client?.name || "-"}</TableCell>
+                      <TableCell>
+                        {order.client?.phone ? (
                                   <Box
                                     sx={{
                                       display: "flex",
@@ -2279,30 +2358,30 @@ const EmployeeDashboard = () => {
                                     <Typography variant="body2">
                                       {order.client.phone}
                                     </Typography>
-                                    <Tooltip title="انقر للتواصل مع الزبون عبر الواتساب">
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => {
-                                          openWhatsApp(order.client.phone);
-                                        }}
-                                        sx={{
+                            <Tooltip title="انقر للتواصل مع الزبون عبر الواتساب">
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  openWhatsApp(order.client.phone);
+                                }}
+                                sx={{
                                           color: "#25D366",
                                           "&:hover": {
                                             backgroundColor:
                                               "rgba(37, 211, 102, 0.1)",
-                                          },
-                                        }}
-                                      >
-                                        <WhatsAppIcon fontSize="small" />
-                                      </IconButton>
-                                    </Tooltip>
-                                  </Box>
-                                ) : (
+                                  },
+                                }}
+                              >
+                                <WhatsAppIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        ) : (
                                   "-"
-                                )}
-                              </TableCell>
-                              <TableCell>{order.totalAmount} ₪</TableCell>
-                              <TableCell>
+                        )}
+                      </TableCell>
+                      <TableCell>{order.totalAmount} ₪</TableCell>
+                      <TableCell>
                                 <Box
                                   sx={{
                                     display: "flex",
@@ -2315,43 +2394,43 @@ const EmployeeDashboard = () => {
                                     color={status.color}
                                     size="small"
                                   />
-                                  {order.needsPhotography && (
-                                    <Tooltip title="يحتاج تصوير">
+                          {order.needsPhotography && (
+                            <Tooltip title="يحتاج تصوير">
                                       <CameraAlt
                                         sx={{
                                           color: "primary.main",
                                           fontSize: 20,
                                         }}
                                       />
-                                    </Tooltip>
-                                  )}
+                            </Tooltip>
+                          )}
                                   {order.isModified &&
                                     user?.role === USER_ROLES.ADMIN && (
-                                      <Tooltip title="تم تعديل الطلب">
+                            <Tooltip title="تم تعديل الطلب">
                                         <History
                                           sx={{
                                             color: "warning.main",
                                             fontSize: 20,
                                           }}
                                         />
-                                      </Tooltip>
-                                    )}
-                                </Box>
-                              </TableCell>
-                              <TableCell
-                                onClick={() => {
-                                  // Always allow clicking - we'll try to fetch delivery status
-                                  handleDeliveryStatusClick(order);
-                                }}
-                                sx={{
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell
+                        onClick={() => {
+                          // Always allow clicking - we'll try to fetch delivery status
+                          handleDeliveryStatusClick(order);
+                        }}
+                        sx={{
                                   cursor: "pointer",
                                   "&:hover": {
                                     backgroundColor: "action.hover",
-                                  },
-                                }}
-                              >
-                                {(() => {
-                                  const statusData = deliveryStatuses[order.id];
+                          },
+                        }}
+                      >
+                        {(() => {
+                          const statusData = deliveryStatuses[order.id];
                                   const isLoading =
                                     loadingDeliveryStatuses[order.id];
 
@@ -2366,9 +2445,9 @@ const EmployeeDashboard = () => {
                                       </Typography>
                                     );
                                   }
-
-                                  if (isLoading) {
-                                    return (
+                          
+                          if (isLoading) {
+                            return (
                                       <Box
                                         sx={{
                                           display: "flex",
@@ -2376,21 +2455,21 @@ const EmployeeDashboard = () => {
                                           gap: 1,
                                         }}
                                       >
-                                        <CircularProgress size={16} />
+                                <CircularProgress size={16} />
                                         <Typography
                                           variant="body2"
                                           color="text.secondary"
                                         >
-                                          جاري التحميل...
-                                        </Typography>
-                                      </Box>
-                                    );
-                                  }
-
-                                  if (statusData === null) {
-                                    // We checked but no shipment exists
+                                  جاري التحميل...
+                                </Typography>
+                              </Box>
+                            );
+                          }
+                          
+                          if (statusData === null) {
+                            // We checked but no shipment exists
                                     // Order is sent to delivery company but no shipment yet
-                                    return (
+                            return (
                                       <Chip
                                         label="في انتظار الشحنة"
                                         sx={{
@@ -2442,9 +2521,9 @@ const EmployeeDashboard = () => {
                                       variant="body2"
                                       color="text.secondary"
                                     >
-                                      -
-                                    </Typography>
-                                  );
+                                -
+                              </Typography>
+                            );
                                 })()}
                               </TableCell>
                               <TableCell>
@@ -3088,60 +3167,60 @@ const EmployeeDashboard = () => {
                                         }}
                                       />
                                     );
-                                  }
-
-                                  if (statusData && statusData.status) {
-                                    return (
-                                      <Chip
+                          }
+                          
+                          if (statusData && statusData.status) {
+                            return (
+                              <Chip
                                         label={
                                           statusData.status.arabic ||
                                           statusData.status.english ||
                                           "غير معروف"
                                         }
-                                        sx={{
+                                sx={{
                                           backgroundColor:
                                             statusData.status.color ||
                                             "#1976d2",
                                           color: "#ffffff",
-                                          fontWeight: 600,
+                                  fontWeight: 600,
                                           fontSize: "0.75rem",
                                           cursor: "pointer",
                                           maxWidth: "150px",
                                           "&:hover": {
-                                            opacity: 0.9,
+                                    opacity: 0.9,
                                             transform: "scale(1.05)",
                                           },
                                           transition: "all 0.2s",
                                           "& .MuiChip-label": {
                                             overflow: "hidden",
                                             textOverflow: "ellipsis",
-                                          },
-                                        }}
-                                        size="small"
-                                      />
-                                    );
-                                  }
-
-                                  return (
+                                  },
+                                }}
+                                size="small"
+                              />
+                            );
+                          }
+                          
+                          return (
                                     <Typography
                                       variant="body2"
                                       color="text.secondary"
                                     >
-                                      -
-                                    </Typography>
-                                  );
-                                })()}
-                              </TableCell>
-                              <TableCell>
-                                {order.orderDate
+                              -
+                            </Typography>
+                          );
+                        })()}
+                      </TableCell>
+                      <TableCell>
+                        {order.orderDate
                                   ? new Date(
                                       order.orderDate
                                     ).toLocaleDateString("ar-SA", {
                                       calendar: "gregory",
                                     })
-                                  : "-"}
-                              </TableCell>
-                              <TableCell>
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
                                 <Box
                                   sx={{
                                     display: "flex",
@@ -3149,14 +3228,14 @@ const EmployeeDashboard = () => {
                                     flexWrap: "wrap",
                                   }}
                                 >
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<Visibility />}
-                                    onClick={() => handleViewDetails(order)}
-                                  >
-                                    عرض
-                                  </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<Visibility />}
+                            onClick={() => handleViewDetails(order)}
+                          >
+                            عرض 
+                          </Button>
                                   <Tooltip
                                     title={(() => {
                                       const numericStatus =
@@ -3184,10 +3263,10 @@ const EmployeeDashboard = () => {
                                     placement="top"
                                   >
                                     <span>
-                                      <Button
-                                        size="small"
-                                        variant="contained"
-                                        sx={{ minWidth: 100 }}
+                          <Button
+                            size="small"
+                            variant="contained"
+                            sx={{ minWidth: 100 }}
                                         onClick={() =>
                                           handleOpenEditOrder(order)
                                         }
@@ -3205,44 +3284,44 @@ const EmployeeDashboard = () => {
                                               ORDER_STATUS.SENT_TO_DELIVERY_COMPANY
                                           );
                                         })()}
-                                      >
-                                        تعديل
-                                      </Button>
+                          >
+                            تعديل
+                          </Button>
                                     </span>
                                   </Tooltip>
-                                  {order.status !== ORDER_STATUS.CANCELLED &&
-                                    order.status !== ORDER_STATUS.COMPLETED && (
-                                      <Button
-                                        size="small"
-                                        variant="outlined"
-                                        color="error"
-                                        sx={{
-                                          minWidth: 120,
+                          {order.status !== ORDER_STATUS.CANCELLED &&
+                            order.status !== ORDER_STATUS.COMPLETED && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                sx={{
+                                  minWidth: 120,
                                           "&.Mui-disabled": {
                                             color: "#777777",
                                             borderColor: "rgba(0,0,0,0.12)",
                                             backgroundColor: "rgba(0,0,0,0.03)",
-                                          },
-                                        }}
-                                        onClick={() => handleCancelOrder(order)}
-                                        disabled={cancelLoadingId === order.id}
-                                      >
-                                        {cancelLoadingId === order.id ? (
-                                          <CircularProgress size={16} />
-                                        ) : (
-                                          "إلغاء الطلب"
-                                        )}
-                                      </Button>
-                                    )}
-                                </Box>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        });
-                      })()}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                                  },
+                                }}
+                                onClick={() => handleCancelOrder(order)}
+                                disabled={cancelLoadingId === order.id}
+                              >
+                                {cancelLoadingId === order.id ? (
+                                  <CircularProgress size={16} />
+                                ) : (
+                                  "إلغاء الطلب"
+                                )}
+                              </Button>
+                            )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                      );
+                    });
+                  })()}
+                </TableBody>
+              </Table>
+            </TableContainer>
               </>
             )}
           </>
@@ -3283,8 +3362,8 @@ const EmployeeDashboard = () => {
               placement="top"
             >
               <span>
-                <Button
-                  variant="outlined"
+            <Button
+              variant="outlined"
                   onClick={() =>
                     selectedOrder && handleOpenEditOrder(selectedOrder)
                   }
@@ -3305,9 +3384,9 @@ const EmployeeDashboard = () => {
                         );
                       })())
                   }
-                >
-                  تعديل
-                </Button>
+            >
+              تعديل
+            </Button>
               </span>
             </Tooltip>
             <Button onClick={handleCloseDetailsModal} variant="contained">
@@ -3637,10 +3716,10 @@ const EmployeeDashboard = () => {
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>
                       سجل التعديلات
                     </Typography>
-                    <Chip
-                      label="تم التعديل"
-                      color="warning"
-                      size="small"
+                    <Chip 
+                      label="تم التعديل" 
+                      color="warning" 
+                      size="small" 
                       sx={{ ml: 1 }}
                     />
                   </Box>
@@ -3649,15 +3728,15 @@ const EmployeeDashboard = () => {
                       sx={{ display: "flex", flexDirection: "column", gap: 2 }}
                     >
                       {modificationHistory.map((modification, modIndex) => {
-                        const timestamp = modification.Timestamp
+                        const timestamp = modification.Timestamp 
                           ? new Date(modification.Timestamp).toLocaleString(
                               "en-GB",
                               {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
                               }
                             )
                           : "-";
@@ -3674,8 +3753,8 @@ const EmployeeDashboard = () => {
                               bgcolor: "warning.50",
                             }}
                           >
-                            <Typography
-                              variant="subtitle2"
+                            <Typography 
+                              variant="subtitle2" 
                               sx={{
                                 fontWeight: 600,
                                 mb: 1.5,
@@ -3703,8 +3782,8 @@ const EmployeeDashboard = () => {
                                       borderColor: "divider",
                                     }}
                                   >
-                                    <Typography
-                                      variant="body2"
+                                    <Typography 
+                                      variant="body2" 
                                       sx={{
                                         fontWeight: 600,
                                         mb: 1,
@@ -3729,11 +3808,11 @@ const EmployeeDashboard = () => {
                                         >
                                           القيمة القديمة:
                                         </Typography>
-                                        <Typography
-                                          variant="body2"
-                                          sx={{
-                                            p: 0.75,
-                                            bgcolor: "error.50",
+                                        <Typography 
+                                          variant="body2" 
+                                          sx={{ 
+                                            p: 0.75, 
+                                            bgcolor: "error.50", 
                                             borderRadius: 0.5,
                                             color: "error.dark",
                                             wordBreak: "break-word",
@@ -3756,11 +3835,11 @@ const EmployeeDashboard = () => {
                                         >
                                           القيمة الجديدة:
                                         </Typography>
-                                        <Typography
-                                          variant="body2"
-                                          sx={{
-                                            p: 0.75,
-                                            bgcolor: "success.50",
+                                        <Typography 
+                                          variant="body2" 
+                                          sx={{ 
+                                            p: 0.75, 
+                                            bgcolor: "success.50", 
                                             borderRadius: 0.5,
                                             color: "success.dark",
                                             wordBreak: "break-word",
@@ -3860,15 +3939,15 @@ const EmployeeDashboard = () => {
                               />
                               {design.totalPrice !== undefined &&
                                 design.totalPrice !== null && (
-                                  <Chip
+                                <Chip
                                     label={`قيمة التصميم: ${formatCurrency(
                                       design.totalPrice
                                     )}`}
-                                    size="small"
-                                    color="secondary"
-                                    variant="outlined"
-                                  />
-                                )}
+                                  size="small"
+                                  color="secondary"
+                                  variant="outlined"
+                                />
+                              )}
                             </Box>
                           </Box>
 
@@ -4398,6 +4477,293 @@ const EmployeeDashboard = () => {
               لم يتم تضمين بيانات الصورة في قائمة الطلبات
             </Typography>
           </Box>
+        )}
+      </GlassDialog>
+
+      {/* Deposit Order Dialog */}
+      <GlassDialog
+        open={openDepositOrderDialog}
+        onClose={() => setOpenDepositOrderDialog(false)}
+        maxWidth="md"
+        title="إنشاء طلب عربون جديد"
+      >
+        <DepositOrderForm
+          onSuccess={() => {
+            setOpenDepositOrderDialog(false);
+            // Optionally refresh orders list
+            if (openOrdersModal) {
+              fetchOrders();
+            }
+            fetchDepositOrdersCount(); // Refresh deposit orders count
+            fetchDepositOrders(); // Refresh deposit orders list
+          }}
+          onCancel={() => setOpenDepositOrderDialog(false)}
+        />
+      </GlassDialog>
+
+      {/* Deposit Orders List Dialog */}
+      <GlassDialog
+        open={openDepositOrdersList}
+        onClose={() => {
+          setOpenDepositOrdersList(false);
+          setDepositOrdersSearchQuery("");
+        }}
+        maxWidth="lg"
+        title="طلبات العربون"
+      >
+        <Box sx={{ p: 3 }}>
+          {/* Header with count and search */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              إجمالي طلبات العربون: {depositOrders.length}
+            </Typography>
+            <TextField
+              size="small"
+              placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
+              value={depositOrdersSearchQuery}
+              onChange={(e) => setDepositOrdersSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ width: 400 }}
+            />
+          </Box>
+
+          {loadingDepositOrders ? (
+            <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : depositOrders.length === 0 ? (
+            <Box sx={{ textAlign: "center", p: 4 }}>
+              <Typography variant="h6" color="text.secondary">
+                لا توجد طلبات عربون
+              </Typography>
+            </Box>
+          ) : (
+            <TableContainer component={Paper} elevation={0}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الرقم</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الإجمالي</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="center">الإجراءات</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {depositOrders
+                    .filter((order) => {
+                      if (!depositOrdersSearchQuery) return true;
+                      const query = depositOrdersSearchQuery.toLowerCase();
+                      return (
+                        order.orderNumber?.toLowerCase().includes(query) ||
+                        order.client?.name?.toLowerCase().includes(query) ||
+                        order.client?.phone?.includes(query)
+                      );
+                    })
+                    .map((order) => {
+                      const totalAmount = (order.totalAmount || 0) + (order.deliveryFee || 0);
+                      return (
+                        <TableRow key={order.id} hover>
+                          <TableCell>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                              <Person sx={{ fontSize: 18, color: "text.secondary" }} />
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {order.orderNumber || `#${order.id}`}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>{order.client?.name || "-"}</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                              {order.client?.phone ? (
+                                <>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openWhatsApp(order.client.phone)}
+                                    sx={{
+                                      padding: 0.25,
+                                      "&:hover": {
+                                        backgroundColor: "rgba(37, 211, 102, 0.1)",
+                                      },
+                                    }}
+                                  >
+                                    <WhatsAppIcon sx={{ fontSize: 18, color: "#25D366" }} />
+                                  </IconButton>
+                                  <Typography variant="body2">
+                                    {order.client.phone}
+                                  </Typography>
+                                </>
+                              ) : (
+                                <Typography variant="body2">-</Typography>
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {formatCurrency(totalAmount)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            {order.isSentToDeliveryCompany ? (
+                              <Chip
+                                label="تم الإرسال"
+                                color="success"
+                                size="small"
+                                sx={{ fontWeight: 500 }}
+                              />
+                            ) : (
+                              <Chip
+                                label="لم يتم الإرسال"
+                                color="default"
+                                size="small"
+                                sx={{ fontWeight: 500 }}
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {order.createdAt
+                              ? new Date(order.createdAt).toLocaleDateString("ar-SA", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  calendar: "gregory",
+                                })
+                              : "-"}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+                              <Tooltip title="عرض">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setSelectedOrder(order);
+                                    setOpenDetailsModal(true);
+                                  }}
+                                  sx={{
+                                    color: "primary.main",
+                                    "&:hover": {
+                                      backgroundColor: "rgba(25, 118, 210, 0.1)",
+                                    },
+                                  }}
+                                >
+                                  <Visibility />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="تعديل">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setDepositOrderToEdit(order);
+                                    setOpenEditDepositOrderDialog(true);
+                                  }}
+                                  sx={{
+                                    color: "primary.main",
+                                    "&:hover": {
+                                      backgroundColor: "rgba(25, 118, 210, 0.1)",
+                                    },
+                                  }}
+                                >
+                                  <Edit />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="إلغاء الطلب">
+                                <IconButton
+                                  size="small"
+                                  onClick={async () => {
+                                    const result = await Swal.fire({
+                                      title: "هل أنت متأكد؟",
+                                      text: "هل أنت متأكد من حذف طلب العربون؟ لن يمكنك التراجع عن هذا الإجراء!",
+                                      icon: "warning",
+                                      showCancelButton: true,
+                                      confirmButtonColor: "#d33",
+                                      cancelButtonColor: "#3085d6",
+                                      confirmButtonText: "نعم، احذفه!",
+                                      cancelButtonText: "إلغاء",
+                                      reverseButtons: true,
+                                      customClass: {
+                                        container: "swal2-container-custom",
+                                      },
+                                      zIndex: 1400,
+                                    });
+
+                                    if (result.isConfirmed) {
+                                      try {
+                                        await depositOrdersService.deleteDepositOrder(order.id);
+                                        fetchDepositOrders();
+                                        fetchDepositOrdersCount();
+                                        Swal.fire({
+                                          title: "تم الحذف!",
+                                          text: "تم حذف طلب العربون بنجاح.",
+                                          icon: "success",
+                                          confirmButtonColor: "#3085d6",
+                                          zIndex: 1400,
+                                        });
+                                      } catch (error) {
+                                        console.error("Error deleting deposit order:", error);
+                                        Swal.fire({
+                                          title: "خطأ!",
+                                          text: "حدث خطأ أثناء حذف طلب العربون. حاول مرة أخرى.",
+                                          icon: "error",
+                                          confirmButtonColor: "#d33",
+                                          zIndex: 1400,
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  sx={{
+                                    color: "error.main",
+                                    "&:hover": {
+                                      backgroundColor: "rgba(211, 47, 47, 0.1)",
+                                    },
+                                  }}
+                                >
+                                  <Delete />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Box>
+      </GlassDialog>
+
+      {/* Edit Deposit Order Dialog */}
+      <GlassDialog
+        open={openEditDepositOrderDialog}
+        onClose={() => {
+          setOpenEditDepositOrderDialog(false);
+          setDepositOrderToEdit(null);
+        }}
+        maxWidth="md"
+        title="تعديل طلب عربون"
+      >
+        {depositOrderToEdit && (
+          <DepositOrderForm
+            initialDepositOrder={depositOrderToEdit}
+            onSuccess={() => {
+              setOpenEditDepositOrderDialog(false);
+              setDepositOrderToEdit(null);
+              fetchDepositOrders();
+              fetchDepositOrdersCount();
+            }}
+            onCancel={() => {
+              setOpenEditDepositOrderDialog(false);
+              setDepositOrderToEdit(null);
+            }}
+          />
         )}
       </GlassDialog>
     </Box>

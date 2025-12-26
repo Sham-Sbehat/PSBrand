@@ -1273,6 +1273,7 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         minute: "2-digit",
         hour12: true,
         calendar: "gregory",
+        timeZone: "Asia/Jerusalem",
       });
     } catch {
       return normalized.toString();

@@ -31,12 +31,14 @@ import {
   Clear,
   Settings,
   Business,
+  AttachMoney,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, clientsService } from "../services/api";
+import { ordersService, clientsService, depositOrdersService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import OrdersList from "../components/admin/OrdersList";
+import DepositOrdersList from "../components/admin/DepositOrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
 import SellerManagement from "../components/admin/SellerManagement";
 import FinancialManagement from "../components/admin/FinancialManagement";
@@ -54,6 +56,7 @@ const AdminDashboard = () => {
   const [allOrders, setAllOrders] = useState([]);
   const [newNotificationReceived, setNewNotificationReceived] = useState(null);
   const [clientsCount, setClientsCount] = useState(0);
+  const [depositOrdersCount, setDepositOrdersCount] = useState(0);
   
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -117,6 +120,26 @@ const AdminDashboard = () => {
 
     fetchClientsCount();
 
+    // Fetch deposit orders count by designer
+    const fetchDepositOrdersCount = async () => {
+      try {
+        if (user?.id) {
+          const response = await depositOrdersService.getAllDepositOrders({ designerId: user.id });
+          const ordersArray = Array.isArray(response) ? response : (response?.data || []);
+          if (isMounted) {
+            setDepositOrdersCount(ordersArray.length);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching deposit orders count:", error);
+        if (isMounted) {
+          setDepositOrdersCount(0);
+        }
+      }
+    };
+
+    fetchDepositOrdersCount();
+
     let unsubscribe;
     (async () => {
       try {
@@ -141,7 +164,7 @@ const AdminDashboard = () => {
         unsubscribe();
       }
     };
-  }, []);
+  }, [user?.id]);
 
   const handleLogout = () => {
     logout();
@@ -177,6 +200,11 @@ const AdminDashboard = () => {
       title: "عدد العملاء",
       value: clientsCount,
       icon: Business,
+    },
+    {
+      title: "طلبات العربون",
+      value: depositOrdersCount,
+      icon: AttachMoney,
     },
   ];
 
@@ -401,6 +429,27 @@ const AdminDashboard = () => {
               }}
             />
             <Tab
+              label="طلبات العربون"
+              icon={<AttachMoney />}
+              iconPosition="start"
+              sx={{
+                fontWeight: 600,
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
+                color: calmPalette.textMuted,
+                minHeight: { xs: 48, sm: 64 },
+                padding: { xs: '8px 12px', sm: '12px 16px' },
+                "&.Mui-selected": {
+                  color: "#f7f2ea",
+                },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 1 },
+                  '& svg': {
+                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                  }
+                }
+              }}
+            />
+            <Tab
               label="إدارة الموظفين"
               icon={<People />}
               iconPosition="start"
@@ -510,10 +559,11 @@ const AdminDashboard = () => {
 
         <Box>
           {currentTab === 0 && <OrdersList />}
-          {currentTab === 1 && <EmployeeManagement />}
-          {currentTab === 2 && <SellerManagement />}
-          {currentTab === 3 && <FinancialManagement />}
-          {currentTab === 4 && (
+          {currentTab === 1 && <DepositOrdersList />}
+          {currentTab === 2 && <EmployeeManagement />}
+          {currentTab === 3 && <SellerManagement />}
+          {currentTab === 4 && <FinancialManagement />}
+          {currentTab === 5 && (
             <Box>
               <Paper
                 elevation={0}
@@ -633,7 +683,7 @@ const AdminDashboard = () => {
               <OrdersList dateFilter={dailyOrdersDate} />
             </Box>
           )}
-          {currentTab === 5 && <ManagementDashboard />}
+          {currentTab === 6 && <ManagementDashboard />}
         </Box>
       </Container>
     </Box>

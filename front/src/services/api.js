@@ -355,6 +355,54 @@ export const ordersService = {
   },
 };
 
+// Deposit Orders Service
+export const depositOrdersService = {
+  getAllDepositOrders: async (params = {}) => {
+    const response = await api.get("/DepositOrders/GetDepositOrders", {
+      params,
+    });
+    return response.data;
+  },
+
+  getDepositOrderById: async (id) => {
+    const response = await api.get(`/DepositOrders/GetDepositOrder/${id}`);
+    return response.data;
+  },
+
+  createDepositOrder: async (depositOrderData) => {
+    const response = await api.post("/DepositOrders/CreateDepositOrder", depositOrderData);
+    return response.data;
+  },
+
+  updateDepositOrder: async (id, depositOrderData) => {
+    const response = await api.put(`/DepositOrders/UpdateDepositOrder/${id}`, depositOrderData);
+    return response.data;
+  },
+
+  deleteDepositOrder: async (id) => {
+    try {
+      const response = await api.delete(`/DepositOrders/DeleteDepositOrder/${id}`);
+      return { success: true, status: response.status };
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  updateContactedStatus: async (id, isContactedWithClient) => {
+    const response = await api.patch(`/DepositOrders/${id}/ContactedStatus`, {
+      isContactedWithClient,
+    });
+    return response.data;
+  },
+
+  sendToDeliveryCompany: async (id, shippingNotes = "") => {
+    const response = await api.post(`/DepositOrders/${id}/SendToDeliveryCompany`, {
+      shippingNotes,
+    });
+    return response.data;
+  },
+};
+
 // Order Status Service
 export const orderStatusService = {
   setPendingPrinting: async (orderId) => {
