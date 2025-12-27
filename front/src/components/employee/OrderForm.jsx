@@ -295,20 +295,34 @@ const OrderForm = ({
     if (!isEditMode || !initialOrder) return;
 
     const getFabricLabel = (value) => {
-      if (value === null || value === undefined) return "";
+      if (value === null || value === undefined || value === "") return "";
       // Try to find fabric type from API first
       if (fabricTypes.length > 0) {
-        const fabricType = fabricTypes.find(f => f.id === value || f.nameAr === value || f.name === value);
+        // If value is a number (ID), find by ID
+        const numericValue = typeof value === 'number' ? value : (typeof value === 'string' && !isNaN(value) ? parseInt(value) : null);
+        if (numericValue !== null) {
+          const fabricType = fabricTypes.find(f => f.id === numericValue);
+          if (fabricType) return fabricType.nameAr || fabricType.name || "";
+        }
+        // Otherwise try to find by name
+        const fabricType = fabricTypes.find(f => f.nameAr === value || f.name === value);
         if (fabricType) return fabricType.nameAr || fabricType.name || "";
       }
       return value || "";
     };
 
     const getColorLabel = (value) => {
-      if (value === null || value === undefined) return "";
+      if (value === null || value === undefined || value === "") return "";
       // Try to find color from API first
       if (colors.length > 0) {
-        const color = colors.find(c => c.id === value);
+        // If value is a number (ID), find by ID
+        const numericValue = typeof value === 'number' ? value : (typeof value === 'string' && !isNaN(value) ? parseInt(value) : null);
+        if (numericValue !== null) {
+          const color = colors.find(c => c.id === numericValue);
+          if (color) return color.nameAr || color.name || "";
+        }
+        // Otherwise try to find by name
+        const color = colors.find(c => c.nameAr === value || c.name === value);
         if (color) return color.nameAr || color.name || "";
       }
       // Return value as-is if API colors not loaded yet
@@ -316,11 +330,21 @@ const OrderForm = ({
     };
 
     const getSizeLabel = (value) => {
-      if (value === null || value === undefined) return "";
+      if (value === null || value === undefined || value === "") return "";
       // Try to find size from API first
       if (sizes.length > 0) {
-        const size = sizes.find(s => s.id === value || s.nameAr === value || s.name === value);
-        if (size) return size.name || size.nameAr || "";
+        // If value is a number (ID), find by ID
+        const numericValue = typeof value === 'number' ? value : (typeof value === 'string' && !isNaN(value) ? parseInt(value) : null);
+        if (numericValue !== null) {
+          const size = sizes.find(s => s.id === numericValue);
+          if (size) return size.sizeName || size.name || size.sizeNameAr || size.nameAr || "";
+        }
+        // Otherwise try to find by name
+        const size = sizes.find(s => 
+          s.sizeNameAr === value || s.nameAr === value || 
+          s.sizeName === value || s.name === value
+        );
+        if (size) return size.sizeName || size.name || size.sizeNameAr || size.nameAr || "";
       }
       // Return value as-is if API sizes not loaded yet
       return value || "";
@@ -329,18 +353,27 @@ const OrderForm = ({
     const mappedOrders = (initialOrder.orderDesigns || []).map(
       (design, index) => {
         const mappedItems = (design.orderDesignItems || []).map(
-          (item, itemIdx) => ({
-            id: itemIdx + 1,
-            serverId: item?.id || null,
-            fabricType: getFabricLabel(item?.fabricType),
-            color: item?.color || "", // Keep as ID, we'll convert to nameAr only for display
-            size: getSizeLabel(item?.size),
-            quantity: item?.quantity || 1,
-            unitPrice: item?.unitPrice || 0,
-            totalPrice:
-              item?.totalPrice ||
-              (item?.quantity || 0) * (item?.unitPrice || 0),
-          })
+          (item, itemIdx) => {
+            // Use IDs if available, otherwise use the direct values
+            // Priority: colorId > color, sizeId > size, fabricTypeId > fabricType
+            const colorId = item?.colorId || item?.color || "";
+            const sizeId = item?.sizeId || item?.size || "";
+            const fabricTypeId = item?.fabricTypeId || item?.fabricType || "";
+            
+            // Convert IDs to names for display in Select fields
+            return {
+              id: itemIdx + 1,
+              serverId: item?.id || null,
+              fabricType: getFabricLabel(fabricTypeId),
+              color: getColorLabel(colorId),
+              size: getSizeLabel(sizeId),
+              quantity: item?.quantity || 1,
+              unitPrice: item?.unitPrice || 0,
+              totalPrice:
+                item?.totalPrice ||
+                (item?.quantity || 0) * (item?.unitPrice || 0),
+            };
+          }
         );
 
         return {
@@ -566,6 +599,59 @@ const OrderForm = ({
     }
     
     // Return value as-is if API colors not loaded yet
+    return value || "";
+  };
+
+  // Helper function to convert size ID to nameAr from API
+  const getSizeLabel = (value) => {
+    if (value === null || value === undefined || value === "") return "";
+    
+    // Convert value to number if it's a string number
+    const sizeId = typeof value === 'string' && !isNaN(value) && value !== '' 
+      ? Number(value) 
+      : (typeof value === 'number' ? value : null);
+    
+    if (sizeId === null) {
+      // If value is already a name (string), return it as is
+      return value;
+    }
+    
+    // Try to find size from API by ID
+    if (sizes.length > 0) {
+      const size = sizes.find(s => s.id === sizeId);
+      if (size) {
+        // Display English name first (sizeName or name)
+        return size.sizeName || size.name || size.sizeNameAr || size.nameAr || "";
+      }
+    }
+    
+    // Return value as-is if API sizes not loaded yet
+    return value || "";
+  };
+
+  // Helper function to convert fabricType ID to nameAr from API
+  const getFabricLabel = (value) => {
+    if (value === null || value === undefined || value === "") return "";
+    
+    // Convert value to number if it's a string number
+    const fabricTypeId = typeof value === 'string' && !isNaN(value) && value !== '' 
+      ? Number(value) 
+      : (typeof value === 'number' ? value : null);
+    
+    if (fabricTypeId === null) {
+      // If value is already a name (string), return it as is
+      return value;
+    }
+    
+    // Try to find fabric type from API by ID
+    if (fabricTypes.length > 0) {
+      const fabricType = fabricTypes.find(f => f.id === fabricTypeId);
+      if (fabricType) {
+        return fabricType.nameAr || fabricType.name || "";
+      }
+    }
+    
+    // Return value as-is if API fabric types not loaded yet
     return value || "";
   };
 
@@ -1110,18 +1196,21 @@ const OrderForm = ({
               return null;
             }
             
+            // Convert item.size to string if it's not already
+            const sizeValue = typeof item.size === 'string' ? item.size : String(item.size || '');
+            
             if (sizes.length > 0) {
               // First, try exact match with nameAr or name
               let size = sizes.find(s => 
-                (s.nameAr && s.nameAr.trim() === item.size.trim()) || 
-                (s.name && s.name.trim() === item.size.trim())
+                (s.nameAr && s.nameAr.trim() === sizeValue.trim()) || 
+                (s.name && s.name.trim() === sizeValue.trim())
               );
               if (size) return size.id;
               
               // Try case-insensitive match
               size = sizes.find(s => 
-                (s.nameAr && s.nameAr.trim().toLowerCase() === item.size.trim().toLowerCase()) || 
-                (s.name && s.name.trim().toLowerCase() === item.size.trim().toLowerCase())
+                (s.nameAr && s.nameAr.trim().toLowerCase() === sizeValue.trim().toLowerCase()) || 
+                (s.name && s.name.trim().toLowerCase() === sizeValue.trim().toLowerCase())
               );
               if (size) return size.id;
               
@@ -1142,18 +1231,21 @@ const OrderForm = ({
               return null;
             }
             
+            // Convert item.color to string if it's not already
+            const colorValue = typeof item.color === 'string' ? item.color : String(item.color || '');
+            
             if (colors.length > 0) {
               // First, try exact match with nameAr or name
               let color = colors.find(c => 
-                (c.nameAr && c.nameAr.trim() === item.color.trim()) || 
-                (c.name && c.name.trim() === item.color.trim())
+                (c.nameAr && c.nameAr.trim() === colorValue.trim()) || 
+                (c.name && c.name.trim() === colorValue.trim())
               );
               if (color) return color.id;
               
               // Try case-insensitive match
               color = colors.find(c => 
-                (c.nameAr && c.nameAr.trim().toLowerCase() === item.color.trim().toLowerCase()) || 
-                (c.name && c.name.trim().toLowerCase() === item.color.trim().toLowerCase())
+                (c.nameAr && c.nameAr.trim().toLowerCase() === colorValue.trim().toLowerCase()) || 
+                (c.name && c.name.trim().toLowerCase() === colorValue.trim().toLowerCase())
               );
               if (color) return color.id;
               
@@ -1173,18 +1265,21 @@ const OrderForm = ({
               return null;
             }
             
+            // Convert item.fabricType to string if it's not already
+            const fabricTypeValue = typeof item.fabricType === 'string' ? item.fabricType : String(item.fabricType || '');
+            
             if (fabricTypes.length > 0) {
               // First, try exact match with nameAr or name
               let fabricType = fabricTypes.find(f => 
-                (f.nameAr && f.nameAr.trim() === item.fabricType.trim()) || 
-                (f.name && f.name.trim() === item.fabricType.trim())
+                (f.nameAr && f.nameAr.trim() === fabricTypeValue.trim()) || 
+                (f.name && f.name.trim() === fabricTypeValue.trim())
               );
               if (fabricType) return fabricType.id;
               
               // Try case-insensitive match
               fabricType = fabricTypes.find(f => 
-                (f.nameAr && f.nameAr.trim().toLowerCase() === item.fabricType.trim().toLowerCase()) || 
-                (f.name && f.name.trim().toLowerCase() === item.fabricType.trim().toLowerCase())
+                (f.nameAr && f.nameAr.trim().toLowerCase() === fabricTypeValue.trim().toLowerCase()) || 
+                (f.name && f.name.trim().toLowerCase() === fabricTypeValue.trim().toLowerCase())
               );
               if (fabricType) return fabricType.id;
               
@@ -2935,7 +3030,7 @@ const OrderForm = ({
                             <FormControl fullWidth>
                               <InputLabel>نوع القماش</InputLabel>
                               <Select
-                                value={item.fabricType}
+                                value={getFabricLabel(item.fabricType)}
                                 label="نوع القماش"
                                 onChange={(e) =>
                                   updateOrderItem(
@@ -3005,11 +3100,14 @@ const OrderForm = ({
                                 disabled={loadingColors}
                               >
                                 {colors.length > 0 ? (
-                                  colors.map((color) => (
-                                    <MenuItem key={color.id} value={color.nameAr || color.name}>
-                                      {color.nameAr || color.name}
-                                    </MenuItem>
-                                  ))
+                                  colors.map((color) => {
+                                    const colorValue = color.nameAr || color.name;
+                                    return (
+                                      <MenuItem key={color.id} value={colorValue}>
+                                        {colorValue}
+                                      </MenuItem>
+                                    );
+                                  })
                                 ) : (
                                   // Fallback to static colors if API hasn't loaded yet
                                   <>
@@ -3031,7 +3129,7 @@ const OrderForm = ({
                             <FormControl fullWidth>
                               <InputLabel>المقاس</InputLabel>
                               <Select
-                                value={item.size}
+                                value={getSizeLabel(item.size)}
                                 label="المقاس"
                                 onChange={(e) =>
                                   updateOrderItem(
@@ -3045,11 +3143,15 @@ const OrderForm = ({
                                 disabled={loadingSizes}
                               >
                                 {sizes.length > 0 ? (
-                                  sizes.map((size) => (
-                                    <MenuItem key={size.id} value={size.name || size.nameAr}>
-                                      {size.name || size.nameAr}
-                                    </MenuItem>
-                                  ))
+                                  sizes.map((size) => {
+                                    // Display English name first
+                                    const sizeValue = size.sizeName || size.name || size.sizeNameAr || size.nameAr;
+                                    return (
+                                      <MenuItem key={size.id} value={sizeValue}>
+                                        {sizeValue}
+                                      </MenuItem>
+                                    );
+                                  })
                                 ) : (
                                   // Fallback to static sizes if API hasn't loaded yet
                                   <>
