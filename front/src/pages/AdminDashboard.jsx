@@ -32,6 +32,7 @@ import {
   Settings,
   Business,
   AttachMoney,
+  Dashboard,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -43,6 +44,7 @@ import EmployeeManagement from "../components/admin/EmployeeManagement";
 import SellerManagement from "../components/admin/SellerManagement";
 import FinancialManagement from "../components/admin/FinancialManagement";
 import ManagementDashboard from "../components/admin/ManagementDashboard";
+import WelcomeDashboard from "../components/admin/WelcomeDashboard";
 import NotificationsBell from "../components/common/NotificationsBell";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
@@ -377,7 +379,7 @@ const AdminDashboard = () => {
           })}
         </Grid>
 
-        <Box sx={{ marginBottom: { xs: 2, sm: 3 } }}>
+        <Box sx={{ marginBottom: { xs: 1.5, sm: 2 } }}>
           <Tabs
             value={currentTab}
             onChange={handleTabChange}
@@ -385,11 +387,10 @@ const AdminDashboard = () => {
             scrollButtons="auto"
             allowScrollButtonsMobile
             sx={{
-              backgroundColor: calmPalette.surface,
+              backgroundColor: "transparent",
               borderRadius: { xs: 2, sm: 3 },
-              boxShadow: calmPalette.shadow,
-              backdropFilter: "blur(8px)",
-              minHeight: { xs: 48, sm: 64 },
+              minHeight: { xs: 40, sm: 48 },
+              borderBottom: "1px solid rgba(107, 142, 127, 0.15)",
               '& .MuiTabs-scrollButtons': {
                 color: calmPalette.textMuted,
                 '&.Mui-disabled': {
@@ -399,31 +400,65 @@ const AdminDashboard = () => {
             }}
             TabIndicatorProps={{
               sx: {
-                height: "100%",
-                borderRadius: { xs: 2, sm: 3 },
-                background:
-                  "linear-gradient(135deg, rgba(96, 78, 62, 0.85) 0%, rgba(75, 61, 49, 0.9) 100%)",
-                zIndex: -1,
+                height: "3px",
+                borderRadius: "3px 3px 0 0",
+                background: "linear-gradient(90deg, #6B8E7F 0%, #8B7FA8 100%)",
+                bottom: 0,
               },
             }}
           >
+            <Tab
+              label="لوحة الترحيب"
+              icon={<Dashboard />}
+              iconPosition="start"
+              sx={{
+                fontWeight: 600,
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
+                "&.Mui-selected": {
+                  color: "#5A7A6B",
+                  fontWeight: 700,
+                },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 0.75 },
+                  '& svg': {
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
+                  }
+                }
+              }}
+            />
             <Tab
               label="الطلبات"
               icon={<Assignment />}
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
-                color: calmPalette.textMuted,
-                minHeight: { xs: 48, sm: 64 },
-                padding: { xs: '8px 12px', sm: '12px 16px' },
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
                 "&.Mui-selected": {
-                  color: "#f7f2ea",
+                  color: "#5A7A6B",
+                  fontWeight: 700,
                 },
                 '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 1 },
+                  marginRight: { xs: 0.5, sm: 0.75 },
                   '& svg': {
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
                   }
                 }
               }}
@@ -434,17 +469,24 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
-                color: calmPalette.textMuted,
-                minHeight: { xs: 48, sm: 64 },
-                padding: { xs: '8px 12px', sm: '12px 16px' },
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
                 "&.Mui-selected": {
-                  color: "#f7f2ea",
+                  color: "#5A7A6B",
+                  fontWeight: 700,
                 },
                 '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 1 },
+                  marginRight: { xs: 0.5, sm: 0.75 },
                   '& svg': {
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
                   }
                 }
               }}
@@ -455,17 +497,24 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
-                color: calmPalette.textMuted,
-                minHeight: { xs: 48, sm: 64 },
-                padding: { xs: '8px 12px', sm: '12px 16px' },
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
                 "&.Mui-selected": {
-                  color: "#f7f2ea",
+                  color: "#5A7A6B",
+                  fontWeight: 700,
                 },
                 '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 1 },
+                  marginRight: { xs: 0.5, sm: 0.75 },
                   '& svg': {
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
                   }
                 }
               }}
@@ -476,17 +525,24 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
-                color: calmPalette.textMuted,
-                minHeight: { xs: 48, sm: 64 },
-                padding: { xs: '8px 12px', sm: '12px 16px' },
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
                 "&.Mui-selected": {
-                  color: "#f7f2ea",
+                  color: "#5A7A6B",
+                  fontWeight: 700,
                 },
                 '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 1 },
+                  marginRight: { xs: 0.5, sm: 0.75 },
                   '& svg': {
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
                   }
                 }
               }}
@@ -497,17 +553,24 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
-                color: calmPalette.textMuted,
-                minHeight: { xs: 48, sm: 64 },
-                padding: { xs: '8px 12px', sm: '12px 16px' },
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
                 "&.Mui-selected": {
-                  color: "#f7f2ea",
+                  color: "#5A7A6B",
+                  fontWeight: 700,
                 },
                 '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 1 },
+                  marginRight: { xs: 0.5, sm: 0.75 },
                   '& svg': {
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
                   }
                 }
               }}
@@ -518,17 +581,24 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
-                color: calmPalette.textMuted,
-                minHeight: { xs: 48, sm: 64 },
-                padding: { xs: '8px 12px', sm: '12px 16px' },
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
                 "&.Mui-selected": {
-                  color: "#f7f2ea",
+                  color: "#5A7A6B",
+                  fontWeight: 700,
                 },
                 '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 1 },
+                  marginRight: { xs: 0.5, sm: 0.75 },
                   '& svg': {
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
                   }
                 }
               }}
@@ -539,17 +609,24 @@ const AdminDashboard = () => {
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "1rem" },
-                color: calmPalette.textMuted,
-                minHeight: { xs: 48, sm: 64 },
-                padding: { xs: '8px 12px', sm: '12px 16px' },
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
                 "&.Mui-selected": {
-                  color: "#f7f2ea",
+                  color: "#5A7A6B",
+                  fontWeight: 700,
                 },
                 '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 1 },
+                  marginRight: { xs: 0.5, sm: 0.75 },
                   '& svg': {
-                    fontSize: { xs: '1rem', sm: '1.25rem' }
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
                   }
                 }
               }}
@@ -558,12 +635,13 @@ const AdminDashboard = () => {
         </Box>
 
         <Box>
-          {currentTab === 0 && <OrdersList />}
-          {currentTab === 1 && <DepositOrdersList />}
-          {currentTab === 2 && <EmployeeManagement />}
-          {currentTab === 3 && <SellerManagement />}
-          {currentTab === 4 && <FinancialManagement />}
-          {currentTab === 5 && (
+          {currentTab === 0 && <WelcomeDashboard />}
+          {currentTab === 1 && <OrdersList />}
+          {currentTab === 2 && <DepositOrdersList />}
+          {currentTab === 3 && <EmployeeManagement />}
+          {currentTab === 4 && <SellerManagement />}
+          {currentTab === 5 && <FinancialManagement />}
+          {currentTab === 6 && (
             <Box>
               <Paper
                 elevation={0}
@@ -683,7 +761,7 @@ const AdminDashboard = () => {
               <OrdersList dateFilter={dailyOrdersDate} />
             </Box>
           )}
-          {currentTab === 6 && <ManagementDashboard />}
+          {currentTab === 7 && <ManagementDashboard />}
         </Box>
       </Container>
     </Box>

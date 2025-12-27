@@ -217,6 +217,14 @@ export const ordersService = {
     return response.data;
   },
 
+  getDesignersStatistics: async (date) => {
+    // إرسال التاريخ بصيغة YYYY-MM-DD مباشرة
+    const response = await api.get("/Orders/GetDesignersStatistics", {
+      params: { date },
+    });
+    return response.data;
+  },
+
   createOrder: async (orderData) => {
     const response = await api.post("/Orders/CreateOrder", orderData);
     return response.data;
