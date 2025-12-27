@@ -182,7 +182,7 @@ const WelcomeDashboard = () => {
   return (
     <Box sx={{ 
       padding: { xs: 2, sm: 3 },
-      background: "linear-gradient(180deg, #faf8f5 0%, #f5f3f0 100%)",
+      background: "transparent",
       minHeight: "100vh",
     }}>
       <style>
