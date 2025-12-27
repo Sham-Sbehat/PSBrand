@@ -87,6 +87,18 @@ const DepositOrdersList = () => {
     loadCities();
   }, [fetchDepositOrders]);
 
+  // Fetch delivery statuses for all sent orders
+  useEffect(() => {
+    if (depositOrders.length > 0) {
+      depositOrders.forEach((order) => {
+        if (order.isSentToDeliveryCompany && !deliveryStatuses[order.id] && !loadingDeliveryStatuses[order.id]) {
+          fetchDeliveryStatus(order.id);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depositOrders]);
+
   const loadCities = async () => {
     try {
       const citiesData = await shipmentsService.getCities();
@@ -342,6 +354,7 @@ const DepositOrdersList = () => {
                     <TableCell>رسوم التوصيل</TableCell>
                     <TableCell>المدينة</TableCell>
                     <TableCell>تم الإرسال</TableCell>
+                    <TableCell>حالة شركة التوصيل</TableCell>
                     <TableCell>تاريخ الإنشاء</TableCell>
                     <TableCell align="center">الإجراءات</TableCell>
                   </TableRow>
@@ -349,7 +362,7 @@ const DepositOrdersList = () => {
                 <TableBody>
                   {paginatedOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                      <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
                         <Typography color="text.secondary">
                           {searchQuery ? "لا توجد نتائج" : "لا توجد طلبات عربون"}
                         </Typography>
@@ -404,12 +417,48 @@ const DepositOrdersList = () => {
                         <TableCell>{order.client?.phone || "-"}</TableCell>
                         <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
                         <TableCell>{formatCurrency(order.deliveryFee)}</TableCell>
-                        <TableCell>{getCityName(order.clientRoadFnCityId)}</TableCell>
+                        <TableCell>
+                          {getCityName(order.clientRoadFnCityId) !== "-" 
+                            ? getCityName(order.clientRoadFnCityId)
+                            : order.province || order.district || "-"}
+                        </TableCell>
                         <TableCell>
                           {order.isSentToDeliveryCompany ? (
                             <Chip label="تم الإرسال" color="success" size="small" />
                           ) : (
                             <Chip label="لم يتم الإرسال" color="default" size="small" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {order.isSentToDeliveryCompany ? (
+                            // Use shipmentStatus directly from order data if available
+                            order.shipmentStatus ? (
+                              <Chip
+                                label={order.shipmentStatus}
+                                color="info"
+                                size="small"
+                              />
+                            ) : loadingDeliveryStatuses[order.id] ? (
+                              <CircularProgress size={16} />
+                            ) : deliveryStatuses[order.id] ? (
+                              <Chip
+                                label={
+                                  deliveryStatuses[order.id].status?.arabic ||
+                                  deliveryStatuses[order.id].status?.english ||
+                                  "-"
+                                }
+                                color="info"
+                                size="small"
+                              />
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                -
+                              </Typography>
+                            )
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              -
+                            </Typography>
                           )}
                         </TableCell>
                         <TableCell>{formatDateTime(order.createdAt)}</TableCell>

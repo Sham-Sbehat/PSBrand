@@ -658,6 +658,20 @@ const OrderForm = ({
   // Handle customer form submission
   const onCustomerSubmit = async (data) => {
     try {
+      // Validate delivery company information (required fields)
+      if (!dialogShippingAddress || dialogShippingAddress.trim() === "") {
+        setSubmitError("عنوان شركة التوصيل مطلوب");
+        return;
+      }
+      if (!dialogSelectedCityId) {
+        setSubmitError("المدينة مطلوبة");
+        return;
+      }
+      if (!dialogSelectedAreaId) {
+        setSubmitError("المنطقة مطلوبة");
+        return;
+      }
+
       // Prepare client data according to API format
       const clientData = {
         name: data.customerName,
@@ -1836,10 +1850,15 @@ const OrderForm = ({
                   <Grid item xs={12}>
                     <TextField
                       fullWidth
-                      label="العنوان"
+                      label="العنوان *"
                       value={dialogShippingAddress}
-                      onChange={(e) => setDialogShippingAddress(e.target.value)}
+                      onChange={(e) => {
+                        setDialogShippingAddress(e.target.value);
+                        setSubmitError(""); // Clear error when user types
+                      }}
                       placeholder="أدخل عنوان شركة التوصيل"
+                      error={submitError && submitError.includes("عنوان")}
+                      helperText={submitError && submitError.includes("عنوان") ? submitError : ""}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -1869,15 +1888,18 @@ const OrderForm = ({
                           newValue ? newValue.id || newValue.cityId : null
                         );
                         setDialogSelectedAreaId(null); // Reset area when city changes
+                        setSubmitError(""); // Clear error when user selects
                       }}
                       loading={dialogLoadingCities}
                       disabled={dialogLoadingCities}
                       renderInput={(params) => (
                         <TextField
                           {...params}
-                          label="المدينة"
+                          label="المدينة *"
                           placeholder="ابحث عن المدينة..."
                           variant="outlined"
+                          error={submitError && submitError.includes("المدينة")}
+                          helperText={submitError && submitError.includes("المدينة") ? submitError : ""}
                           sx={{
                             "& .MuiOutlinedInput-root": {
                               backgroundColor: "#f5f5f5",
@@ -1993,13 +2015,15 @@ const OrderForm = ({
                       renderInput={(params) => (
                         <TextField
                           {...params}
-                          label="المنطقة"
+                          label="المنطقة *"
                           placeholder={
                             !dialogSelectedCityId
                               ? "يرجى اختيار المدينة أولاً"
                               : "ابحث عن المنطقة..."
                           }
                           variant="outlined"
+                          error={submitError && submitError.includes("المنطقة")}
+                          helperText={submitError && submitError.includes("المنطقة") ? submitError : ""}
                           sx={{
                             "& .MuiOutlinedInput-root": {
                               backgroundColor: "#f5f5f5",
