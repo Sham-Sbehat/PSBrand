@@ -9,7 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "serve -s dist"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",
