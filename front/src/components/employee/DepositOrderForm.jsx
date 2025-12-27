@@ -214,6 +214,17 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
     setSuccess(null);
 
     try {
+      // Get current date/time in local timezone and convert to ISO string
+      const now = new Date();
+      // Format as YYYY-MM-DDTHH:mm:ss (local time, no timezone)
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const localDateTime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+      
       const depositOrderData = {
         ...data,
         clientId: Number(data.clientId),
@@ -222,6 +233,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
         deliveryFee: Number(data.deliveryFee) || 0,
         clientRoadFnCityId: data.clientRoadFnCityId ? Number(data.clientRoadFnCityId) : null,
         clientRoadFnAreaId: data.clientRoadFnAreaId ? Number(data.clientRoadFnAreaId) : null,
+        createdAt: isEditMode ? data.createdAt : localDateTime,
       };
 
       if (isEditMode) {
