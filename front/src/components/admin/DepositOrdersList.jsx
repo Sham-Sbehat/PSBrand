@@ -60,8 +60,6 @@ const DepositOrdersList = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
   const [cities, setCities] = useState([]);
   const [areas, setAreas] = useState([]);
-  const [deliveryStatuses, setDeliveryStatuses] = useState({});
-  const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({});
 
   // Fetch deposit orders
   const fetchDepositOrders = useCallback(async () => {
@@ -87,17 +85,6 @@ const DepositOrdersList = () => {
     loadCities();
   }, [fetchDepositOrders]);
 
-  // Fetch delivery statuses for all sent orders
-  useEffect(() => {
-    if (depositOrders.length > 0) {
-      depositOrders.forEach((order) => {
-        if (order.isSentToDeliveryCompany && !deliveryStatuses[order.id] && !loadingDeliveryStatuses[order.id]) {
-          fetchDeliveryStatus(order.id);
-        }
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [depositOrders]);
 
   const loadCities = async () => {
     try {
@@ -121,37 +108,10 @@ const DepositOrdersList = () => {
     }
   };
 
-  const fetchDeliveryStatus = useCallback(async (orderId) => {
-    const order = depositOrders.find((o) => o.id === orderId);
-    if (!order || !order.isSentToDeliveryCompany) {
-      return;
-    }
-
-    setLoadingDeliveryStatuses((prev) => ({ ...prev, [orderId]: true }));
-    try {
-      const statusData = await shipmentsService.getDeliveryStatus(orderId);
-      setDeliveryStatuses((prev) => ({ ...prev, [orderId]: statusData }));
-    } catch (error) {
-      const errorCode = error.response?.data?.code;
-      if (errorCode !== "NO_SHIPMENT") {
-        console.error(`Error fetching delivery status for deposit order ${orderId}:`, error);
-      }
-      setDeliveryStatuses((prev) => ({ ...prev, [orderId]: null }));
-    } finally {
-      setLoadingDeliveryStatuses((prev => {
-        const updated = { ...prev };
-        delete updated[orderId];
-        return updated;
-      }));
-    }
-  }, [depositOrders]);
 
   const handleViewOrder = async (order) => {
     setSelectedOrder(order);
     setOpenDialog(true);
-    if (order.isSentToDeliveryCompany) {
-      fetchDeliveryStatus(order.id);
-    }
   };
 
   const handleEditOrder = (order) => {
@@ -430,31 +390,12 @@ const DepositOrdersList = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          {order.isSentToDeliveryCompany ? (
-                            // Use shipmentStatus directly from order data if available
-                            order.shipmentStatus ? (
-                              <Chip
-                                label={order.shipmentStatus}
-                                color="info"
-                                size="small"
-                              />
-                            ) : loadingDeliveryStatuses[order.id] ? (
-                              <CircularProgress size={16} />
-                            ) : deliveryStatuses[order.id] ? (
-                              <Chip
-                                label={
-                                  deliveryStatuses[order.id].status?.arabic ||
-                                  deliveryStatuses[order.id].status?.english ||
-                                  "-"
-                                }
-                                color="info"
-                                size="small"
-                              />
-                            ) : (
-                              <Typography variant="body2" color="text.secondary">
-                                -
-                              </Typography>
-                            )
+                          {order.isSentToDeliveryCompany && order.shipmentStatus ? (
+                            <Chip
+                              label={order.shipmentStatus}
+                              color="info"
+                              size="small"
+                            />
                           ) : (
                             <Typography variant="body2" color="text.secondary">
                               -
@@ -619,25 +560,15 @@ const DepositOrdersList = () => {
                   }
                 />
               </Grid>
-              {selectedOrder.isSentToDeliveryCompany && (
+              {selectedOrder.isSentToDeliveryCompany && selectedOrder.shipmentStatus && (
                 <Grid item xs={12}>
                   <Box sx={{ mt: 2, p: 2, bgcolor: "background.paper", borderRadius: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>
                       حالة التوصيل من شركة التوصيل
                     </Typography>
-                    {loadingDeliveryStatuses[selectedOrder.id] ? (
-                      <CircularProgress size={24} />
-                    ) : deliveryStatuses[selectedOrder.id] ? (
-                      <Typography variant="body2">
-                        {deliveryStatuses[selectedOrder.id].status?.arabic ||
-                          deliveryStatuses[selectedOrder.id].status?.english ||
-                          "-"}
-                      </Typography>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        لم يتم جلب حالة التوصيل
-                      </Typography>
-                    )}
+                    <Typography variant="body2">
+                      {selectedOrder.shipmentStatus}
+                    </Typography>
                   </Box>
                 </Grid>
               )}
