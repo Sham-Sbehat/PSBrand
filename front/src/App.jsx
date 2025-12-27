@@ -38,15 +38,30 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     return <Navigate to="/" replace />;
   }
 
-  const getUserRoleString = (roleNumber) => {
-    switch (roleNumber) {
-      case 1: return "admin";
-      case 2: return "designer";
-      case 3: return "preparer";
-      case 4: return "designmanager";
-      case 5: return "packager";
-      default: return "unknown";
+  const getUserRoleString = (role) => {
+    // Handle both number and string formats
+    if (typeof role === 'number') {
+      switch (role) {
+        case 1: return "admin";
+        case 2: return "designer";
+        case 3: return "preparer";
+        case 4: return "designmanager";
+        case 5: return "packager";
+        default: return "unknown";
+      }
     }
+    
+    // Handle string formats from backend
+    if (typeof role === 'string') {
+      const roleLower = role.toLowerCase();
+      if (roleLower === 'admin' || roleLower === 'ad') return "admin";
+      if (roleLower === 'designer') return "designer";
+      if (roleLower === 'preparer') return "preparer";
+      if (roleLower === 'designmanager' || roleLower === 'design manager') return "designmanager";
+      if (roleLower === 'packager') return "packager";
+    }
+    
+    return "unknown";
   };
 
   const userRoleString = getUserRoleString(user?.role);
@@ -68,14 +83,43 @@ function AppContent() {
   const getDefaultRoute = () => {
     if (!user) return "/";
     
-    switch (user.role) {
-      case 1: return "/admin";
-      case 2: return "/employee";
-      case 3: return "/preparer";
-      case 4: return "/designmanager";
-      case 5: return "/packager";
+    const roleStr = getUserRoleString(user.role);
+    
+    switch (roleStr) {
+      case "admin": return "/admin";
+      case "designer": return "/employee";
+      case "preparer": return "/preparer";
+      case "designmanager": return "/designmanager";
+      case "packager": return "/packager";
       default: return "/";
     }
+  };
+  
+  // Helper function to get role string (same as in ProtectedRoute)
+  const getUserRoleString = (role) => {
+    // Handle both number and string formats
+    if (typeof role === 'number') {
+      switch (role) {
+        case 1: return "admin";
+        case 2: return "designer";
+        case 3: return "preparer";
+        case 4: return "designmanager";
+        case 5: return "packager";
+        default: return "unknown";
+      }
+    }
+    
+    // Handle string formats from backend
+    if (typeof role === 'string') {
+      const roleLower = role.toLowerCase();
+      if (roleLower === 'admin' || roleLower === 'ad') return "admin";
+      if (roleLower === 'designer') return "designer";
+      if (roleLower === 'preparer') return "preparer";
+      if (roleLower === 'designmanager' || roleLower === 'design manager') return "designmanager";
+      if (roleLower === 'packager') return "packager";
+    }
+    
+    return "unknown";
   };
 
   return (

@@ -8,5 +8,5 @@ cmds = ["npm install -g npm@latest", "npm install"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "npm run preview"
+cmd = "npm start"
 
