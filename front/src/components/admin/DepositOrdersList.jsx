@@ -40,7 +40,7 @@ import GlassDialog from "../common/GlassDialog";
 import DepositOrderForm from "../employee/DepositOrderForm";
 
 const DepositOrdersList = () => {
-  const { user } = useApp();
+  const { user, employees, loadEmployees } = useApp();
   const [depositOrders, setDepositOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -83,7 +83,11 @@ const DepositOrdersList = () => {
   useEffect(() => {
     fetchDepositOrders();
     loadCities();
-  }, [fetchDepositOrders]);
+    // Load employees if not already loaded
+    if (employees.length === 0 && loadEmployees) {
+      loadEmployees();
+    }
+  }, [fetchDepositOrders, loadEmployees, employees.length]);
 
 
   const loadCities = async () => {
@@ -246,6 +250,12 @@ const DepositOrdersList = () => {
     return area?.name || area?.Name || area?.areaName || "-";
   };
 
+  const getSellerName = (designerId) => {
+    if (!designerId) return "-";
+    const seller = employees.find((emp) => emp.id === designerId || emp.Id === designerId);
+    return seller?.name || seller?.Name || "-";
+  };
+
   // Filter and paginate orders
   const filteredOrders = useMemo(() => {
     if (!searchQuery) return depositOrders;
@@ -310,6 +320,7 @@ const DepositOrdersList = () => {
                     <TableCell>رقم الطلب</TableCell>
                     <TableCell>العميل</TableCell>
                     <TableCell>الهاتف</TableCell>
+                    <TableCell>البائع</TableCell>
                     <TableCell>المبلغ</TableCell>
                     <TableCell>رسوم التوصيل</TableCell>
                     <TableCell>المدينة</TableCell>
@@ -322,7 +333,7 @@ const DepositOrdersList = () => {
                 <TableBody>
                   {paginatedOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
+                      <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
                         <Typography color="text.secondary">
                           {searchQuery ? "لا توجد نتائج" : "لا توجد طلبات عربون"}
                         </Typography>
@@ -375,6 +386,7 @@ const DepositOrdersList = () => {
                         </TableCell>
                         <TableCell>{order.client?.name || "-"}</TableCell>
                         <TableCell>{order.client?.phone || "-"}</TableCell>
+                        <TableCell>{getSellerName(order.designerId)}</TableCell>
                         <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
                         <TableCell>{formatCurrency(order.deliveryFee)}</TableCell>
                         <TableCell>
@@ -493,6 +505,9 @@ const DepositOrdersList = () => {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <InfoItem label="رقم الهاتف الثاني" value={selectedOrder.clientPhone2 || "-"} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <InfoItem label="البائع" value={getSellerName(selectedOrder.designerId)} />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <InfoItem label="مبلغ العربون" value={formatCurrency(selectedOrder.totalAmount)} />

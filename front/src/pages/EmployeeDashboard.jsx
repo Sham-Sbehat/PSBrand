@@ -51,6 +51,7 @@ import {
   AttachMoney,
   Person,
   Delete,
+  LocalShipping,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -277,6 +278,10 @@ const EmployeeDashboard = () => {
   const [depositOrdersSearchQuery, setDepositOrdersSearchQuery] = useState("");
   const [openEditDepositOrderDialog, setOpenEditDepositOrderDialog] = useState(false);
   const [depositOrderToEdit, setDepositOrderToEdit] = useState(null);
+  const [openShippingDialog, setOpenShippingDialog] = useState(false);
+  const [orderToShip, setOrderToShip] = useState(null);
+  const [shippingNotes, setShippingNotes] = useState("");
+  const [shippingLoading, setShippingLoading] = useState(false);
 
   const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
   const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
@@ -807,6 +812,50 @@ const EmployeeDashboard = () => {
       fetchDepositOrdersCount();
     } catch (error) {
       console.error("Error updating contacted status:", error);
+    }
+  };
+
+  // Handle send to delivery company
+  const handleSendToDelivery = (order) => {
+    setOrderToShip(order);
+    setShippingNotes("");
+    setOpenShippingDialog(true);
+  };
+
+  const confirmShipping = async () => {
+    if (!orderToShip) return;
+    setShippingLoading(true);
+    try {
+      await depositOrdersService.sendToDeliveryCompany(orderToShip.id, shippingNotes);
+      Swal.fire({
+        title: "نجح!",
+        text: "تم إرسال طلب العربون لشركة التوصيل بنجاح",
+        icon: "success",
+        confirmButtonText: "حسناً",
+        customClass: {
+          container: "swal2-container-custom",
+        },
+        zIndex: 1400,
+      });
+      fetchDepositOrders();
+      fetchDepositOrdersCount();
+      setOpenShippingDialog(false);
+      setOrderToShip(null);
+      setShippingNotes("");
+    } catch (error) {
+      console.error("Error sending deposit order to delivery:", error);
+      Swal.fire({
+        title: "خطأ!",
+        text: "حدث خطأ أثناء إرسال طلب العربون",
+        icon: "error",
+        confirmButtonText: "حسناً",
+        customClass: {
+          container: "swal2-container-custom",
+        },
+        zIndex: 1400,
+      });
+    } finally {
+      setShippingLoading(false);
     }
   };
 
@@ -2611,7 +2660,7 @@ const EmployeeDashboard = () => {
                                         variant="outlined"
                                         color="error"
                                         sx={{
-                                          minWidth: 100,
+                                          minWidth: 80,
                                           "&.Mui-disabled": {
                                             color: "#777777",
                                             borderColor: "rgba(0,0,0,0.12)",
@@ -2624,7 +2673,7 @@ const EmployeeDashboard = () => {
                                         {cancelLoadingId === order.id ? (
                                           <CircularProgress size={16} />
                                         ) : (
-                                          "إلغاء الطلب"
+                                          "إلغاء"
                                         )}
                                       </Button>
                                     )}
@@ -3296,7 +3345,7 @@ const EmployeeDashboard = () => {
                                 variant="outlined"
                                 color="error"
                                 sx={{
-                                  minWidth: 120,
+                                  minWidth: 100,
                                           "&.Mui-disabled": {
                                             color: "#777777",
                                             borderColor: "rgba(0,0,0,0.12)",
@@ -3309,7 +3358,7 @@ const EmployeeDashboard = () => {
                                 {cancelLoadingId === order.id ? (
                                   <CircularProgress size={16} />
                                 ) : (
-                                  "إلغاء الطلب"
+                                  "إلغاء"
                                 )}
                               </Button>
                             )}
@@ -4553,6 +4602,7 @@ const EmployeeDashboard = () => {
                     <TableCell sx={{ fontWeight: 700 }}>الرقم</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>الإجمالي</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>حالة شركة التوصيل</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="center">الإجراءات</TableCell>
                   </TableRow>
@@ -4574,7 +4624,41 @@ const EmployeeDashboard = () => {
                         <TableRow key={order.id} hover>
                           <TableCell>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                              <Person sx={{ fontSize: 18, color: "text.secondary" }} />
+                              {order.isContactedWithClient ? (
+                                <Tooltip title="تم التواصل مع الزبون (انقر للتغيير)">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleToggleContactedDepositOrder(order)}
+                                    sx={{
+                                      color: '#4caf50',
+                                      padding: 0.25,
+                                      minWidth: 'auto',
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                                      },
+                                    }}
+                                  >
+                                    <CheckCircle sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip title="لم يتم التواصل مع الزبون بعد (انقر للتغيير)">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleToggleContactedDepositOrder(order)}
+                                    sx={{
+                                      color: '#9e9e9e',
+                                      padding: 0.25,
+                                      minWidth: 'auto',
+                                      '&:hover': {
+                                        backgroundColor: 'rgba(158, 158, 158, 0.1)',
+                                      },
+                                    }}
+                                  >
+                                    <ContactPhone sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                 {order.orderNumber || `#${order.id}`}
                               </Typography>
@@ -4629,6 +4713,19 @@ const EmployeeDashboard = () => {
                             )}
                           </TableCell>
                           <TableCell>
+                            {order.isSentToDeliveryCompany && order.shipmentStatus ? (
+                              <Chip
+                                label={order.shipmentStatus}
+                                color="info"
+                                size="small"
+                              />
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                -
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             {order.createdAt
                               ? new Date(order.createdAt).toLocaleDateString("ar-SA", {
                                   year: "numeric",
@@ -4674,6 +4771,23 @@ const EmployeeDashboard = () => {
                                   <Edit />
                                 </IconButton>
                               </Tooltip>
+                              {!order.isSentToDeliveryCompany && (
+                                <Tooltip title="إرسال لشركة التوصيل">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleSendToDelivery(order)}
+                                    color="success"
+                                    sx={{
+                                      color: "success.main",
+                                      "&:hover": {
+                                        backgroundColor: "rgba(76, 175, 80, 0.1)",
+                                      },
+                                    }}
+                                  >
+                                    <LocalShipping />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                               <Tooltip title="إلغاء الطلب">
                                 <IconButton
                                   size="small"
@@ -4765,6 +4879,60 @@ const EmployeeDashboard = () => {
             }}
           />
         )}
+      </GlassDialog>
+
+      {/* Shipping Dialog */}
+      <GlassDialog
+        open={openShippingDialog}
+        onClose={() => {
+          setOpenShippingDialog(false);
+          setOrderToShip(null);
+          setShippingNotes("");
+        }}
+        maxWidth="sm"
+        title="إرسال طلب العربون لشركة التوصيل"
+        actions={
+          <>
+            <Button
+              onClick={() => {
+                setOpenShippingDialog(false);
+                setOrderToShip(null);
+                setShippingNotes("");
+              }}
+              disabled={shippingLoading}
+              variant="outlined"
+            >
+              إلغاء
+            </Button>
+            <Button
+              onClick={confirmShipping}
+              color="success"
+              variant="contained"
+              disabled={shippingLoading}
+              startIcon={shippingLoading ? <CircularProgress size={20} /> : <LocalShipping />}
+            >
+              {shippingLoading ? "جاري الإرسال..." : "إرسال"}
+            </Button>
+          </>
+        }
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            إرسال طلب العربون{" "}
+            <strong>{orderToShip?.orderNumber || `#${orderToShip?.id}`}</strong> إلى شركة التوصيل
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="ملاحظات شركة التوصيل"
+            value={shippingNotes}
+            onChange={(e) => setShippingNotes(e.target.value)}
+            placeholder="أدخل أي ملاحظات خاصة بشركة التوصيل..."
+            disabled={shippingLoading}
+            sx={{ mt: 2 }}
+          />
+        </Box>
       </GlassDialog>
     </Box>
   );
