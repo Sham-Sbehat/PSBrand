@@ -528,11 +528,15 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                   <TextField
                     sx={{ minWidth: "250px" }}
                     fullWidth
-                    label="العنوان"
-                    {...register("clientAddress")}
+                    label="العنوان *"
+                    {...register("clientAddress", {
+                      required: "يجب إدخال العنوان",
+                    })}
                     value={watch("clientAddress") || selectedClient?.address || ""}
                     onChange={(e) => setValue("clientAddress", e.target.value)}
                     placeholder="أدخل عنوان شركة التوصيل"
+                    error={!!errors.clientAddress}
+                    helperText={errors.clientAddress?.message}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -546,7 +550,8 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                   <Controller
                     name="clientRoadFnCityId"
                     control={control}
-                    render={({ field }) => {
+                    rules={{ required: "يجب اختيار المدينة" }}
+                    render={({ field, fieldState: { error } }) => {
                       const selectedCity = cities.find(c => (c.id || c.Id || c.cityId) === field.value) || null;
                       return (
                         <Autocomplete
@@ -571,9 +576,11 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                           renderInput={(params) => (
                             <TextField
                               {...params}
-                              label="المدينة"
+                              label="المدينة *"
                               placeholder="ابحث عن المدينة..."
                               variant="outlined"
+                              error={!!error}
+                              helperText={error?.message}
                               sx={{
                                 "& .MuiOutlinedInput-root": {
                                   backgroundColor: "#f5f5f5",
@@ -671,7 +678,8 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                   <Controller
                     name="clientRoadFnAreaId"
                     control={control}
-                    render={({ field }) => {
+                    rules={{ required: "يجب اختيار المنطقة" }}
+                    render={({ field, fieldState: { error } }) => {
                       const selectedArea = areas.find(a => {
                         const areaId = a?.id || a?.Id || a?.areaId;
                         return areaId === field.value;
@@ -697,13 +705,15 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                           renderInput={(params) => (
                             <TextField
                               {...params}
-                              label="المنطقة"
+                              label="المنطقة *"
                               placeholder={
                                 !watchedCityId
                                   ? "يرجى اختيار المدينة أولاً"
                                   : "ابحث عن المنطقة..."
                               }
                               variant="outlined"
+                              error={!!error}
+                              helperText={error?.message}
                               sx={{
                                 "& .MuiOutlinedInput-root": {
                                   backgroundColor: "#f5f5f5",

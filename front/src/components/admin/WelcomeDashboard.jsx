@@ -70,6 +70,8 @@ const WelcomeDashboard = () => {
   const [statistics, setStatistics] = useState([]);
   const [dateFilter, setDateFilter] = useState("today");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   // Get date string based on filter - إرجاع التاريخ بصيغة YYYY-MM-DD فقط
   const getDateString = () => {
@@ -96,6 +98,10 @@ const WelcomeDashboard = () => {
         const currentMonth = now.getMonth(); // 0-11
         const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
         return getDateString(firstDayOfMonth);
+      case "customMonth":
+        // أول يوم من الشهر المحدد
+        const firstDayOfSelectedMonth = new Date(selectedYear, selectedMonth - 1, 1);
+        return getDateString(firstDayOfSelectedMonth);
       case "custom":
         if (selectedDate) {
           return selectedDate; // إرجاع التاريخ المخصص مباشرة بصيغة YYYY-MM-DD
@@ -126,7 +132,7 @@ const WelcomeDashboard = () => {
 
   useEffect(() => {
     fetchStatistics();
-  }, [dateFilter, selectedDate]);
+  }, [dateFilter, selectedDate, selectedMonth, selectedYear]);
 
   const totalOrders = statistics.reduce((sum, item) => sum + (item.ordersCount || 0), 0);
   const totalAmount = statistics.reduce((sum, item) => sum + (item.totalAmountWithoutDelivery || 0), 0);
@@ -319,21 +325,6 @@ const WelcomeDashboard = () => {
         <Box sx={{ display: "flex", justifyContent: "center", padding: 8 }}>
           <CircularProgress size={60} />
         </Box>
-      ) : statistics.length === 0 ? (
-        <Paper
-          elevation={0}
-          sx={{
-            background: calmPalette.surface,
-            borderRadius: 3,
-            padding: 6,
-            textAlign: "center",
-            boxShadow: calmPalette.shadow,
-          }}
-        >
-          <Typography variant="h6" sx={{ color: calmPalette.textMuted }}>
-            لا توجد بيانات للفترة المحددة
-          </Typography>
-        </Paper>
       ) : (
         <Grid container spacing={3}>
           {/* Orders Chart */}
@@ -522,10 +513,83 @@ const WelcomeDashboard = () => {
                     <MenuItem value="today">اليوم</MenuItem>
                     <MenuItem value="yesterday">أمس</MenuItem>
                     <MenuItem value="month">هذا الشهر</MenuItem>
+                    <MenuItem value="customMonth">شهر مخصص</MenuItem>
                     <MenuItem value="custom">تاريخ مخصص</MenuItem>
                   </Select>
                 </FormControl>
               </Box>
+              {dateFilter === "customMonth" && (
+                <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
+                  <FormControl 
+                    size="small" 
+                    sx={{ 
+                      minWidth: 120,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    <InputLabel>الشهر</InputLabel>
+                    <Select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      label="الشهر"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        color: "#2C1810",
+                      }}
+                    >
+                      <MenuItem value={1}>يناير</MenuItem>
+                      <MenuItem value={2}>فبراير</MenuItem>
+                      <MenuItem value={3}>مارس</MenuItem>
+                      <MenuItem value={4}>أبريل</MenuItem>
+                      <MenuItem value={5}>مايو</MenuItem>
+                      <MenuItem value={6}>يونيو</MenuItem>
+                      <MenuItem value={7}>يوليو</MenuItem>
+                      <MenuItem value={8}>أغسطس</MenuItem>
+                      <MenuItem value={9}>سبتمبر</MenuItem>
+                      <MenuItem value={10}>أكتوبر</MenuItem>
+                      <MenuItem value={11}>نوفمبر</MenuItem>
+                      <MenuItem value={12}>ديسمبر</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl 
+                    size="small" 
+                    sx={{ 
+                      minWidth: 100,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    <InputLabel>السنة</InputLabel>
+                    <Select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      label="السنة"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        color: "#2C1810",
+                      }}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = new Date().getFullYear() - 2 + i;
+                        return (
+                          <MenuItem key={year} value={year}>
+                            {year}
+                          </MenuItem>
+                        );
+                      })}
+                    </Select>
+                  </FormControl>
+                </Box>
+              )}
               {dateFilter === "custom" && (
                 <Box sx={{ mb: 2 }}>
                   <TextField
@@ -647,7 +711,7 @@ const WelcomeDashboard = () => {
                 </Typography>
               </Box>
               <ResponsiveContainer width="100%" height={350}>
-                <RechartsPieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                <RechartsPieChart margin={{ top: 50, right: 20, bottom: -30, left: 20 }}>
                   <Pie
                     data={revenueChartData}
                     cx="50%"
@@ -668,19 +732,52 @@ const WelcomeDashboard = () => {
                       />
                     ))}
                   </Pie>
-                  <text
-                    x="50%"
-                    y="55%"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    style={{
-                      fontSize: "22px",
-                      fontWeight: 800,
-                      fill: "#6B5F7A",
-                      fontFamily: "Cairo, Tajawal, sans-serif",
-                    }}
-                  >
-                  </text>
+                  {revenueChartData.length === 0 ? (
+                    <>
+                      <text
+                        x="50%"
+                        y="50%"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: 700,
+                          fill: "#8B7FA8",
+                          fontFamily: "Cairo, Tajawal, sans-serif",
+                        }}
+                      >
+                        لا توجد بيانات
+                      </text>
+                      <text
+                        x="50%"
+                        y="60%"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 500,
+                          fill: "#D4A574",
+                          fontFamily: "Cairo, Tajawal, sans-serif",
+                        }}
+                      >
+                        للفترة المحددة
+                      </text>
+                    </>
+                  ) : (
+                    <text
+                      x="50%"
+                      y="55%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      style={{
+                        fontSize: "22px",
+                        fontWeight: 800,
+                        fill: "#6B5F7A",
+                        fontFamily: "Cairo, Tajawal, sans-serif",
+                      }}
+                    >
+                    </text>
+                  )}
                   <Tooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {

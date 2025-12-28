@@ -47,3 +47,12 @@ code {
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+/* SweetAlert2 z-index override to appear above modals */
+.swal2-container-custom {
+  z-index: 9999 !important;
+}
+
+.swal2-container {
+  z-index: 9999 !important;
+}

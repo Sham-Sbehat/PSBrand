@@ -60,6 +60,11 @@ const DepositOrdersList = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
   const [cities, setCities] = useState([]);
   const [areas, setAreas] = useState([]);
+  const [summaryData, setSummaryData] = useState({
+    totalCount: 0,
+    totalSum: 0,
+    totalSumWithoutDelivery: 0,
+  });
 
   // Fetch deposit orders
   const fetchDepositOrders = useCallback(async () => {
@@ -68,6 +73,24 @@ const DepositOrdersList = () => {
       const data = await depositOrdersService.getAllDepositOrders();
       const ordersArray = Array.isArray(data) ? data : (data?.data || []);
       setDepositOrders(ordersArray);
+      
+      // Extract summary data from response
+      if (data && !Array.isArray(data)) {
+        setSummaryData({
+          totalCount: data.totalCount || 0,
+          totalSum: data.totalSum || 0,
+          totalSumWithoutDelivery: data.totalSumWithoutDelivery || 0,
+        });
+      } else {
+        // Calculate from orders if summary not available
+        const totalSum = ordersArray.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+        const totalSumWithoutDelivery = ordersArray.reduce((sum, order) => sum + ((order.totalAmount || 0) - (order.deliveryFee || 0)), 0);
+        setSummaryData({
+          totalCount: ordersArray.length,
+          totalSum: totalSum,
+          totalSumWithoutDelivery: totalSumWithoutDelivery,
+        });
+      }
     } catch (error) {
       console.error("Error fetching deposit orders:", error);
       setSnackbar({
@@ -306,6 +329,61 @@ const DepositOrdersList = () => {
             sx={{ width: 300 }}
           />
         </Box>
+
+        {/* Summary Cards */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={4}>
+            <Paper
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                background: "linear-gradient(135deg, rgba(107, 142, 127, 0.1) 0%, rgba(127, 179, 163, 0.08) 100%)",
+                border: "1px solid rgba(107, 142, 127, 0.2)",
+              }}
+            >
+              <Typography variant="caption" sx={{ color: "#5A7A6B", fontWeight: 600, display: "block", mb: 1 }}>
+                عدد الطلبات
+              </Typography>
+              <Typography variant="h5" sx={{ color: "#5A7A6B", fontWeight: 700 }}>
+                {summaryData.totalCount}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Paper
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                background: "linear-gradient(135deg, rgba(139, 127, 168, 0.1) 0%, rgba(166, 124, 142, 0.08) 100%)",
+                border: "1px solid rgba(139, 127, 168, 0.2)",
+              }}
+            >
+              <Typography variant="caption" sx={{ color: "#6B5F7A", fontWeight: 600, display: "block", mb: 1 }}>
+                إجمالي المبلغ (مع التوصيل)
+              </Typography>
+              <Typography variant="h5" sx={{ color: "#6B5F7A", fontWeight: 700 }}>
+                {formatCurrency(summaryData.totalSum)}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Paper
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                background: "linear-gradient(135deg, rgba(212, 165, 116, 0.1) 0%, rgba(201, 154, 154, 0.08) 100%)",
+                border: "1px solid rgba(212, 165, 116, 0.2)",
+              }}
+            >
+              <Typography variant="caption" sx={{ color: "#B8955F", fontWeight: 600, display: "block", mb: 1 }}>
+                إجمالي المبلغ (بدون التوصيل)
+              </Typography>
+              <Typography variant="h5" sx={{ color: "#B8955F", fontWeight: 700 }}>
+                {formatCurrency(summaryData.totalSumWithoutDelivery)}
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
 
         {loading ? (
           <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>

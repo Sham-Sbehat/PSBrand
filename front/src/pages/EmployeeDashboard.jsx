@@ -827,35 +827,60 @@ const EmployeeDashboard = () => {
     setShippingLoading(true);
     try {
       await depositOrdersService.sendToDeliveryCompany(orderToShip.id, shippingNotes);
-      Swal.fire({
-        title: "نجح!",
-        text: "تم إرسال طلب العربون لشركة التوصيل بنجاح",
-        icon: "success",
-        confirmButtonText: "حسناً",
-        customClass: {
-          container: "swal2-container-custom",
-        },
-        zIndex: 1400,
-      });
-      fetchDepositOrders();
-      fetchDepositOrdersCount();
+      // Close dialog first
       setOpenShippingDialog(false);
       setOrderToShip(null);
       setShippingNotes("");
+      setShippingLoading(false);
+      fetchDepositOrders();
+      fetchDepositOrdersCount();
+      // Wait for dialog to close before showing SweetAlert
+      setTimeout(() => {
+        Swal.fire({
+          title: "نجح!",
+          text: "تم إرسال طلب العربون لشركة التوصيل بنجاح",
+          icon: "success",
+          confirmButtonText: "حسناً",
+          customClass: {
+            container: "swal2-container-custom",
+            popup: "swal2-popup-custom",
+          },
+          zIndex: 9999,
+          allowOutsideClick: false,
+          allowEscapeKey: true,
+        });
+      }, 800);
     } catch (error) {
       console.error("Error sending deposit order to delivery:", error);
-      Swal.fire({
-        title: "خطأ!",
-        text: "حدث خطأ أثناء إرسال طلب العربون",
-        icon: "error",
-        confirmButtonText: "حسناً",
-        customClass: {
-          container: "swal2-container-custom",
-        },
-        zIndex: 1400,
-      });
-    } finally {
+      const errorMessage = error.response?.data?.message || error.message || "حدث خطأ أثناء إرسال طلب العربون";
+      
+      // Close dialog first - ALWAYS close even on error
+      setOpenShippingDialog(false);
+      setOrderToShip(null);
+      setShippingNotes("");
       setShippingLoading(false);
+      
+      // Wait for dialog to fully close before showing SweetAlert
+      setTimeout(() => {
+        Swal.fire({
+          title: "خطأ!",
+          text: errorMessage,
+          icon: "error",
+          confirmButtonText: "حسناً",
+          customClass: {
+            container: "swal2-container-custom",
+            popup: "swal2-popup-custom",
+          },
+          zIndex: 9999,
+          allowOutsideClick: false,
+          allowEscapeKey: true,
+        });
+      }, 800);
+    } finally {
+      // Only set loading to false if not already set in catch
+      if (shippingLoading) {
+        setShippingLoading(false);
+      }
     }
   };
 
