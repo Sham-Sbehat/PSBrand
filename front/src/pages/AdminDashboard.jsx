@@ -33,6 +33,7 @@ import {
   Business,
   AttachMoney,
   Dashboard,
+  AccessTime,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -41,7 +42,6 @@ import { subscribeToOrderUpdates } from "../services/realtime";
 import OrdersList from "../components/admin/OrdersList";
 import DepositOrdersList from "../components/admin/DepositOrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
-import SellerManagement from "../components/admin/SellerManagement";
 import FinancialManagement from "../components/admin/FinancialManagement";
 import ManagementDashboard from "../components/admin/ManagementDashboard";
 import WelcomeDashboard from "../components/admin/WelcomeDashboard";
@@ -520,34 +520,6 @@ const AdminDashboard = () => {
               }}
             />
             <Tab
-              label="إدارة البائعين"
-              icon={<Store />}
-              iconPosition="start"
-              sx={{
-                fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
-                color: "#7A9A8B",
-                minHeight: { xs: 40, sm: 48 },
-                padding: { xs: '6px 12px', sm: '8px 16px' },
-                textTransform: "none",
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  color: "#6B8E7F",
-                  backgroundColor: "rgba(107, 142, 127, 0.05)",
-                },
-                "&.Mui-selected": {
-                  color: "#5A7A6B",
-                  fontWeight: 700,
-                },
-                '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 0.75 },
-                  '& svg': {
-                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
-                  }
-                }
-              }}
-            />
-            <Tab
               label="الإدارة المالية"
               icon={<AccountBalance />}
               iconPosition="start"
@@ -639,9 +611,8 @@ const AdminDashboard = () => {
           {currentTab === 1 && <OrdersList />}
           {currentTab === 2 && <DepositOrdersList />}
           {currentTab === 3 && <EmployeeManagement />}
-          {currentTab === 4 && <SellerManagement />}
-          {currentTab === 5 && <FinancialManagement />}
-          {currentTab === 6 && (
+          {currentTab === 4 && <FinancialManagement />}
+          {currentTab === 5 && (
             <Box>
               <Paper
                 elevation={0}
@@ -761,7 +732,7 @@ const AdminDashboard = () => {
               <OrdersList dateFilter={dailyOrdersDate} />
             </Box>
           )}
-          {currentTab === 7 && <ManagementDashboard />}
+          {currentTab === 6 && <ManagementDashboard />}
         </Box>
       </Container>
     </Box>

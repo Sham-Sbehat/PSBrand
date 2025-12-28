@@ -22,6 +22,8 @@ import {
   FormHelperText,
   CircularProgress,
   InputAdornment,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add,
@@ -31,11 +33,16 @@ import {
   Work,
   Visibility,
   VisibilityOff,
+  Store,
+  AccessTime,
 } from '@mui/icons-material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { useApp } from '../../context/AppContext';
 import { employeesService } from '../../services/api';
 import GlassDialog from '../common/GlassDialog';
+import SellerManagement from './SellerManagement';
+import EmployeeAttendanceCalendar from './EmployeeAttendanceCalendar';
+import Swal from 'sweetalert2';
 
 const EmployeeManagement = () => {
   const { employees, addEmployee, deleteEmployee, setEmployees } = useApp();
@@ -44,6 +51,7 @@ const EmployeeManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [currentSubTab, setCurrentSubTab] = useState(0);
   useEffect(() => {
     loadEmployees();
   }, []);
@@ -164,27 +172,92 @@ const EmployeeManagement = () => {
     }
   };
 
+  const handleSubTabChange = (event, newValue) => {
+    setCurrentSubTab(newValue);
+  };
+
   return (
-    <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
-      <Box
+    <Box>
+      <Tabs
+        value={currentSubTab}
+        onChange={handleSubTabChange}
         sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
           marginBottom: 3,
+          borderBottom: '1px solid rgba(107, 142, 127, 0.15)',
+          '& .MuiTab-root': {
+            textTransform: 'none',
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            minHeight: 48,
+          },
+        }}
+        TabIndicatorProps={{
+          sx: {
+            height: '3px',
+            borderRadius: '3px 3px 0 0',
+            background: 'linear-gradient(90deg, #6B8E7F 0%, #8B7FA8 100%)',
+          },
         }}
       >
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          إدارة الموظفين ({employees.length})
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={handleOpenDialog}
-        >
-          إضافة موظف
-        </Button>
-      </Box>
+        <Tab
+          label="الموظفين"
+          icon={<Person />}
+          iconPosition="start"
+          sx={{
+            color: currentSubTab === 0 ? '#5A7A6B' : '#7A9A8B',
+            '&.Mui-selected': {
+              color: '#5A7A6B',
+              fontWeight: 700,
+            },
+          }}
+        />
+        <Tab
+          label="إدارة البائعين"
+          icon={<Store />}
+          iconPosition="start"
+          sx={{
+            color: currentSubTab === 1 ? '#5A7A6B' : '#7A9A8B',
+            '&.Mui-selected': {
+              color: '#5A7A6B',
+              fontWeight: 700,
+            },
+          }}
+        />
+        <Tab
+          label="متابعة الدوام"
+          icon={<AccessTime />}
+          iconPosition="start"
+          sx={{
+            color: currentSubTab === 2 ? '#5A7A6B' : '#7A9A8B',
+            '&.Mui-selected': {
+              color: '#5A7A6B',
+              fontWeight: 700,
+            },
+          }}
+        />
+      </Tabs>
+
+      {currentSubTab === 0 && (
+        <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 3,
+            }}
+          >
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              إدارة الموظفين ({employees.length})
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={handleOpenDialog}
+            >
+              إضافة موظف
+            </Button>
+          </Box>
 
       {error && (
         <Alert severity="error" sx={{ marginBottom: 2 }}>
@@ -442,7 +515,12 @@ const EmployeeManagement = () => {
           />
         </Box>
       </GlassDialog>
-    </Paper>
+        </Paper>
+      )}
+
+      {currentSubTab === 1 && <SellerManagement />}
+      {currentSubTab === 2 && <EmployeeAttendanceCalendar />}
+    </Box>
   );
 };
 

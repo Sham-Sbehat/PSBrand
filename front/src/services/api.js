@@ -920,5 +920,63 @@ export const notificationsService = {
   },
 };
 
+// Design Inventory Logs Service (Employee Attendance/Shift Tracking)
+export const designInventoryLogsService = {
+  // Get all design inventory logs
+  getAllLogs: async (params = {}) => {
+    const response = await api.get("/DesignInventoryLogs/GetDesignInventoryLogs", {
+      params,
+    });
+    return response.data;
+  },
+
+  // Get a specific log by ID
+  getLogById: async (id) => {
+    const response = await api.get(`/DesignInventoryLogs/GetDesignInventoryLog/${id}`);
+    return response.data;
+  },
+
+  // Create a new log
+  createLog: async (logData) => {
+    const response = await api.post("/DesignInventoryLogs/CreateDesignInventoryLog", logData);
+    return response.data;
+  },
+
+  // Update an existing log
+  updateLog: async (id, logData) => {
+    const response = await api.put(`/DesignInventoryLogs/UpdateDesignInventoryLog/${id}`, logData);
+    return response.data;
+  },
+
+  // Delete a log
+  deleteLog: async (id) => {
+    const response = await api.delete(`/DesignInventoryLogs/DeleteDesignInventoryLog/${id}`);
+    return response.data;
+  },
+
+  // Check if log exists
+  checkLogExists: async (params = {}) => {
+    const response = await api.get("/DesignInventoryLogs/CheckLogExists", {
+      params,
+    });
+    return response.data;
+  },
+
+  // Get shift time values
+  getShiftTimeValues: async () => {
+    const response = await api.get("/DesignInventoryLogs/GetShiftTimeValues");
+    return response.data;
+  },
+};
+
+// Shift Time Constants
+export const SHIFT_TIME_VALUES = ['A', 'B', 'A+B', 'OFF'];
+export const SHIFT_TIME_ENUM = {
+  A: 1,
+  B: 2,
+  APlusB: 3, // A+B
+  OFF: 4,
+};
+
 // Export constants for use in components
 export { USER_ROLES, ROLE_STRINGS };
