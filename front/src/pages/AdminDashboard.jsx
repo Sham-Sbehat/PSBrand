@@ -122,15 +122,13 @@ const AdminDashboard = () => {
 
     fetchClientsCount();
 
-    // Fetch deposit orders count by designer
+    // Fetch deposit orders count (all orders, not filtered by designer)
     const fetchDepositOrdersCount = async () => {
       try {
-        if (user?.id) {
-          const response = await depositOrdersService.getAllDepositOrders({ designerId: user.id });
-          const ordersArray = Array.isArray(response) ? response : (response?.data || []);
-          if (isMounted) {
-            setDepositOrdersCount(ordersArray.length);
-          }
+        const response = await depositOrdersService.getAllDepositOrders();
+        const ordersArray = Array.isArray(response) ? response : (response?.data || []);
+        if (isMounted) {
+          setDepositOrdersCount(ordersArray.length);
         }
       } catch (error) {
         console.error("Error fetching deposit orders count:", error);
@@ -408,7 +406,7 @@ const AdminDashboard = () => {
             }}
           >
             <Tab
-              label="لوحة الترحيب"
+              label="التحليلات"
               icon={<Dashboard />}
               iconPosition="start"
               sx={{
