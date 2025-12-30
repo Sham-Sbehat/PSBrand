@@ -42,6 +42,7 @@ import {
   Search,
   CameraAlt,
   History,
+  AccessTime,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -51,6 +52,7 @@ import { subscribeToOrderUpdates } from "../services/realtime";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, USER_ROLES, SIZE_LABELS, FABRIC_TYPE_LABELS, COLOR_LABELS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
+import EmployeeAttendanceCalendar from "../components/admin/EmployeeAttendanceCalendar";
 import calmPalette from "../theme/calmPalette";
 
 const DesignManagerDashboard = () => {
@@ -1268,6 +1270,23 @@ const DesignManagerDashboard = () => {
                   fontSize: '1rem',
                   minHeight: 56,
                   color: currentTab === 1 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
+                label="متابعة الدوام"
+                icon={<AccessTime />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 2 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',
                   zIndex: 1,
                   '&.Mui-selected': {
@@ -1276,21 +1295,23 @@ const DesignManagerDashboard = () => {
                 }}
               />
             </Tabs>
+          </Box>
 
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
-              <Box sx={{ flex: '0 0 auto', width: '50%', position: 'relative' }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
-                  value={currentTab === 0 ? searchQuery : searchQueryInPrinting}
-                  onChange={(e) => {
-                    if (currentTab === 0) {
-                      setSearchQuery(e.target.value);
-                    } else {
-                      setSearchQueryInPrinting(e.target.value);
-                    }
-                  }}
+            {currentTab !== 2 && (
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+                <Box sx={{ flex: '0 0 auto', width: '50%', position: 'relative' }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
+                    value={currentTab === 0 ? searchQuery : searchQueryInPrinting}
+                    onChange={(e) => {
+                      if (currentTab === 0) {
+                        setSearchQuery(e.target.value);
+                      } else {
+                        setSearchQueryInPrinting(e.target.value);
+                      }
+                    }}
                   InputProps={{
                     startAdornment: (
                       <Box
@@ -1378,9 +1399,13 @@ const DesignManagerDashboard = () => {
                 )}
               </Box>
             </Box>
-          </Box>
+          )}
 
-          {loading ? (
+          {currentTab === 2 ? (
+            <EmployeeAttendanceCalendar />
+          ) : (
+            <>
+              {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', padding: 4 }}>
               <CircularProgress />
             </Box>
@@ -1836,6 +1861,8 @@ const DesignManagerDashboard = () => {
               />
             </>
           )}
+          </>
+        )}
         </Paper>
       </Container>
 

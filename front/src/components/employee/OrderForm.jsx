@@ -1134,22 +1134,44 @@ const OrderForm = ({
       return;
     }
 
-    // Validate all orders
-    const hasInvalidOrders = orders.some(
-      (order) =>
-        !order.orderName ||
-        order.items.some(
-          (item) =>
-            !item.fabricType ||
-            !item.color ||
-            !item.size ||
-            !item.quantity ||
-            !item.unitPrice
-        )
-    );
+    // Validate all orders with specific error messages
+    const invalidOrders = orders.map((order, index) => {
+      const errors = [];
+      
+      if (!order.orderName) {
+        errors.push(`اسم الطلب`);
+      }
+      
+      if (!order.blouseImages || order.blouseImages.length === 0) {
+        errors.push(`صور الموكاب`);
+      }
+      
+      order.items.forEach((item, itemIndex) => {
+        if (!item.fabricType) {
+          errors.push(`نوع القماش للعنصر ${itemIndex + 1}`);
+        }
+        if (!item.color) {
+          errors.push(`اللون للعنصر ${itemIndex + 1}`);
+        }
+        if (!item.size) {
+          errors.push(`المقاس للعنصر ${itemIndex + 1}`);
+        }
+        if (!item.quantity) {
+          errors.push(`الكمية للعنصر ${itemIndex + 1}`);
+        }
+        if (!item.unitPrice) {
+          errors.push(`السعر للعنصر ${itemIndex + 1}`);
+        }
+      });
+      
+      return { orderIndex: index + 1, errors };
+    }).filter(order => order.errors.length > 0);
 
-    if (hasInvalidOrders) {
-      setSubmitError("يجب ملء جميع المعلومات لكل طلب");
+    if (invalidOrders.length > 0) {
+      const errorMessages = invalidOrders.map(({ orderIndex, errors }) => {
+        return `الطلب ${orderIndex}: ${errors.join('، ')}`;
+      });
+      setSubmitError(`الحقول المطلوبة التالية مفقودة:\n${errorMessages.join('\n')}`);
       return;
     }
 
@@ -2929,7 +2951,7 @@ const OrderForm = ({
                               </label>
                               <Typography variant="body2" fontWeight={600}>
                                 {" "}
-                                صور ال Mockup
+                                صور ال Mockup <span style={{ color: 'red' }}>*</span>
                               </Typography>
                               {order.blouseImages.length > 0 && (
                                 <Typography

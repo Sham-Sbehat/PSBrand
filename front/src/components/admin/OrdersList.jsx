@@ -331,7 +331,6 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         // Return the orders for use in .then()
         return ordersList;
       } catch (error) {
-        console.error('Error fetching orders:', error);
         setAllOrders([]);
         setTotalSum(null);
         setTotalSumWithoutDelivery(null);
@@ -525,7 +524,6 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                     });
                   }
                 } catch (error) {
-                  console.warn('Failed to fetch updated order:', error);
                 }
               }
             }

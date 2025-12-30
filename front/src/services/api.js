@@ -878,6 +878,13 @@ export const accountingService = {
     });
     return response.data;
   },
+  // Calculate income from deposit orders for a specific month
+  calculateIncomeFromDepositOrders: async (year, month) => {
+    const response = await api.get('/accounting/CalculateIncomeFromDepositOrders', {
+      params: { year, month }
+    });
+    return response.data;
+  },
 };
 
 // Notifications Service

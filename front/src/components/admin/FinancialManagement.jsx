@@ -91,6 +91,7 @@ const FinancialManagement = () => {
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingSources, setLoadingSources] = useState(false);
   const [calculatingIncome, setCalculatingIncome] = useState(false);
+  const [calculatingDepositIncome, setCalculatingDepositIncome] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [savingCategory, setSavingCategory] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -609,6 +610,135 @@ const FinancialManagement = () => {
       });
     } finally {
       setCalculatingIncome(false);
+    }
+  };
+
+  // Calculate deposit orders income and create transaction automatically
+  const handleCalculateDepositOrdersIncome = async () => {
+    setCalculatingDepositIncome(true);
+    try {
+      // Step 1: Calculate income from deposit orders
+      let income;
+      try {
+        income = await accountingService.calculateIncomeFromDepositOrders(selectedYear, selectedMonth);
+      } catch (apiError) {
+        // If API throws an error, check if it's a "not found" type error
+        const errorMessage = apiError.response?.data?.message || apiError.message || '';
+        if (errorMessage.includes('غير موجودة') || errorMessage.includes('لا توجد') || errorMessage.includes('not found')) {
+          setSnackbar({
+            open: true,
+            message: 'لا توجد إيرادات من طلبات العربون لهذا الشهر',
+            severity: 'info'
+          });
+          return;
+        }
+        // Re-throw other errors to be caught by outer catch
+        throw apiError;
+      }
+      
+      // Check if API returned an error message in response
+      if (income && income.message) {
+        // If API returns an error message (like "المعاملة غير موجودة"), treat it as no income
+        if (income.message.includes('غير موجودة') || income.message.includes('لا توجد')) {
+          setSnackbar({
+            open: true,
+            message: 'لا توجد إيرادات من طلبات العربون لهذا الشهر',
+            severity: 'info'
+          });
+          return;
+        }
+        // If it's a different error, show it
+        setSnackbar({
+          open: true,
+          message: income.message || 'حدث خطأ أثناء حساب إيرادات طلبات العربون',
+          severity: 'error'
+        });
+        return;
+      }
+      
+      // API returns { totalIncome, totalWithDelivery, ... } or a number
+      const incomeAmount = typeof income === 'number' ? income : (income?.totalIncome || income?.amount || income?.total || 0);
+      
+      if (incomeAmount <= 0) {
+        setSnackbar({
+          open: true,
+          message: 'لا توجد إيرادات من طلبات العربون لهذا الشهر',
+          severity: 'info'
+        });
+        return;
+      }
+
+      // Step 2: Use fixed categoryId = 23 for deposit orders (separate from regular orders)
+      const depositOrdersCategoryId = 23; // Separate category for deposit orders
+      const depositOrdersSourceId = 26; // Same source as orders
+
+      // Step 3: Check if transaction already exists for this month/year (same logic as orders)
+      const existingTransaction = transactions.find(
+        t => t.categoryId === depositOrdersCategoryId &&
+             t.sourceId === depositOrdersSourceId &&
+             new Date(t.transactionDate).getMonth() === selectedMonth - 1 &&
+             new Date(t.transactionDate).getFullYear() === selectedYear
+      );
+
+      // Step 4: Use a date in the middle of the selected month (15th day) to ensure it appears in the filter
+      const transactionDate = new Date(selectedYear, selectedMonth - 1, 15, 12, 0, 0);
+      const transactionDateISO = transactionDate.toISOString();
+
+      if (existingTransaction) {
+        // If transaction exists, update it instead of creating a new one
+        // Only update if the amount is different
+        if (existingTransaction.amount !== incomeAmount) {
+          await transactionsService.updateTransaction(existingTransaction.id, {
+            type: 1, // Income
+            categoryId: depositOrdersCategoryId,
+            sourceId: depositOrdersSourceId,
+            amount: incomeAmount,
+            transactionDate: transactionDateISO,
+            description: `إيرادات العربون - ${getMonthName(selectedMonth)} ${selectedYear}`
+          });
+
+          setSnackbar({
+            open: true,
+            message: `تم تحديث إيرادات طلبات العربون بنجاح: ${incomeAmount.toLocaleString()} ₪ (كان: ${existingTransaction.amount.toLocaleString()} ₪)`,
+            severity: 'success'
+          });
+        } else {
+          setSnackbar({
+            open: true,
+            message: `إيرادات طلبات العربون لهذا الشهر: ${incomeAmount.toLocaleString()} ₪ (لم تتغير)`,
+            severity: 'info'
+          });
+        }
+      } else {
+        // Step 5: Create new transaction if it doesn't exist
+        await transactionsService.createTransaction({
+          type: 1, // Income
+          categoryId: depositOrdersCategoryId,
+          sourceId: depositOrdersSourceId,
+          amount: incomeAmount,
+          transactionDate: transactionDateISO,
+          description: `إيرادات طلبات العربون - ${getMonthName(selectedMonth)} ${selectedYear}`
+        });
+
+        setSnackbar({
+          open: true,
+          message: `تم حساب إيرادات طلبات العربون وإضافة المعاملة بنجاح: ${incomeAmount.toLocaleString()} ₪`,
+          severity: 'success'
+        });
+      }
+
+      // Step 6: Refresh transactions list immediately
+      const currentCategoryId = filterByCategory ? parseInt(filterByCategory) : null;
+      const currentSourceId = filterBySource ? parseInt(filterBySource) : null;
+      await fetchTransactions(selectedMonth, selectedYear, currentCategoryId, currentSourceId);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'حدث خطأ أثناء حساب إيرادات طلبات العربون',
+        severity: 'error'
+      });
+    } finally {
+      setCalculatingDepositIncome(false);
     }
   };
 
@@ -1531,6 +1661,33 @@ const FinancialManagement = () => {
                         }}
                       >
                         حساب إيرادات الطلبات
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="حساب إيرادات طلبات العربون للشهر المحدد وإضافتها كمعاملة تلقائياً">
+                    <span>
+                      <Button
+                        variant="outlined"
+                        startIcon={calculatingDepositIncome ? <CircularProgress size={16} /> : <AttachMoney />}
+                        onClick={handleCalculateDepositOrdersIncome}
+                        disabled={calculatingDepositIncome || calculatingIncome}
+                        fullWidth={isMobile}
+                        sx={{
+                          borderColor: '#1976d2',
+                          color: '#1976d2',
+                          borderRadius: 2,
+                          px: { xs: 2, sm: 3 },
+                          py: 1,
+                          fontSize: { xs: '0.875rem', sm: '1rem' },
+                          '&:hover': {
+                            borderColor: '#1976d2',
+                            backgroundColor: '#1976d210',
+                            transform: { xs: 'none', sm: 'translateY(-2px)' },
+                          },
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        حساب إيرادات العربون
                       </Button>
                     </span>
                   </Tooltip>

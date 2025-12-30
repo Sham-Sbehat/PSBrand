@@ -33,6 +33,9 @@ import {
   Search,
   CheckCircle,
   ContactPhone,
+  CalendarToday,
+  Clear,
+  Person,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { depositOrdersService, shipmentsService } from "../../services/api";
@@ -60,6 +63,8 @@ const DepositOrdersList = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
   const [cities, setCities] = useState([]);
   const [areas, setAreas] = useState([]);
+  const [filterDate, setFilterDate] = useState("");
+  const [filterDesignerId, setFilterDesignerId] = useState("");
   const [summaryData, setSummaryData] = useState({
     totalCount: 0,
     totalSum: 0,
@@ -70,7 +75,20 @@ const DepositOrdersList = () => {
   const fetchDepositOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await depositOrdersService.getAllDepositOrders();
+      // Build params object for API
+      const params = {};
+      if (filterDate) {
+        // Convert date string (YYYY-MM-DD) to ISO date-time string
+        // Create date in UTC at start of day (00:00:00 UTC)
+        const [year, month, day] = filterDate.split('-').map(Number);
+        const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+        params.date = dateObj.toISOString();
+      }
+      if (filterDesignerId) {
+        params.designerId = parseInt(filterDesignerId);
+      }
+      
+      const data = await depositOrdersService.getAllDepositOrders(params);
       const ordersArray = Array.isArray(data) ? data : (data?.data || []);
       setDepositOrders(ordersArray);
       
@@ -92,7 +110,6 @@ const DepositOrdersList = () => {
         });
       }
     } catch (error) {
-      console.error("Error fetching deposit orders:", error);
       setSnackbar({
         open: true,
         message: "حدث خطأ أثناء جلب طلبات العربون",
@@ -101,7 +118,7 @@ const DepositOrdersList = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterDate, filterDesignerId]);
 
   useEffect(() => {
     fetchDepositOrders();
@@ -112,6 +129,11 @@ const DepositOrdersList = () => {
     }
   }, [fetchDepositOrders, loadEmployees, employees.length]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [filterDate, filterDesignerId]);
+
 
   const loadCities = async () => {
     try {
@@ -119,7 +141,6 @@ const DepositOrdersList = () => {
       const citiesArray = Array.isArray(citiesData) ? citiesData : [];
       setCities(citiesArray);
     } catch (error) {
-      console.error("Error loading cities:", error);
       setCities([]);
     }
   };
@@ -130,7 +151,6 @@ const DepositOrdersList = () => {
       const areasArray = Array.isArray(areasData) ? areasData : [];
       setAreas(areasArray);
     } catch (error) {
-      console.error("Error loading areas:", error);
       setAreas([]);
     }
   };
@@ -165,7 +185,6 @@ const DepositOrdersList = () => {
       setOpenDeleteDialog(false);
       setOrderToDelete(null);
     } catch (error) {
-      console.error("Error deleting deposit order:", error);
       setSnackbar({
         open: true,
         message: "حدث خطأ أثناء حذف طلب العربون",
@@ -196,7 +215,6 @@ const DepositOrdersList = () => {
       setOpenShippingDialog(false);
       setOrderToShip(null);
     } catch (error) {
-      console.error("Error sending deposit order to delivery:", error);
       setSnackbar({
         open: true,
         message: "حدث خطأ أثناء إرسال طلب العربون",
@@ -220,7 +238,6 @@ const DepositOrdersList = () => {
       });
       fetchDepositOrders();
     } catch (error) {
-      console.error("Error updating contacted status:", error);
       setSnackbar({
         open: true,
         message: "حدث خطأ أثناء تحديث حالة التواصل",
@@ -307,6 +324,21 @@ const DepositOrdersList = () => {
     </Box>
   );
 
+  const handleResetFilters = () => {
+    setFilterDate("");
+    setFilterDesignerId("");
+    setPage(0);
+  };
+
+  // Get sellers (designers) from employees
+  const sellers = useMemo(() => {
+    return employees.filter(emp => 
+      emp.role === 'designer' || 
+      emp.role === 'بائع' ||
+      (emp.id && emp.name)
+    );
+  }, [employees]);
+
   return (
     <Box>
       <Paper sx={{ p: 3, borderRadius: 3, boxShadow: 3 }}>
@@ -329,6 +361,117 @@ const DepositOrdersList = () => {
             sx={{ width: 300 }}
           />
         </Box>
+
+        {/* Filters Section */}
+        <Paper
+          sx={{
+            p: 2,
+            mb: 3,
+            borderRadius: 2,
+            background: "linear-gradient(135deg, rgba(107, 142, 127, 0.05) 0%, rgba(139, 127, 168, 0.05) 100%)",
+            border: "1px solid rgba(107, 142, 127, 0.15)",
+          }}
+        >
+          <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#5A7A6B", minWidth: "fit-content" }}>
+              الفلترة:
+            </Typography>
+            
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>البائع</InputLabel>
+              <Select
+                value={filterDesignerId}
+                label="البائع"
+                onChange={(e) => setFilterDesignerId(e.target.value)}
+                startAdornment={
+                  <InputAdornment position="start">
+                    <Person sx={{ fontSize: 18, color: "text.secondary", ml: 1 }} />
+                  </InputAdornment>
+                }
+              >
+                <MenuItem value="">
+                  <em>جميع البائعين</em>
+                </MenuItem>
+                {sellers.map((seller) => (
+                  <MenuItem key={seller.id || seller.Id} value={seller.id || seller.Id}>
+                    {seller.name || seller.Name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              type="date"
+              size="small"
+              label="التاريخ"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <CalendarToday sx={{ fontSize: 18, color: "text.secondary", ml: 1 }} />
+                  </InputAdornment>
+                ),
+              }}
+              inputProps={{
+                style: { cursor: 'pointer' },
+                onClick: (e) => {
+                  // Ensure the date picker opens when clicking on the input
+                  if (e.target.showPicker) {
+                    e.target.showPicker();
+                  }
+                }
+              }}
+              onClick={(e) => {
+                // Open date picker when clicking anywhere on the TextField
+                const input = e.currentTarget.querySelector('input[type="date"]');
+                if (input && input.showPicker) {
+                  e.preventDefault();
+                  input.showPicker();
+                } else {
+                  // Fallback: focus the input which will show native date picker
+                  input?.focus();
+                  input?.click();
+                }
+              }}
+              sx={{ 
+                minWidth: 200,
+                cursor: 'pointer',
+                '& .MuiOutlinedInput-root': {
+                  cursor: 'pointer',
+                  '&:hover': {
+                    cursor: 'pointer',
+                  },
+                  '& input': {
+                    cursor: 'pointer',
+                  },
+                },
+              }}
+            />
+
+            {(filterDate || filterDesignerId) && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<Clear />}
+                onClick={handleResetFilters}
+                sx={{
+                  color: "#5A7A6B",
+                  borderColor: "#5A7A6B",
+                  "&:hover": {
+                    borderColor: "#4A6A5B",
+                    backgroundColor: "rgba(90, 122, 107, 0.08)",
+                  },
+                }}
+              >
+                إعادة تعيين
+              </Button>
+            )}
+          </Box>
+        </Paper>
 
         {/* Summary Cards */}
         <Grid container spacing={2} sx={{ mb: 3 }}>

@@ -116,7 +116,6 @@ const ClientsManagement = () => {
       setClients(clients);
       setClientsCount(count);
     } catch (error) {
-      console.error('Error fetching clients:', error);
       setSnackbar({ open: true, message: 'فشل في تحميل العملاء', severity: 'error' });
       setClients([]);
     } finally {
@@ -158,7 +157,6 @@ const ClientsManagement = () => {
       setClients(clients);
       setClientsCount(count);
     } catch (error) {
-      console.error('Error searching clients:', error);
       setSnackbar({ open: true, message: 'فشل في البحث عن العملاء', severity: 'error' });
     } finally {
       setLoading(false);

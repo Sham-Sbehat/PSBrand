@@ -137,7 +137,6 @@ const EmployeeAttendanceCalendar = () => {
         try {
           await loadEmployees();
         } catch (error) {
-          console.error("Error loading employees:", error);
         } finally {
           setLoadingEmployees(false);
         }
@@ -147,16 +146,34 @@ const EmployeeAttendanceCalendar = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load logs for current month
+  // Load logs for current month (or all logs if filterDate is set)
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const month = currentDate.getMonth();
-      const year = currentDate.getFullYear();
-      const lastDay = new Date(year, month + 1, 0).getDate();
+      // If filterDate is set, load all logs (no date range restriction)
+      // Otherwise, load only current month logs
+      let startDate, endDate;
       
-      const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-      const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      if (filterDate) {
+        // Load all logs when filtering by date
+        // Use a wide range (e.g., last 2 years to future 1 year)
+        const today = new Date();
+        const pastDate = new Date(today);
+        pastDate.setFullYear(today.getFullYear() - 2);
+        const futureDate = new Date(today);
+        futureDate.setFullYear(today.getFullYear() + 1);
+        
+        startDate = `${pastDate.getFullYear()}-01-01`;
+        endDate = `${futureDate.getFullYear()}-12-31`;
+      } else {
+        // Load only current month
+        const month = currentDate.getMonth();
+        const year = currentDate.getFullYear();
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        
+        startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      }
       
       const data = await designInventoryLogsService.getAllLogs({
         startDate,
@@ -166,7 +183,6 @@ const EmployeeAttendanceCalendar = () => {
       const logsArray = Array.isArray(data) ? data : (data?.data || []);
       setLogs(logsArray);
     } catch (error) {
-      console.error("Error loading logs:", error);
       Swal.fire({
         title: "خطأ!",
         text: "حدث خطأ أثناء جلب بيانات الدوام",
@@ -176,7 +192,7 @@ const EmployeeAttendanceCalendar = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentDate]);
+  }, [currentDate, filterDate]);
 
   useEffect(() => {
     loadLogs();
@@ -290,8 +306,6 @@ const EmployeeAttendanceCalendar = () => {
       e.preventDefault();
     }
     
-    console.log("handleEditLog called with log:", log);
-    
     const dateObj = new Date(log.date);
     const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
     
@@ -301,8 +315,6 @@ const EmployeeAttendanceCalendar = () => {
     else if (log.shiftTime === "B") shiftTimeEnum = SHIFT_TIME_ENUM.B.toString();
     else if (log.shiftTime === "A+B") shiftTimeEnum = SHIFT_TIME_ENUM.APlusB.toString();
     else if (log.shiftTime === "OFF") shiftTimeEnum = SHIFT_TIME_ENUM.OFF.toString();
-    
-    console.log("Setting form data, shiftTimeEnum:", shiftTimeEnum);
     
     setEditingLogId(log.id);
     setSelectedDate(dateObj.getDate());
@@ -322,7 +334,6 @@ const EmployeeAttendanceCalendar = () => {
     setSelectedLog(null);
     
     // Open edit dialog
-    console.log("Opening dialog...");
     setOpenDialog(true);
   };
 
@@ -432,7 +443,6 @@ const EmployeeAttendanceCalendar = () => {
       handleCloseDialog();
       loadLogs();
     } catch (error) {
-      console.error("Error saving log:", error);
       Swal.fire({
         title: "خطأ!",
         text: error.response?.data?.message || "حدث خطأ أثناء حفظ الدوام",
@@ -481,7 +491,6 @@ const EmployeeAttendanceCalendar = () => {
         });
         loadLogs();
       } catch (error) {
-        console.error("Error deleting log:", error);
         Swal.fire({
           title: "خطأ!",
           text: "حدث خطأ أثناء حذف الدوام",
@@ -519,8 +528,28 @@ const EmployeeAttendanceCalendar = () => {
     if (filterDate) {
       filtered = filtered.filter(log => {
         if (!log.date) return false;
-        const logDate = new Date(log.date).toISOString().split('T')[0];
-        return logDate === filterDate;
+        try {
+          // Handle different date formats from API
+          let logDateStr;
+          
+          // If log.date is already a string in YYYY-MM-DD format, use it directly
+          if (typeof log.date === 'string' && log.date.match(/^\d{4}-\d{2}-\d{2}/)) {
+            logDateStr = log.date.split('T')[0].split(' ')[0]; // Get YYYY-MM-DD part
+          } else {
+            // Otherwise, parse it as a Date object
+            const logDateObj = new Date(log.date);
+            // Check if date is valid
+            if (isNaN(logDateObj.getTime())) return false;
+            
+            // Use local date components to avoid timezone issues
+            logDateStr = `${logDateObj.getFullYear()}-${String(logDateObj.getMonth() + 1).padStart(2, '0')}-${String(logDateObj.getDate()).padStart(2, '0')}`;
+          }
+          
+          // Compare with filter date (which is already in YYYY-MM-DD format)
+          return logDateStr === filterDate;
+        } catch (error) {
+          return false;
+        }
       });
     }
     
