@@ -13,6 +13,7 @@ import {
   InputLabel,
   CircularProgress,
   Chip,
+  Avatar,
   useTheme,
 } from "@mui/material";
 import {
@@ -22,6 +23,7 @@ import {
   BarChart,
   PieChart,
   CalendarToday,
+  AccessTime,
 } from "@mui/icons-material";
 import {
   BarChart as RechartsBarChart,
@@ -37,7 +39,7 @@ import {
   ResponsiveContainer,
   LabelList,
 } from "recharts";
-import { ordersService } from "../../services/api";
+import { ordersService, designInventoryLogsService, SHIFT_TIME_ENUM } from "../../services/api";
 import calmPalette from "../../theme/calmPalette";
 import { useApp } from "../../context/AppContext";
 
@@ -63,15 +65,54 @@ const VIBRANT_COLORS = [
   "#C99A9A", "#A67C8E", "#6B9BC4", "#B8A082"
 ];
 
+// Shift time colors
+const SHIFT_COLORS = {
+  A: { bg: "#4CAF50", text: "#fff", label: "دوام A", icon: "🌅" },
+  B: { bg: "#2196F3", text: "#fff", label: "دوام B", icon: "🌆" },
+  "A+B": { bg: "#FF9800", text: "#fff", label: "دوام A+B", icon: "⏰" },
+  OFF: { bg: "#9E9E9E", text: "#fff", label: "إجازة", icon: "🏖️" },
+};
+
+// Helper function to convert shiftTime to string
+const getShiftLabel = (shiftTime) => {
+  if (typeof shiftTime === 'string') {
+    if (shiftTime === "A" || shiftTime === "A+B" || shiftTime === "B" || shiftTime === "OFF") {
+      return shiftTime;
+    }
+    return "";
+  }
+  if (shiftTime === SHIFT_TIME_ENUM.A) return "A";
+  if (shiftTime === SHIFT_TIME_ENUM.B) return "B";
+  if (shiftTime === SHIFT_TIME_ENUM.APlusB) return "A+B";
+  if (shiftTime === SHIFT_TIME_ENUM.OFF) return "OFF";
+  return "";
+};
+
 const WelcomeDashboard = () => {
   const theme = useTheme();
-  const { user } = useApp();
+  const { user, employees, loadEmployees } = useApp();
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState([]);
   const [dateFilter, setDateFilter] = useState("today");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [todayShifts, setTodayShifts] = useState([]);
+  const [loadingShifts, setLoadingShifts] = useState(false);
+  const [shiftsDate, setShiftsDate] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  });
+
+  // Load employees on mount
+  useEffect(() => {
+    if (employees.length === 0) {
+      loadEmployees();
+    }
+  }, []);
 
   // Get date string based on filter - إرجاع التاريخ بصيغة YYYY-MM-DD فقط
   const getDateString = () => {
@@ -130,9 +171,37 @@ const WelcomeDashboard = () => {
     }
   };
 
+  // Fetch shifts for selected date
+  const fetchTodayShifts = async () => {
+    setLoadingShifts(true);
+    try {
+      if (!shiftsDate) {
+        setTodayShifts([]);
+        return;
+      }
+      
+      const dateObj = new Date(shiftsDate);
+      dateObj.setHours(12, 0, 0, 0);
+      const dateISO = dateObj.toISOString();
+      
+      const response = await designInventoryLogsService.getAllLogs({ date: dateISO });
+      const logsData = Array.isArray(response) ? response : response?.data || [];
+      setTodayShifts(logsData);
+    } catch (error) {
+      console.error("Error fetching shifts:", error);
+      setTodayShifts([]);
+    } finally {
+      setLoadingShifts(false);
+    }
+  };
+
   useEffect(() => {
     fetchStatistics();
   }, [dateFilter, selectedDate, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    fetchTodayShifts();
+  }, [shiftsDate]);
 
   const totalOrders = statistics.reduce((sum, item) => sum + (item.ordersCount || 0), 0);
   const totalAmount = statistics.reduce((sum, item) => sum + (item.totalAmountWithoutDelivery || 0), 0);
@@ -317,6 +386,177 @@ const WelcomeDashboard = () => {
               </Typography>
             </Box>
           </Box>
+        </Paper>
+      </Box>
+
+      {/* Today's Shifts - Creative Display */}
+      <Box sx={{ mb: 3 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(250,248,245,0.98) 100%)",
+            borderRadius: 3,
+            padding: 2.5,
+            boxShadow: "0 8px 32px rgba(139, 69, 19, 0.12)",
+            border: "1px solid rgba(139, 69, 19, 0.08)",
+            position: "relative",
+            overflow: "hidden",
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "3px",
+              background: "linear-gradient(90deg, #6B8E7F 0%, #8B7FA8 50%, #D4A574 100%)",
+            },
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2.5, flexWrap: "wrap", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Box
+                sx={{
+                  background: "linear-gradient(135deg, #6B8E7F 0%, #8B7FA8 100%)",
+                  borderRadius: "50%",
+                  padding: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 12px rgba(107, 142, 127, 0.3)",
+                }}
+              >
+                <AccessTime sx={{ color: "#fff", fontSize: 22 }} />
+              </Box>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary, fontSize: "1.1rem", mb: 0.25 }}>
+                  دوام الموظفين
+                </Typography>
+              </Box>
+            </Box>
+            <TextField
+              type="date"
+              size="small"
+              value={shiftsDate}
+              onChange={(e) => setShiftsDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              sx={{
+                minWidth: 180,
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                  backgroundColor: "rgba(255,255,255,0.8)",
+                  "&:hover": {
+                    backgroundColor: "rgba(255,255,255,0.95)",
+                  },
+                },
+              }}
+            />
+          </Box>
+          {loadingShifts ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+              <CircularProgress size={28} sx={{ color: "#6B8E7F" }} />
+            </Box>
+          ) : todayShifts.length === 0 ? (
+            <Box sx={{ textAlign: "center", py: 3 }}>
+              <Typography variant="body2" sx={{ color: calmPalette.textMuted, fontSize: "0.9rem" }}>
+                لا توجد سجلات دوام للتاريخ المحدد
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25 }}>
+              {todayShifts.map((log, index) => {
+                const employee = employees.find((emp) => emp.id === log.userId);
+                const employeeName = employee?.name || `موظف #${log.userId}`;
+                const shiftLabel = getShiftLabel(log.shiftTime);
+                const shiftColor = shiftLabel ? SHIFT_COLORS[shiftLabel] : null;
+                
+                if (!shiftColor) return null;
+                
+                return (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      px: 1.5,
+                      py: 1,
+                      background: `linear-gradient(135deg, ${shiftColor.bg}20 0%, ${shiftColor.bg}10 100%)`,
+                      border: `1.5px solid ${shiftColor.bg}40`,
+                      borderRadius: 2,
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      position: "relative",
+                      overflow: "hidden",
+                      "&::before": {
+                        content: '""',
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "4px",
+                        height: "100%",
+                        background: shiftColor.bg,
+                      },
+                      "&:hover": {
+                        transform: "translateY(-3px) scale(1.02)",
+                        boxShadow: `0 6px 20px ${shiftColor.bg}35`,
+                        borderColor: `${shiftColor.bg}60`,
+                        background: `linear-gradient(135deg, ${shiftColor.bg}25 0%, ${shiftColor.bg}15 100%)`,
+                      },
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        bgcolor: shiftColor.bg,
+                        width: 32,
+                        height: 32,
+                        fontSize: "0.85rem",
+                        fontWeight: 700,
+                        boxShadow: `0 2px 8px ${shiftColor.bg}40`,
+                        border: `2px solid ${shiftColor.bg}80`,
+                      }}
+                    >
+                      {employeeName.charAt(0)}
+                    </Avatar>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                          color: calmPalette.textPrimary,
+                          fontSize: "0.85rem",
+                          mb: 0.25,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {employeeName}
+                      </Typography>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontSize: "1rem",
+                          }}
+                        >
+                          {shiftColor.icon}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: shiftColor.bg,
+                            fontWeight: 700,
+                            fontSize: "0.75rem",
+                          }}
+                        >
+                          {shiftColor.label}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
         </Paper>
       </Box>
 
