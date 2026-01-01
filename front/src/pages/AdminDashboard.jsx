@@ -34,6 +34,8 @@ import {
   AttachMoney,
   Dashboard,
   AccessTime,
+  Build,
+  Inventory,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -192,9 +194,14 @@ const AdminDashboard = () => {
       icon: CheckCircle,
     },
     {
-      title: "عدد الموظفين",
-      value: employees.length,
-      icon: People,
+      title: "في مرحلةالتحضير",
+      value: allOrders.filter((order) => order.status === ORDER_STATUS.IN_PREPARATION).length,
+      icon: Build,
+    },
+    {
+      title: "في مرحلة التغليف",
+      value: allOrders.filter((order) => order.status === ORDER_STATUS.IN_PACKAGING).length,
+      icon: Inventory,
     },
     {
       title: "عدد العملاء",
@@ -331,14 +338,14 @@ const AdminDashboard = () => {
                     },
                   }}
                 >
-                  <CardContent sx={{ padding: { xs: 1.5, sm: 2, md: 3 } }}>
+                  <CardContent sx={{ padding: { xs: 1.25, sm: 1.5, md: 2 } }}>
                     <Box
                       sx={{
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                         flexDirection: { xs: 'column', sm: 'row' },
-                        gap: { xs: 1, sm: 0 },
+                        gap: { xs: 0.75, sm: 0 },
                         textAlign: { xs: 'center', sm: 'left' }
                       }}
                     >
@@ -348,7 +355,7 @@ const AdminDashboard = () => {
                           sx={{ 
                             fontWeight: 700, 
                             color: cardStyle.highlight,
-                            fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
+                            fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2rem' }
                           }}
                         >
                           {stat.value}
@@ -356,16 +363,16 @@ const AdminDashboard = () => {
                         <Typography
                           variant="body1"
                           sx={{
-                            marginTop: { xs: 0.5, sm: 1 },
+                            marginTop: { xs: 0.25, sm: 0.5 },
                             color: "rgba(255, 255, 255, 0.8)",
-                            fontSize: { xs: '0.75rem', sm: '0.875rem', md: '1rem' }
+                            fontSize: { xs: '0.7rem', sm: '0.8rem', md: '0.9rem' }
                           }}
                         >
                           {stat.title}
                         </Typography>
                       </Box>
                       <Icon sx={{ 
-                        fontSize: { xs: 32, sm: 40, md: 56 }, 
+                        fontSize: { xs: 28, sm: 36, md: 48 }, 
                         color: cardStyle.highlight,
                         flexShrink: 0
                       }} />

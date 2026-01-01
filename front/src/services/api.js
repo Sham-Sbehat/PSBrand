@@ -225,6 +225,26 @@ export const ordersService = {
     return response.data;
   },
 
+  getDesignersFabricTypeStatistics: async (date, designerId = null) => {
+    // إحصائيات أنواع القماش لكل بائع
+    const params = { date };
+    if (designerId) {
+      params.designerId = designerId;
+    }
+    const response = await api.get("/Orders/GetDesignersFabricTypeStatistics", {
+      params,
+    });
+    return response.data;
+  },
+
+  getDeliveryOrdersStatistics: async (date) => {
+    // إحصائيات طلبات التوصيل لآخر 7 أيام
+    const response = await api.get("/Orders/GetDeliveryOrdersStatistics", {
+      params: { date },
+    });
+    return response.data;
+  },
+
   createOrder: async (orderData) => {
     const response = await api.post("/Orders/CreateOrder", orderData);
     return response.data;

@@ -981,13 +981,13 @@ const EmployeeDashboard = () => {
     (async () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
-           onDeliveryStatusChanged: (orderId, deliveryStatus) => {
-             // Update delivery status in real-time when backend sends update
+          onDeliveryStatusChanged: (orderId, deliveryStatus) => {
+            // Update delivery status in real-time when backend sends update
             setDeliveryStatuses((prev) => ({
-               ...prev,
+              ...prev,
               [orderId]: deliveryStatus,
-             }));
-           },
+            }));
+          },
           onShipmentStatusUpdated: (shipmentData) => {
             // Handle shipment status update from webhook (ShipmentStatusUpdated event)
             const orderId = shipmentData?.orderId;
@@ -1057,10 +1057,10 @@ const EmployeeDashboard = () => {
               }
             }
           },
-           onNewNotification: (notification) => {
-             setNewNotificationReceived(notification);
-             setTimeout(() => setNewNotificationReceived(null), 100);
-           },
+          onNewNotification: (notification) => {
+            setNewNotificationReceived(notification);
+            setTimeout(() => setNewNotificationReceived(null), 100);
+          },
         });
       } catch (err) {
         console.error("Failed to connect to updates hub:", err);
@@ -2351,8 +2351,8 @@ const EmployeeDashboard = () => {
                                 "&:nth-of-type(even)": {
                                   backgroundColor: "rgba(255,255,255,0.3)",
                                 },
-                              }}
-                            >
+                          }}
+                        >
                               <TableCell>
                                 <Box
                                   sx={{
@@ -2435,9 +2435,9 @@ const EmployeeDashboard = () => {
                                       {order.client.phone}
                                     </Typography>
                             <Tooltip title="انقر للتواصل مع الزبون عبر الواتساب">
-                              <IconButton
-                                size="small"
-                                onClick={() => {
+                            <IconButton
+                              size="small"
+                              onClick={() => {
                                   openWhatsApp(order.client.phone);
                                 }}
                                 sx={{
@@ -2540,8 +2540,8 @@ const EmployeeDashboard = () => {
                                 </Typography>
                               </Box>
                             );
-                          }
-                          
+                                }
+                                
                           if (statusData === null) {
                             // We checked but no shipment exists
                                     // Order is sent to delivery company but no shipment yet
@@ -2589,8 +2589,8 @@ const EmployeeDashboard = () => {
                                         size="small"
                                       />
                                     );
-                                  }
-
+                                }
+                                
                                   // No data yet - show dash (will be populated when shipment is created or fetched)
                                   return (
                                     <Typography
@@ -2686,7 +2686,7 @@ const EmployeeDashboard = () => {
                                         size="small"
                                         variant="outlined"
                                         color="error"
-                                        sx={{
+                              sx={{
                                           minWidth: 80,
                                           "&.Mui-disabled": {
                                             color: "#777777",
@@ -3135,19 +3135,19 @@ const EmployeeDashboard = () => {
                                           "&:hover": {
                                             backgroundColor:
                                               "rgba(37, 211, 102, 0.1)",
-                                          },
-                                        }}
-                                      >
-                                        <WhatsAppIcon fontSize="small" />
-                                      </IconButton>
+                                },
+                              }}
+                            >
+                              <WhatsAppIcon fontSize="small" />
+                            </IconButton>
                                     </Tooltip>
-                                  </Box>
-                                ) : (
+                          </Box>
+                        ) : (
                                   "-"
-                                )}
-                              </TableCell>
-                              <TableCell>{order.totalAmount} ₪</TableCell>
-                              <TableCell>
+                        )}
+                      </TableCell>
+                      <TableCell>{order.totalAmount} ₪</TableCell>
+                      <TableCell>
                                 <Box
                                   sx={{
                                     display: "flex",
@@ -3182,20 +3182,20 @@ const EmployeeDashboard = () => {
                                       </Tooltip>
                                     )}
                                 </Box>
-                              </TableCell>
-                              <TableCell
-                                onClick={() => {
-                                  handleDeliveryStatusClick(order);
-                                }}
-                                sx={{
+                      </TableCell>
+                      <TableCell
+                        onClick={() => {
+                          handleDeliveryStatusClick(order);
+                        }}
+                        sx={{
                                   cursor: "pointer",
                                   "&:hover": {
                                     backgroundColor: "action.hover",
-                                  },
-                                }}
-                              >
-                                {(() => {
-                                  const statusData = deliveryStatuses[order.id];
+                          },
+                        }}
+                      >
+                        {(() => {
+                          const statusData = deliveryStatuses[order.id];
                                   const isLoading =
                                     loadingDeliveryStatuses[order.id];
 
@@ -3209,9 +3209,9 @@ const EmployeeDashboard = () => {
                                       </Typography>
                                     );
                                   }
-
-                                  if (isLoading) {
-                                    return (
+                          
+                          if (isLoading) {
+                            return (
                                       <Box
                                         sx={{
                                           display: "flex",
@@ -3219,19 +3219,19 @@ const EmployeeDashboard = () => {
                                           gap: 1,
                                         }}
                                       >
-                                        <CircularProgress size={16} />
+                                <CircularProgress size={16} />
                                         <Typography
                                           variant="body2"
                                           color="text.secondary"
                                         >
-                                          جاري التحميل...
-                                        </Typography>
-                                      </Box>
-                                    );
-                                  }
-
-                                  if (statusData === null) {
-                                    return (
+                                  جاري التحميل...
+                                </Typography>
+                              </Box>
+                            );
+                          }
+                          
+                          if (statusData === null) {
+                            return (
                                       <Chip
                                         label="في انتظار الشحنة"
                                         sx={{
@@ -3242,7 +3242,7 @@ const EmployeeDashboard = () => {
                                           cursor: "pointer",
                                         }}
                                       />
-                                    );
+                            );
                           }
                           
                           if (statusData && statusData.status) {
@@ -3265,7 +3265,7 @@ const EmployeeDashboard = () => {
                                           "&:hover": {
                                     opacity: 0.9,
                                             transform: "scale(1.05)",
-                                          },
+                                  },
                                           transition: "all 0.2s",
                                           "& .MuiChip-label": {
                                             overflow: "hidden",

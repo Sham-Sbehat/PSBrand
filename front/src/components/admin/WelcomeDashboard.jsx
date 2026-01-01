@@ -24,6 +24,7 @@ import {
   PieChart,
   CalendarToday,
   AccessTime,
+  ShowChart,
 } from "@mui/icons-material";
 import {
   BarChart as RechartsBarChart,
@@ -38,6 +39,9 @@ import {
   Legend,
   ResponsiveContainer,
   LabelList,
+  ComposedChart,
+  Line,
+  Area,
 } from "recharts";
 import { ordersService, designInventoryLogsService, SHIFT_TIME_ENUM } from "../../services/api";
 import calmPalette from "../../theme/calmPalette";
@@ -93,6 +97,11 @@ const WelcomeDashboard = () => {
   const { user, employees, loadEmployees } = useApp();
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState([]);
+  const [fabricTypeStats, setFabricTypeStats] = useState([]);
+  const [loadingFabricStats, setLoadingFabricStats] = useState(false);
+  const [deliveryStats, setDeliveryStats] = useState([]);
+  const [loadingDeliveryStats, setLoadingDeliveryStats] = useState(false);
+  const [selectedDesigner, setSelectedDesigner] = useState("all"); // "all" or designerId
   const [dateFilter, setDateFilter] = useState("today");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -171,6 +180,39 @@ const WelcomeDashboard = () => {
     }
   };
 
+  // Fetch fabric type statistics
+  const fetchFabricTypeStatistics = async () => {
+    setLoadingFabricStats(true);
+    try {
+      const dateString = getDateString();
+      const designerIdParam = selectedDesigner === "all" ? null : parseInt(selectedDesigner);
+      const data = await ordersService.getDesignersFabricTypeStatistics(dateString, designerIdParam);
+      const statsArray = Array.isArray(data) ? data : (data?.designers || data?.data || []);
+      setFabricTypeStats(statsArray);
+    } catch (error) {
+      console.error("Error fetching fabric type statistics:", error);
+      setFabricTypeStats([]);
+    } finally {
+      setLoadingFabricStats(false);
+    }
+  };
+
+  // Fetch delivery orders statistics
+  const fetchDeliveryOrdersStatistics = async () => {
+    setLoadingDeliveryStats(true);
+    try {
+      const dateString = getDateString();
+      const data = await ordersService.getDeliveryOrdersStatistics(dateString);
+      const statsArray = Array.isArray(data) ? data : (data?.dailyStatistics || []);
+      setDeliveryStats(statsArray);
+    } catch (error) {
+      console.error("Error fetching delivery orders statistics:", error);
+      setDeliveryStats([]);
+    } finally {
+      setLoadingDeliveryStats(false);
+    }
+  };
+
   // Fetch shifts for selected date
   const fetchTodayShifts = async () => {
     setLoadingShifts(true);
@@ -200,6 +242,11 @@ const WelcomeDashboard = () => {
   }, [dateFilter, selectedDate, selectedMonth, selectedYear]);
 
   useEffect(() => {
+    fetchFabricTypeStatistics();
+    fetchDeliveryOrdersStatistics();
+  }, [dateFilter, selectedDate, selectedMonth, selectedYear, selectedDesigner]);
+
+  useEffect(() => {
     fetchTodayShifts();
   }, [shiftsDate]);
 
@@ -222,6 +269,17 @@ const WelcomeDashboard = () => {
       revenue: item.totalAmountWithoutDelivery || 0,
     }))
     .sort((a, b) => b.revenue - a.revenue);
+
+  // Prepare fabric type statistics data for chart
+  const fabricTypeChartData = fabricTypeStats
+    .flatMap((designer) =>
+      designer.fabricTypeBreakdown.map((fabric) => ({
+        designerName: designer.designerName || `بائع ${designer.designerId}`,
+        fabricType: fabric.fabricTypeNameAr || `قماش ${fabric.fabricTypeId}`,
+        quantity: fabric.quantity || 0,
+      }))
+    )
+    .filter((item) => item.quantity > 0);
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -1064,6 +1122,622 @@ const WelcomeDashboard = () => {
                   />
                 </RechartsPieChart>
               </ResponsiveContainer>
+            </Paper>
+          </Grid>
+
+          {/* Fabric Type Statistics Chart */}
+          <Grid item xs={12}>
+            <Paper
+              elevation={0}
+              className="fade-in"
+              style={{ animationDelay: "0.4s" }}
+              sx={{
+                background: "linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(250,248,245,0.95) 100%)",
+                borderRadius: 4,
+                padding: { xs: 2, sm: 3, md: 4 },
+                boxShadow: "0 10px 40px rgba(139, 69, 19, 0.12), 0 2px 8px rgba(139, 69, 19, 0.08)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(139, 69, 19, 0.12)",
+                position: "relative",
+                overflow: "hidden",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  boxShadow: "0 15px 50px rgba(139, 69, 19, 0.18), 0 4px 12px rgba(139, 69, 19, 0.12)",
+                  transform: "translateY(-4px)",
+                },
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: "4px",
+                  background: "linear-gradient(90deg, #7FB3A3 0%, #C99A9A 50%, #B8A082 100%)",
+                  borderRadius: "4px 4px 0 0",
+                },
+              }}
+            >
+              {/* Header */}
+              <Box sx={{ 
+                display: "flex", 
+                alignItems: "center", 
+                marginBottom: 3,
+                gap: 1,
+              }}>
+                <BarChart sx={{ fontSize: 28, color: "#7FB3A3" }} />
+                <Typography 
+                  variant="h5" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    color: "#2C1810",
+                    fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
+                  }}
+                >
+                  إحصائيات أنواع القماش لكل بائع
+                </Typography>
+              </Box>
+
+              {/* Filters */}
+              <Box sx={{ 
+                display: "flex", 
+                gap: 2, 
+                marginBottom: 3,
+                flexWrap: "wrap",
+              }}>
+                <FormControl 
+                  size="small" 
+                  sx={{ 
+                    minWidth: 180,
+                    backgroundColor: "rgba(255, 255, 255, 0.8)",
+                    borderRadius: 2,
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                      fontWeight: 600,
+                    },
+                  }}
+                >
+                  <InputLabel>اختر البائع</InputLabel>
+                  <Select
+                    value={selectedDesigner}
+                    onChange={(e) => setSelectedDesigner(e.target.value)}
+                    label="اختر البائع"
+                    sx={{
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      color: "#2C1810",
+                    }}
+                  >
+                    <MenuItem value="all">جميع البائعين</MenuItem>
+                    {statistics.map((designer) => (
+                      <MenuItem key={designer.designerId} value={designer.designerId.toString()}>
+                        {designer.designerName || `بائع ${designer.designerId}`}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl 
+                  size="small" 
+                  sx={{ 
+                    minWidth: 140,
+                    backgroundColor: "rgba(255, 255, 255, 0.8)",
+                    borderRadius: 2,
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                      fontWeight: 600,
+                    },
+                  }}
+                >
+                  <Select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    sx={{
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      color: "#2C1810",
+                    }}
+                  >
+                    <MenuItem value="today">اليوم</MenuItem>
+                    <MenuItem value="yesterday">أمس</MenuItem>
+                    <MenuItem value="month">هذا الشهر</MenuItem>
+                    <MenuItem value="customMonth">شهر مخصص</MenuItem>
+                    <MenuItem value="custom">تاريخ مخصص</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {dateFilter === "customMonth" && (
+                <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
+                  <FormControl 
+                    size="small" 
+                    sx={{ 
+                      minWidth: 120,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    <InputLabel>الشهر</InputLabel>
+                    <Select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      label="الشهر"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        color: "#2C1810",
+                      }}
+                    >
+                      <MenuItem value={1}>يناير</MenuItem>
+                      <MenuItem value={2}>فبراير</MenuItem>
+                      <MenuItem value={3}>مارس</MenuItem>
+                      <MenuItem value={4}>أبريل</MenuItem>
+                      <MenuItem value={5}>مايو</MenuItem>
+                      <MenuItem value={6}>يونيو</MenuItem>
+                      <MenuItem value={7}>يوليو</MenuItem>
+                      <MenuItem value={8}>أغسطس</MenuItem>
+                      <MenuItem value={9}>سبتمبر</MenuItem>
+                      <MenuItem value={10}>أكتوبر</MenuItem>
+                      <MenuItem value={11}>نوفمبر</MenuItem>
+                      <MenuItem value={12}>ديسمبر</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl 
+                    size="small" 
+                    sx={{ 
+                      minWidth: 100,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    <InputLabel>السنة</InputLabel>
+                    <Select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      label="السنة"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        color: "#2C1810",
+                      }}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = new Date().getFullYear() - 2 + i;
+                        return (
+                          <MenuItem key={year} value={year}>
+                            {year}
+                          </MenuItem>
+                        );
+                      })}
+                    </Select>
+                  </FormControl>
+                </Box>
+              )}
+              {dateFilter === "custom" && (
+                <Box sx={{ mb: 2 }}>
+                  <TextField
+                    type="date"
+                    size="small"
+                    fullWidth
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    sx={{
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                </Box>
+              )}
+
+              {loadingFabricStats ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 350 }}>
+                  <CircularProgress size={40} sx={{ color: "#7FB3A3" }} />
+                </Box>
+              ) : fabricTypeChartData.length === 0 ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 350 }}>
+                  <Typography variant="body1" sx={{ color: "#B8955F", fontWeight: 600 }}>
+                    لا توجد بيانات لأنواع القماش في الفترة المحددة
+                  </Typography>
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height={450}>
+                  <RechartsBarChart 
+                    data={fabricTypeChartData} 
+                    margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
+                    <XAxis
+                      dataKey="fabricType"
+                      tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                      dy={38}
+                      dx={-35}
+                    />
+                    <YAxis 
+                      tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }} 
+                      label={{ 
+                        value: "الكمية", 
+                        angle: -90, 
+                        position: "insideLeft", 
+                        fill: "#2C1810", 
+                        fontSize: 13, 
+                        fontWeight: 600 
+                      }}
+                    />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <Paper
+                              sx={{
+                                padding: 2,
+                                backgroundColor: "rgba(255, 255, 255, 0.98)",
+                                boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+                                borderRadius: 3,
+                                border: "2px solid #7FB3A3",
+                              }}
+                            >
+                              <Typography variant="body1" sx={{ fontWeight: 700, mb: 0.5, color: "#2C1810" }}>
+                                {payload[0].payload.designerName}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: "#7FB3A3", fontWeight: 600 }}>
+                                {payload[0].payload.fabricType}: {payload[0].payload.quantity} قطعة
+                              </Typography>
+                            </Paper>
+                          );
+                        }
+                        return null;
+                      }}
+                      cursor={{ fill: "rgba(139, 69, 19, 0.1)" }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ 
+                        color: "#2C1810", 
+                        fontWeight: 600, 
+                        fontSize: "0.85rem",
+                        paddingTop: "10px",
+                      }}
+                    />
+                    <Bar
+                      dataKey="quantity"
+                      fill="url(#colorFabric)"
+                      radius={[8, 8, 0, 0]}
+                      name="الكمية"
+                    >
+                      <LabelList
+                        dataKey="quantity"
+                        position="top"
+                        style={{
+                          fill: "#2C1810",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          fontFamily: "Cairo, Tajawal, sans-serif",
+                        }}
+                      />
+                      {fabricTypeChartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={VIBRANT_COLORS[index % VIBRANT_COLORS.length]} 
+                        />
+                      ))}
+                    </Bar>
+                    <defs>
+                      <linearGradient id="colorFabric" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#7FB3A3" stopOpacity={1} />
+                        <stop offset="50%" stopColor="#C99A9A" stopOpacity={0.9} />
+                        <stop offset="95%" stopColor="#B8A082" stopOpacity={0.8} />
+                      </linearGradient>
+                    </defs>
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Delivery Orders Statistics Chart */}
+          <Grid item xs={12}>
+            <Paper
+              elevation={0}
+              className="fade-in"
+              style={{ animationDelay: "0.5s" }}
+              sx={{
+                background: "linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(250,248,245,0.95) 100%)",
+                borderRadius: 4,
+                padding: { xs: 2, sm: 3, md: 4 },
+                boxShadow: "0 10px 40px rgba(139, 69, 19, 0.12), 0 2px 8px rgba(139, 69, 19, 0.08)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(139, 69, 19, 0.12)",
+                position: "relative",
+                overflow: "hidden",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  boxShadow: "0 15px 50px rgba(139, 69, 19, 0.18), 0 4px 12px rgba(139, 69, 19, 0.12)",
+                  transform: "translateY(-4px)",
+                },
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: "4px",
+                  background: "linear-gradient(90deg, #6B9BC4 0%, #A67C8E 50%, #C4A882 100%)",
+                  borderRadius: "4px 4px 0 0",
+                },
+              }}
+            >
+              {/* Header */}
+              <Box sx={{ 
+                display: "flex", 
+                justifyContent: "space-between",
+                alignItems: "center", 
+                marginBottom: 3,
+                gap: 2,
+                flexWrap: "wrap",
+              }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <ShowChart sx={{ fontSize: 28, color: "#6B9BC4" }} />
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 700, 
+                      color: "#2C1810",
+                      fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
+                    }}
+                  >
+                    إحصائيات طلبات التوصيل (آخر 7 أيام)
+                  </Typography>
+                </Box>
+                
+                <FormControl 
+                  size="small" 
+                  sx={{ 
+                    minWidth: 140,
+                    backgroundColor: "rgba(255, 255, 255, 0.8)",
+                    borderRadius: 2,
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                      fontWeight: 600,
+                    },
+                  }}
+                >
+                  <Select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    sx={{
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      color: "#2C1810",
+                    }}
+                  >
+                    <MenuItem value="today">اليوم</MenuItem>
+                    <MenuItem value="yesterday">أمس</MenuItem>
+                    <MenuItem value="month">هذا الشهر</MenuItem>
+                    <MenuItem value="customMonth">شهر مخصص</MenuItem>
+                    <MenuItem value="custom">تاريخ مخصص</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {dateFilter === "customMonth" && (
+                <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
+                  <FormControl 
+                    size="small" 
+                    sx={{ 
+                      minWidth: 120,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    <InputLabel>الشهر</InputLabel>
+                    <Select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      label="الشهر"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        color: "#2C1810",
+                      }}
+                    >
+                      <MenuItem value={1}>يناير</MenuItem>
+                      <MenuItem value={2}>فبراير</MenuItem>
+                      <MenuItem value={3}>مارس</MenuItem>
+                      <MenuItem value={4}>أبريل</MenuItem>
+                      <MenuItem value={5}>مايو</MenuItem>
+                      <MenuItem value={6}>يونيو</MenuItem>
+                      <MenuItem value={7}>يوليو</MenuItem>
+                      <MenuItem value={8}>أغسطس</MenuItem>
+                      <MenuItem value={9}>سبتمبر</MenuItem>
+                      <MenuItem value={10}>أكتوبر</MenuItem>
+                      <MenuItem value={11}>نوفمبر</MenuItem>
+                      <MenuItem value={12}>ديسمبر</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl 
+                    size="small" 
+                    sx={{ 
+                      minWidth: 100,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    <InputLabel>السنة</InputLabel>
+                    <Select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      label="السنة"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        color: "#2C1810",
+                      }}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = new Date().getFullYear() - 2 + i;
+                        return (
+                          <MenuItem key={year} value={year}>
+                            {year}
+                          </MenuItem>
+                        );
+                      })}
+                    </Select>
+                  </FormControl>
+                </Box>
+              )}
+              {dateFilter === "custom" && (
+                <Box sx={{ mb: 2 }}>
+                  <TextField
+                    type="date"
+                    size="small"
+                    fullWidth
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    sx={{
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                </Box>
+              )}
+
+              {loadingDeliveryStats ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 350 }}>
+                  <CircularProgress size={40} sx={{ color: "#6B9BC4" }} />
+                </Box>
+              ) : deliveryStats.length === 0 ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 350 }}>
+                  <Typography variant="body1" sx={{ color: "#B8955F", fontWeight: 600 }}>
+                    لا توجد بيانات لطلبات التوصيل في الفترة المحددة
+                  </Typography>
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height={400}>
+                  <ComposedChart 
+                    data={deliveryStats} 
+                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6B9BC4" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#6B9BC4" stopOpacity={0.1} />
+                      </linearGradient>
+                      <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#A67C8E" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#A67C8E" stopOpacity={0.1} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
+                    <XAxis
+                      dataKey="dateFormatted"
+                      tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis 
+                      yAxisId="left"
+                      tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }} 
+                      label={{ 
+                        value: "عدد الطلبات", 
+                        angle: -90, 
+                        position: "insideLeft", 
+                        fill: "#6B9BC4", 
+                        fontSize: 13, 
+                        fontWeight: 600 
+                      }}
+                    />
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }} 
+                      label={{ 
+                        value: "المبلغ (₪)", 
+                        angle: 90, 
+                        position: "insideRight", 
+                        fill: "#A67C8E", 
+                        fontSize: 13, 
+                        fontWeight: 600 
+                      }}
+                    />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <Paper
+                              sx={{
+                                padding: 2,
+                                backgroundColor: "rgba(255, 255, 255, 0.98)",
+                                boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+                                borderRadius: 3,
+                                border: "2px solid #6B9BC4",
+                              }}
+                            >
+                              <Typography variant="body1" sx={{ fontWeight: 700, mb: 1, color: "#2C1810" }}>
+                                {payload[0].payload.dateFormatted}
+                              </Typography>
+                              {payload.map((entry, index) => (
+                                <Typography key={index} variant="body2" sx={{ color: entry.color, fontWeight: 600 }}>
+                                  {entry.name === "عدد الطلبات" && `الطلبات: ${entry.value}`}
+                                  {entry.name === "المبلغ الإجمالي" && `المبلغ: ${entry.value.toLocaleString()} ₪`}
+                                </Typography>
+                              ))}
+                            </Paper>
+                          );
+                        }
+                        return null;
+                      }}
+                      cursor={{ fill: "rgba(139, 69, 19, 0.1)" }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ 
+                        color: "#2C1810", 
+                        fontWeight: 600, 
+                        fontSize: "0.85rem",
+                        paddingTop: "10px",
+                      }}
+                    />
+                    <Area
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="ordersCount"
+                      fill="url(#colorOrders)"
+                      stroke="#6B9BC4"
+                      strokeWidth={3}
+                      name="عدد الطلبات"
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="totalAmount"
+                      stroke="#A67C8E"
+                      strokeWidth={3}
+                      dot={{ fill: "#A67C8E", r: 5 }}
+                      activeDot={{ r: 7 }}
+                      name="المبلغ الإجمالي"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
             </Paper>
           </Grid>
         </Grid>
