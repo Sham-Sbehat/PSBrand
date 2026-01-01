@@ -1263,6 +1263,7 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
     const normalized = normalizeDateValue(dateValue);
     if (!normalized || Number.isNaN(normalized.getTime())) return "-";
     try {
+      // Use UTC timezone to display time as stored, without local timezone conversion
       return normalized.toLocaleString("ar-SA", {
         year: "numeric",
         month: "long",
@@ -1271,7 +1272,7 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
         minute: "2-digit",
         hour12: true,
         calendar: "gregory",
-        timeZone: "Asia/Jerusalem",
+        timeZone: "UTC",
       });
     } catch {
       return normalized.toString();

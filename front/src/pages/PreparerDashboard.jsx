@@ -1185,6 +1185,7 @@ const formatDateTime = (dateValue) => {
   if (!normalized || Number.isNaN(normalized.getTime())) return "-";
 
   try {
+    // Use UTC timezone to display time as stored, without local timezone conversion
     return normalized.toLocaleString("ar-SA", {
       year: "numeric",
       month: "long",
@@ -1193,6 +1194,7 @@ const formatDateTime = (dateValue) => {
       minute: "2-digit",
       hour12: true,
       calendar: "gregory",
+      timeZone: "UTC",
     });
   } catch {
     return normalized.toString();

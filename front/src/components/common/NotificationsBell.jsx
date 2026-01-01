@@ -147,6 +147,7 @@ const NotificationsBell = ({ onNewNotification }) => {
     if (!dateString) return "-";
     try {
       const date = new Date(dateString);
+      // Use UTC timezone to display time as stored, without local timezone conversion
       return date.toLocaleString("ar-SA", {
         year: "numeric",
         month: "long",
@@ -155,6 +156,7 @@ const NotificationsBell = ({ onNewNotification }) => {
         minute: "2-digit",
         hour12: true,
         calendar: "gregory",
+        timeZone: "UTC",
       });
     } catch {
       return dateString;

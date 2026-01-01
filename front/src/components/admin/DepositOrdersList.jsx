@@ -260,6 +260,7 @@ const DepositOrdersList = () => {
     if (!dateValue) return "-";
     try {
       const date = new Date(dateValue);
+      // Use UTC timezone to display time as stored, without local timezone conversion
       return date.toLocaleString("ar-SA", {
         year: "numeric",
         month: "long",
@@ -268,7 +269,7 @@ const DepositOrdersList = () => {
         minute: "2-digit",
         hour12: true,
         calendar: "gregory",
-        timeZone: "Asia/Jerusalem",
+        timeZone: "UTC",
       });
     } catch {
       return "-";
