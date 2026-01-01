@@ -2773,8 +2773,8 @@ const OrderForm = ({
                       <Grid item xs={12} sm={4}>
                         <TextField
                           fullWidth
-                          type="datetime-local"
-                          label="وقت الإنشاء (اختياري)"
+                          type="date"
+                          label="تاريخ الإنشاء (اختياري)"
                           value={createdAt}
                           onChange={(e) => setCreatedAt(e.target.value)}
                           InputLabelProps={{

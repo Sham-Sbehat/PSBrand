@@ -460,7 +460,7 @@ const SellerManagement = () => {
                             '-'
                           )}
                         </TableCell>
-                        <TableCell>{formatDate(order.orderDate)}</TableCell>
+                        <TableCell>{formatDate(order.createdAt)}</TableCell>
                         <TableCell>
                           <Chip
                             label={getStatusLabel(order.status)}

@@ -265,7 +265,7 @@ const EmployeeDashboard = () => {
     periodDescription: "",
   });
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortByDate, setSortByDate] = useState("orderDate"); // 'orderDate' = تاريخ الإنشاء, 'createdAt' = تاريخ الطلب
+  const [sortByDate, setSortByDate] = useState("createdAt"); // 'createdAt' = تاريخ الإنشاء الفعلي, 'orderDate' = تاريخ الطلب من البائع
   const [ordersModalTab, setOrdersModalTab] = useState(0); // 0 = جميع الطلبات, 1 = الطلبات المؤكدة للتوصيل
   const [confirmedDeliveryOrders, setConfirmedDeliveryOrders] = useState([]);
   const [loadingConfirmedDelivery, setLoadingConfirmedDelivery] =
@@ -2308,13 +2308,13 @@ const EmployeeDashboard = () => {
                         const sortedOrders = [...filteredOrders].sort(
                           (a, b) => {
                             const dateA =
-                              sortByDate === "orderDate"
-                                ? a.orderDate || a.createdAt || ""
-                                : a.createdAt || a.orderDate || "";
+                              sortByDate === "createdAt"
+                                ? a.createdAt || a.orderDate || ""
+                                : a.orderDate || a.createdAt || "";
                             const dateB =
-                              sortByDate === "orderDate"
-                                ? b.orderDate || b.createdAt || ""
-                                : b.createdAt || b.orderDate || "";
+                              sortByDate === "createdAt"
+                                ? b.createdAt || b.orderDate || ""
+                                : b.orderDate || b.createdAt || "";
                             if (!dateA && !dateB) return 0;
                             if (!dateA) return 1;
                             if (!dateB) return -1;
@@ -2603,9 +2603,9 @@ const EmployeeDashboard = () => {
                                 })()}
                               </TableCell>
                               <TableCell>
-                                {order.orderDate
+                                {order.createdAt
                                   ? new Date(
-                                      order.orderDate
+                                      order.createdAt
                                     ).toLocaleDateString("ar-SA", {
                                       calendar: "gregory",
                                     })
@@ -2850,8 +2850,8 @@ const EmployeeDashboard = () => {
                     }}
                     sx={{ minWidth: 180 }}
                   >
-                    <MenuItem value="orderDate">تاريخ ادخال الطلب</MenuItem>
-                    <MenuItem value="createdAt">تاريخ الطلب</MenuItem>
+                    <MenuItem value="createdAt">تاريخ الإنشاء</MenuItem>
+                    <MenuItem value="orderDate">تاريخ الطلب (من البائع)</MenuItem>
                   </TextField>
                 </Box>
                 {searchQuery && (
@@ -2998,13 +2998,13 @@ const EmployeeDashboard = () => {
                         const sortedOrders = [...filteredOrders].sort(
                           (a, b) => {
                             const dateA =
-                              sortByDate === "orderDate"
-                                ? a.orderDate || a.createdAt || ""
-                                : a.createdAt || a.orderDate || "";
+                              sortByDate === "createdAt"
+                                ? a.createdAt || a.orderDate || ""
+                                : a.orderDate || a.createdAt || "";
                             const dateB =
-                              sortByDate === "orderDate"
-                                ? b.orderDate || b.createdAt || ""
-                                : b.createdAt || b.orderDate || "";
+                              sortByDate === "createdAt"
+                                ? b.createdAt || b.orderDate || ""
+                                : b.orderDate || b.createdAt || "";
                             if (!dateA && !dateB) return 0;
                             if (!dateA) return 1;
                             if (!dateB) return -1;
@@ -3288,9 +3288,9 @@ const EmployeeDashboard = () => {
                         })()}
                       </TableCell>
                       <TableCell>
-                        {order.orderDate
+                        {order.createdAt
                                   ? new Date(
-                                      order.orderDate
+                                      order.createdAt
                                     ).toLocaleDateString("ar-SA", {
                                       calendar: "gregory",
                                     })
@@ -3506,7 +3506,7 @@ const EmployeeDashboard = () => {
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem
                     label="التاريخ"
-                    value={formatDateTime(selectedOrder.createdAt)}
+                    value={formatDateTime(selectedOrder.orderDate)}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>

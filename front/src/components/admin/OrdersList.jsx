@@ -2038,8 +2038,8 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                         <TableCell>{order.designer?.name || "-"}</TableCell>
                         <TableCell>{order.preparer?.name || "-"}</TableCell>
                         <TableCell>
-                          {order.orderDate 
-                            ? new Date(order.orderDate).toLocaleDateString("ar-SA", { 
+                          {order.createdAt 
+                            ? new Date(order.createdAt).toLocaleDateString("ar-SA", { 
                                 year: "numeric", 
                                 month: "short", 
                                 day: "numeric",
@@ -2458,7 +2458,7 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.createdAt)} />
+                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem

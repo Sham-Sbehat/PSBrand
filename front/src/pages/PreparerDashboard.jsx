@@ -1717,8 +1717,8 @@ const InfoItem = ({ label, value }) => (
                         {order.totalAmount || 0} ₪
                       </TableCell>
                       <TableCell sx={{ color: "text.secondary" }}>
-                        {order.orderDate 
-                          ? new Date(order.orderDate).toLocaleDateString("en-GB", { 
+                        {order.createdAt 
+                          ? new Date(order.createdAt).toLocaleDateString("en-GB", { 
                               year: "numeric", 
                               month: "2-digit", 
                               day: "2-digit" 
@@ -1894,8 +1894,8 @@ const InfoItem = ({ label, value }) => (
                         {order.totalAmount || 0} ₪
                       </TableCell>
                       <TableCell sx={{ color: "text.secondary" }}>
-                        {order.orderDate 
-                          ? new Date(order.orderDate).toLocaleDateString("en-GB", { 
+                        {order.createdAt 
+                          ? new Date(order.createdAt).toLocaleDateString("en-GB", { 
                               year: "numeric", 
                               month: "2-digit", 
                               day: "2-digit" 
@@ -2277,8 +2277,8 @@ const InfoItem = ({ label, value }) => (
                         })()}
                       </TableCell>
                       <TableCell sx={{ color: "text.secondary" }}>
-                        {order.orderDate
-                          ? new Date(order.orderDate).toLocaleDateString("ar-SA", {
+                        {order.createdAt
+                          ? new Date(order.createdAt).toLocaleDateString("ar-SA", {
                               year: "numeric",
                               month: "short",
                               day: "numeric",
@@ -2415,7 +2415,7 @@ const InfoItem = ({ label, value }) => (
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.createdAt)} />
+                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem

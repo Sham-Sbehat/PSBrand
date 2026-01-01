@@ -1608,8 +1608,8 @@ const PackagerDashboard = () => {
                               </Box>
                             </TableCell>
                             <TableCell>
-                              {order.orderDate 
-                                ? new Date(order.orderDate).toLocaleDateString("en-GB", { 
+                              {order.createdAt 
+                                ? new Date(order.createdAt).toLocaleDateString("en-GB", { 
                                     year: "numeric", 
                                     month: "2-digit", 
                                     day: "2-digit"
@@ -1897,8 +1897,8 @@ const PackagerDashboard = () => {
                                   </Box>
                                 </TableCell>
                                 <TableCell rowSpan={rowCount}>
-                                  {order.orderDate 
-                                    ? new Date(order.orderDate).toLocaleDateString("en-GB", { 
+                                  {order.createdAt 
+                                    ? new Date(order.createdAt).toLocaleDateString("en-GB", { 
                                         year: "numeric", 
                                         month: "2-digit", 
                                         day: "2-digit"
@@ -2122,7 +2122,7 @@ const PackagerDashboard = () => {
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.createdAt)} />
+                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem

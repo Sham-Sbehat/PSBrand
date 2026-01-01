@@ -19,7 +19,7 @@ const formatDateForInput = (date) => {
   if (Number.isNaN(current?.getTime?.())) return "";
   const offset = current.getTimezoneOffset();
   const localDate = new Date(current.getTime() - offset * 60 * 1000);
-  return localDate.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+  return localDate.toISOString().slice(0, 10); // yyyy-MM-dd
 };
 
 const OrderEditDialog = ({
@@ -181,7 +181,7 @@ const OrderEditDialog = ({
           <Grid item xs={12} sm={6}>
             <TextField
               label="التاريخ"
-              type="datetime-local"
+              type="date"
               fullWidth
               value={formValues.orderDate}
               onChange={handleChange("orderDate")}
