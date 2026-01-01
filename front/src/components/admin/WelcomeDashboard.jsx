@@ -353,14 +353,19 @@ const WelcomeDashboard = () => {
             animation: pulse 2s ease-in-out infinite;
           }
           .recharts-pie-label-text {
-            font-size: 14px !important;
+            font-size: 12px !important;
             font-weight: 700 !important;
             fill: #2C1810 !important;
             font-family: 'Cairo', 'Tajawal', sans-serif !important;
+            text-shadow: 0 1px 2px rgba(255,255,255,0.8) !important;
           }
           .recharts-label-line {
             stroke: #2C1810 !important;
-            stroke-width: 2.5px !important;
+            stroke-width: 1.5px !important;
+            opacity: 0.6 !important;
+          }
+          .recharts-pie-label {
+            pointer-events: none !important;
           }
         `}
       </style>
@@ -626,7 +631,7 @@ const WelcomeDashboard = () => {
       ) : (
         <Grid container spacing={3}>
           {/* Orders Chart */}
-          <Grid item xs={12} lg={8}>
+          <Grid item xs={12} lg={12} sx={{ order: { xs: 0, lg: 1 } }}>
             <Paper
               elevation={0}
               sx={{
@@ -635,8 +640,21 @@ const WelcomeDashboard = () => {
                 padding: { xs: 2, sm: 3, md: 4 },
                 boxShadow: "0 8px 32px rgba(139, 69, 19, 0.15)",
                 backdropFilter: "blur(10px)",
-                height: "100%",
+                height: 450,
+                width:700,
                 border: "1px solid rgba(139, 69, 19, 0.1)",
+                position: "relative",
+                overflow: "hidden",
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: "4px",
+                  background: "linear-gradient(90deg, #6B8E7F 0%, #8B7FA8 50%, #D4A574 100%)",
+                  borderRadius: "4px 4px 0 0",
+                },
               }}
             >
               {/* Summary Stats */}
@@ -924,14 +942,12 @@ const WelcomeDashboard = () => {
                     content={<CustomTooltip />}
                     cursor={{ fill: "rgba(139, 69, 19, 0.1)" }}
                   />
-                  <Legend 
-                    wrapperStyle={{ color: "#2C1810", fontWeight: 600, fontSize: "0.875rem" }}
-                  />
                   <Bar
                     dataKey="orders"
                     fill="url(#colorOrders)"
                     radius={[10, 10, 0, 0]}
                     name="عدد الطلبات"
+                    paddingTop='50px'
                   >
                     <LabelList
                       dataKey="orders"
@@ -957,7 +973,7 @@ const WelcomeDashboard = () => {
           </Grid>
 
           {/* Revenue Chart */}
-          <Grid item xs={12} lg={5}>
+          <Grid item xs={12} lg={5} sx={{ order: { xs: 1, lg: 3 } }}>
             <Paper
               elevation={0}
               className="fade-in"
@@ -968,7 +984,8 @@ const WelcomeDashboard = () => {
                 padding: { xs: 2, sm: 3, md: 4 },
                 boxShadow: "0 10px 40px rgba(139, 69, 19, 0.12), 0 2px 8px rgba(139, 69, 19, 0.08)",
                 backdropFilter: "blur(10px)",
-                height: "100%",
+                height: 450,
+                width:700,
                 border: "1px solid rgba(139, 69, 19, 0.12)",
                 position: "relative",
                 overflow: "hidden",
@@ -992,34 +1009,161 @@ const WelcomeDashboard = () => {
               {/* Header */}
               <Box sx={{ 
                 display: "flex", 
+                justifyContent: "space-between",
                 alignItems: "center", 
                 marginBottom: 3,
-                gap: 1,
+                gap: 2,
+                flexWrap: "wrap",
               }}>
-                <PieChart sx={{ fontSize: 28, color: "#8B7FA8" }} />
-                <Typography 
-                  variant="h5" 
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <PieChart sx={{ fontSize: 28, color: "#8B7FA8" }} />
+                  <Typography 
+                    variant="h5" 
+                    sx={{ 
+                      fontWeight: 700, 
+                      color: "#2C1810",
+                      fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
+                    }}
+                  >
+                    المبيعات لكل بائع
+                  </Typography>
+                </Box>
+                
+                <FormControl 
+                  size="small" 
                   sx={{ 
-                    fontWeight: 700, 
-                    color: "#2C1810",
-                    fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
+                    minWidth: 140,
+                    backgroundColor: "rgba(255, 255, 255, 0.8)",
+                    borderRadius: 2,
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                      fontWeight: 600,
+                    },
                   }}
                 >
-                  المبيعات لكل بائع
-                </Typography>
+                  <Select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    sx={{
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      color: "#2C1810",
+                    }}
+                  >
+                    <MenuItem value="today">اليوم</MenuItem>
+                    <MenuItem value="yesterday">أمس</MenuItem>
+                    <MenuItem value="month">هذا الشهر</MenuItem>
+                    <MenuItem value="customMonth">شهر مخصص</MenuItem>
+                    <MenuItem value="custom">تاريخ مخصص</MenuItem>
+                  </Select>
+                </FormControl>
               </Box>
-              <ResponsiveContainer width="100%" height={350}>
-                <RechartsPieChart margin={{ top: 50, right: 20, bottom: -30, left: 20 }}>
+              
+              {dateFilter === "customMonth" && (
+                <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
+                  <FormControl 
+                    size="small" 
+                    sx={{ 
+                      minWidth: 120,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    <InputLabel>الشهر</InputLabel>
+                    <Select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      label="الشهر"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        color: "#2C1810",
+                      }}
+                    >
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <MenuItem key={i + 1} value={i + 1}>
+                          {new Date(0, i).toLocaleString("ar-SA", { month: "long" })}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl 
+                    size="small" 
+                    sx={{ 
+                      minWidth: 100,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  >
+                    <InputLabel>السنة</InputLabel>
+                    <Select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      label="السنة"
+                      sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        color: "#2C1810",
+                      }}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = new Date().getFullYear() - 2 + i;
+                        return (
+                          <MenuItem key={year} value={year}>
+                            {year}
+                          </MenuItem>
+                        );
+                      })}
+                    </Select>
+                  </FormControl>
+                </Box>
+              )}
+              {dateFilter === "custom" && (
+                <Box sx={{ mb: 2 }}>
+                  <TextField
+                    type="date"
+                    size="small"
+                    fullWidth
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    sx={{
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      borderRadius: 2,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                </Box>
+              )}
+              <ResponsiveContainer width="100%" height={400}>
+                <RechartsPieChart margin={{ top: 20, right: 60, bottom: 40, left: 60 }}>
                   <Pie
                     data={revenueChartData}
                     cx="50%"
                     cy="50%"
-                    label={false}
-                    outerRadius={100}
-                    innerRadius={60}
+                    label={({ name, percent }) => {
+                      const percentage = (percent * 100).toFixed(0);
+                      if (percentage < 8) return null; // فقط عرض labels للشرائح الكبيرة
+                      return `${name} (${percentage}%)`;
+                    }}
+                    labelLine={{
+                      stroke: "#2C1810",
+                      strokeWidth: 1.5,
+                      strokeLinecap: "round",
+                      strokeDasharray: "0"
+                    }}
+                    outerRadius={110}
+                    innerRadius={65}
                     fill="#8884d8"
                     dataKey="revenue"
-                    paddingAngle={4}
+                    paddingAngle={3}
                   >
                     {revenueChartData.map((entry, index) => (
                       <Cell 
@@ -1106,7 +1250,7 @@ const WelcomeDashboard = () => {
                       color: "#2C1810", 
                       fontWeight: 700, 
                       fontSize: "0.8rem",
-                      paddingTop: "20px",
+                      paddingBottom: "40px",
                     }}
                     formatter={(value, entry) => {
                       const data = revenueChartData.find(d => d.name === value);
@@ -1126,7 +1270,7 @@ const WelcomeDashboard = () => {
           </Grid>
 
           {/* Fabric Type Statistics Chart */}
-          <Grid item xs={12}>
+          <Grid item xs={12} sx={{ order: { xs: 2, lg: 2} }}>
             <Paper
               elevation={0}
               className="fade-in"
@@ -1137,6 +1281,8 @@ const WelcomeDashboard = () => {
                 padding: { xs: 2, sm: 3, md: 4 },
                 boxShadow: "0 10px 40px rgba(139, 69, 19, 0.12), 0 2px 8px rgba(139, 69, 19, 0.08)",
                 backdropFilter: "blur(10px)",
+                height: 450,
+                width:700,
                 border: "1px solid rgba(139, 69, 19, 0.12)",
                 position: "relative",
                 overflow: "hidden",
@@ -1445,7 +1591,7 @@ const WelcomeDashboard = () => {
           </Grid>
 
           {/* Delivery Orders Statistics Chart */}
-          <Grid item xs={12}>
+          <Grid item xs={12} lg={8} sx={{ order: { xs: 3, lg: 0 } }}>
             <Paper
               elevation={0}
               className="fade-in"
@@ -1456,6 +1602,8 @@ const WelcomeDashboard = () => {
                 padding: { xs: 2, sm: 3, md: 4 },
                 boxShadow: "0 10px 40px rgba(139, 69, 19, 0.12), 0 2px 8px rgba(139, 69, 19, 0.08)",
                 backdropFilter: "blur(10px)",
+                height: 450,
+                width:700,
                 border: "1px solid rgba(139, 69, 19, 0.12)",
                 position: "relative",
                 overflow: "hidden",

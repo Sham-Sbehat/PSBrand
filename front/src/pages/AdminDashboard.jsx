@@ -61,6 +61,7 @@ const AdminDashboard = () => {
   const [newNotificationReceived, setNewNotificationReceived] = useState(null);
   const [clientsCount, setClientsCount] = useState(0);
   const [depositOrdersCount, setDepositOrdersCount] = useState(0);
+  const [statusFilter, setStatusFilter] = useState(null); // للفلترة حسب الحالة
   
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -175,6 +176,15 @@ const AdminDashboard = () => {
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
+    // إعادة تعيين الفلتر عند تغيير التاب يدوياً
+    if (newValue !== 1) {
+      setStatusFilter(null);
+    }
+  };
+
+  const handleStatCardClick = (statusToFilter) => {
+    setStatusFilter(statusToFilter);
+    setCurrentTab(1); // الانتقال إلى تاب الطلبات
   };
 
   const stats = [
@@ -312,9 +322,37 @@ const AdminDashboard = () => {
           {stats.map((stat, index) => {
             const Icon = stat.icon;
             const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
+            
+            // تحديد البطاقات القابلة للنقر والحالة المناسبة لكل منها
+            let isClickable = false;
+            let statusToFilter = null;
+            
+            if (index === 0) {
+              // إجمالي الطلبات - عرض جميع الطلبات
+              isClickable = true;
+              statusToFilter = "all";
+            } else if (index === 1) {
+              // بانتظار الطباعة
+              isClickable = true;
+              statusToFilter = ORDER_STATUS.PENDING_PRINTING;
+            } else if (index === 2) {
+              // مكتملة
+              isClickable = true;
+              statusToFilter = ORDER_STATUS.COMPLETED;
+            } else if (index === 3) {
+              // في مرحلة التحضير
+              isClickable = true;
+              statusToFilter = ORDER_STATUS.IN_PREPARATION;
+            } else if (index === 4) {
+              // في مرحلة التغليف
+              isClickable = true;
+              statusToFilter = ORDER_STATUS.IN_PACKAGING;
+            }
+            
             return (
               <Grid item xs={6} sm={6} md={3} key={index}>
                 <Card
+                  onClick={isClickable ? () => handleStatCardClick(statusToFilter) : undefined}
                   sx={{
                     position: "relative",
                     background: cardStyle.background,
@@ -324,6 +362,7 @@ const AdminDashboard = () => {
                     overflow: "hidden",
                     transition: "transform 0.2s, box-shadow 0.2s",
                     backdropFilter: "blur(6px)",
+                    cursor: isClickable ? "pointer" : "default",
                     "&::after": {
                       content: '""',
                       position: "absolute",
@@ -613,7 +652,7 @@ const AdminDashboard = () => {
 
         <Box>
           {currentTab === 0 && <WelcomeDashboard />}
-          {currentTab === 1 && <OrdersList />}
+          {currentTab === 1 && <OrdersList statusFilter={statusFilter} />}
           {currentTab === 2 && <DepositOrdersList />}
           {currentTab === 3 && <EmployeeManagement />}
           {currentTab === 4 && <FinancialManagement />}

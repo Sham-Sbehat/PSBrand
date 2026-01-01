@@ -86,7 +86,7 @@ const DELIVERY_STATUSES = {
   "23": { id: 23, label: "طرود مرتجعه مغلقه", en: "Closed Returned" },
 };
 
-const OrdersList = ({ dateFilter: dateFilterProp }) => {
+const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp }) => {
   const { orders, user } = useApp();
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -116,6 +116,13 @@ const OrdersList = ({ dateFilter: dateFilterProp }) => {
       setDateFilter(dateFilterProp);
     }
   }, [dateFilterProp]);
+  
+  // Update statusFilter when prop changes
+  useEffect(() => {
+    if (statusFilterProp !== undefined && statusFilterProp !== null) {
+      setStatusFilter(statusFilterProp);
+    }
+  }, [statusFilterProp]);
   const [sortByState, setSortByState] = useState('asc'); // 'asc', 'desc', or null
   const [openCancelDialog, setOpenCancelDialog] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState(null);
