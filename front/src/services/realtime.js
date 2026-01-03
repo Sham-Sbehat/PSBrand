@@ -42,7 +42,8 @@ export const subscribeToOrderUpdates = async ({
   onShipmentNoteAdded,
   onNewNotification,
   onOrderContactedStatusChanged,
-  onOrderUpdated
+  onOrderUpdated,
+  onNewMessage
 } = {}) => {
   const primaryBase = getApiBase();
   const candidates = [

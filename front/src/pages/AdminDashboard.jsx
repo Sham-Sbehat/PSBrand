@@ -36,6 +36,7 @@ import {
   AccessTime,
   Build,
   Inventory,
+  Send as SendIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -48,6 +49,7 @@ import FinancialManagement from "../components/admin/FinancialManagement";
 import ManagementDashboard from "../components/admin/ManagementDashboard";
 import WelcomeDashboard from "../components/admin/WelcomeDashboard";
 import NotificationsBell from "../components/common/NotificationsBell";
+import SendMessageDialog from "../components/admin/SendMessageDialog";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
 
@@ -62,6 +64,8 @@ const AdminDashboard = () => {
   const [clientsCount, setClientsCount] = useState(0);
   const [depositOrdersCount, setDepositOrdersCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState(null); // للفلترة حسب الحالة
+  const [sendMessageDialogOpen, setSendMessageDialogOpen] = useState(false);
+  const [newMessageReceived, setNewMessageReceived] = useState(null);
   
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -154,6 +158,12 @@ const AdminDashboard = () => {
             setNewNotificationReceived(notification);
             // Reset after a moment to allow re-triggering
             setTimeout(() => setNewNotificationReceived(null), 100);
+          },
+          onNewMessage: (message) => {
+            console.log("💬 New message received:", message);
+            setNewMessageReceived(message);
+            // Reset after a moment to allow re-triggering
+            setTimeout(() => setNewMessageReceived(null), 100);
           },
         });
       } catch (err) {
@@ -268,6 +278,18 @@ const AdminDashboard = () => {
             gap: { xs: 0.5, sm: 2 },
             flexWrap: 'nowrap'
           }}>
+            <IconButton
+              onClick={() => setSendMessageDialogOpen(true)}
+              sx={{
+                color: "white",
+                "&:hover": {
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                },
+              }}
+              title="إرسال رسالة/إشعار"
+            >
+              <SendIcon />
+            </IconButton>
             <NotificationsBell onNewNotification={newNotificationReceived} />
             <Avatar
               sx={{
@@ -779,6 +801,16 @@ const AdminDashboard = () => {
           {currentTab === 6 && <ManagementDashboard />}
         </Box>
       </Container>
+
+      {/* Send Message Dialog */}
+      <SendMessageDialog
+        open={sendMessageDialogOpen}
+        onClose={() => setSendMessageDialogOpen(false)}
+        onMessageSent={() => {
+          // يمكن إضافة أي منطق إضافي بعد الإرسال
+          console.log("Message sent successfully");
+        }}
+      />
     </Box>
   );
 };

@@ -26,7 +26,7 @@ import {
   TextField,
   Tooltip,
 } from "@mui/material";
-import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, Search, CameraAlt, ArrowBack } from "@mui/icons-material";
+import { Logout, Visibility, Assignment, Note, Image as ImageIcon, PictureAsPdf, Search, CameraAlt, ArrowBack, Message as MessageIcon } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
@@ -34,6 +34,7 @@ import { subscribeToOrderUpdates } from "../services/realtime";
 import { USER_ROLES, ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, SIZE_LABELS, FABRIC_TYPE_LABELS, COLOR_LABELS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
+import MessagesTab from "../components/common/MessagesTab";
 import calmPalette from "../theme/calmPalette";
 
 const getFullUrl = (url) => {
@@ -81,9 +82,10 @@ const PreparerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
-  const [availableOrders, setAvailableOrders] = useState([]); // Tab 0: Status 3 (IN_PREPARATION)
-  const [myOpenOrders, setMyOpenOrders] = useState([]); // Tab 1: Status 6 (OPEN_ORDER) with preparer === currentUser
-  const [completedOrders, setCompletedOrders] = useState([]); // Tab 2: Status 4 (COMPLETED) with preparer === currentUser
+  const [newMessageReceived, setNewMessageReceived] = useState(null);
+  const [availableOrders, setAvailableOrders] = useState([]); // Tab 1: Status 3 (IN_PREPARATION)
+  const [myOpenOrders, setMyOpenOrders] = useState([]); // Tab 2: Status 6 (OPEN_ORDER) with preparer === currentUser
+  const [completedOrders, setCompletedOrders] = useState([]); // Tab 3: Status 4 (COMPLETED) with preparer === currentUser
   const [loading, setLoading] = useState(false);
   const [openDetailsModal, setOpenDetailsModal] = useState(false);
   const [openCompletedOrdersModal, setOpenCompletedOrdersModal] = useState(false);
@@ -581,6 +583,12 @@ const PreparerDashboard = () => {
               fetchAllOrders(false);
             }
           },
+          onNewMessage: (message) => {
+            console.log("💬 New message received:", message);
+            setNewMessageReceived(message);
+            // Reset after a moment to allow re-triggering
+            setTimeout(() => setNewMessageReceived(null), 100);
+          },
           onOrderStatusChanged: (updatedOrder) => {
             if (updatedOrder) {
               const orderPreparerId = updatedOrder.preparer?.id || updatedOrder.preparerId || (typeof updatedOrder.preparer === 'number' ? updatedOrder.preparer : null);
@@ -1075,7 +1083,7 @@ const PreparerDashboard = () => {
       // After successful update, refresh the orders list
       setTimeout(() => {
         fetchAllOrders(false); // Don't show loading after action
-        setCurrentTab(0); // Switch to "الطلبات المتاحة" tab
+        setCurrentTab(1); // Switch to "الطلبات المتاحة" tab
       }, 500);
       
     } catch (error) {
@@ -1097,7 +1105,7 @@ const PreparerDashboard = () => {
       // After successful update, refresh the orders list and switch to Tab 1
       setTimeout(() => {
         fetchAllOrders(false); // Don't show loading after action
-        setCurrentTab(1); // Switch to "طلباتي المفتوحة" tab
+        setCurrentTab(2); // Switch to "طلباتي المفتوحة" tab
       }, 500);
       
     } catch (error) {
@@ -1450,6 +1458,19 @@ const InfoItem = ({ label, value }) => (
             }}
           >
             <Tab
+              label="الرسائل"
+              icon={<MessageIcon />}
+              iconPosition="start"
+              sx={{
+                fontWeight: 600,
+                fontSize: "1rem",
+                color: calmPalette.textMuted,
+                "&.Mui-selected": {
+                  color: "#f7f2ea",
+                },
+              }}
+            />
+            <Tab
               label="الطلبات المتاحة للتحضير"
               icon={<Assignment />}
               iconPosition="start"
@@ -1488,8 +1509,11 @@ const InfoItem = ({ label, value }) => (
             boxShadow: calmPalette.shadow,
             backdropFilter: "blur(8px)",
           }}
-        >
+          >
           {currentTab === 0 && (
+            <MessagesTab onNewMessage={newMessageReceived} />
+          )}
+          {currentTab === 1 && (
             <>
           <Typography
             variant="h5"
@@ -1801,14 +1825,14 @@ const InfoItem = ({ label, value }) => (
             </>
           )}
 
-          {currentTab === 1 && (
+          {currentTab === 2 && (
             <>
               <Typography
                 variant="h5"
                 gutterBottom
                 sx={{ fontWeight: 700, marginBottom: 3 }}
               >
-                 قيد التحضير ({myOpenOrders.length})
+                قيد التحضير ({myOpenOrders.length})
               </Typography>
 
               {loading && myOpenOrders.length === 0 ? (

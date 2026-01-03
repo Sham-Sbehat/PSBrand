@@ -45,6 +45,7 @@ import {
   CameraAlt,
   LocalShipping,
   CalendarToday,
+  Message as MessageIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -54,15 +55,17 @@ import { subscribeToOrderUpdates } from "../services/realtime";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, SIZE_LABELS, FABRIC_TYPE_LABELS, COLOR_LABELS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
+import MessagesTab from "../components/common/MessagesTab";
 import calmPalette from "../theme/calmPalette";
 
 const PackagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
-  const [packagedOrders, setPackagedOrders] = useState([]); // Tab 0: Status 8 (IN_PACKAGING)
-  const [completedOrders, setCompletedOrders] = useState([]); // Tab 1: Status 4 (COMPLETED)
-  const [confirmedDeliveryOrders, setConfirmedDeliveryOrders] = useState([]); // Tab 2: Confirmed Delivery Orders
+  const [newMessageReceived, setNewMessageReceived] = useState(null);
+  const [packagedOrders, setPackagedOrders] = useState([]); // Tab 1: Status 8 (IN_PACKAGING)
+  const [completedOrders, setCompletedOrders] = useState([]); // Tab 2: Status 4 (COMPLETED)
+  const [confirmedDeliveryOrders, setConfirmedDeliveryOrders] = useState([]); // Tab 3: Confirmed Delivery Orders
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // Can be string or array
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -255,6 +258,11 @@ const PackagerDashboard = () => {
         unsubscribe = await subscribeToOrderUpdates({
           onOrderCreated: () => {
             fetchOrders(false);
+          },
+          onNewMessage: (message) => {
+            console.log("💬 New message received:", message);
+            setNewMessageReceived(message);
+            setTimeout(() => setNewMessageReceived(null), 100);
           },
           onOrderStatusChanged: (orderData) => {
             // Always refresh from server when status changes to get latest data
@@ -1110,8 +1118,8 @@ const PackagerDashboard = () => {
 
   // Filter orders based on current tab
   const getFilteredOrders = () => {
-    const orders = currentTab === 0 ? packagedOrders : currentTab === 1 ? completedOrders : confirmedDeliveryOrders;
-    const search = currentTab === 0 ? searchQueryPackaged : searchQuery;
+    const orders = currentTab === 1 ? packagedOrders : currentTab === 3 ? completedOrders : confirmedDeliveryOrders;
+    const search = currentTab === 1 ? searchQueryPackaged : searchQuery;
     
     // Ensure orders is always an array
     const ordersArray = Array.isArray(orders) ? orders : [];
@@ -1285,6 +1293,19 @@ const PackagerDashboard = () => {
               }}
             >
               <Tab
+                label="الرسائل"
+                icon={<MessageIcon />}
+                iconPosition="start"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "1rem",
+                  color: calmPalette.textMuted,
+                  "&.Mui-selected": {
+                    color: "#f7f2ea",
+                  },
+                }}
+              />
+              <Tab
                 label={`في مرحلة التغليف (${packagedOrders.length})`}
                 icon={<Inventory />}
                 iconPosition="start"
@@ -1337,10 +1358,10 @@ const PackagerDashboard = () => {
             }}
           >
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              {currentTab === 0 && <Inventory sx={{ verticalAlign: "middle", mr: 1 }} />}
+              {currentTab === 1 && <Inventory sx={{ verticalAlign: "middle", mr: 1 }} />}
               {currentTab === 1 && <CheckCircle sx={{ verticalAlign: "middle", mr: 1 }} />}
-              {currentTab === 2 && <LocalShipping sx={{ verticalAlign: "middle", mr: 1 }} />}
-              {currentTab === 0 
+              {currentTab === 3 && <LocalShipping sx={{ verticalAlign: "middle", mr: 1 }} />}
+              {currentTab === 1 
                 ? `في مرحلة التغليف (${filteredOrders.length})`
                 : currentTab === 1
                 ? `الطلبات المكتملة (${filteredOrders.length})`
@@ -1423,9 +1444,9 @@ const PackagerDashboard = () => {
                   fullWidth
                   size="small"
                   placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
-                  value={currentTab === 0 ? searchQueryPackaged : searchQuery}
+                  value={currentTab === 1 ? searchQueryPackaged : searchQuery}
                   onChange={(e) => {
-                    if (currentTab === 0) {
+                    if (currentTab === 1) {
                       setSearchQueryPackaged(e.target.value);
                     } else {
                       setSearchQuery(e.target.value);
@@ -1438,7 +1459,7 @@ const PackagerDashboard = () => {
                           display: 'flex',
                           alignItems: 'center',
                           marginRight: 1,
-                          color: (currentTab === 0 ? searchQueryPackaged : searchQuery) ? calmPalette.primary : 'text.secondary',
+                          color: (currentTab === 1 ? searchQueryPackaged : searchQuery) ? calmPalette.primary : 'text.secondary',
                           transition: 'color 0.3s ease',
                         }}
                       >
@@ -1481,7 +1502,7 @@ const PackagerDashboard = () => {
                     },
                   }}
                 />
-                 {((currentTab === 0 && searchQuery) || (currentTab === 1 && searchQueryPackaged)) && (
+                 {((currentTab === 1 && searchQuery) || (currentTab === 1 && searchQueryPackaged)) && (
                   <Box
                     sx={{
                       marginTop: 1.5,
@@ -1566,19 +1587,19 @@ const PackagerDashboard = () => {
                             key={`order-${order.id}`}
                             hover
                             sx={{
-                              backgroundColor: currentTab === 0 
+                              backgroundColor: currentTab === 1 
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
                                 : currentTab === 1
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
-                                : currentTab === 2
+                                : currentTab === 3
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
                                 : (isEven ? 'rgba(0, 0, 0, 0.02)' : 'transparent'),
                               "&:hover": {
-                                backgroundColor: currentTab === 0 
+                                backgroundColor: currentTab === 1 
                                   ? 'rgba(75, 61, 49, 0.25)' 
                                   : currentTab === 1
                                   ? 'rgba(75, 61, 49, 0.25)'
-                                  : currentTab === 2
+                                  : currentTab === 3
                                   ? 'rgba(75, 61, 49, 0.25)'
                                   : 'rgba(0, 0, 0, 0.05)',
                               },
@@ -1659,19 +1680,19 @@ const PackagerDashboard = () => {
                             key={`order-${order.id}-design-${design.id || Math.random()}`}
                             hover
                             sx={{
-                              backgroundColor: currentTab === 0 
+                              backgroundColor: currentTab === 1 
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
                                 : currentTab === 1
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
-                                : currentTab === 2
+                                : currentTab === 3
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
                                 : (isEven ? 'rgba(0, 0, 0, 0.02)' : 'transparent'),
                               "&:hover": {
-                                backgroundColor: currentTab === 0 
+                                backgroundColor: currentTab === 1 
                                   ? 'rgba(75, 61, 49, 0.25)' 
                                   : currentTab === 1
                                   ? 'rgba(75, 61, 49, 0.25)'
-                                  : currentTab === 2
+                                  : currentTab === 3
                                   ? 'rgba(75, 61, 49, 0.25)'
                                   : 'rgba(0, 0, 0, 0.05)',
                               },
@@ -1933,7 +1954,7 @@ const PackagerDashboard = () => {
                                   عرض
                                 </Button>
                                 {/* Show "مكتمل" button only for IN_PACKAGING orders (Tab 0) */}
-                                {currentTab === 0 && (
+                                {currentTab === 1 && (
                                   <Button
                                     size="small"
                                     variant="contained"

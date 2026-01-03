@@ -996,6 +996,91 @@ export const designInventoryLogsService = {
   },
 };
 
+// Messages Service
+export const messagesService = {
+  // Get messages to a specific user
+  getMessagesToUser: async (userId) => {
+    const response = await api.get(`/messages/To-Specific-User`, {
+      params: { userId }
+    });
+    return response.data;
+  },
+
+  // Get all messages (admin only)
+  getAllMessages: async () => {
+    const response = await api.get("/messages/All-Messsages");
+    return response.data;
+  },
+
+  // Get message by ID
+  getMessageById: async (id) => {
+    const response = await api.get(`/messages/Get-Massage-By${id}`);
+    return response.data;
+  },
+
+  // Create new message
+  // messageData: { userId: number (null for all), title: string, content: string, isActive: boolean, expiresAt: string }
+  createMessage: async (messageData) => {
+    // Build request body exactly as API expects
+    // userId: null for all users, number for specific user
+    // expiresAt: ISO 8601 string if provided, otherwise set default future date
+    
+    let expiresAtValue;
+    if (messageData.expiresAt) {
+      // If expiresAt is provided, convert to ISO string
+      if (typeof messageData.expiresAt === 'string') {
+        // If it's already a datetime-local string, convert to ISO
+        if (messageData.expiresAt.includes('T') && !messageData.expiresAt.includes('Z')) {
+          expiresAtValue = new Date(messageData.expiresAt).toISOString();
+        } else {
+          expiresAtValue = messageData.expiresAt;
+        }
+      } else {
+        expiresAtValue = new Date(messageData.expiresAt).toISOString();
+      }
+    } else {
+      // If not provided, set a default future date (1 year from now)
+      const futureDate = new Date();
+      futureDate.setFullYear(futureDate.getFullYear() + 1);
+      expiresAtValue = futureDate.toISOString();
+    }
+    
+    // Build request body exactly matching API schema
+    const requestBody = {
+      userId: messageData.userId === null || messageData.userId === undefined 
+        ? null 
+        : Number(messageData.userId), // null للكل، number للموظف المحدد
+      title: String(messageData.title || ""), // Must be string
+      content: String(messageData.content || ""), // Must be string
+      isActive: Boolean(messageData.isActive !== undefined ? messageData.isActive : true), // Must be boolean
+      expiresAt: String(expiresAtValue), // Must be ISO 8601 string
+    };
+    
+    console.log("📤 Sending message with data:", JSON.stringify(requestBody, null, 2));
+    
+    try {
+      const response = await api.post("/messages/Crete-New-Massage", requestBody);
+      console.log("✅ Message sent successfully:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error sending message:", error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  // Update message
+  updateMessage: async (id, messageData) => {
+    const response = await api.put(`/messages/Update-Massage${id}`, messageData);
+    return response.data;
+  },
+
+  // Delete message
+  deleteMessage: async (id) => {
+    const response = await api.delete(`/messages/Delete-Massage${id}`);
+    return response.data;
+  },
+};
+
 // Shift Time Constants
 export const SHIFT_TIME_VALUES = ['A', 'B', 'A+B', 'OFF'];
 export const SHIFT_TIME_ENUM = {
