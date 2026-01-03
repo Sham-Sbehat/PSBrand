@@ -20,6 +20,7 @@ const getAuthToken = () => {
 };
 
 const HUB_PATH = "/orderUpdatesHub";
+const MESSAGES_HUB_PATH = "/messagesHub";
 
 export const createOrderUpdatesConnection = () => {
   const base = getApiBase();
@@ -365,5 +366,191 @@ const invokeSignalRMethod = async (methodName, ...args) => {
 // export const getDeliveryStatus = async (orderId) => {
 //   return await invokeSignalRMethod("GetDeliveryStatus", orderId);
 // };
+
+// Subscribe to Messages Hub for real-time message updates
+export const subscribeToMessages = async ({ onNewMessage, onMessageUpdated, onMessageRemoved } = {}) => {
+  const primaryBase = getApiBase();
+  const MESSAGES_HUB_PATH = "/messagesHub";
+  const candidates = [
+    `${primaryBase}${MESSAGES_HUB_PATH}`,
+    `${primaryBase.replace(/^https:\/\//, 'http://')}${MESSAGES_HUB_PATH}`,
+  ];
+
+  // Add common local dev fallbacks if base is localhost
+  if (/^https?:\/\/localhost/.test(primaryBase)) {
+    candidates.push(
+      `https://localhost:44345${MESSAGES_HUB_PATH}`,
+      `https://localhost:7036${MESSAGES_HUB_PATH}`,
+      `http://localhost:5219${MESSAGES_HUB_PATH}`
+    );
+  }
+
+  // Helper function to register message event handlers
+  const registerMessageHandlers = (connection) => {
+    if (onNewMessage) {
+      connection.on("NewMessage", (message) => {
+        onNewMessage(message);
+      });
+    }
+    if (onMessageUpdated) {
+      connection.on("MessageUpdated", (message) => {
+        onMessageUpdated(message);
+      });
+    }
+    if (onMessageRemoved) {
+      connection.on("MessageRemoved", (data) => {
+        onMessageRemoved(data);
+      });
+    }
+    
+    connection.onclose((error) => {
+      if (error) {
+        console.error("SignalR MessagesHub - Connection closed with error:", error);
+      }
+    });
+  };
+
+  // Get auth token for SignalR connection
+  const authToken = getAuthToken();
+  
+  // Try WebSockets FIRST
+  for (const hubUrl of candidates) {
+    try {
+      const wsConnection = new HubConnectionBuilder()
+        .withUrl(hubUrl, { 
+          skipNegotiation: true, 
+          transport: HttpTransportType.WebSockets,
+          accessTokenFactory: () => authToken || ""
+        })
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000;
+          }
+        })
+        .configureLogging(LogLevel.Warning)
+        .build();
+
+      registerMessageHandlers(wsConnection);
+      wsConnection.serverTimeoutInMilliseconds = 120000;
+
+      wsConnection.onreconnecting(err => {
+        if (err && !err.message?.includes('timeout')) {
+          console.warn("SignalR MessagesHub reconnecting due to error:", err);
+        }
+      });
+      wsConnection.onreconnected(() => {
+        // Silent reconnection
+      });
+      wsConnection.onclose(err => {
+        if (err) {
+          console.error("SignalR MessagesHub connection closed with error:", err);
+        }
+      });
+
+      await wsConnection.start();
+      
+      if (wsConnection.state === "Connected") {
+        console.info("✅ SignalR MessagesHub connected via WebSockets");
+      }
+      
+      return () => {
+        wsConnection.stop();
+      };
+    } catch (e1) {
+      // Silent fail, try next candidate
+    }
+  }
+
+  // Fallback to negotiation
+  for (const hubUrl of candidates) {
+    try {
+      const connection = new HubConnectionBuilder()
+        .withUrl(hubUrl, {
+          accessTokenFactory: () => authToken || "",
+          transport: HttpTransportType.WebSockets | HttpTransportType.ServerSentEvents
+        })
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000;
+          }
+        })
+        .configureLogging(LogLevel.Warning)
+        .build();
+
+      registerMessageHandlers(connection);
+      connection.serverTimeoutInMilliseconds = 120000;
+
+      connection.onreconnecting(err => {
+        if (err && !err.message?.includes('timeout')) {
+          console.warn("SignalR MessagesHub reconnecting due to error:", err);
+        }
+      });
+      connection.onreconnected(() => {
+        // Silent reconnection
+      });
+      connection.onclose(err => {
+        if (err) {
+          console.error("SignalR MessagesHub connection closed with error:", err);
+        }
+      });
+
+      await connection.start();
+      const transportName = connection.connection?.transport?.transport?.name || "unknown";
+      
+      if (connection.state === "Connected") {
+        console.info(`✅ SignalR MessagesHub connected via ${transportName}`);
+      }
+      
+      return () => {
+        connection.stop();
+      };
+    } catch (e2) {
+      // Silent fail, try next candidate
+    }
+  }
+
+  // Last resort: LongPolling
+  for (const hubUrl of candidates) {
+    try {
+      const lpConnection = new HubConnectionBuilder()
+        .withUrl(hubUrl, { 
+          transport: HttpTransportType.LongPolling,
+          accessTokenFactory: () => authToken || ""
+        })
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000;
+          }
+        })
+        .configureLogging(LogLevel.Warning)
+        .build();
+
+      registerMessageHandlers(lpConnection);
+      lpConnection.serverTimeoutInMilliseconds = 120000;
+
+      await lpConnection.start();
+      if (lpConnection.state === "Connected") {
+        console.warn("⚠️ SignalR MessagesHub connected via LongPolling");
+      }
+      return () => lpConnection.stop();
+    } catch (e3) {
+      // Silent fail
+    }
+  }
+
+  throw new Error("All SignalR MessagesHub connection attempts failed.");
+};
 
 

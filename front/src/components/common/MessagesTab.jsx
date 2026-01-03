@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -19,6 +19,7 @@ import {
   Refresh,
 } from "@mui/icons-material";
 import { messagesService } from "../../services/api";
+import { subscribeToMessages } from "../../services/realtime";
 import { useApp } from "../../context/AppContext";
 import calmPalette from "../../theme/calmPalette";
 
@@ -26,6 +27,7 @@ const MessagesTab = ({ onNewMessage }) => {
   const { user } = useApp();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const unsubscribeRef = useRef(null);
 
   const loadMessages = async () => {
     setLoading(true);
@@ -66,12 +68,46 @@ const MessagesTab = ({ onNewMessage }) => {
     }
   }, [user?.id]);
 
-  // Reload when new message arrives
+  // Subscribe to real-time message updates via SignalR
   useEffect(() => {
-    if (onNewMessage) {
-      loadMessages();
-    }
-  }, [onNewMessage]);
+    if (!user?.id) return;
+
+    const setupRealtime = async () => {
+      try {
+        const unsubscribe = await subscribeToMessages({
+          onNewMessage: (message) => {
+            // Reload messages when new message arrives
+            loadMessages();
+            // Also call the parent's onNewMessage callback if provided
+            if (onNewMessage) {
+              onNewMessage(message);
+            }
+          },
+          onMessageUpdated: (message) => {
+            // Reload messages when message is updated
+            loadMessages();
+          },
+          onMessageRemoved: (data) => {
+            // Reload messages when message is removed
+            loadMessages();
+          },
+        });
+        unsubscribeRef.current = unsubscribe;
+      } catch (error) {
+        console.error("Error setting up real-time messages:", error);
+      }
+    };
+
+    setupRealtime();
+
+    // Cleanup on unmount
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, [user?.id, onNewMessage]);
 
   const formatDateTime = (dateString) => {
     if (!dateString) return "";
