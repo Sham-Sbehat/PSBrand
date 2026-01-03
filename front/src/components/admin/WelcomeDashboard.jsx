@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -98,6 +98,7 @@ const WelcomeDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState([]);
   const [fabricTypeStats, setFabricTypeStats] = useState([]);
+  const [fabricTypeStatsFull, setFabricTypeStatsFull] = useState(null); // Full response object
   const [loadingFabricStats, setLoadingFabricStats] = useState(false);
   const [deliveryStats, setDeliveryStats] = useState([]);
   const [loadingDeliveryStats, setLoadingDeliveryStats] = useState(false);
@@ -189,9 +190,11 @@ const WelcomeDashboard = () => {
       const data = await ordersService.getDesignersFabricTypeStatistics(dateString, designerIdParam);
       const statsArray = Array.isArray(data) ? data : (data?.designers || data?.data || []);
       setFabricTypeStats(statsArray);
+      setFabricTypeStatsFull(data); // Save full response object
     } catch (error) {
       console.error("Error fetching fabric type statistics:", error);
       setFabricTypeStats([]);
+      setFabricTypeStatsFull(null);
     } finally {
       setLoadingFabricStats(false);
     }
@@ -271,15 +274,29 @@ const WelcomeDashboard = () => {
     .sort((a, b) => b.revenue - a.revenue);
 
   // Prepare fabric type statistics data for chart
-  const fabricTypeChartData = fabricTypeStats
-    .flatMap((designer) =>
-      designer.fabricTypeBreakdown.map((fabric) => ({
-        designerName: designer.designerName || `بائع ${designer.designerId}`,
-        fabricType: fabric.fabricTypeNameAr || `قماش ${fabric.fabricTypeId}`,
-        quantity: fabric.quantity || 0,
-      }))
-    )
-    .filter((item) => item.quantity > 0);
+  const fabricTypeChartData = useMemo(() => {
+    // If "all designers" is selected, use fabricTypeBreakdown from top level
+    if (selectedDesigner === "all" && fabricTypeStatsFull?.fabricTypeBreakdown) {
+      return fabricTypeStatsFull.fabricTypeBreakdown
+        .map((fabric) => ({
+          designerName: "جميع البائعين",
+          fabricType: fabric.fabricTypeNameAr || `قماش ${fabric.fabricTypeId}`,
+          quantity: fabric.quantity || 0,
+        }))
+        .filter((item) => item.quantity > 0);
+    }
+    
+    // If specific designer is selected, use fabricTypeBreakdown from that designer
+    return fabricTypeStats
+      .flatMap((designer) =>
+        designer.fabricTypeBreakdown?.map((fabric) => ({
+          designerName: designer.designerName || `بائع ${designer.designerId}`,
+          fabricType: fabric.fabricTypeNameAr || `قماش ${fabric.fabricTypeId}`,
+          quantity: fabric.quantity || 0,
+        })) || []
+      )
+      .filter((item) => item.quantity > 0);
+  }, [fabricTypeStats, fabricTypeStatsFull, selectedDesigner]);
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
