@@ -28,10 +28,12 @@ import {
   Tabs,
   Tab,
   Tooltip,
+  Popover,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import {
   Logout,
-  DesignServices,
   Close,
   Note,
   Schedule,
@@ -43,24 +45,34 @@ import {
   CameraAlt,
   History,
   AccessTime,
+  Message,
+  Message as MessageIcon,
+  Refresh,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
+import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService, messagesService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
-import { subscribeToOrderUpdates } from "../services/realtime";
+import { subscribeToOrderUpdates, subscribeToMessages } from "../services/realtime";
+import MessagesTab from "../components/common/MessagesTab";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, USER_ROLES, SIZE_LABELS, FABRIC_TYPE_LABELS, COLOR_LABELS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
 import EmployeeAttendanceCalendar from "../components/admin/EmployeeAttendanceCalendar";
+import WelcomePage from "../components/common/WelcomePage";
 import calmPalette from "../theme/calmPalette";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
-  const [pendingPrintingOrders, setPendingPrintingOrders] = useState([]); // Tab 0: Status 1 (PENDING_PRINTING)
-  const [inPrintingOrders, setInPrintingOrders] = useState([]); // Tab 1: Status 2 (IN_PRINTING)
+  const [newMessageReceived, setNewMessageReceived] = useState(null);
+  const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [showMessageNotification, setShowMessageNotification] = useState(false);
+  const [newMessageData, setNewMessageData] = useState(null);
+  const [pendingPrintingOrders, setPendingPrintingOrders] = useState([]); // Tab 1: Status 1 (PENDING_PRINTING)
+  const [inPrintingOrders, setInPrintingOrders] = useState([]); // Tab 2: Status 2 (IN_PRINTING)
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // Can be string or array
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -198,6 +210,179 @@ const DesignManagerDashboard = () => {
     };
   }, []);
 
+  // Play message sound
+  const playMessageSound = () => {
+    console.log("🔔 Attempting to play message sound...");
+    try {
+      let audioContext = window.messageAudioContext;
+      if (!audioContext) {
+        console.log("Creating new audio context...");
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        window.messageAudioContext = audioContext;
+      }
+      
+      console.log("Audio context state:", audioContext.state);
+      
+      const playAudio = () => {
+        if (audioContext.state === 'suspended') {
+          console.log("Resuming suspended audio context...");
+          audioContext.resume().then(() => {
+            console.log("Audio context resumed, playing sound...");
+            playSound(audioContext);
+          }).catch((error) => {
+            console.error("Could not resume audio context:", error);
+            try {
+              playSound(audioContext);
+            } catch (e) {
+              console.error("Failed to play sound:", e);
+            }
+          });
+        } else {
+          console.log("Audio context active, playing sound...");
+          playSound(audioContext);
+        }
+      };
+      
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          playAudio();
+        }).catch(() => {
+          playAudio();
+        });
+      } else {
+        playAudio();
+      }
+    } catch (error) {
+      console.error("Audio error:", error);
+    }
+  };
+
+  const playSound = (audioContext) => {
+    try {
+      const baseTime = audioContext.currentTime;
+      const frequencies = [523.25, 659.25, 783.99]; // C, E, G
+      
+      frequencies.forEach((freq, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = freq;
+        oscillator.type = 'sine';
+        
+        const startTime = baseTime + (index * 0.08);
+        const duration = 0.25;
+        
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.05);
+        gainNode.gain.linearRampToValueAtTime(0.4, startTime + duration * 0.5);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      });
+      console.log("✅ Sound played successfully");
+    } catch (error) {
+      console.error("Error playing sound:", error);
+    }
+  };
+
+  // Load messages count
+  const loadMessagesCount = async () => {
+    try {
+      const allMessages = await messagesService.getMessagesToUser(user?.id);
+      const now = new Date();
+      const activeMessages = (allMessages || []).filter((msg) => {
+        if (!msg.isActive) return false;
+        if (msg.expiresAt) {
+          const expiresDate = new Date(msg.expiresAt);
+          return expiresDate > now;
+        }
+        return true;
+      });
+      
+      const newMessages = activeMessages.filter((msg) => {
+        if (!msg.createdAt) return false;
+        const messageDate = new Date(msg.createdAt);
+        const hoursSinceCreation = (now - messageDate) / (1000 * 60 * 60);
+        return hoursSinceCreation < 24;
+      });
+      
+      setUnreadMessagesCount(newMessages.length);
+    } catch (error) {
+      console.error("Error loading messages count:", error);
+    }
+  };
+
+  // Initialize audio context on user interaction
+  useEffect(() => {
+    const initAudio = () => {
+      if (!window.messageAudioContext) {
+        try {
+          window.messageAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (error) {
+          console.error("Failed to initialize audio context:", error);
+        }
+      }
+    };
+    
+    // Initialize on first user interaction
+    const events = ['click', 'touchstart', 'keydown'];
+    events.forEach(event => {
+      document.addEventListener(event, initAudio, { once: true });
+    });
+    
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, initAudio);
+      });
+    };
+  }, []);
+
+  // Load messages count on mount
+  useEffect(() => {
+    if (user?.id) {
+      loadMessagesCount();
+    }
+  }, [user?.id]);
+
+  // Subscribe to messages
+  useEffect(() => {
+    let unsubscribeMessages;
+    (async () => {
+      try {
+        unsubscribeMessages = await subscribeToMessages({
+          onNewMessage: (message) => {
+            console.log("💬💬💬 New message received in DesignManagerDashboard from messagesHub:", message);
+            console.log("💬 Setting notification state...");
+            setNewMessageReceived(message);
+            setNewMessageData(message);
+            setShowMessageNotification(true);
+            console.log("💬 Notification state set to true");
+            loadMessagesCount();
+            console.log("💬 Playing sound...");
+            playMessageSound();
+          },
+          onMessageUpdated: (message) => {
+            console.log("💬 Message updated:", message);
+            loadMessagesCount();
+          },
+          onMessageRemoved: (data) => {
+            console.log("💬 Message removed:", data);
+            loadMessagesCount();
+          },
+        });
+      } catch (err) {
+        console.error('Failed to connect to messages hub:', err);
+      }
+    })();
+
+    return () => {
+      if (typeof unsubscribeMessages === 'function') unsubscribeMessages();
+    };
+  }, [user?.id]);
 
   const handleLogout = () => {
     logout();
@@ -1083,8 +1268,8 @@ const DesignManagerDashboard = () => {
 
   // Get filtered orders based on current tab and search query
   const getFilteredOrders = () => {
-    const orders = currentTab === 0 ? pendingPrintingOrders : inPrintingOrders;
-    const search = currentTab === 0 ? searchQuery : searchQueryInPrinting;
+    const orders = currentTab === 1 ? pendingPrintingOrders : inPrintingOrders;
+    const search = currentTab === 1 ? searchQuery : searchQueryInPrinting;
     
     if (!search.trim()) return orders;
     
@@ -1185,6 +1370,61 @@ const DesignManagerDashboard = () => {
               PSBrand - لوحة مدير التصميم
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {/* Messages Icon */}
+              <Tooltip title="رسائل الإدمن">
+                <Box sx={{ position: "relative" }}>
+                  <IconButton
+                    onClick={(e) => {
+                      if (messagesAnchorEl) {
+                        setMessagesAnchorEl(null);
+                      } else {
+                        setMessagesAnchorEl(e.currentTarget);
+                      }
+                      setShowMessageNotification(false);
+                    }}
+                    sx={{
+                      color: "#f6f1eb",
+                      border: "1px solid rgba(255,255,255,0.25)",
+                      borderRadius: 2,
+                      position: "relative",
+                      backgroundColor: messagesAnchorEl ? "rgba(255, 255, 255, 0.15)" : "transparent",
+                      "&:hover": {
+                        backgroundColor: "rgba(255, 255, 255, 0.1)",
+                      },
+                    }}
+                  >
+                    <MessageIcon />
+                  </IconButton>
+                  {/* Notification Badge */}
+                  {unreadMessagesCount > 0 && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: -4,
+                        right: -4,
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        bgcolor: "#ff1744",
+                        border: "2px solid #5E4E3E",
+                        animation: showMessageNotification ? "pulse 1.5s infinite" : "none",
+                        boxShadow: showMessageNotification ? "0 0 8px rgba(255, 23, 68, 0.6)" : "none",
+                        "@keyframes pulse": {
+                          "0%, 100%": {
+                            transform: "scale(1)",
+                            opacity: 1,
+                          },
+                          "50%": {
+                            transform: "scale(1.4)",
+                            opacity: 0.9,
+                          },
+                        },
+                      }}
+                    />
+                  )}
+                </Box>
+              </Tooltip>
+              
               <Avatar
                 sx={{
                   bgcolor: "rgba(255, 255, 255, 0.22)",
@@ -1246,8 +1486,8 @@ const DesignManagerDashboard = () => {
               }}
             >
               <Tab
-                label={`بانتظار الطباعة (${pendingPrintingOrders.length})`}
-                icon={<Schedule />}
+                label="الرئيسية"
+                icon={<MessageIcon />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
@@ -1263,6 +1503,23 @@ const DesignManagerDashboard = () => {
                 }}
               />
               <Tab
+                label={`بانتظار الطباعة (${pendingPrintingOrders.length})`}
+                icon={<Schedule />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 1 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
                 label={`في مرحلة الطباعة (${inPrintingOrders.length})`}
                 icon={<Print />}
                 iconPosition="start"
@@ -1271,7 +1528,7 @@ const DesignManagerDashboard = () => {
                   fontWeight: 600,
                   fontSize: '1rem',
                   minHeight: 56,
-                  color: currentTab === 1 ? '#ffffff' : calmPalette.textMuted,
+                  color: currentTab === 2 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0',
                   zIndex: 1,
                   '&.Mui-selected': {
@@ -1288,7 +1545,7 @@ const DesignManagerDashboard = () => {
                   fontWeight: 600,
                   fontSize: '1rem',
                   minHeight: 56,
-                  color: currentTab === 2 ? '#ffffff' : calmPalette.textMuted,
+                  color: currentTab === 3 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',
                   zIndex: 1,
                   '&.Mui-selected': {
@@ -1299,16 +1556,24 @@ const DesignManagerDashboard = () => {
             </Tabs>
           </Box>
 
-            {currentTab !== 2 && (
+          {/* Welcome Page for Tab 0 */}
+          {currentTab === 0 && (
+            <WelcomePage onNewMessage={null} />
+          )}
+
+          {/* Orders Content for other tabs */}
+          {currentTab !== 0 && (
+            <>
+              {currentTab !== 3 && (
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
                 <Box sx={{ flex: '0 0 auto', width: '50%', position: 'relative' }}>
                   <TextField
                     fullWidth
                     size="small"
                     placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
-                    value={currentTab === 0 ? searchQuery : searchQueryInPrinting}
+                    value={currentTab === 1 ? searchQuery : searchQueryInPrinting}
                     onChange={(e) => {
-                      if (currentTab === 0) {
+                      if (currentTab === 1) {
                         setSearchQuery(e.target.value);
                       } else {
                         setSearchQueryInPrinting(e.target.value);
@@ -1321,7 +1586,7 @@ const DesignManagerDashboard = () => {
                           display: 'flex',
                           alignItems: 'center',
                           marginRight: 1,
-                          color: (currentTab === 0 ? searchQuery : searchQueryInPrinting) ? calmPalette.primary : 'text.secondary',
+                          color: (currentTab === 1 ? searchQuery : searchQueryInPrinting) ? calmPalette.primary : 'text.secondary',
                           transition: 'color 0.3s ease',
                         }}
                       >
@@ -1364,7 +1629,7 @@ const DesignManagerDashboard = () => {
                     },
                   }}
                 />
-                {(currentTab === 0 ? searchQuery : searchQueryInPrinting) && (
+                {(currentTab === 1 ? searchQuery : searchQueryInPrinting) && (
                   <Box
                     sx={{
                       marginTop: 1.5,
@@ -1403,7 +1668,7 @@ const DesignManagerDashboard = () => {
             </Box>
           )}
 
-          {currentTab === 2 ? (
+          {currentTab === 3 ? (
             <EmployeeAttendanceCalendar />
           ) : (
             <>
@@ -1413,7 +1678,7 @@ const DesignManagerDashboard = () => {
             </Box>
           ) : (
             <>
-              <TableContainer>
+              <TableContainer component={Paper} elevation={0}>
                 <Table>
                   <TableHead>
                     <TableRow sx={{ backgroundColor: calmPalette.surfaceHover }}>
@@ -1863,9 +2128,11 @@ const DesignManagerDashboard = () => {
               />
             </>
           )}
-          </>
-        )}
-        </Paper>
+            </>
+          )}
+           </>
+      )} 
+          </Paper>
       </Container>
 
       {/* Details Dialog */}
@@ -2550,6 +2817,163 @@ const DesignManagerDashboard = () => {
         onSave={handleSaveNotes}
         user={user}
       />
+
+      {/* Messages Popover */}
+      <Popover
+        open={Boolean(messagesAnchorEl)}
+        anchorEl={messagesAnchorEl}
+        onClose={() => {
+          setMessagesAnchorEl(null);
+          loadMessagesCount();
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        PaperProps={{
+          sx: {
+            width: { xs: "90vw", sm: 450, md: 550 },
+            maxWidth: 550,
+            maxHeight: "80vh",
+            background: "#ffffff",
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(94, 78, 62, 0.3)",
+            mt: 1,
+            border: "1px solid rgba(94, 78, 62, 0.2)",
+          },
+        }}
+      >
+        <Box sx={{ p: 0, maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+          {/* Header */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              p: 2,
+              pb: 1.5,
+              borderBottom: "1px solid rgba(94, 78, 62, 0.1)",
+              flexShrink: 0,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Avatar
+                sx={{
+                  bgcolor: calmPalette.primary,
+                  width: 40,
+                  height: 40,
+                }}
+              >
+                <MessageIcon sx={{ fontSize: 22 }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary, fontSize: "1.1rem", mb: 0.25 }}>
+                  رسائل الإدمن
+                </Typography>
+                <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.75rem" }}>
+                  آخر الرسائل والإشعارات
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", gap: 0.5 }}>
+              <IconButton
+                onClick={loadMessagesCount}
+                size="small"
+                sx={{
+                  color: calmPalette.textPrimary,
+                  "&:hover": {
+                    backgroundColor: "rgba(94, 78, 62, 0.1)",
+                  },
+                }}
+              >
+                <Refresh sx={{ fontSize: 18 }} />
+              </IconButton>
+              <IconButton
+                onClick={() => {
+                  setMessagesAnchorEl(null);
+                  loadMessagesCount();
+                }}
+                size="small"
+                sx={{
+                  color: calmPalette.textPrimary,
+                  "&:hover": {
+                    backgroundColor: "rgba(94, 78, 62, 0.1)",
+                  },
+                }}
+              >
+                <Close sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Box>
+          </Box>
+          
+          {/* Messages Content */}
+          <Box sx={{ p: 2, pt: 1.5, overflow: "auto", flex: 1 }}>
+            <MessagesTab
+              onNewMessage={(message) => {
+                setNewMessageReceived(message);
+                loadMessagesCount();
+              }}
+            />
+          </Box>
+        </Box>
+      </Popover>
+
+      {/* Message Notification Toast */}
+      <Snackbar
+        open={showMessageNotification}
+        autoHideDuration={6000}
+        onClose={() => {
+          console.log("🔔 Closing notification...");
+          setShowMessageNotification(false);
+        }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ 
+          mt: 2,
+          zIndex: 10000,
+        }}
+        TransitionProps={{
+          onEntered: () => {
+            console.log("🔔 Toast entered/opened");
+          }
+        }}
+      >
+        <Alert 
+          onClose={() => {
+            console.log("🔔 Closing notification from Alert...");
+            setShowMessageNotification(false);
+          }} 
+          severity="info"
+          icon={<MessageIcon />}
+          sx={{ 
+            width: '100%',
+            minWidth: 300,
+            maxWidth: 500,
+            bgcolor: "#ffffff",
+            color: calmPalette.textPrimary,
+            boxShadow: "0 8px 24px rgba(94, 78, 62, 0.3)",
+            border: `1px solid ${calmPalette.primary}`,
+            "& .MuiAlert-icon": {
+              color: "#1976d2",
+            },
+            "& .MuiAlert-message": {
+              width: "100%",
+            },
+          }}
+        >
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+              {newMessageData?.title || "رسالة جديدة"}
+            </Typography>
+            <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+              {newMessageData?.content || "لديك رسالة جديدة من الإدارة"}
+            </Typography>
+          </Box>
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

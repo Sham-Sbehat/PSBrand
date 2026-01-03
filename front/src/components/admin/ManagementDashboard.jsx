@@ -11,11 +11,13 @@ import {
   Straighten,
   Texture,
   Person,
+  Message as MessageIcon,
 } from '@mui/icons-material';
 import ColorsManagement from './ColorsManagement';
 import SizesManagement from './SizesManagement';
 import FabricTypesManagement from './FabricTypesManagement';
 import ClientsManagement from './ClientsManagement';
+import MessagesManagement from './MessagesManagement';
 import calmPalette from '../../theme/calmPalette';
 
 const ManagementDashboard = () => {
@@ -142,6 +144,27 @@ const ManagementDashboard = () => {
               },
             }}
           />
+          <Tab
+            label="الرسائل"
+            icon={<MessageIcon />}
+            iconPosition="start"
+            sx={{
+              fontWeight: 600,
+              fontSize: { xs: '0.75rem', sm: '0.875rem', md: '1rem' },
+              color: calmPalette.textMuted,
+              minHeight: { xs: 48, sm: 64 },
+              padding: { xs: '8px 12px', sm: '12px 16px' },
+              '&.Mui-selected': {
+                color: '#f7f2ea',
+              },
+              '& .MuiTab-iconWrapper': {
+                marginRight: { xs: 0.5, sm: 1 },
+                '& svg': {
+                  fontSize: { xs: '1rem', sm: '1.25rem' },
+                },
+              },
+            }}
+          />
         </Tabs>
       </Box>
 
@@ -150,6 +173,7 @@ const ManagementDashboard = () => {
         {currentTab === 1 && <SizesManagement />}
         {currentTab === 2 && <FabricTypesManagement />}
         {currentTab === 3 && <ClientsManagement />}
+        {currentTab === 4 && <MessagesManagement />}
       </Box>
     </Box>
   );

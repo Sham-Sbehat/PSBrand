@@ -29,6 +29,7 @@ import {
   Tooltip,
   Snackbar,
   Alert,
+  Popover,
 } from "@mui/material";
 import {
   Logout,
@@ -46,23 +47,30 @@ import {
   LocalShipping,
   CalendarToday,
   Message as MessageIcon,
+  Refresh,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
-import { subscribeToOrderUpdates } from "../services/realtime";
+import { subscribeToOrderUpdates, subscribeToMessages } from "../services/realtime";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, SIZE_LABELS, FABRIC_TYPE_LABELS, COLOR_LABELS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
+import WelcomePage from "../components/common/WelcomePage";
 import MessagesTab from "../components/common/MessagesTab";
 import calmPalette from "../theme/calmPalette";
+import { messagesService } from "../services/api";
 
 const PackagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
+  const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [showMessageNotification, setShowMessageNotification] = useState(false);
+  const [newMessageData, setNewMessageData] = useState(null);
   const [packagedOrders, setPackagedOrders] = useState([]); // Tab 1: Status 8 (IN_PACKAGING)
   const [completedOrders, setCompletedOrders] = useState([]); // Tab 2: Status 4 (COMPLETED)
   const [confirmedDeliveryOrders, setConfirmedDeliveryOrders] = useState([]); // Tab 3: Confirmed Delivery Orders
@@ -248,24 +256,167 @@ const PackagerDashboard = () => {
     loadFabricTypes();
   }, []);
 
+  // Play notification sound
+  const playMessageSound = () => {
+    console.log("🔔 Attempting to play message sound...");
+    try {
+      // Create or reuse audio context
+      let audioContext = window.messageAudioContext;
+      if (!audioContext) {
+        console.log("Creating new audio context...");
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        window.messageAudioContext = audioContext;
+      }
+      
+      console.log("Audio context state:", audioContext.state);
+      
+      // Always try to resume first (browsers require user interaction)
+      const playAudio = () => {
+        if (audioContext.state === 'suspended') {
+          console.log("Resuming suspended audio context...");
+          audioContext.resume().then(() => {
+            console.log("Audio context resumed, playing sound...");
+            playSound(audioContext);
+          }).catch((error) => {
+            console.error("Could not resume audio context:", error);
+            // Try to play anyway
+            try {
+              playSound(audioContext);
+            } catch (e) {
+              console.error("Failed to play sound:", e);
+            }
+          });
+        } else {
+          console.log("Audio context active, playing sound...");
+          playSound(audioContext);
+        }
+      };
+      
+      // Try to resume if suspended
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+          playAudio();
+        }).catch(() => {
+          // If resume fails, try to play anyway
+          playAudio();
+        });
+      } else {
+        playAudio();
+      }
+    } catch (error) {
+      console.error("Audio error:", error);
+    }
+  };
+
+  const playSound = (audioContext) => {
+    try {
+      const baseTime = audioContext.currentTime;
+      
+      // Create a pleasant notification sound (bell-like) - more noticeable and louder
+      const frequencies = [523.25, 659.25, 783.99]; // C, E, G
+      
+      frequencies.forEach((freq, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = freq;
+        oscillator.type = 'sine';
+        
+        const startTime = baseTime + (index * 0.08);
+        const duration = 0.25; // Longer duration
+        
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.05); // Louder
+        gainNode.gain.linearRampToValueAtTime(0.4, startTime + duration * 0.5);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      });
+      console.log("✅ Sound played successfully");
+    } catch (error) {
+      console.error("Error playing sound:", error);
+    }
+  };
+
+  // Load messages count
+  const loadMessagesCount = async () => {
+    try {
+      const allMessages = await messagesService.getMessagesToUser(user?.id);
+      const now = new Date();
+      const activeMessages = (allMessages || []).filter((msg) => {
+        if (!msg.isActive) return false;
+        if (msg.expiresAt) {
+          const expiresDate = new Date(msg.expiresAt);
+          return expiresDate > now;
+        }
+        return true;
+      });
+      
+      // Count messages created in last 24 hours as "new"
+      const newMessages = activeMessages.filter((msg) => {
+        if (!msg.createdAt) return false;
+        const messageDate = new Date(msg.createdAt);
+        const hoursSinceCreation = (now - messageDate) / (1000 * 60 * 60);
+        return hoursSinceCreation < 24;
+      });
+      
+      setUnreadMessagesCount(newMessages.length);
+    } catch (error) {
+      console.error("Error loading messages count:", error);
+    }
+  };
+
+  // Initialize audio context on user interaction (required by browsers)
+  useEffect(() => {
+    const initAudio = () => {
+      if (!window.messageAudioContext) {
+        try {
+          window.messageAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+          // Resume immediately if possible
+          if (window.messageAudioContext.state === 'suspended') {
+            window.messageAudioContext.resume().catch(() => {});
+          }
+        } catch (error) {
+          console.log("Audio context initialization failed:", error);
+        }
+      }
+    };
+
+    // Initialize on first user interaction
+    const handleUserInteraction = () => {
+      initAudio();
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+    };
+  }, []);
+
   useEffect(() => {
     fetchOrders(true); // Show loading on initial fetch only
+    if (user?.id) {
+      loadMessagesCount();
+    }
 
     // Subscribe to SignalR updates for real-time order updates
-    let unsubscribe;
+    let unsubscribeOrderUpdates;
     (async () => {
       try {
-        unsubscribe = await subscribeToOrderUpdates({
+        unsubscribeOrderUpdates = await subscribeToOrderUpdates({
           onOrderCreated: () => {
             fetchOrders(false);
           },
-          onNewMessage: (message) => {
-            console.log("💬 New message received:", message);
-            setNewMessageReceived(message);
-            setTimeout(() => setNewMessageReceived(null), 100);
-          },
           onOrderStatusChanged: (orderData) => {
-            // Always refresh from server when status changes to get latest data
             // Always refresh from server when status changes to get latest data
             fetchOrders(false).then(() => {
               // The state will be updated by fetchOrders
@@ -279,11 +430,51 @@ const PackagerDashboard = () => {
       }
     })();
 
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
-  }, []);
+    // Subscribe to Messages Hub for real-time message updates
+    let unsubscribeMessages;
+    (async () => {
+      try {
+        unsubscribeMessages = await subscribeToMessages({
+          onNewMessage: (message) => {
+            console.log("💬💬💬 New message received in PackagerDashboard from messagesHub:", message);
+            console.log("💬 Setting notification state...");
+            setNewMessageReceived(message);
+            setNewMessageData(message);
+            setShowMessageNotification(true);
+            console.log("💬 Notification state set to true, showMessageNotification:", true);
+            
+            // Play sound
+            console.log("💬 Playing sound...");
+            playMessageSound();
+            
+            // Reload count
+            loadMessagesCount();
+          },
+          onMessageUpdated: (message) => {
+            console.log("💬 Message updated:", message);
+            loadMessagesCount();
+          },
+          onMessageRemoved: (data) => {
+            console.log("💬 Message removed:", data);
+            loadMessagesCount();
+          },
+        });
+      } catch (err) {
+        console.error('Failed to connect to messages hub:', err);
+      }
+    })();
 
+    return () => {
+      if (typeof unsubscribeOrderUpdates === 'function') unsubscribeOrderUpdates();
+      if (typeof unsubscribeMessages === 'function') unsubscribeMessages();
+    };
+  }, [user?.id]);
+
+  // Debug: Monitor showMessageNotification changes
+  useEffect(() => {
+    console.log("🔔 showMessageNotification changed to:", showMessageNotification);
+    console.log("🔔 newMessageData:", newMessageData);
+  }, [showMessageNotification, newMessageData]);
 
   const handleLogout = () => {
     logout();
@@ -1231,6 +1422,61 @@ const PackagerDashboard = () => {
               PSBrand - لوحة مسؤول التغليف
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {/* Messages Icon */}
+              <Tooltip title="رسائل الإدمن">
+                <Box sx={{ position: "relative" }}>
+                  <IconButton
+                    onClick={(e) => {
+                      if (messagesAnchorEl) {
+                        setMessagesAnchorEl(null);
+                      } else {
+                        setMessagesAnchorEl(e.currentTarget);
+                      }
+                      setShowMessageNotification(false); // Hide notification when opening
+                    }}
+                    sx={{
+                      color: "#f6f1eb",
+                      border: "1px solid rgba(255,255,255,0.25)",
+                      borderRadius: 2,
+                      position: "relative",
+                      backgroundColor: messagesAnchorEl ? "rgba(255, 255, 255, 0.15)" : "transparent",
+                      "&:hover": {
+                        backgroundColor: "rgba(255, 255, 255, 0.1)",
+                      },
+                    }}
+                  >
+                    <MessageIcon />
+                  </IconButton>
+                  {/* Notification Badge */}
+                  {unreadMessagesCount > 0 && (
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: -4,
+                        right: -4,
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        bgcolor: "#ff1744",
+                        border: "2px solid #5E4E3E",
+                        animation: showMessageNotification ? "pulse 1.5s infinite" : "none",
+                        boxShadow: showMessageNotification ? "0 0 8px rgba(255, 23, 68, 0.6)" : "none",
+                        "@keyframes pulse": {
+                          "0%, 100%": {
+                            transform: "scale(1)",
+                            opacity: 1,
+                          },
+                          "50%": {
+                            transform: "scale(1.4)",
+                            opacity: 0.9,
+                          },
+                        },
+                      }}
+                    />
+                  )}
+                </Box>
+              </Tooltip>
+              
               <Avatar
                 sx={{
                   bgcolor: "rgba(255, 255, 255, 0.22)",
@@ -1347,16 +1593,24 @@ const PackagerDashboard = () => {
             </Tabs>
           </Box>
 
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: 3,
-              flexWrap: 'wrap',
-              gap: 2,
-            }}
-          >
+          {/* Welcome Page for Messages Tab */}
+          {currentTab === 0 && (
+            <WelcomePage onNewMessage={newMessageReceived} />
+          )}
+
+          {/* Orders Table for other tabs */}
+          {currentTab !== 0 && (
+            <>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: 3,
+                flexWrap: 'wrap',
+                gap: 2,
+              }}
+            >
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               {currentTab === 1 && <Inventory sx={{ verticalAlign: "middle", mr: 1 }} />}
               {currentTab === 1 && <CheckCircle sx={{ verticalAlign: "middle", mr: 1 }} />}
@@ -2061,6 +2315,8 @@ const PackagerDashboard = () => {
               />
             </>
           )}
+            </>
+          )}
         </Paper>
       </Container>
 
@@ -2715,6 +2971,162 @@ const PackagerDashboard = () => {
           />
         </Box>
       </GlassDialog>
+
+      {/* Messages Popover */}
+      <Popover
+        open={Boolean(messagesAnchorEl)}
+        anchorEl={messagesAnchorEl}
+        onClose={() => {
+          setMessagesAnchorEl(null);
+          loadMessagesCount();
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        PaperProps={{
+          sx: {
+            width: { xs: "90vw", sm: 450, md: 550 },
+            maxWidth: 550,
+            maxHeight: "80vh",
+            background: "#ffffff",
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(94, 78, 62, 0.3)",
+            mt: 1,
+            border: "1px solid rgba(94, 78, 62, 0.2)",
+          },
+        }}
+      >
+        <Box sx={{ p: 0, maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+          {/* Header */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              p: 2,
+              pb: 1.5,
+              borderBottom: "1px solid rgba(94, 78, 62, 0.1)",
+              flexShrink: 0,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Avatar
+                sx={{
+                  bgcolor: calmPalette.primary,
+                  width: 40,
+                  height: 40,
+                }}
+              >
+                <MessageIcon sx={{ fontSize: 22 }} />
+              </Avatar>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary, fontSize: "1.1rem", mb: 0.25 }}>
+                  رسائل الإدمن
+                </Typography>
+                <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.75rem" }}>
+                  آخر الرسائل والإشعارات
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", gap: 0.5 }}>
+              <IconButton
+                onClick={loadMessagesCount}
+                size="small"
+                sx={{
+                  color: calmPalette.textPrimary,
+                  "&:hover": {
+                    backgroundColor: "rgba(94, 78, 62, 0.1)",
+                  },
+                }}
+              >
+                <Refresh sx={{ fontSize: 18 }} />
+              </IconButton>
+              <IconButton
+                onClick={() => {
+                  setMessagesAnchorEl(null);
+                  loadMessagesCount();
+                }}
+                size="small"
+                sx={{
+                  color: calmPalette.textPrimary,
+                  "&:hover": {
+                    backgroundColor: "rgba(94, 78, 62, 0.1)",
+                  },
+                }}
+              >
+                <Close sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Box>
+          </Box>
+          
+          {/* Messages Content */}
+          <Box sx={{ p: 2, pt: 1.5, overflow: "auto", flex: 1 }}>
+            <MessagesTab
+              onNewMessage={(message) => {
+                setNewMessageReceived(message);
+                loadMessagesCount();
+              }}
+            />
+          </Box>
+        </Box>
+      </Popover>
+
+      {/* Message Notification Toast */}
+      <Snackbar
+        open={showMessageNotification}
+        autoHideDuration={6000}
+        onClose={() => {
+          console.log("🔔 Closing notification...");
+          setShowMessageNotification(false);
+        }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ 
+          mt: 2,
+          zIndex: 10000,
+        }}
+        TransitionProps={{
+          onEntered: () => {
+            console.log("🔔 Toast entered/opened");
+          }
+        }}
+      >
+        <Alert 
+          onClose={() => {
+            console.log("🔔 Closing notification from Alert...");
+            setShowMessageNotification(false);
+          }} 
+          severity="info"
+          icon={<MessageIcon />}
+          sx={{ 
+            width: '100%',
+            minWidth: 300,
+            maxWidth: 500,
+            bgcolor: "#ffffff",
+            color: calmPalette.textPrimary,
+            boxShadow: "0 8px 24px rgba(94, 78, 62, 0.3)",
+            border: `1px solid ${calmPalette.primary}`,
+            "& .MuiAlert-icon": {
+              color: "#1976d2",
+              fontSize: 28,
+            },
+            "& .MuiAlert-message": {
+              width: "100%",
+            },
+          }}
+        >
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5, fontSize: "1rem" }}>
+            رسالة جديدة من الإدارة
+          </Typography>
+          <Typography variant="body2" sx={{ fontSize: "0.9rem", color: calmPalette.textSecondary }}>
+            {newMessageData?.title || "رسالة جديدة"}
+          </Typography>
+        </Alert>
+      </Snackbar>
 
       {/* Snackbar for notifications */}
       <Snackbar

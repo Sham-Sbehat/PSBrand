@@ -158,210 +158,215 @@ const MessagesTab = ({ onNewMessage }) => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 4,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Avatar
-            sx={{
-              bgcolor: calmPalette.primary,
-              width: 56,
-              height: 56,
-            }}
-          >
-            <MessageIcon sx={{ fontSize: 32 }} />
-          </Avatar>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: calmPalette.textPrimary, mb: 0.5 }}>
-              رسائل الإدمن
-            </Typography>
-            <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
-              آخر الرسائل والإشعارات من الإدارة
-            </Typography>
-          </Box>
-        </Box>
-        <IconButton
-          onClick={loadMessages}
-          sx={{
-            color: calmPalette.primary,
-            "&:hover": {
-              backgroundColor: "rgba(25, 118, 210, 0.1)",
-            },
-          }}
-        >
-          <Refresh />
-        </IconButton>
-      </Box>
-
+    <Box sx={{ p: 0 }}>
       {/* Messages List */}
       {messages.length === 0 ? (
         <Paper
           elevation={0}
           sx={{
-            p: 6,
+            p: 4,
             textAlign: "center",
-            backgroundColor: "rgba(255, 255, 255, 0.4)",
-            borderRadius: 3,
+            backgroundColor: "rgba(255, 255, 255, 0.6)",
+            borderRadius: 2,
             border: "1px solid rgba(94, 78, 62, 0.1)",
           }}
         >
           <MessageIcon
             sx={{
-              fontSize: 64,
+              fontSize: 48,
               color: calmPalette.textSecondary,
-              mb: 2,
+              mb: 1.5,
+              opacity: 0.5,
             }}
           />
-          <Typography variant="h6" sx={{ color: calmPalette.textPrimary, mb: 1 }}>
+          <Typography variant="body1" sx={{ color: calmPalette.textPrimary, mb: 0.5, fontWeight: 600 }}>
             لا توجد رسائل حالياً
           </Typography>
-          <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+          <Typography variant="body2" sx={{ color: calmPalette.textSecondary, fontSize: "0.85rem" }}>
             سيتم عرض الرسائل والإشعارات من الإدارة هنا عند توفرها
           </Typography>
         </Paper>
       ) : (
-        <Grid container spacing={3}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {messages.map((message) => {
             const expiryDate = formatExpiryDate(message.expiresAt);
             const isExpiringSoon =
               expiryDate &&
-              new Date(message.expiresAt) - new Date() < 7 * 24 * 60 * 60 * 1000; // Less than 7 days
+              new Date(message.expiresAt) - new Date() < 7 * 24 * 60 * 60 * 1000;
+            
+            // Check if message is new (created in last 24 hours)
+            const isNew = message.createdAt && 
+              (new Date() - new Date(message.createdAt)) < 24 * 60 * 60 * 1000;
 
             return (
-              <Grid item xs={12} key={message.id}>
-                <Card
-                  elevation={0}
-                  sx={{
-                    background: "linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.4) 100%)",
-                    borderRadius: 3,
-                    border: "1px solid rgba(94, 78, 62, 0.15)",
-                    transition: "all 0.3s ease",
-                    "&:hover": {
-                      transform: "translateY(-4px)",
-                      boxShadow: "0 8px 24px rgba(94, 78, 62, 0.15)",
-                      borderColor: calmPalette.primary,
-                    },
-                  }}
-                >
-                  <CardContent sx={{ p: 3 }}>
-                    {/* Message Header */}
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        mb: 2,
-                      }}
-                    >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                        <Avatar
+              <Card
+                key={message.id}
+                elevation={0}
+                sx={{
+                  background: "#ffffff",
+                  borderRadius: 2,
+                  border: isNew 
+                    ? "2px solid #1976d2" 
+                    : "1px solid rgba(94, 78, 62, 0.15)",
+                  transition: "all 0.2s ease",
+                  minHeight: "140px",
+                  display: "flex",
+                  flexDirection: "column",
+                  "&:hover": {
+                    boxShadow: "0 4px 12px rgba(94, 78, 62, 0.15)",
+                    borderColor: isNew ? "#1976d2" : calmPalette.primary,
+                  },
+                }}
+              >
+                <CardContent sx={{ p: 2.5, flex: 1, display: "flex", flexDirection: "column" }}>
+                  {/* Message Header */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      mb: 1.5,
+                      gap: 1,
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, flex: 1, minWidth: 0 }}>
+                      <Avatar
+                        sx={{
+                          bgcolor: isNew ? "#1976d2" : calmPalette.primary,
+                          width: 36,
+                          height: 36,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <AdminPanelSettings sx={{ fontSize: 20 }} />
+                      </Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          variant="subtitle1"
                           sx={{
-                            bgcolor: calmPalette.primary,
-                            width: 40,
-                            height: 40,
+                            fontWeight: 700,
+                            color: calmPalette.textPrimary,
+                            mb: 0.5,
+                            fontSize: "0.95rem",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          <AdminPanelSettings />
-                        </Avatar>
-                        <Box>
-                          <Typography
-                            variant="h6"
+                          {message.title || "رسالة من الإدمن"}
+                        </Typography>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
+                          <Chip
+                            icon={<AdminPanelSettings sx={{ fontSize: 12 }} />}
+                            label="من الإدارة"
+                            size="small"
                             sx={{
-                              fontWeight: 700,
+                              height: 20,
+                              fontSize: "0.65rem",
+                              fontWeight: 600,
+                              bgcolor: "rgba(94, 78, 62, 0.1)",
                               color: calmPalette.textPrimary,
-                              mb: 0.5,
+                              "& .MuiChip-icon": {
+                                fontSize: 12,
+                                color: calmPalette.primary,
+                              },
                             }}
-                          >
-                            {message.title || "رسالة من الإدمن"}
-                          </Typography>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          />
+                          {isNew && (
                             <Chip
-                              label="من الإدارة"
+                              label="جديد"
                               size="small"
-                              color="primary"
-                              sx={{ height: 20, fontSize: "0.65rem" }}
+                              sx={{
+                                height: 20,
+                                fontSize: "0.65rem",
+                                fontWeight: 700,
+                                bgcolor: "#1976d2",
+                                color: "white",
+                              }}
                             />
-                            {isExpiringSoon && expiryDate && (
-                              <Chip
-                                label={`ينتهي: ${expiryDate}`}
-                                size="small"
-                                color="warning"
-                                sx={{ height: 20, fontSize: "0.65rem" }}
-                              />
-                            )}
-                          </Box>
-                        </Box>
-                      </Box>
-                      <Box sx={{ textAlign: "left" }}>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.5,
-                            color: calmPalette.textSecondary,
-                          }}
-                        >
-                          <AccessTime sx={{ fontSize: 16 }} />
-                          <Typography variant="caption" sx={{ fontSize: "0.75rem" }}>
-                            {formatDateTime(message.createdAt || message.sentAt)}
-                          </Typography>
+                          )}
+                          {isExpiringSoon && expiryDate && (
+                            <Chip
+                              label={`ينتهي قريباً`}
+                              size="small"
+                              color="warning"
+                              sx={{
+                                height: 20,
+                                fontSize: "0.65rem",
+                                fontWeight: 600,
+                              }}
+                            />
+                          )}
                         </Box>
                       </Box>
                     </Box>
-
-                    <Divider sx={{ my: 2 }} />
-
-                    {/* Message Content */}
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        color: calmPalette.textPrimary,
-                        lineHeight: 1.8,
-                        whiteSpace: "pre-wrap",
-                        fontSize: "1rem",
-                        mb: expiryDate ? 2 : 0,
-                      }}
-                    >
-                      {message.content}
-                    </Typography>
-
-                    {/* Expiry Date (if exists) */}
-                    {expiryDate && !isExpiringSoon && (
+                    <Box sx={{ flexShrink: 0, textAlign: "left" }}>
                       <Box
                         sx={{
-                          mt: 2,
-                          pt: 2,
-                          borderTop: "1px solid rgba(94, 78, 62, 0.1)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          color: calmPalette.textSecondary,
                         }}
                       >
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: calmPalette.textSecondary,
-                            fontSize: "0.75rem",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.5,
-                          }}
-                        >
-                          <AccessTime sx={{ fontSize: 14 }} />
-                          ينتهي في: {expiryDate}
+                        <AccessTime sx={{ fontSize: 14 }} />
+                        <Typography variant="caption" sx={{ fontSize: "0.7rem", whiteSpace: "nowrap" }}>
+                          {formatDateTime(message.createdAt || message.sentAt)}
                         </Typography>
                       </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
+                    </Box>
+                  </Box>
+
+                  <Divider sx={{ my: 1.5, borderColor: "rgba(94, 78, 62, 0.1)" }} />
+
+                  {/* Message Content */}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.textPrimary,
+                      lineHeight: 1.7,
+                      whiteSpace: "pre-wrap",
+                      fontSize: "0.9rem",
+                      flex: 1,
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      mb: expiryDate ? 1.5 : 0,
+                    }}
+                  >
+                    {message.content}
+                  </Typography>
+
+                  {/* Expiry Date (if exists) */}
+                  {expiryDate && !isExpiringSoon && (
+                    <Box
+                      sx={{
+                        mt: "auto",
+                        pt: 1.5,
+                        borderTop: "1px solid rgba(94, 78, 62, 0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                      }}
+                    >
+                      <AccessTime sx={{ fontSize: 14, color: calmPalette.textSecondary }} />
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: calmPalette.textSecondary,
+                          fontSize: "0.7rem",
+                        }}
+                      >
+                        ينتهي في: {expiryDate}
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
             );
           })}
-        </Grid>
+        </Box>
       )}
     </Box>
   );

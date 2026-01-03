@@ -1079,6 +1079,12 @@ export const messagesService = {
     const response = await api.delete(`/messages/Delete-Massage${id}`);
     return response.data;
   },
+
+  // Toggle message active status
+  toggleMessageActive: async (id) => {
+    const response = await api.patch(`/messages/Toggle-Active${id}`);
+    return response.data;
+  },
 };
 
 // Shift Time Constants
