@@ -25,7 +25,7 @@ import GlassDialog from "../common/GlassDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 
-const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null }) => {
+const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null, onShowToast }) => {
   const { user, employees } = useApp();
   const [recipientType, setRecipientType] = useState("all"); // "all" or "specific"
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
@@ -106,13 +106,18 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
       if (editingMessage) {
         // Update existing message
         savedMessage = await messagesService.updateMessage(editingMessage.id, messageData);
-        Swal.fire({
-          icon: "success",
-          title: "تم التحديث بنجاح",
-          text: "تم تحديث الرسالة بنجاح",
-          confirmButtonColor: calmPalette.primary,
-          timer: 2000,
-        });
+        // Use toast notification instead of SweetAlert for updates
+        if (onShowToast) {
+          onShowToast('تم تحديث الرسالة بنجاح', 'success');
+        } else {
+          Swal.fire({
+            icon: "success",
+            title: "تم التحديث بنجاح",
+            text: "تم تحديث الرسالة بنجاح",
+            confirmButtonColor: calmPalette.primary,
+            timer: 2000,
+          });
+        }
       } else {
         // Create new message
         savedMessage = await messagesService.createMessage(messageData);

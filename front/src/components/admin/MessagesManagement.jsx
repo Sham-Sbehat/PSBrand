@@ -45,7 +45,7 @@ import calmPalette from '../../theme/calmPalette';
 import SendMessageDialog from './SendMessageDialog';
 
 const MessagesManagement = () => {
-  const { user } = useApp();
+  const { user, employees } = useApp();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
@@ -53,7 +53,6 @@ const MessagesManagement = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, messageId: null, messageTitle: '' });
   const [togglingId, setTogglingId] = useState(null);
-  const [employees, setEmployees] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive', 'expired'
   const [recipientFilter, setRecipientFilter] = useState('all'); // 'all', 'specific', 'allEmployees'
@@ -119,9 +118,10 @@ const MessagesManagement = () => {
   const handleDeleteConfirm = async () => {
     try {
       await messagesService.deleteMessage(deleteDialog.messageId);
+      // Update local state instead of fetching all messages
+      setMessages(prevMessages => prevMessages.filter(msg => msg.id !== deleteDialog.messageId));
       setSnackbar({ open: true, message: 'تم حذف الرسالة بنجاح', severity: 'success' });
       setDeleteDialog({ open: false, messageId: null, messageTitle: '' });
-      fetchMessages();
     } catch (error) {
       console.error('Error deleting message:', error);
       setSnackbar({
@@ -135,9 +135,23 @@ const MessagesManagement = () => {
   const handleToggleActive = async (messageId) => {
     try {
       setTogglingId(messageId);
-      await messagesService.toggleMessageActive(messageId);
+      const updatedMessage = await messagesService.toggleMessageActive(messageId);
+      // Update local state instead of fetching all messages
+      setMessages(prevMessages => {
+        const index = prevMessages.findIndex(msg => msg.id === messageId);
+        if (index >= 0) {
+          const updated = [...prevMessages];
+          // If API returns updated message, use it; otherwise toggle isActive locally
+          if (updatedMessage && updatedMessage.id) {
+            updated[index] = updatedMessage;
+          } else {
+            updated[index] = { ...updated[index], isActive: !updated[index].isActive };
+          }
+          return updated;
+        }
+        return prevMessages;
+      });
       setSnackbar({ open: true, message: 'تم تحديث حالة الرسالة بنجاح', severity: 'success' });
-      fetchMessages();
     } catch (error) {
       console.error('Error toggling message:', error);
       setSnackbar({
@@ -376,10 +390,10 @@ const MessagesManagement = () => {
                   <TableCell sx={{ fontWeight: 700 }}>العنوان</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>المحتوى</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>المستلم</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>تاريخ الانتهاء</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>تاريخ الإنشاء</TableCell>
-                  <TableCell sx={{ fontWeight: 700, textAlign: 'center' }}>الإجراءات</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>تاريخ الإنشاء</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>تاريخ الانتهاء</TableCell>
+                    <TableCell sx={{ fontWeight: 700, textAlign: 'center' }}>الإجراءات</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -418,7 +432,14 @@ const MessagesManagement = () => {
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={message.userId ? `موظف #${message.userId}` : 'جميع الموظفين'}
+                            label={
+                              message.userId 
+                                ? (() => {
+                                    const employee = employees?.find(emp => emp.id === message.userId);
+                                    return employee?.name || `موظف #${message.userId}`;
+                                  })()
+                                : 'جميع الموظفين'
+                            }
                             size="small"
                             color={message.userId ? 'primary' : 'default'}
                           />
@@ -439,13 +460,13 @@ const MessagesManagement = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" color={expired ? 'error' : 'text.primary'}>
-                            {formatDate(message.expiresAt)}
+                          <Typography variant="body2" color="text.secondary">
+                            {formatDate(message.createdAt)}
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" color="text.secondary">
-                            {formatDate(message.createdAt)}
+                          <Typography variant="body2" color={expired ? 'error' : 'text.primary'}>
+                            {formatDate(message.expiresAt)}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -507,6 +528,9 @@ const MessagesManagement = () => {
         onClose={handleCloseDialog}
         onMessageSent={handleMessageSent}
         editingMessage={editingMessage}
+        onShowToast={(message, severity) => {
+          setSnackbar({ open: true, message, severity });
+        }}
       />
 
       {/* Delete Confirmation Dialog */}

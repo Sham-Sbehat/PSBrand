@@ -760,6 +760,14 @@ export const shipmentsService = {
     });
     return response.data;
   },
+  createShipments: async (orderIds, shippingNotes = '') => {
+    // Create shipments for multiple orders using the new API endpoint
+    const response = await api.post('/Shipments/Create', {
+      shippingNotes: shippingNotes || '',
+      orderIds: orderIds
+    });
+    return response.data;
+  },
   getDeliveryStatus: async (orderId) => {
     const response = await api.get(`/Shipments/GetDeliveryStatus/${orderId}`);
     return response.data;

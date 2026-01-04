@@ -25,6 +25,7 @@ import {
   Alert,
   InputAdornment,
   Menu,
+  Checkbox,
 } from "@mui/material";
 import {
   Visibility,
@@ -140,6 +141,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
   const [orderToShip, setOrderToShip] = useState(null);
   const [shippingNotes, setShippingNotes] = useState('');
   const [shippingLoading, setShippingLoading] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState([]); // Array of order IDs for bulk shipping
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [openDeliveryStatusDialog, setOpenDeliveryStatusDialog] = useState(false);
   const [deliveryStatusData, setDeliveryStatusData] = useState(null);
@@ -1054,6 +1056,12 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
   const handleConfirmShipping = async () => {
     if (!orderToShip) return;
 
+    // Check if this is bulk shipping
+    if (orderToShip.isBulk && orderToShip.orderIds) {
+      await handleBulkConfirmShipping();
+      return;
+    }
+
     setShippingLoading(true);
     try {
       await shipmentsService.createShipment(orderToShip.id, shippingNotes);
@@ -1100,6 +1108,127 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       });
     } finally {
       setShippingLoading(false);
+    }
+  };
+
+  // Handle bulk shipping (multiple orders)
+  const handleBulkShipping = () => {
+    if (selectedOrders.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'يرجى تحديد طلب واحد على الأقل',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // Filter only completed orders
+    const completedSelectedOrders = filteredOrders.filter(order => {
+      const numericStatus = typeof order.status === 'number' 
+        ? order.status 
+        : parseInt(order.status, 10);
+      return selectedOrders.includes(order.id) && numericStatus === ORDER_STATUS.COMPLETED;
+    });
+
+    if (completedSelectedOrders.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'جميع الطلبات المحددة يجب أن تكون مكتملة',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // Set selected orders and open dialog
+    setOrderToShip({ id: null, isBulk: true, orderIds: completedSelectedOrders.map(o => o.id) });
+    setShippingNotes('');
+    setOpenShippingDialog(true);
+  };
+
+  const handleBulkConfirmShipping = async () => {
+    if (!orderToShip || !orderToShip.isBulk || !orderToShip.orderIds || orderToShip.orderIds.length === 0) return;
+
+    setShippingLoading(true);
+    try {
+      // Use the new API to create shipments for multiple orders
+      await shipmentsService.createShipments(orderToShip.orderIds, shippingNotes);
+      
+      // Set order status to sent to delivery company for all orders
+      try {
+        await Promise.all(
+          orderToShip.orderIds.map(orderId => 
+            orderStatusService.setSentToDeliveryCompany(orderId).catch(err => {
+              console.error(`Error setting status for order ${orderId}:`, err);
+            })
+          )
+        );
+      } catch (statusError) {
+        console.error('Error setting order statuses:', statusError);
+      }
+      
+      // Close dialog first
+      handleCloseShippingDialog();
+      
+      // Clear selected orders
+      setSelectedOrders([]);
+      
+      // Show success toast
+      setSnackbar({
+        open: true,
+        message: `تم إرسال ${orderToShip.orderIds.length} طلب إلى شركة التوصيل بنجاح`,
+        severity: 'success'
+      });
+      
+      // Refresh orders list from server
+      try {
+        const updatedOrders = await ordersService.getAllOrders();
+        setAllOrders(updatedOrders || []);
+      } catch (refreshError) {
+        console.error('Error refreshing orders after shipping:', refreshError);
+      }
+    } catch (error) {
+      console.error('Error sending orders to delivery company:', error);
+      
+      // Close dialog first even on error
+      handleCloseShippingDialog();
+      
+      // Show error toast
+      setSnackbar({
+        open: true,
+        message: `حدث خطأ أثناء إرسال الطلبات إلى شركة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
+        severity: 'error'
+      });
+    } finally {
+      setShippingLoading(false);
+    }
+  };
+
+  // Toggle order selection
+  const handleToggleOrderSelection = (orderId) => {
+    setSelectedOrders(prev => {
+      if (prev.includes(orderId)) {
+        return prev.filter(id => id !== orderId);
+      } else {
+        return [...prev, orderId];
+      }
+    });
+  };
+
+  // Select all visible orders
+  const handleSelectAll = () => {
+    const completedOrders = filteredOrders.filter(order => {
+      const numericStatus = typeof order.status === 'number' 
+        ? order.status 
+        : parseInt(order.status, 10);
+      return numericStatus === ORDER_STATUS.COMPLETED;
+    });
+    
+    if (selectedOrders.length === completedOrders.length) {
+      // Deselect all
+      setSelectedOrders([]);
+    } else {
+      // Select all completed orders
+      setSelectedOrders(completedOrders.map(o => o.id));
     }
   };
 
@@ -1918,6 +2047,17 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         </Box>
 
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+          {selectedOrders.length > 0 && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<LocalShipping />}
+              onClick={handleBulkShipping}
+              sx={{ minWidth: 150 }}
+            >
+              إرسال المحدد ({selectedOrders.length})
+            </Button>
+          )}
           <TextField
             size="small"
             placeholder="بحث باسم العميل أو رقم الهاتف أو رقم الطلب..."
@@ -1996,6 +2136,19 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             <Table>
               <TableHead>
                 <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                  <TableCell sx={{ fontWeight: 700, width: 50 }}>
+                    <Checkbox
+                      checked={selectedOrders.length > 0 && selectedOrders.length === filteredOrders.filter(o => {
+                        const numericStatus = typeof o.status === 'number' ? o.status : parseInt(o.status, 10);
+                        return numericStatus === ORDER_STATUS.COMPLETED;
+                      }).length}
+                      indeterminate={selectedOrders.length > 0 && selectedOrders.length < filteredOrders.filter(o => {
+                        const numericStatus = typeof o.status === 'number' ? o.status : parseInt(o.status, 10);
+                        return numericStatus === ORDER_STATUS.COMPLETED;
+                      }).length}
+                      onChange={handleSelectAll}
+                    />
+                  </TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>البائع</TableCell>
@@ -2065,6 +2218,18 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                           } : {}),
                         }}
                       >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedOrders.includes(order.id)}
+                            onChange={() => handleToggleOrderSelection(order.id)}
+                            disabled={(() => {
+                              const numericStatus = typeof order.status === 'number' 
+                                ? order.status 
+                                : parseInt(order.status, 10);
+                              return numericStatus !== ORDER_STATUS.COMPLETED;
+                            })()}
+                          />
+                        </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             {order.isContacted || order.isContactedWithClient ? (

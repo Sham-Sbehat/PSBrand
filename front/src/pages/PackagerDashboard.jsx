@@ -30,6 +30,7 @@ import {
   Snackbar,
   Alert,
   Popover,
+  Checkbox,
 } from "@mui/material";
 import {
   Logout,
@@ -97,6 +98,7 @@ const PackagerDashboard = () => {
   const [shippingNotes, setShippingNotes] = useState('');
   const [shippingLoading, setShippingLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [selectedOrders, setSelectedOrders] = useState([]); // Array of order IDs for bulk shipping
   const [selectedDate, setSelectedDate] = useState(null); // No date filter by default
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
@@ -986,10 +988,129 @@ const PackagerDashboard = () => {
     setOpenShippingDialog(false);
     setOrderToShip(null);
     setShippingNotes('');
+    // Clear selected orders after shipping
+    setSelectedOrders([]);
+  };
+
+  // Handle bulk shipping (multiple orders)
+  const handleBulkShipping = () => {
+    if (selectedOrders.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'يرجى تحديد طلب واحد على الأقل',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // Filter only completed orders
+    const completedSelectedOrders = filteredOrders.filter(order => {
+      const numericStatus = typeof order.status === 'number' 
+        ? order.status 
+        : parseInt(order.status, 10);
+      return selectedOrders.includes(order.id) && numericStatus === ORDER_STATUS.COMPLETED;
+    });
+
+    if (completedSelectedOrders.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'جميع الطلبات المحددة يجب أن تكون مكتملة',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // Set selected orders and open dialog
+    setOrderToShip({ id: null, isBulk: true, orderIds: completedSelectedOrders.map(o => o.id) });
+    setShippingNotes('');
+    setOpenShippingDialog(true);
+  };
+
+  // Toggle order selection
+  const handleToggleOrderSelection = (orderId) => {
+    setSelectedOrders(prev => {
+      if (prev.includes(orderId)) {
+        return prev.filter(id => id !== orderId);
+      } else {
+        return [...prev, orderId];
+      }
+    });
+  };
+
+  // Select all visible orders
+  const handleSelectAll = () => {
+    const completedOrders = filteredOrders.filter(order => {
+      const numericStatus = typeof order.status === 'number' 
+        ? order.status 
+        : parseInt(order.status, 10);
+      return numericStatus === ORDER_STATUS.COMPLETED;
+    });
+    
+    if (selectedOrders.length === completedOrders.length) {
+      // Deselect all
+      setSelectedOrders([]);
+    } else {
+      // Select all completed orders
+      setSelectedOrders(completedOrders.map(o => o.id));
+    }
   };
 
   const handleConfirmShipping = async () => {
     if (!orderToShip) return;
+
+    // Check if this is bulk shipping
+    if (orderToShip.isBulk && orderToShip.orderIds) {
+      setShippingLoading(true);
+      try {
+        // Use the new API to create shipments for multiple orders
+        await shipmentsService.createShipments(orderToShip.orderIds, shippingNotes);
+        
+        // Set order status to sent to delivery company for all orders
+        try {
+          await Promise.all(
+            orderToShip.orderIds.map(orderId => 
+              orderStatusService.setSentToDeliveryCompany(orderId).catch(err => {
+                console.error(`Error setting status for order ${orderId}:`, err);
+              })
+            )
+          );
+        } catch (statusError) {
+          console.error('Error setting order statuses:', statusError);
+        }
+        
+        // Close dialog first
+        handleCloseShippingDialog();
+        
+        // Show success toast
+        setSnackbar({
+          open: true,
+          message: `تم إرسال ${orderToShip.orderIds.length} طلب إلى شركة التوصيل بنجاح`,
+          severity: 'success'
+        });
+        
+        // Refresh orders list from server
+        try {
+          await fetchOrders(false);
+        } catch (refreshError) {
+          console.error('Error refreshing orders after shipping:', refreshError);
+        }
+      } catch (error) {
+        console.error('Error sending orders to delivery company:', error);
+        
+        // Close dialog first even on error
+        handleCloseShippingDialog();
+        
+        // Show error toast
+        setSnackbar({
+          open: true,
+          message: `حدث خطأ أثناء إرسال الطلبات إلى شركة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
+          severity: 'error'
+        });
+      } finally {
+        setShippingLoading(false);
+      }
+      return;
+    }
 
     setShippingLoading(true);
     try {
@@ -2098,6 +2219,21 @@ const PackagerDashboard = () => {
                 <Table>
                   <TableHead>
                     <TableRow sx={{ backgroundColor: calmPalette.surfaceHover }}>
+                      {currentTab === 1 && (
+                        <TableCell sx={{ fontWeight: 700, width: 50 }}>
+                          <Checkbox
+                            checked={selectedOrders.length > 0 && selectedOrders.length === filteredOrders.filter(o => {
+                              const numericStatus = typeof o.status === 'number' ? o.status : parseInt(o.status, 10);
+                              return numericStatus === ORDER_STATUS.COMPLETED;
+                            }).length}
+                            indeterminate={selectedOrders.length > 0 && selectedOrders.length < filteredOrders.filter(o => {
+                              const numericStatus = typeof o.status === 'number' ? o.status : parseInt(o.status, 10);
+                              return numericStatus === ORDER_STATUS.COMPLETED;
+                            }).length}
+                            onChange={handleSelectAll}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم الطلب</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
@@ -2246,6 +2382,20 @@ const PackagerDashboard = () => {
                               "&:last-child td, &:last-child th": { border: 0 },
                             }}
                           >
+                            {currentTab === 1 && isFirstRow && (
+                              <TableCell rowSpan={rowCount}>
+                                <Checkbox
+                                  checked={selectedOrders.includes(order.id)}
+                                  onChange={() => handleToggleOrderSelection(order.id)}
+                                  disabled={(() => {
+                                    const numericStatus = typeof order.status === 'number' 
+                                      ? order.status 
+                                      : parseInt(order.status, 10);
+                                    return numericStatus !== ORDER_STATUS.COMPLETED;
+                                  })()}
+                                />
+                              </TableCell>
+                            )}
                             {isFirstRow && (
                               <>
                                 <TableCell rowSpan={rowCount}>
@@ -3245,12 +3395,25 @@ const PackagerDashboard = () => {
         }
       >
         <Box sx={{ padding: 3 }}>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            إرسال الطلب <strong>{orderToShip?.orderNumber || `#${orderToShip?.id}`}</strong> إلى شركة التوصيل
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            يمكنك إضافة ملاحظات خاصة بشركة التوصيل (اختياري)
-          </Typography>
+          {orderToShip?.isBulk && orderToShip?.orderIds ? (
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                إرسال <strong>{orderToShip.orderIds.length} طلب</strong> إلى شركة التوصيل
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                سيتم إرسال جميع الطلبات المحددة في شحنة واحدة. يمكنك إضافة ملاحظات خاصة بشركة التوصيل (اختياري)
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                إرسال الطلب <strong>{orderToShip?.orderNumber || `#${orderToShip?.id}`}</strong> إلى شركة التوصيل
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                يمكنك إضافة ملاحظات خاصة بشركة التوصيل (اختياري)
+              </Typography>
+            </>
+          )}
           <TextField
             fullWidth
             multiline
