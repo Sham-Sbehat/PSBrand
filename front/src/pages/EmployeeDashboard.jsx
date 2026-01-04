@@ -231,6 +231,8 @@ const EmployeeDashboard = () => {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showMessageNotification, setShowMessageNotification] = useState(false);
   const [newMessageData, setNewMessageData] = useState(null);
+  const [publicMessages, setPublicMessages] = useState([]); // Messages sent to all users (userId === null)
+  const [hiddenMessageIds, setHiddenMessageIds] = useState([]); // IDs of messages hidden by user
   const [showForm, setShowForm] = useState(true);
   const [openOrdersModal, setOpenOrdersModal] = useState(false);
   const [openDetailsModal, setOpenDetailsModal] = useState(false);
@@ -1223,6 +1225,64 @@ const EmployeeDashboard = () => {
     }
   };
 
+  // Load public messages (sent to all users - userId === null)
+  const loadPublicMessages = async () => {
+    try {
+      // Get hidden messages from localStorage first (always read fresh)
+      let hiddenIds = [];
+      try {
+        const saved = localStorage.getItem('hiddenPublicMessages');
+        if (saved) {
+          hiddenIds = JSON.parse(saved);
+        }
+      } catch (e) {
+        console.error("Error reading hidden messages from localStorage:", e);
+      }
+
+      // Get all messages and filter for public ones (userId === null)
+      const allMessages = await messagesService.getMessagesToUser(user?.id);
+      const now = new Date();
+      const publicMsgs = (allMessages || []).filter((msg) => {
+        // Only messages sent to all users (userId === null)
+        if (msg.userId !== null && msg.userId !== undefined) return false;
+        // Must be active
+        if (!msg.isActive) return false;
+        // Must not be expired
+        if (msg.expiresAt) {
+          const expiresDate = new Date(msg.expiresAt);
+          return expiresDate > now;
+        }
+        return true;
+      });
+      
+      // Filter out hidden messages using localStorage data (not state)
+      const visibleMessages = publicMsgs.filter(msg => !hiddenIds.includes(msg.id));
+      
+      // Sort by date (newest first)
+      visibleMessages.sort(
+        (a, b) =>
+          new Date(b.createdAt || b.sentAt || 0) -
+          new Date(a.createdAt || a.sentAt || 0)
+      );
+      
+      setPublicMessages(visibleMessages);
+    } catch (error) {
+      console.error("Error loading public messages:", error);
+    }
+  };
+
+  // Hide a specific message
+  const handleHideMessage = (messageId) => {
+    setHiddenMessageIds(prev => {
+      const updated = [...prev, messageId];
+      // Save to localStorage
+      localStorage.setItem('hiddenPublicMessages', JSON.stringify(updated));
+      return updated;
+    });
+    // Remove from visible messages immediately
+    setPublicMessages(prev => prev.filter(msg => msg.id !== messageId));
+  };
+
   // Initialize audio context on user interaction (required by browsers)
   useEffect(() => {
     const initAudio = () => {
@@ -1255,13 +1315,36 @@ const EmployeeDashboard = () => {
     };
   }, []);
 
+  // Load hidden messages from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('hiddenPublicMessages');
+      if (saved) {
+        const hiddenIds = JSON.parse(saved);
+        setHiddenMessageIds(hiddenIds);
+      }
+    } catch (error) {
+      console.error("Error loading hidden messages:", error);
+    }
+  }, []);
+
   // Subscribe to messages
   useEffect(() => {
     if (user?.id) {
       loadMessagesCount();
+      // Load public messages after hiddenMessageIds is set
+      const timer = setTimeout(() => {
+        loadPublicMessages();
+      }, 100);
+      return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, hiddenMessageIds]);
 
-    // Subscribe to Messages Hub for real-time message updates
+  // Subscribe to Messages Hub for real-time message updates
+  useEffect(() => {
+    if (!user?.id) return;
+
     let unsubscribeMessages;
     (async () => {
       try {
@@ -1277,14 +1360,17 @@ const EmployeeDashboard = () => {
             console.log("💬 Playing sound...");
             playMessageSound();
             
-            // Reload messages count
+            // Reload messages count and public messages
             loadMessagesCount();
+            loadPublicMessages();
           },
           onMessageUpdated: () => {
             loadMessagesCount();
+            loadPublicMessages();
           },
           onMessageRemoved: () => {
             loadMessagesCount();
+            loadPublicMessages();
           },
         });
       } catch (err) {
@@ -2054,6 +2140,210 @@ const EmployeeDashboard = () => {
           </Box>
         </Toolbar>
       </AppBar>
+
+      {/* Public Messages Banner - Messages sent to all users */}
+      {publicMessages.length > 0 && (
+        <Box
+          sx={{
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+            background: calmPalette.surface,
+            py: 1.5,
+            width: "100%",
+            overflow: "hidden",
+            borderBottom: "2px solid rgba(94, 78, 62, 0.2)",
+            boxShadow: calmPalette.shadow,
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              position: "relative",
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
+            {/* Announcement Label - Fixed on left */}
+            <Box
+              sx={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                display: "flex",
+                alignItems: "center",
+                px: 2.5,
+                background: "linear-gradient(135deg, rgba(97, 79, 65, 0.95) 0%, rgba(73, 59, 48, 0.95) 100%)",
+                color: calmPalette.statCards[0].highlight,
+                fontWeight: 700,
+                fontSize: "0.8rem",
+                letterSpacing: "0.1em",
+                whiteSpace: "nowrap",
+                zIndex: 2,
+                borderRight: "2px solid rgba(94, 78, 62, 0.3)",
+                boxShadow: "2px 0 8px rgba(0, 0, 0, 0.15)",
+              }}
+            >
+              <Typography
+                sx={{
+                  color: calmPalette.statCards[0].highlight,
+                  fontWeight: 700,
+                  fontSize: "0.8rem",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                📢 إعلان عام
+              </Typography>
+            </Box>
+
+            {/* Scrolling Messages */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 3,
+                marginLeft: "130px",
+                marginRight: "50px",
+                animation: "scroll 20s linear infinite",
+                "@keyframes scroll": {
+                  "0%": {
+                    transform: "translateX(0)",
+                  },
+                  "100%": {
+                    transform: "translateX(-100%)",
+                  },
+                },
+              }}
+            >
+              {/* Messages */}
+              {publicMessages.map((message, index) => (
+                <Box
+                  key={`${message.id}-${index}`}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    flexShrink: 0,
+                    minWidth: "fit-content",
+                    px: 2,
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.textPrimary,
+                      fontWeight: 700,
+                      fontSize: "0.9rem",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {message.title || "إعلان عام"}:
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.textSecondary,
+                      fontWeight: 500,
+                      fontSize: "0.875rem",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {message.content}
+                  </Typography>
+                  <Box
+                    component="span"
+                    sx={{
+                      width: 4,
+                      height: 4,
+                      borderRadius: "50%",
+                      background: calmPalette.textMuted,
+                      display: "inline-block",
+                      mx: 1.5,
+                    }}
+                  />
+                </Box>
+              ))}
+              {/* Duplicate for seamless loop */}
+              {publicMessages.map((message, index) => (
+                <Box
+                  key={`${message.id}-dup-${index}`}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    flexShrink: 0,
+                    minWidth: "fit-content",
+                    px: 2,
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.textPrimary,
+                      fontWeight: 700,
+                      fontSize: "0.9rem",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {message.title || "إعلان عام"}:
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.textSecondary,
+                      fontWeight: 500,
+                      fontSize: "0.875rem",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {message.content}
+                  </Typography>
+                  <Box
+                    component="span"
+                    sx={{
+                      width: 4,
+                      height: 4,
+                      borderRadius: "50%",
+                      background: calmPalette.textMuted,
+                      display: "inline-block",
+                      mx: 1.5,
+                    }}
+                  />
+                </Box>
+              ))}
+            </Box>
+
+            {/* Close button - Fixed on right */}
+            {publicMessages.length > 0 && (
+              <IconButton
+                size="small"
+                onClick={() => handleHideMessage(publicMessages[0].id)}
+                sx={{
+                  position: "absolute",
+                  right: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: calmPalette.textMuted,
+                  width: 28,
+                  height: 28,
+                  zIndex: 2,
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    backgroundColor: "rgba(94, 78, 62, 0.1)",
+                    color: calmPalette.textPrimary,
+                    transform: "translateY(-50%) rotate(90deg)",
+                  },
+                }}
+              >
+                <Close sx={{ fontSize: 16 }} />
+              </IconButton>
+            )}
+          </Box>
+        </Box>
+      )}
 
       <Container maxWidth="lg" sx={{ paddingY: 5 }}>
         <Paper
