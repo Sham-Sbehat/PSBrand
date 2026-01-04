@@ -321,10 +321,11 @@ const DesignManagerDashboard = () => {
   // Load public messages (sent to all users - userId === null)
   const loadPublicMessages = async () => {
     try {
-      // Get hidden messages from localStorage first
+      // Get hidden messages from localStorage first (per user)
       let hiddenIds = [];
       try {
-        const saved = localStorage.getItem('hiddenPublicMessages');
+        const storageKey = user?.id ? `hiddenPublicMessages_${user.id}` : 'hiddenPublicMessages';
+        const saved = localStorage.getItem(storageKey);
         if (saved) {
           hiddenIds = JSON.parse(saved);
         }
@@ -372,8 +373,9 @@ const DesignManagerDashboard = () => {
   const handleHideMessage = (messageId) => {
     setHiddenMessageIds(prev => {
       const updated = [...prev, messageId];
-      // Save to localStorage
-      localStorage.setItem('hiddenPublicMessages', JSON.stringify(updated));
+      // Save to localStorage (per user)
+      const storageKey = user?.id ? `hiddenPublicMessages_${user.id}` : 'hiddenPublicMessages';
+      localStorage.setItem(storageKey, JSON.stringify(updated));
       return updated;
     });
     // Remove from visible messages immediately
@@ -412,10 +414,12 @@ const DesignManagerDashboard = () => {
     }
 }, [user?.id]);
 
-  // Load hidden message IDs from localStorage on mount
+  // Load hidden message IDs from localStorage on mount (per user)
   useEffect(() => {
+    if (!user?.id) return;
     try {
-      const saved = localStorage.getItem('hiddenPublicMessages');
+      const storageKey = `hiddenPublicMessages_${user.id}`;
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         const hiddenIds = JSON.parse(saved);
         setHiddenMessageIds(hiddenIds);
@@ -423,7 +427,7 @@ const DesignManagerDashboard = () => {
     } catch (e) {
       console.error("Error reading hidden messages from localStorage:", e);
     }
-  }, []);
+  }, [user?.id]);
 
   // Load public messages after hiddenMessageIds is loaded
   useEffect(() => {
@@ -1610,7 +1614,7 @@ const DesignManagerDashboard = () => {
                   animation: "scroll 20s linear infinite",
                   "@keyframes scroll": {
                     "0%": {
-                      transform: "translateX(0)",
+                      transform: "translateX(100%)",
                     },
                     "100%": {
                       transform: "translateX(-100%)",

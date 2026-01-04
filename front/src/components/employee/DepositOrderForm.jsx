@@ -915,7 +915,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
 
           {/* أزرار الإجراءات */}
           <Grid item xs={12}>
-            <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end", mt: 1 }}>
+            <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end", mt: 15 }}>
               <Button
                 variant="outlined"
                 onClick={onCancel}

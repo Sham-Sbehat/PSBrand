@@ -1231,7 +1231,8 @@ const EmployeeDashboard = () => {
       // Get hidden messages from localStorage first (always read fresh)
       let hiddenIds = [];
       try {
-        const saved = localStorage.getItem('hiddenPublicMessages');
+        const storageKey = user?.id ? `hiddenPublicMessages_${user.id}` : 'hiddenPublicMessages';
+        const saved = localStorage.getItem(storageKey);
         if (saved) {
           hiddenIds = JSON.parse(saved);
         }
@@ -1275,8 +1276,9 @@ const EmployeeDashboard = () => {
   const handleHideMessage = (messageId) => {
     setHiddenMessageIds(prev => {
       const updated = [...prev, messageId];
-      // Save to localStorage
-      localStorage.setItem('hiddenPublicMessages', JSON.stringify(updated));
+      // Save to localStorage (per user)
+      const storageKey = user?.id ? `hiddenPublicMessages_${user.id}` : 'hiddenPublicMessages';
+      localStorage.setItem(storageKey, JSON.stringify(updated));
       return updated;
     });
     // Remove from visible messages immediately
@@ -1315,10 +1317,12 @@ const EmployeeDashboard = () => {
     };
   }, []);
 
-  // Load hidden messages from localStorage on mount
+  // Load hidden messages from localStorage on mount (per user)
   useEffect(() => {
+    if (!user?.id) return;
     try {
-      const saved = localStorage.getItem('hiddenPublicMessages');
+      const storageKey = `hiddenPublicMessages_${user.id}`;
+      const saved = localStorage.getItem(storageKey);
       if (saved) {
         const hiddenIds = JSON.parse(saved);
         setHiddenMessageIds(hiddenIds);
@@ -1326,7 +1330,7 @@ const EmployeeDashboard = () => {
     } catch (error) {
       console.error("Error loading hidden messages:", error);
     }
-  }, []);
+  }, [user?.id]);
 
   // Subscribe to messages
   useEffect(() => {
@@ -1382,6 +1386,13 @@ const EmployeeDashboard = () => {
       if (typeof unsubscribeMessages === 'function') unsubscribeMessages();
     };
   }, [user?.id]);
+
+  // Load deposit orders when Tab 2 is opened
+  useEffect(() => {
+    if (currentTab === 2 && user?.id) {
+      fetchDepositOrders();
+    }
+  }, [currentTab, user?.id]);
 
   const handleLogout = () => {
     logout();
@@ -1444,11 +1455,6 @@ const EmployeeDashboard = () => {
       
       await loadOrdersByDate(todayString);
       setOpenOrdersModal(true);
-    }
-    // If it's the second card (Deposit Orders), open deposit orders list
-    if (index === 1) {
-      await fetchDepositOrders();
-      setOpenDepositOrdersList(true);
     }
   };
 
@@ -2020,11 +2026,6 @@ const EmployeeDashboard = () => {
           : employeeOrders.length,
       icon: Assignment,
     },
-    {
-      title: "طلبات العربون",
-      value: depositOrdersCount,
-      icon: AttachMoney,
-    },
   ];
 
   return (
@@ -2210,7 +2211,7 @@ const EmployeeDashboard = () => {
                 animation: "scroll 20s linear infinite",
                 "@keyframes scroll": {
                   "0%": {
-                    transform: "translateX(0)",
+                    transform: "translateX(100%)",
                   },
                   "100%": {
                     transform: "translateX(-100%)",
@@ -2405,6 +2406,19 @@ const EmployeeDashboard = () => {
                   },
                 }}
               />
+              <Tab
+                label="طلبات العربون"
+                icon={<AttachMoney />}
+                iconPosition="start"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "1rem",
+                  color: calmPalette.textMuted,
+                  "&.Mui-selected": {
+                    color: "#f7f2ea",
+                  },
+                }}
+              />
             </Tabs>
           </Box>
 
@@ -2434,7 +2448,7 @@ const EmployeeDashboard = () => {
                     overflow: "hidden",
                     transition: "transform 0.2s, box-shadow 0.2s",
                     backdropFilter: "blur(6px)",
-                    cursor: (index === 0 && user?.role === USER_ROLES.DESIGNER) || index === 1
+                    cursor: (index === 0 && user?.role === USER_ROLES.DESIGNER)
                       ? "pointer"
                       : "default",
                     "&::after": {
@@ -2612,6 +2626,94 @@ const EmployeeDashboard = () => {
             </Grid>
           </Paper>
         )}
+            </>
+          )}
+
+          {/* Deposit Orders Content for Tab 2 */}
+          {currentTab === 2 && (
+            <>
+              {/* Stats Card for Deposit Orders */}
+              <Grid container spacing={3} sx={{ marginBottom: 4 }}>
+                <Grid item xs={12} sm={4}>
+                  <Card
+                    onClick={async () => {
+                      await fetchDepositOrders();
+                      setOpenDepositOrdersList(true);
+                    }}
+                    sx={{
+                      position: "relative",
+                      background: calmPalette.statCards[1]?.background || calmPalette.statCards[0]?.background,
+                      color: calmPalette.statCards[1]?.highlight || calmPalette.statCards[0]?.highlight,
+                      borderRadius: 4,
+                      boxShadow: calmPalette.shadow,
+                      overflow: "hidden",
+                      transition: "transform 0.2s, box-shadow 0.2s",
+                      backdropFilter: "blur(6px)",
+                      cursor: "pointer",
+                      "&::after": {
+                        content: '""',
+                        position: "absolute",
+                        inset: 0,
+                        background:
+                          "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
+                        pointerEvents: "none",
+                      },
+                      "&:hover": {
+                        transform: "translateY(-5px)",
+                        boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
+                      },
+                    }}
+                  >
+                    <CardContent>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Box>
+                          <Typography
+                            variant="h3"
+                            sx={{ fontWeight: 700, color: calmPalette.statCards[1]?.highlight || calmPalette.statCards[0]?.highlight }}
+                          >
+                            {depositOrdersCount}
+                          </Typography>
+                          <Typography
+                            variant="body1"
+                            sx={{
+                              marginTop: 1,
+                              color: "rgba(255, 255, 255, 0.8)",
+                            }}
+                          >
+                            طلبات العربون
+                          </Typography>
+                        </Box>
+                        <AttachMoney sx={{ fontSize: 56, color: calmPalette.statCards[1]?.highlight || calmPalette.statCards[0]?.highlight }} />
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              {/* Deposit Order Form */}
+              <Box
+                sx={{
+                  marginBottom: 4,
+                  background: calmPalette.surface,
+                  borderRadius: 4,
+                  boxShadow: calmPalette.shadow,
+                  backdropFilter: "blur(8px)",
+                  padding: 3,
+                }}
+              >
+                <DepositOrderForm
+                  onSuccess={() => {
+                    fetchDepositOrders();
+                    fetchDepositOrdersCount();
+                  }}
+                />
+              </Box>
             </>
           )}
         </Paper>
