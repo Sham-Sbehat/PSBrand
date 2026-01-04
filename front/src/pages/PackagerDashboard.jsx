@@ -1519,7 +1519,7 @@ const PackagerDashboard = () => {
 
   // Filter orders based on current tab
   const getFilteredOrders = () => {
-    const orders = currentTab === 1 ? packagedOrders : currentTab === 3 ? completedOrders : confirmedDeliveryOrders;
+    const orders = currentTab === 1 ? packagedOrders : currentTab === 2 ? completedOrders : confirmedDeliveryOrders;
     const search = currentTab === 1 ? searchQueryPackaged : searchQuery;
     
     // Ensure orders is always an array
@@ -1596,8 +1596,12 @@ const PackagerDashboard = () => {
 
   const handleTabChange = async (event, newValue) => {
     setCurrentTab(newValue);
-    // Fetch confirmed delivery orders when switching to tab 2
+    // Fetch completed orders when switching to tab 2
     if (newValue === 2) {
+      await fetchCompletedOrders(true);
+    }
+    // Fetch confirmed delivery orders when switching to tab 3
+    if (newValue === 3) {
       await fetchConfirmedDeliveryOrders(true);
     }
   };
@@ -2027,19 +2031,37 @@ const PackagerDashboard = () => {
             >
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               {currentTab === 1 && <Inventory sx={{ verticalAlign: "middle", mr: 1 }} />}
-              {currentTab === 1 && <CheckCircle sx={{ verticalAlign: "middle", mr: 1 }} />}
+              {currentTab === 2 && <CheckCircle sx={{ verticalAlign: "middle", mr: 1 }} />}
               {currentTab === 3 && <LocalShipping sx={{ verticalAlign: "middle", mr: 1 }} />}
               {currentTab === 1 
                 ? `في مرحلة التغليف (${filteredOrders.length})`
-                : currentTab === 1
+                : currentTab === 2
                 ? `الطلبات المكتملة (${filteredOrders.length})`
                 : `طلبات التوصيل المؤكدة (${filteredOrders.length})`
               }
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Bulk shipping button for completed orders tab */}
+              {currentTab === 2 && selectedOrders.length > 0 && (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<LocalShipping />}
+                  onClick={handleBulkShipping}
+                  sx={{ 
+                    minWidth: 150,
+                    backgroundColor: '#2e7d32',
+                    '&:hover': {
+                      backgroundColor: '#1b5e20',
+                    },
+                  }}
+                >
+                  إرسال المحدد ({selectedOrders.length})
+                </Button>
+              )}
               {/* Date picker for completed orders tab */}
-              {currentTab === 1 && (
+              {currentTab === 2 && (
                 <TextField
                   type="date"
                   size="small"
@@ -2219,7 +2241,7 @@ const PackagerDashboard = () => {
                 <Table>
                   <TableHead>
                     <TableRow sx={{ backgroundColor: calmPalette.surfaceHover }}>
-                      {currentTab === 1 && (
+                      {currentTab === 2 && (
                         <TableCell sx={{ fontWeight: 700, width: 50 }}>
                           <Checkbox
                             checked={selectedOrders.length > 0 && selectedOrders.length === filteredOrders.filter(o => {
@@ -2272,7 +2294,7 @@ const PackagerDashboard = () => {
                             sx={{
                               backgroundColor: currentTab === 1 
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
-                                : currentTab === 1
+                                : currentTab === 2
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
                                 : currentTab === 3
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
@@ -2280,7 +2302,7 @@ const PackagerDashboard = () => {
                               "&:hover": {
                                 backgroundColor: currentTab === 1 
                                   ? 'rgba(75, 61, 49, 0.25)' 
-                                  : currentTab === 1
+                                  : currentTab === 2
                                   ? 'rgba(75, 61, 49, 0.25)'
                                   : currentTab === 3
                                   ? 'rgba(75, 61, 49, 0.25)'
@@ -2365,7 +2387,7 @@ const PackagerDashboard = () => {
                             sx={{
                               backgroundColor: currentTab === 1 
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
-                                : currentTab === 1
+                                : currentTab === 2
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
                                 : currentTab === 3
                                 ? (isEven ? 'rgba(75, 61, 49, 0.15)' : 'rgba(96, 78, 62, 0.08)')
@@ -2373,7 +2395,7 @@ const PackagerDashboard = () => {
                               "&:hover": {
                                 backgroundColor: currentTab === 1 
                                   ? 'rgba(75, 61, 49, 0.25)' 
-                                  : currentTab === 1
+                                  : currentTab === 2
                                   ? 'rgba(75, 61, 49, 0.25)'
                                   : currentTab === 3
                                   ? 'rgba(75, 61, 49, 0.25)'
@@ -2382,7 +2404,7 @@ const PackagerDashboard = () => {
                               "&:last-child td, &:last-child th": { border: 0 },
                             }}
                           >
-                            {currentTab === 1 && isFirstRow && (
+                            {currentTab === 2 && isFirstRow && (
                               <TableCell rowSpan={rowCount}>
                                 <Checkbox
                                   checked={selectedOrders.includes(order.id)}
@@ -2673,8 +2695,8 @@ const PackagerDashboard = () => {
                                     )}
                                   </Button>
                                 )}
-                                {/* Show "إرسال لشركة التوصيل" button only for COMPLETED orders (Tab 1) */}
-                                {currentTab === 1 && (
+                                {/* Show "إرسال لشركة التوصيل" button only for COMPLETED orders (Tab 2) */}
+                                {currentTab === 2 && (
                                   <Tooltip 
                                     title={
                                       (() => {
@@ -2710,7 +2732,6 @@ const PackagerDashboard = () => {
                                             const isSentToDelivery = order.isSentToDeliveryCompany === true;
                                             // الزر مفعّل فقط عندما يكون الطلب مكتملاً وغير مرسل لشركة التوصيل
                                             return numericStatus !== ORDER_STATUS.COMPLETED || 
-                                                   numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ||
                                                    isSentToDelivery;
                                           })()
                                         }
