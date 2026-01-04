@@ -1422,11 +1422,17 @@ const InfoItem = ({ label, value }) => (
       title: "الطلبات المتاحة للتحضير",
       value: availableOrders.length,
       icon: Assignment,
+      onClick: () => {
+        setCurrentTab(1); // Switch to "الطلبات المتاحة للتحضير" tab
+      },
     },
     {
       title: "قيد التحضير",
       value: myOpenOrders.length,
       icon: Assignment,
+      onClick: () => {
+        setCurrentTab(2); // Switch to "قيد التحضير" tab
+      },
     },
     {
       title: "الطلبات المكتملة والمرسلة",

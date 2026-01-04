@@ -112,7 +112,7 @@ const formatDate = (dateString) => {
   });
 };
 
-const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrderDetails, refreshing = false }) => {
+const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrderDetails, onNotificationClick, refreshing = false }) => {
   if (notifications.length === 0) {
     return (
       <Box sx={{ textAlign: "center", py: 4 }}>
@@ -128,10 +128,16 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrder
       {notifications.map((notification, index) => (
         <Box key={notification.id}>
           <ListItem
+            onClick={() => {
+              if (notification.relatedEntityId && onNotificationClick) {
+                onNotificationClick(notification.relatedEntityId);
+              }
+            }}
             sx={{
               backgroundColor: notification.isRead ? "transparent" : "rgba(94, 78, 62, 0.05)",
               borderRadius: 2,
               mb: 1,
+              cursor: notification.relatedEntityId ? "pointer" : "default",
               "&:hover": {
                 backgroundColor: notification.isRead
                   ? "rgba(94, 78, 62, 0.05)"

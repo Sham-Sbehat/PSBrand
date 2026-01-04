@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getCache, setCache, CACHE_KEYS } from "../../utils/cache";
 import { debounce } from "../../utils";
 import {
@@ -86,7 +86,7 @@ const DELIVERY_STATUSES = {
   "23": { id: 23, label: "طرود مرتجعه مغلقه", en: "Closed Returned" },
 };
 
-const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp }) => {
+const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp, orderIdToOpen, onOrderOpened }) => {
   const { orders, user } = useApp();
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -602,6 +602,46 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
 
   // Don't auto-fetch delivery statuses - user can click to load manually
   // This prevents 404 errors for orders without shipments
+
+  // Auto-scroll to order when orderIdToOpen is set (from notification click)
+  const orderRowRefs = useRef({});
+  
+  useEffect(() => {
+    if (orderIdToOpen && allOrders.length > 0) {
+      const orderToOpen = allOrders.find(order => order.id === orderIdToOpen);
+      if (orderToOpen) {
+        // Set search query to order number to highlight it
+        if (orderToOpen.orderNumber) {
+          setSearchQuery(orderToOpen.orderNumber);
+        }
+        
+        // Scroll to the order row after a short delay to ensure it's rendered
+        setTimeout(() => {
+          const rowRef = orderRowRefs.current[orderIdToOpen];
+          if (rowRef) {
+            rowRef.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            });
+            // Highlight the row briefly
+            if (rowRef.style) {
+              rowRef.style.backgroundColor = 'rgba(25, 118, 210, 0.1)';
+              setTimeout(() => {
+                if (rowRef.style) {
+                  rowRef.style.backgroundColor = '';
+                }
+              }, 2000);
+            }
+          }
+        }, 300);
+        
+        // Notify parent that order was found
+        if (onOrderOpened) {
+          onOrderOpened();
+        }
+      }
+    }
+  }, [orderIdToOpen, allOrders, onOrderOpened]);
 
   const handleViewOrder = (order) => {
     setSelectedOrder(order);
@@ -2011,9 +2051,18 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                     return (
                       <TableRow
                         key={order.id}
+                        ref={(el) => {
+                          if (el) {
+                            orderRowRefs.current[order.id] = el;
+                          }
+                        }}
                         hover
                         sx={{
                           "&:last-child td, &:last-child th": { border: 0 },
+                          ...(orderIdToOpen === order.id ? {
+                            backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                            transition: 'background-color 0.3s',
+                          } : {}),
                         }}
                       >
                         <TableCell>

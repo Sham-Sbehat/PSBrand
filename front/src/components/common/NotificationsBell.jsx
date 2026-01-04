@@ -7,7 +7,7 @@ import GlassDialog from "./GlassDialog";
 import calmPalette from "../../theme/calmPalette";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../../constants";
 
-const NotificationsBell = ({ onNewNotification }) => {
+const NotificationsBell = ({ onNewNotification, onNotificationClick }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -260,6 +260,7 @@ const NotificationsBell = ({ onNewNotification }) => {
               onMarkAsRead={handleMarkAsRead}
               onDelete={handleDelete}
               onViewOrderDetails={handleViewOrderDetails}
+              onNotificationClick={onNotificationClick}
               refreshing={refreshing}
             />
           )}

@@ -42,6 +42,7 @@ import {
 import { messagesService } from '../../services/api';
 import { useApp } from '../../context/AppContext';
 import calmPalette from '../../theme/calmPalette';
+import SendMessageDialog from './SendMessageDialog';
 
 const MessagesManagement = () => {
   const { user } = useApp();
@@ -49,13 +50,6 @@ const MessagesManagement = () => {
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingMessage, setEditingMessage] = useState(null);
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    userId: null,
-    isActive: true,
-    expiresAt: '',
-  });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, messageId: null, messageTitle: '' });
   const [togglingId, setTogglingId] = useState(null);
@@ -84,73 +78,33 @@ const MessagesManagement = () => {
   };
 
   const handleOpenDialog = (message = null) => {
-    if (message) {
-      setEditingMessage(message);
-      setFormData({
-        title: message.title || '',
-        content: message.content || '',
-        userId: message.userId || null,
-        isActive: message.isActive !== undefined ? message.isActive : true,
-        expiresAt: message.expiresAt 
-          ? new Date(message.expiresAt).toISOString().slice(0, 16) // Convert to datetime-local format
-          : '',
-      });
-    } else {
-      setEditingMessage(null);
-      setFormData({
-        title: '',
-        content: '',
-        userId: null,
-        isActive: true,
-        expiresAt: '',
-      });
-    }
+    setEditingMessage(message);
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingMessage(null);
-    setFormData({
-      title: '',
-      content: '',
-      userId: null,
-      isActive: true,
-      expiresAt: '',
-    });
   };
 
-  const handleSubmit = async () => {
-    if (!formData.title || !formData.content) {
-      setSnackbar({ open: true, message: 'يرجى إدخال العنوان والمحتوى', severity: 'error' });
-      return;
-    }
-
-    try {
-      const messageData = {
-        title: formData.title,
-        content: formData.content,
-        userId: formData.userId || null,
-        isActive: formData.isActive,
-        expiresAt: formData.expiresAt ? new Date(formData.expiresAt).toISOString() : undefined,
-      };
-
-      if (editingMessage) {
-        await messagesService.updateMessage(editingMessage.id, messageData);
-        setSnackbar({ open: true, message: 'تم تحديث الرسالة بنجاح', severity: 'success' });
-      } else {
-        await messagesService.createMessage(messageData);
-        setSnackbar({ open: true, message: 'تم إضافة الرسالة بنجاح', severity: 'success' });
-      }
-      handleCloseDialog();
-      fetchMessages();
-    } catch (error) {
-      console.error('Error saving message:', error);
-      setSnackbar({
-        open: true,
-        message: error.response?.data?.message || 'فشل في حفظ الرسالة',
-        severity: 'error',
+  const handleMessageSent = (savedMessage = null) => {
+    if (savedMessage && savedMessage.id) {
+      // Update the message in the list locally instead of fetching all messages
+      setMessages(prevMessages => {
+        const index = prevMessages.findIndex(msg => msg.id === savedMessage.id);
+        if (index >= 0) {
+          // Update existing message
+          const updated = [...prevMessages];
+          updated[index] = savedMessage;
+          return updated;
+        } else {
+          // Add new message if it doesn't exist (for new messages)
+          return [savedMessage, ...prevMessages];
+        }
       });
+    } else {
+      // If no message provided or invalid, fetch all messages (fallback)
+      fetchMessages();
     }
   };
 
@@ -548,105 +502,12 @@ const MessagesManagement = () => {
       </Paper>
 
       {/* Edit/Create Dialog */}
-      <Dialog
+      <SendMessageDialog
         open={openDialog}
         onClose={handleCloseDialog}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(20px)',
-            borderRadius: 3,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-          },
-        }}
-        BackdropProps={{
-          sx: {
-            backgroundColor: 'rgba(0, 0, 0, 0.3)',
-            backdropFilter: 'blur(4px)',
-          },
-        }}
-      >
-        <DialogTitle sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
-          {editingMessage ? 'تعديل الرسالة' : 'إضافة رسالة جديدة'}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 1 }}>
-            <TextField
-              label="العنوان"
-              fullWidth
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              required
-            />
-            <TextField
-              label="المحتوى"
-              fullWidth
-              multiline
-              rows={4}
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              required
-            />
-            <FormControl fullWidth>
-              <InputLabel>المستلم</InputLabel>
-              <Select
-                value={formData.userId === null ? 'all' : formData.userId}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    userId: e.target.value === 'all' ? null : e.target.value,
-                  })
-                }
-                label="المستلم"
-              >
-                <MenuItem value="all">جميع الموظفين</MenuItem>
-                {/* يمكن إضافة قائمة الموظفين هنا إذا كانت متاحة */}
-              </Select>
-            </FormControl>
-            <TextField
-              label="تاريخ الانتهاء"
-              type="datetime-local"
-              fullWidth
-              value={formData.expiresAt}
-              onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
-              InputLabelProps={{
-                shrink: true,
-              }}
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                />
-              }
-              label="نشط"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ padding: 2 }}>
-          <Button onClick={handleCloseDialog} sx={{ color: calmPalette.textMuted }}>
-            إلغاء
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            variant="contained"
-            sx={{
-              backgroundColor: calmPalette.primary,
-              color: '#ffffff',
-              '&:hover': {
-                backgroundColor: calmPalette.primary,
-                opacity: 0.9,
-              },
-            }}
-          >
-            {editingMessage ? 'تحديث' : 'إضافة'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onMessageSent={handleMessageSent}
+        editingMessage={editingMessage}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -25,7 +25,7 @@ import GlassDialog from "../common/GlassDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 
-const SendMessageDialog = ({ open, onClose, onMessageSent }) => {
+const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null }) => {
   const { user, employees } = useApp();
   const [recipientType, setRecipientType] = useState("all"); // "all" or "specific"
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
@@ -34,6 +34,41 @@ const SendMessageDialog = ({ open, onClose, onMessageSent }) => {
   const [sending, setSending] = useState(false);
   const [hasExpiryDate, setHasExpiryDate] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
+  const [isActive, setIsActive] = useState(true);
+
+  // Initialize form when editingMessage changes
+  useEffect(() => {
+    if (editingMessage) {
+      setTitle(editingMessage.title || "");
+      setContent(editingMessage.content || "");
+      setRecipientType(editingMessage.userId ? "specific" : "all");
+      setSelectedEmployeeId(editingMessage.userId ? String(editingMessage.userId) : "");
+      setIsActive(editingMessage.isActive !== undefined ? editingMessage.isActive : true);
+      if (editingMessage.expiresAt) {
+        setHasExpiryDate(true);
+        // Convert ISO date to datetime-local format
+        const date = new Date(editingMessage.expiresAt);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        setExpiresAt(`${year}-${month}-${day}T${hours}:${minutes}`);
+      } else {
+        setHasExpiryDate(false);
+        setExpiresAt("");
+      }
+    } else {
+      // Reset form for new message
+      setTitle("");
+      setContent("");
+      setRecipientType("all");
+      setSelectedEmployeeId("");
+      setIsActive(true);
+      setHasExpiryDate(false);
+      setExpiresAt("");
+    }
+  }, [editingMessage, open]);
 
   const handleSend = async () => {
     if (!content.trim()) {
@@ -62,42 +97,57 @@ const SendMessageDialog = ({ open, onClose, onMessageSent }) => {
         userId: recipientType === "all" ? null : parseInt(selectedEmployeeId), // null للكل، وليس 0
         title: title.trim() || "رسالة من الإدمن",
         content: content.trim(),
-        isActive: true,
-        expiresAt: hasExpiryDate && expiresAt ? expiresAt : null, // فقط إذا تم تحديد تاريخ
+        isActive: isActive,
+        expiresAt: hasExpiryDate && expiresAt ? new Date(expiresAt).toISOString() : null, // Convert to ISO string
       };
 
-      await messagesService.createMessage(messageData);
-
-      Swal.fire({
-        icon: "success",
-        title: "تم الإرسال بنجاح",
-        text:
-          recipientType === "all"
-            ? "تم إرسال الرسالة لجميع الموظفين"
-            : `تم إرسال الرسالة للموظف المحدد`,
-        confirmButtonColor: calmPalette.primary,
-        timer: 2000,
-      });
+      let savedMessage = null;
+      
+      if (editingMessage) {
+        // Update existing message
+        savedMessage = await messagesService.updateMessage(editingMessage.id, messageData);
+        Swal.fire({
+          icon: "success",
+          title: "تم التحديث بنجاح",
+          text: "تم تحديث الرسالة بنجاح",
+          confirmButtonColor: calmPalette.primary,
+          timer: 2000,
+        });
+      } else {
+        // Create new message
+        savedMessage = await messagesService.createMessage(messageData);
+        Swal.fire({
+          icon: "success",
+          title: "تم الإرسال بنجاح",
+          text:
+            recipientType === "all"
+              ? "تم إرسال الرسالة لجميع الموظفين"
+              : `تم إرسال الرسالة للموظف المحدد`,
+          confirmButtonColor: calmPalette.primary,
+          timer: 2000,
+        });
+      }
 
       // Reset form
       setTitle("");
       setContent("");
       setRecipientType("all");
       setSelectedEmployeeId("");
+      setIsActive(true);
       setHasExpiryDate(false);
       setExpiresAt("");
 
-      // Notify parent component
+      // Notify parent component with the saved message
       if (onMessageSent) {
-        onMessageSent();
+        onMessageSent(savedMessage);
       }
 
       onClose();
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("Error sending/updating message:", error);
       
       // Extract error message from response
-      let errorMessage = "حدث خطأ أثناء إرسال الرسالة";
+      let errorMessage = editingMessage ? "حدث خطأ أثناء تحديث الرسالة" : "حدث خطأ أثناء إرسال الرسالة";
       if (error.response?.data) {
         if (error.response.data.message) {
           errorMessage = error.response.data.message;
@@ -112,7 +162,7 @@ const SendMessageDialog = ({ open, onClose, onMessageSent }) => {
       
       Swal.fire({
         icon: "error",
-        title: "خطأ في الإرسال",
+        title: editingMessage ? "خطأ في التحديث" : "خطأ في الإرسال",
         text: errorMessage,
         confirmButtonColor: calmPalette.primary,
         footer: error.response?.data?.details ? 
@@ -126,8 +176,8 @@ const SendMessageDialog = ({ open, onClose, onMessageSent }) => {
   const getRoleLabel = (role) => {
     const roleMap = {
       1: "إدمن",
-      2: "مصمم",
-      3: "مجهز",
+      2: "بائع",
+      3: "محضر طلبات",
       4: "مدير التصميم",
       5: "مغلف",
     };
@@ -152,7 +202,7 @@ const SendMessageDialog = ({ open, onClose, onMessageSent }) => {
     <GlassDialog
       open={open}
       onClose={onClose}
-      title="إرسال رسالة/إشعار"
+      title={editingMessage ? "تعديل الرسالة" : "إرسال رسالة/إشعار"}
       maxWidth="md"
       fullWidth
       actions={
@@ -184,7 +234,7 @@ const SendMessageDialog = ({ open, onClose, onMessageSent }) => {
               },
             }}
           >
-            {sending ? "جاري الإرسال..." : "إرسال"}
+            {sending ? (editingMessage ? "جاري التحديث..." : "جاري الإرسال...") : (editingMessage ? "تحديث" : "إرسال")}
           </Button>
         </Box>
       }
@@ -373,6 +423,36 @@ const SendMessageDialog = ({ open, onClose, onMessageSent }) => {
             }}
             helperText="سيتم إخفاء الرسالة بعد هذا التاريخ"
           />
+        )}
+
+        {/* Active Toggle (only for editing) */}
+        {editingMessage && (
+          <>
+            <Divider />
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={isActive}
+                    onChange={(e) => setIsActive(e.target.checked)}
+                    sx={{
+                      "& .MuiSwitch-switchBase.Mui-checked": {
+                        color: calmPalette.primary,
+                      },
+                      "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                        backgroundColor: calmPalette.primary,
+                      },
+                    }}
+                  />
+                }
+                label={
+                  <Typography sx={{ color: calmPalette.textPrimary, fontWeight: 500 }}>
+                    نشط
+                  </Typography>
+                }
+              />
+            </FormGroup>
+          </>
         )}
 
         {/* Info Box */}

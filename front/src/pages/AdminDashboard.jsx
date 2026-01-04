@@ -40,7 +40,7 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, clientsService, depositOrdersService } from "../services/api";
+import { ordersService, clientsService, depositOrdersService, notificationsService } from "../services/api";
 import { subscribeToOrderUpdates } from "../services/realtime";
 import OrdersList from "../components/admin/OrdersList";
 import DepositOrdersList from "../components/admin/DepositOrdersList";
@@ -66,6 +66,7 @@ const AdminDashboard = () => {
   const [statusFilter, setStatusFilter] = useState(null); // للفلترة حسب الحالة
   const [sendMessageDialogOpen, setSendMessageDialogOpen] = useState(false);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
+  const [orderIdToOpen, setOrderIdToOpen] = useState(null); // للطلب الذي يجب فتحه من الإشعار
   
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -197,6 +198,29 @@ const AdminDashboard = () => {
     setCurrentTab(1); // الانتقال إلى تاب الطلبات
   };
 
+  // Handle notification click - navigate to orders tab and open the order
+  const handleNotificationClick = async (relatedEntityId) => {
+    if (!relatedEntityId) return;
+    
+    try {
+      // Get order details first to get the correct orderId
+      // relatedEntityId might be shipmentId, so we need to get orderId from the response
+      const response = await notificationsService.getOrderDetails(relatedEntityId);
+      const orderData = response?.order || response;
+      const orderId = orderData?.id;
+      
+      if (orderId) {
+        setOrderIdToOpen(orderId);
+        setCurrentTab(1); // Switch to Orders tab
+      }
+    } catch (error) {
+      console.error("Error getting order details from notification:", error);
+      // Fallback: try using relatedEntityId directly as orderId
+      setOrderIdToOpen(relatedEntityId);
+      setCurrentTab(1);
+    }
+  };
+
   const stats = [
     {
       title: "إجمالي الطلبات",
@@ -290,7 +314,10 @@ const AdminDashboard = () => {
             >
               <SendIcon />
             </IconButton>
-            <NotificationsBell onNewNotification={newNotificationReceived} />
+            <NotificationsBell 
+              onNewNotification={newNotificationReceived}
+              onNotificationClick={handleNotificationClick}
+            />
             <Avatar
               sx={{
                 bgcolor: "rgba(255, 255, 255, 0.22)",
@@ -674,7 +701,7 @@ const AdminDashboard = () => {
 
         <Box>
           {currentTab === 0 && <WelcomeDashboard />}
-          {currentTab === 1 && <OrdersList statusFilter={statusFilter} />}
+          {currentTab === 1 && <OrdersList statusFilter={statusFilter} orderIdToOpen={orderIdToOpen} onOrderOpened={() => setOrderIdToOpen(null)} />}
           {currentTab === 2 && <DepositOrdersList />}
           {currentTab === 3 && <EmployeeManagement />}
           {currentTab === 4 && <FinancialManagement />}
