@@ -1611,7 +1611,7 @@ const DesignManagerDashboard = () => {
                   gap: 3,
                   marginLeft: "130px",
                   marginRight: "50px",
-                  animation: "scroll 20s linear infinite",
+                  animation: "scroll 35s linear infinite",
                   "@keyframes scroll": {
                     "0%": {
                       transform: "translateX(100%)",
@@ -3133,45 +3133,72 @@ const DesignManagerDashboard = () => {
         }}
         PaperProps={{
           sx: {
-            width: { xs: "90vw", sm: 450, md: 550 },
-            maxWidth: 550,
-            maxHeight: "80vh",
-            background: "#ffffff",
-            borderRadius: 3,
-            boxShadow: "0 8px 32px rgba(94, 78, 62, 0.3)",
-            mt: 1,
-            border: "1px solid rgba(94, 78, 62, 0.2)",
+            width: { xs: "90vw", sm: 480, md: 580 },
+            maxWidth: 580,
+            maxHeight: "85vh",
+            background: "linear-gradient(135deg, #ffffff 0%, #faf9f7 100%)",
+            borderRadius: 4,
+            boxShadow: "0 12px 48px rgba(94, 78, 62, 0.25), 0 4px 16px rgba(94, 78, 62, 0.15)",
+            mt: 1.5,
+            border: "1px solid rgba(94, 78, 62, 0.15)",
+            overflow: "hidden",
+            backdropFilter: "blur(10px)",
           },
         }}
       >
-        <Box sx={{ p: 0, maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+        <Box sx={{ p: 0, maxHeight: "85vh", display: "flex", flexDirection: "column", background: "transparent" }}>
           {/* Header */}
           <Box
             sx={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              p: 2,
-              pb: 1.5,
-              borderBottom: "1px solid rgba(94, 78, 62, 0.1)",
+              p: 2.5,
+              pb: 2,
+              background: "linear-gradient(135deg, rgba(94, 78, 62, 0.08) 0%, rgba(94, 78, 62, 0.03) 100%)",
+              borderBottom: "2px solid rgba(94, 78, 62, 0.12)",
               flexShrink: 0,
+              position: "relative",
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: "1px",
+                background: "linear-gradient(90deg, transparent 0%, rgba(94, 78, 62, 0.1) 50%, transparent 100%)",
+              },
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
               <Avatar
                 sx={{
-                  bgcolor: calmPalette.primary,
-                  width: 40,
-                  height: 40,
+                  background: "linear-gradient(135deg, " + calmPalette.primary + " 0%, " + calmPalette.primaryDark + " 100%)",
+                  width: 44,
+                  height: 44,
+                  boxShadow: "0 4px 12px rgba(94, 78, 62, 0.2)",
+                  border: "2px solid rgba(255, 255, 255, 0.3)",
                 }}
               >
-                <MessageIcon sx={{ fontSize: 22 }} />
+                <MessageIcon sx={{ fontSize: 24 }} />
               </Avatar>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary, fontSize: "1.1rem", mb: 0.25 }}>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 700, 
+                    color: calmPalette.textPrimary, 
+                    fontSize: "1.15rem", 
+                    mb: 0.25,
+                    background: "linear-gradient(135deg, " + calmPalette.textPrimary + " 0%, " + calmPalette.primary + " 100%)",
+                    backgroundClip: "text",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
                   رسائل الإدمن
                 </Typography>
-                <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.75rem" }}>
+                <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.8rem", fontWeight: 500 }}>
                   آخر الرسائل والإشعارات
                 </Typography>
               </Box>
@@ -3182,8 +3209,11 @@ const DesignManagerDashboard = () => {
                 size="small"
                 sx={{
                   color: calmPalette.textPrimary,
+                  backgroundColor: "rgba(94, 78, 62, 0.05)",
+                  transition: "all 0.2s ease",
                   "&:hover": {
-                    backgroundColor: "rgba(94, 78, 62, 0.1)",
+                    backgroundColor: "rgba(94, 78, 62, 0.15)",
+                    transform: "rotate(180deg)",
                   },
                 }}
               >
@@ -3197,8 +3227,12 @@ const DesignManagerDashboard = () => {
                 size="small"
                 sx={{
                   color: calmPalette.textPrimary,
+                  backgroundColor: "rgba(94, 78, 62, 0.05)",
+                  transition: "all 0.2s ease",
                   "&:hover": {
-                    backgroundColor: "rgba(94, 78, 62, 0.1)",
+                    backgroundColor: "rgba(220, 53, 69, 0.1)",
+                    color: "#dc3545",
+                    transform: "scale(1.1)",
                   },
                 }}
               >
@@ -3208,7 +3242,29 @@ const DesignManagerDashboard = () => {
           </Box>
           
           {/* Messages Content */}
-          <Box sx={{ p: 2, pt: 1.5, overflow: "auto", flex: 1 }}>
+          <Box 
+            sx={{ 
+              p: 2.5, 
+              pt: 2, 
+              overflow: "auto", 
+              flex: 1,
+              background: "rgba(255, 255, 255, 0.4)",
+              "&::-webkit-scrollbar": {
+                width: "8px",
+              },
+              "&::-webkit-scrollbar-track": {
+                background: "rgba(94, 78, 62, 0.05)",
+                borderRadius: "4px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                background: "rgba(94, 78, 62, 0.2)",
+                borderRadius: "4px",
+                "&:hover": {
+                  background: "rgba(94, 78, 62, 0.3)",
+                },
+              },
+            }}
+          >
             <MessagesTab
               onNewMessage={(message) => {
                 setNewMessageReceived(message);
