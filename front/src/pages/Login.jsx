@@ -25,6 +25,7 @@ import {
   VisibilityOff,
   Lock,
   Inventory,
+  Palette,
 } from "@mui/icons-material";
 import { useApp } from "../context/AppContext";
 import { authService } from "../services/api";
@@ -90,6 +91,8 @@ const Login = () => {
         return 4;
       case "packager":
         return 5;
+      case "maindesigner":
+        return 6;
       default:
         return 1;
     }
@@ -132,6 +135,13 @@ const Login = () => {
           icon: Inventory,
           gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
           route: "/packager"
+        };
+      case "maindesigner":
+        return {
+          title: "تسجيل دخول المصمم ",
+          icon: Palette,
+          gradient: "linear-gradient(135deg, #c471ed 0%, #f64f59 100%)",
+          route: "/maindesigner"
         };
       default:
         return {
@@ -224,6 +234,8 @@ const Login = () => {
         return "مدير التصميم";
       case "packager":
         return "مسؤول التغليف";
+      case "maindesigner":
+        return "المصمم";
       default:
         return "غير محدد";
     }

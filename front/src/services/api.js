@@ -76,6 +76,7 @@ const USER_ROLES = {
   PREPARER: 3,
   DESIGN_MANAGER: 4,
   PACKAGER: 5,
+  MAIN_DESIGNER: 6,
 };
 
 const ROLE_STRINGS = {
@@ -84,6 +85,7 @@ const ROLE_STRINGS = {
   [USER_ROLES.PREPARER]: "preparer",
   [USER_ROLES.DESIGN_MANAGER]: "designmanager",
   [USER_ROLES.PACKAGER]: "packager",
+  [USER_ROLES.MAIN_DESIGNER]: "maindesigner",
 };
 
 // Utility functions
@@ -94,6 +96,7 @@ const convertRoleToNumber = (role) => {
     "preparer": USER_ROLES.PREPARER,
     "designmanager": USER_ROLES.DESIGN_MANAGER,
     "packager": USER_ROLES.PACKAGER,
+    "maindesigner": USER_ROLES.MAIN_DESIGNER,
   };
   return roleMap[role] || USER_ROLES.ADMIN;
 };

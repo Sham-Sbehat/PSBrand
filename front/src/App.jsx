@@ -13,6 +13,7 @@ const Login = lazy(() => import('./pages/Login'));
 const DesignManagerDashboard = lazy(() => import('./pages/DesignManagerDashboard'));
 const PreparerDashboard = lazy(() => import('./pages/PreparerDashboard'));
 const PackagerDashboard = lazy(() => import('./pages/PackagerDashboard'));
+const MainDesignerDashboard = lazy(() => import('./pages/MainDesignerDashboard'));
 const DailyOrders = lazy(() => import('./pages/DailyOrders'));
 
 // Loading component for lazy loaded pages
@@ -45,6 +46,7 @@ const ProtectedRoute = ({ children, allowedRole }) => {
       case 3: return "preparer";
       case 4: return "designmanager";
       case 5: return "packager";
+      case 6: return "maindesigner";
       default: return "unknown";
     }
   };
@@ -74,6 +76,7 @@ function AppContent() {
       case 3: return "/preparer";
       case 4: return "/designmanager";
       case 5: return "/packager";
+      case 6: return "/maindesigner";
       default: return "/";
     }
   };
@@ -131,6 +134,14 @@ function AppContent() {
             element={
               <ProtectedRoute allowedRole="packager">
                 <PackagerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/maindesigner"
+            element={
+              <ProtectedRoute allowedRole="maindesigner">
+                <MainDesignerDashboard />
               </ProtectedRoute>
             }
           />

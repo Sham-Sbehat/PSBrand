@@ -185,6 +185,7 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
       3: "محضر طلبات",
       4: "مدير التصميم",
       5: "مغلف",
+      6: "مصمم ",
     };
     return roleMap[role] || "موظف";
   };
@@ -196,6 +197,7 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
       3: "success",
       4: "warning",
       5: "info",
+      6: "warning",
     };
     return colorMap[role] || "default";
   };

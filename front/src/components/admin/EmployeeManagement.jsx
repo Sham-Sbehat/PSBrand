@@ -311,6 +311,7 @@ const EmployeeManagement = () => {
                         employee.role === 'admin' ? 'أدمن' :
                         employee.role === 'designer' ? 'بائع' : 
                         employee.role === 'designmanager' ? 'مدير التصميم' :
+                        employee.role === 'maindesigner' ? 'مصمم' :
                         employee.role === 'packager' ? 'مسؤول تغليف' :
                         'محضر طلبات'
                       } 
@@ -318,6 +319,7 @@ const EmployeeManagement = () => {
                         employee.role === 'admin' ? 'error' :
                         employee.role === 'designer' ? 'secondary' : 
                         employee.role === 'designmanager' ? 'warning' :
+                        employee.role === 'maindesigner' ? 'warning' :
                         employee.role === 'packager' ? 'info' :
                         'success'
                       }
@@ -441,6 +443,7 @@ const EmployeeManagement = () => {
                   <MenuItem value="designer">بائع</MenuItem>
                   <MenuItem value="preparer">محضر طلبات</MenuItem>
                   <MenuItem value="designmanager">مدير التصميم</MenuItem>
+                  <MenuItem value="maindesigner">مصمم</MenuItem>
                   <MenuItem value="packager">مسؤول تغليف الطلبات</MenuItem>
                 </Select>
                 {errors.role && (

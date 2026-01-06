@@ -39,6 +39,7 @@ export const USER_ROLES = {
   PREPARER: 3,
   DESIGN_MANAGER: 4,
   PACKAGER: 5,
+  MAIN_DESIGNER: 6,
 };
 
 export const USER_ROLE_LABELS = {
@@ -47,6 +48,7 @@ export const USER_ROLE_LABELS = {
   [USER_ROLES.PREPARER]: 'معد',
   [USER_ROLES.DESIGN_MANAGER]: 'مدير التصميم',
   [USER_ROLES.PACKAGER]: 'مسؤول تغليف الطلبات',
+  [USER_ROLES.MAIN_DESIGNER]: 'المصمم الرئيسي',
 };
 
 

@@ -18,6 +18,7 @@ import {
   Assignment as PreparerIcon,
   ManageAccounts as DesignManagerIcon,
   Inventory as PackagerIcon,
+  Palette,
 } from "@mui/icons-material";
 import { useApp } from "../context/AppContext";
 
@@ -43,7 +44,7 @@ const RoleSelection = () => {
     {
       id: "designmanager",
       title: " إدارة التصاميم",
-      description: "إدارة ومراجعة التصاميم من المصممين",
+      description: "إدارة ومراجعة التصاميم  ",
       icon: DesignManagerIcon,
       color: "#e65100",
       gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
@@ -51,10 +52,18 @@ const RoleSelection = () => {
     {
       id: "designer",
       title: "قسم المبيعات",
-      description: "استقبال الطلبات والبيع",
+      description: "استقبال الطلبات",
       icon: DesignerIcon,
       color: "#7b1fa2",
       gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+    },
+     {
+      id: "maindesigner",
+      title: "قسم التصميم",
+      description: "تصميم الطلبات",
+      icon: Palette,
+      color: "#9c27b0",
+      gradient: "linear-gradient(135deg, #c471ed 0%, #f64f59 100%)",
     },
     {
       id: "preparer",
@@ -67,7 +76,7 @@ const RoleSelection = () => {
     {
       id: "packager",
       title: "قسم التغليف",
-      description: "تغليف الطلبات الجاهزة",
+      description: "تغليف الطلبات",
       icon: PackagerIcon,
       color: "#1976d2",
       gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
@@ -125,7 +134,7 @@ const RoleSelection = () => {
               {roles.map((role, index) => {
                 const Icon = role.icon;
                 return (
-                  <Grid item xs={12} sm={4} md={2.8} marginTop={50} key={role.id}>
+                  <Grid item xs={6} sm={4} md={1.7} marginTop={50} key={role.id}>
                     <Fade in timeout={1000 + index * 200}>
                       <Card
                         sx={{
@@ -154,7 +163,7 @@ const RoleSelection = () => {
                         >
                           <CardContent
                             sx={{
-                              padding: 3.5,
+                              padding: 1.9,
                               textAlign: "center",
                               color: "rgba(255, 255, 255, 0.95)",
                             }}

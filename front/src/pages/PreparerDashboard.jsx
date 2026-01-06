@@ -1994,7 +1994,7 @@ const InfoItem = ({ label, value }) => (
             }}
           >
             <Tab
-              label="الرسائل"
+              label="الرئيسية"
               icon={<MessageIcon />}
               iconPosition="start"
               sx={{
