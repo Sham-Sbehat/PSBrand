@@ -1008,6 +1008,101 @@ export const designInventoryLogsService = {
 };
 
 // Messages Service
+export const mainDesignerService = {
+  // Generate upload URL for file
+  generateUploadUrl: async (fileName, fileSize, contentType, folder = 'designs') => {
+    const response = await api.post('/MainDesigner/GenerateUploadUrl', {
+      fileName,
+      fileSize,
+      contentType,
+      folder,
+    });
+    return response.data;
+  },
+
+  // Upload file through backend (alternative if CORS is not configured)
+  uploadFileThroughBackend: async (file, folder = 'designs') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+    
+    const response = await api.post('/MainDesigner/UploadFile', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Confirm file upload
+  confirmFileUpload: async (fileKey, fileSize, contentType) => {
+    const requestBody = {
+      fileKey: String(fileKey),
+      fileSize: Number(fileSize),
+      contentType: String(contentType),
+    };
+    console.log("📤 ConfirmFileUpload request:", requestBody);
+    const response = await api.post('/MainDesigner/ConfirmFileUpload', requestBody);
+    console.log("✅ ConfirmFileUpload response:", response.data);
+    return response.data;
+  },
+
+  // Generate download URL for file
+  generateDownloadUrl: async (fileKey) => {
+    const response = await api.get(`/MainDesigner/GenerateDownloadUrl/${encodeURIComponent(fileKey)}`);
+    return response.data;
+  },
+
+  // Create design
+  createDesign: async (designData) => {
+    const response = await api.post('/MainDesigner/CreateDesign', designData);
+    return response.data;
+  },
+
+  // Add design files
+  // Note: Request body should be an array of strings, not an object
+  addDesignFiles: async (designId, fileKeys) => {
+    const response = await api.post(`/MainDesigner/AddDesignFiles/${designId}`, fileKeys);
+    return response.data;
+  },
+
+  // Get all designs
+  getDesigns: async () => {
+    const response = await api.get('/MainDesigner/GetDesigns');
+    return response.data;
+  },
+
+  // Get design by ID
+  getDesignById: async (id) => {
+    const response = await api.get(`/MainDesigner/GetDesignById/${id}`);
+    return response.data;
+  },
+
+  // Get design by serial number
+  getDesignBySerialNumber: async (serialNumber) => {
+    const response = await api.get(`/MainDesigner/GetDesignBySerialNumber/${serialNumber}`);
+    return response.data;
+  },
+
+  // Update design
+  updateDesign: async (id, designData) => {
+    const response = await api.put(`/MainDesigner/UpdateDesign/${id}`, designData);
+    return response.data;
+  },
+
+  // Update design status
+  updateDesignStatus: async (id, status) => {
+    const response = await api.put(`/MainDesigner/UpdateDesignStatus/${id}`, { status });
+    return response.data;
+  },
+
+  // Delete design
+  deleteDesign: async (id) => {
+    const response = await api.delete(`/MainDesigner/DeleteDesign/${id}`);
+    return response.data;
+  },
+};
+
 export const messagesService = {
   // Get messages to a specific user
   getMessagesToUser: async (userId) => {

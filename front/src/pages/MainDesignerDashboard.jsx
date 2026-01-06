@@ -20,13 +20,16 @@ import {
   Close,
   Message as MessageIcon,
   Refresh,
+  Image as ImageIcon,
+  Upload,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { messagesService } from "../services/api";
+import { messagesService, mainDesignerService } from "../services/api";
 import { subscribeToMessages } from "../services/realtime";
 import MessagesTab from "../components/common/MessagesTab";
 import WelcomePage from "../components/common/WelcomePage";
+import DesignsManagement from "../components/mainDesigner/DesignsManagement";
 import calmPalette from "../theme/calmPalette";
 
 const MainDesignerDashboard = () => {
@@ -192,7 +195,7 @@ const MainDesignerDashboard = () => {
               color: "#f6f1eb",
             }}
           >
-            PSBrand - لوحة المصمم الرئيسي
+            PSBrand - لوحة المصمم
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
             {/* Messages Icon */}
@@ -464,7 +467,7 @@ const MainDesignerDashboard = () => {
               }}
             >
               <Tab
-                label="الترحيب"
+                label="الرئيسية"
                 icon={<MessageIcon />}
                 iconPosition="start"
                 sx={{
@@ -473,7 +476,24 @@ const MainDesignerDashboard = () => {
                   fontSize: '1rem',
                   minHeight: 56,
                   color: currentTab === 0 ? '#ffffff' : calmPalette.textMuted,
-                  borderRadius: '12px 12px 12px 12px',
+                  borderRadius: '12px 0 0 12px',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
+                label="التصاميم"
+                icon={<ImageIcon />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 1 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0 12px 12px 0',
                   zIndex: 1,
                   '&.Mui-selected': {
                     color: '#ffffff',
@@ -486,6 +506,11 @@ const MainDesignerDashboard = () => {
           {/* Welcome Page */}
           {currentTab === 0 && (
             <WelcomePage onNewMessage={newMessageReceived} />
+          )}
+
+          {/* Designs Management */}
+          {currentTab === 1 && (
+            <DesignsManagement />
           )}
         </Paper>
       </Container>

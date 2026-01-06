@@ -1611,7 +1611,7 @@ const DesignManagerDashboard = () => {
                   gap: 3,
                   marginLeft: "130px",
                   marginRight: "50px",
-                  animation: "scroll 35s linear infinite",
+                  animation: "scroll 40s linear infinite",
                   "@keyframes scroll": {
                     "0%": {
                       transform: "translateX(100%)",
