@@ -1072,6 +1072,12 @@ export const mainDesignerService = {
     return response.data;
   },
 
+  // Get designs by creator userId
+  getDesignsByCreator: async (userId) => {
+    const response = await api.get(`/MainDesigner/GetDesignsByCreator/${userId}`);
+    return response.data;
+  },
+
   // Get design by ID
   getDesignById: async (id) => {
     const response = await api.get(`/MainDesigner/GetDesignById/${id}`);
@@ -1091,8 +1097,8 @@ export const mainDesignerService = {
   },
 
   // Update design status
-  updateDesignStatus: async (id, status) => {
-    const response = await api.put(`/MainDesigner/UpdateDesignStatus/${id}`, { status });
+  updateDesignStatus: async (id, status, notes = "") => {
+    const response = await api.put(`/MainDesigner/UpdateDesignStatus/${id}`, { status, notes });
     return response.data;
   },
 

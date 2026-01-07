@@ -169,7 +169,6 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
       }
       setAllClients(clients);
     } catch (error) {
-      console.error("Error loading clients:", error);
       setAllClients([]);
     } finally {
       setLoadingClients(false);
@@ -183,7 +182,6 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
       const citiesArray = Array.isArray(citiesData) ? citiesData : [];
       setCities(citiesArray);
     } catch (error) {
-      console.error("Error loading cities:", error);
       setCities([]);
     } finally {
       setLoadingCities(false);
@@ -201,7 +199,6 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
       const areasArray = Array.isArray(areasData) ? areasData : [];
       setAreas(areasArray);
     } catch (error) {
-      console.error("Error loading areas:", error);
       setAreas([]);
     } finally {
       setLoadingAreas(false);
@@ -250,7 +247,6 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
         }
       }, 1500);
     } catch (err) {
-      console.error("Error saving deposit order:", err);
       setError(
         err.response?.data?.message ||
         err.message ||

@@ -525,7 +525,6 @@ const OrderForm = ({
       }
       setAllClients(clients);
     } catch (error) {
-      console.error('Error loading clients:', error);
       setAllClients([]);
     } finally {
       setLoadingClients(false);
@@ -1159,7 +1158,7 @@ const OrderForm = ({
         if (!item.quantity) {
           errors.push(`الكمية للعنصر ${itemIndex + 1}`);
         }
-        if (!item.unitPrice) {
+        if (item.unitPrice === null || item.unitPrice === undefined || item.unitPrice === "") {
           errors.push(`السعر للعنصر ${itemIndex + 1}`);
         }
       });
@@ -1653,22 +1652,6 @@ const OrderForm = ({
           >
             إضافة عميل جديد
           </Button>
-          {onOpenDepositOrderDialog && (
-            <Button
-              variant="contained"
-              startIcon={<AttachMoney />}
-              onClick={onOpenDepositOrderDialog}
-              size="large"
-              sx={{
-                background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-                "&:hover": {
-                  background: "linear-gradient(135deg, #e084e8 0%, #e04a5f 100%)",
-                },
-              }}
-            >
-              طلب عربون
-            </Button>
-          )}
         </Box>
       )}
 

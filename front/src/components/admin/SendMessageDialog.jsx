@@ -149,7 +149,6 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
 
       onClose();
     } catch (error) {
-      console.error("Error sending/updating message:", error);
       
       // Extract error message from response
       let errorMessage = editingMessage ? "حدث خطأ أثناء تحديث الرسالة" : "حدث خطأ أثناء إرسال الرسالة";

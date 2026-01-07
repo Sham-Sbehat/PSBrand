@@ -20,6 +20,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  DialogActions,
   TextField,
   MenuItem,
   CircularProgress,
@@ -48,12 +49,20 @@ import {
   Message,
   Message as MessageIcon,
   Refresh,
+  AttachFile,
+  CheckCircle,
+  Cancel,
+  ArrowUpward,
+  ArrowDownward,
+  UnfoldMore,
+  FilterList,
+  Download,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService, messagesService } from "../services/api";
+import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService, messagesService, mainDesignerService, employeesService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
-import { subscribeToOrderUpdates, subscribeToMessages } from "../services/realtime";
+import { subscribeToOrderUpdates, subscribeToMessages, subscribeToDesigns } from "../services/realtime";
 import MessagesTab from "../components/common/MessagesTab";
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, USER_ROLES, SIZE_LABELS, FABRIC_TYPE_LABELS, COLOR_LABELS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
@@ -75,10 +84,28 @@ const DesignManagerDashboard = () => {
   const [hiddenMessageIds, setHiddenMessageIds] = useState([]); // IDs of messages hidden by user
   const [pendingPrintingOrders, setPendingPrintingOrders] = useState([]); // Tab 1: Status 1 (PENDING_PRINTING)
   const [inPrintingOrders, setInPrintingOrders] = useState([]); // Tab 2: Status 2 (IN_PRINTING)
+  const [designs, setDesigns] = useState([]); // Tab 4: Designs from Main Designers
+  const [loadingDesigns, setLoadingDesigns] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedDesignForStatus, setSelectedDesignForStatus] = useState(null);
+  const [statusNotes, setStatusNotes] = useState("");
+  const [updatingDesignStatus, setUpdatingDesignStatus] = useState(false);
+  // Filtering and sorting states
+  const [statusFilter, setStatusFilter] = useState("all"); // "all", 1, 2, 3
+  const [dateFilter, setDateFilter] = useState(""); // Date string or empty
+  const [designerFilter, setDesignerFilter] = useState("all"); // "all" or designerId
+  const [sortField, setSortField] = useState(null); // null, "serialNumber", "date", "status", "designer"
+  const [sortDirection, setSortDirection] = useState("asc"); // "asc", "desc"
+  // Users mapping for designer names
+  const [usersMap, setUsersMap] = useState({}); // { userId: userName }
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // Can be string or array
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [viewingDesign, setViewingDesign] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
+  const [selectedImageForView, setSelectedImageForView] = useState(null);
+  const [imageViewDialogOpen, setImageViewDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
@@ -170,6 +197,334 @@ const DesignManagerDashboard = () => {
     }
   };
 
+  // Load users for mapping IDs to names (only Main Designers)
+  const loadUsers = async () => {
+    try {
+      // Load only Main Designers (role = 6)
+      const users = await employeesService.getUsersByRole(USER_ROLES.MAIN_DESIGNER);
+      const mapping = {};
+      if (Array.isArray(users)) {
+        users.forEach((user) => {
+          // Double check: only include users with role = 6 (Main Designer)
+          if (user.id && (user.role === USER_ROLES.MAIN_DESIGNER || user.role === 6)) {
+            // Map both string and number IDs
+            const id = user.id;
+            mapping[id] = user.name || "";
+            mapping[String(id)] = user.name || "";
+            mapping[Number(id)] = user.name || "";
+          }
+        });
+      }
+      console.log("Main Designers mapping loaded:", mapping, "Total:", Object.keys(mapping).length);
+      setUsersMap(mapping);
+    } catch (error) {
+      console.error("Error loading users:", error);
+      setUsersMap({});
+    }
+  };
+
+  // Load designs from Main Designers
+  const loadDesigns = async () => {
+    setLoadingDesigns(true);
+    try {
+      // Load users first to ensure mapping is ready
+      await loadUsers();
+      const data = await mainDesignerService.getDesigns();
+      console.log("Loaded designs:", data);
+      setDesigns(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error loading designs:", error);
+      setDesigns([]);
+    } finally {
+      setLoadingDesigns(false);
+    }
+  };
+
+  // Get designer name from ID
+  const getDesignerName = (design) => {
+    // Try multiple possible fields for designer ID
+    const designerId = design.creatorId || design.createdBy || design.userId || design.mainDesignerId || 
+                       design.creator?.id || design.mainDesigner?.id || design.creatorId || 
+                       design.creator?.userId || design.mainDesigner?.userId;
+    
+    if (!designerId) {
+      console.log("No designer ID found for design:", design.id, design);
+      return "-";
+    }
+    
+    // Try to find name in mapping with different ID formats
+    const name = usersMap[designerId] || 
+                 usersMap[String(designerId)] || 
+                 usersMap[Number(designerId)] ||
+                 (design.creator?.name) ||
+                 (design.mainDesigner?.name) ||
+                 (design.creatorName);
+    
+    if (name) {
+      return name;
+    }
+    
+    console.log("Designer ID not found in mapping:", designerId, "Available IDs:", Object.keys(usersMap));
+    return `ID: ${designerId}`;
+  };
+
+  // Extract fileKey from URL
+  const extractFileKeyFromUrl = (url) => {
+    if (!url) return null;
+    
+    if (typeof url === 'object' && url !== null) {
+      return url.fileKey || null;
+    }
+    
+    if (typeof url !== 'string') {
+      return null;
+    }
+    
+    try {
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/').filter(p => p);
+      if (pathParts.length > 1) {
+        return pathParts.slice(1).join('/');
+      }
+      return pathParts[0] || null;
+    } catch (e) {
+      if (typeof url === 'string' && url.startsWith('designs/')) {
+        return url;
+      }
+      return null;
+    }
+  };
+
+  // Handle file download - supports both fileItem (object/string) and (fileKey, fileName) formats
+  const handleDownloadFile = async (fileItemOrKey, fileName) => {
+    try {
+      let fileKey;
+      let downloadFileName;
+      
+      // If called with (fileKey, fileName) format
+      if (fileName !== undefined) {
+        fileKey = fileItemOrKey;
+        downloadFileName = fileName;
+      } else {
+        // If called with fileItem (object or string) format
+        const fileItem = fileItemOrKey;
+        if (typeof fileItem === 'string') {
+          if (fileItem.startsWith('http')) {
+            fileKey = extractFileKeyFromUrl(fileItem);
+            if (!fileKey) {
+              // Fallback: extract from URL path
+              const urlParts = fileItem.split('/');
+              fileKey = urlParts[urlParts.length - 1];
+            }
+          } else {
+            fileKey = fileItem;
+          }
+        } else if (fileItem?.fileKey) {
+          fileKey = fileItem.fileKey;
+        } else if (fileItem?.key) {
+          fileKey = fileItem.key;
+        } else {
+          throw new Error("لا يمكن العثور على مفتاح الملف");
+        }
+        downloadFileName = fileItem?.printFileName || fileItem?.fileName || fileKey.split('/').pop() || 'file';
+      }
+
+      if (!fileKey) {
+        throw new Error("FileKey غير متوفر");
+      }
+
+      // Clean fileKey - remove any full URLs
+      let cleanFileKey = fileKey;
+      if (typeof fileKey === 'string' && fileKey.startsWith('http')) {
+        cleanFileKey = extractFileKeyFromUrl(fileKey);
+        if (!cleanFileKey) {
+          throw new Error("لا يمكن استخراج مفتاح الملف من الرابط");
+        }
+      }
+
+      // Generate download URL
+      const downloadData = await mainDesignerService.generateDownloadUrl(cleanFileKey);
+      
+      if (downloadData.downloadUrl) {
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = downloadData.downloadUrl;
+        link.target = '_blank';
+        link.download = downloadFileName || cleanFileKey.split('/').pop() || 'file';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+      } else {
+        throw new Error("فشل في توليد رابط التحميل");
+      }
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      setShowMessageNotification(true);
+      setNewMessageData({
+        type: "error",
+        message: error.response?.data?.message || error.message || "فشل في تحميل الملف",
+      });
+    }
+  };
+
+  // Handle download all files
+  const handleDownloadAllFiles = async (design) => {
+    if (!design.designFileUrls || design.designFileUrls.length === 0) {
+      setShowMessageNotification(true);
+      setNewMessageData({
+        type: "info",
+        message: "لا توجد ملفات للتحميل",
+      });
+      return;
+    }
+
+    try {
+      // Download files one by one with a small delay
+      for (let i = 0; i < design.designFileUrls.length; i++) {
+        await handleDownloadFile(design.designFileUrls[i]);
+        // Small delay between downloads to avoid browser blocking
+        if (i < design.designFileUrls.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    } catch (error) {
+      console.error("Error downloading all files:", error);
+    }
+  };
+
+  // Filter and sort designs
+  const getFilteredAndSortedDesigns = () => {
+    let filtered = [...designs];
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((design) => design.status === Number(statusFilter));
+    }
+
+    // Apply date filter
+    if (dateFilter) {
+      const filterDate = new Date(dateFilter);
+      filterDate.setHours(0, 0, 0, 0);
+      filtered = filtered.filter((design) => {
+        if (!design.createdAt) return false;
+        const designDate = new Date(design.createdAt);
+        designDate.setHours(0, 0, 0, 0);
+        return designDate.getTime() === filterDate.getTime();
+      });
+    }
+
+    // Apply designer filter
+    if (designerFilter !== "all") {
+      filtered = filtered.filter((design) => {
+        const designerId = design.creatorId || design.createdBy || design.userId || design.mainDesignerId || 
+                          design.creator?.id || design.mainDesigner?.id;
+        return String(designerId) === String(designerFilter) || Number(designerId) === Number(designerFilter);
+      });
+    }
+
+    // Apply sorting
+    if (sortField) {
+      filtered.sort((a, b) => {
+        let aValue, bValue;
+
+        switch (sortField) {
+          case "serialNumber":
+            aValue = a.serialNumber || "";
+            bValue = b.serialNumber || "";
+            break;
+          case "date":
+            aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            break;
+          case "status":
+            aValue = a.status || 0;
+            bValue = b.status || 0;
+            break;
+          case "designer":
+            aValue = getDesignerName(a).toLowerCase();
+            bValue = getDesignerName(b).toLowerCase();
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+        if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  };
+
+  // Handle sort column click
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  // Get sort icon for column
+  const getSortIcon = (field) => {
+    if (sortField !== field) {
+      return <UnfoldMore sx={{ fontSize: 16, opacity: 0.5 }} />;
+    }
+    return sortDirection === "asc" ? (
+      <ArrowUpward sx={{ fontSize: 16 }} />
+    ) : (
+      <ArrowDownward sx={{ fontSize: 16 }} />
+    );
+  };
+
+  // Handle design status change
+  const handleStatusChange = async (newStatus) => {
+    if (!selectedDesignForStatus) return;
+
+    setUpdatingDesignStatus(true);
+    try {
+      await mainDesignerService.updateDesignStatus(
+        selectedDesignForStatus.id,
+        newStatus,
+        statusNotes
+      );
+      
+      // Update the design in the list
+      setDesigns((prevDesigns) =>
+        prevDesigns.map((design) =>
+          design.id === selectedDesignForStatus.id
+            ? { ...design, status: newStatus }
+            : design
+        )
+      );
+
+      setStatusDialogOpen(false);
+      setSelectedDesignForStatus(null);
+      setStatusNotes("");
+      
+      // Show success message
+      setShowMessageNotification(true);
+      setNewMessageData({
+        type: "success",
+        message: newStatus === 2 ? "تم قبول التصميم بنجاح" : "تم رفض التصميم بنجاح",
+      });
+    } catch (error) {
+      console.error("Error updating design status:", error);
+      setShowMessageNotification(true);
+      setNewMessageData({
+        type: "error",
+        message: "حدث خطأ أثناء تحديث حالة التصميم",
+      });
+    } finally {
+      setUpdatingDesignStatus(false);
+    }
+  };
+
   const fetchOrders = async (showLoading = false) => {
     await Promise.all([
       fetchPendingPrintingOrders(showLoading),
@@ -184,14 +539,21 @@ const DesignManagerDashboard = () => {
     loadFabricTypes();
   }, []);
 
+  // Load designs when Tab 4 is opened
+  useEffect(() => {
+    if (currentTab === 4) {
+      loadDesigns();
+    }
+  }, [currentTab]);
+
   useEffect(() => {
     fetchOrders(true); // Show loading on initial fetch only
 
     // Subscribe to SignalR updates for real-time order updates
-    let unsubscribe;
+    let unsubscribeOrders;
     (async () => {
       try {
-        unsubscribe = await subscribeToOrderUpdates({
+        unsubscribeOrders = await subscribeToOrderUpdates({
           onOrderCreated: () => {
             fetchOrders(false);
           },
@@ -203,14 +565,54 @@ const DesignManagerDashboard = () => {
           },
         });
       } catch (err) {
-        console.error('Failed to connect to updates hub:', err);
+        console.error('Failed to connect to order updates hub:', err);
+      }
+    })();
+
+    // Subscribe to SignalR updates for real-time design updates
+    let unsubscribeDesigns;
+    (async () => {
+      try {
+        console.log("🔌 Subscribing to DesignsHub...");
+        unsubscribeDesigns = await subscribeToDesigns({
+          onDesignCreated: (designData) => {
+            console.log("✅ onDesignCreated callback called", designData, "currentTab:", currentTab);
+            // Reload designs when a new design is created
+            if (currentTab === 4) {
+              console.log("🎨 Design created, reloading designs...", designData);
+              loadDesigns();
+            } else {
+              console.log("⚠️ Design created but not on designs tab (currentTab:", currentTab, ")");
+            }
+          },
+          onDesignUpdated: (designData) => {
+            console.log("✅ onDesignUpdated callback called", designData, "currentTab:", currentTab);
+            // Reload designs when a design is updated
+            if (currentTab === 4) {
+              console.log("🎨 Design updated, reloading designs...", designData);
+              loadDesigns();
+            }
+          },
+          onDesignStatusChanged: (designData) => {
+            console.log("✅ onDesignStatusChanged callback called", designData, "currentTab:", currentTab);
+            // Reload designs when design status changes
+            if (currentTab === 4) {
+              console.log("🎨 Design status changed, reloading designs...", designData);
+              loadDesigns();
+            }
+          },
+        });
+        console.log("✅ DesignsHub subscription successful");
+      } catch (err) {
+        console.error('❌ Failed to connect to designs hub:', err);
       }
     })();
 
     return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof unsubscribeOrders === 'function') unsubscribeOrders();
+      if (typeof unsubscribeDesigns === 'function') unsubscribeDesigns();
     };
-  }, []);
+  }, [currentTab]);
 
   // Play message sound
   const playMessageSound = () => {
@@ -1432,8 +1834,7 @@ const DesignManagerDashboard = () => {
     activeImageLoads.current.clear();
   }, [currentTab, searchQuery, searchQueryInPrinting]);
 
-
-    return (
+  return (
       <Box
         sx={{
           minHeight: "100vh",
@@ -1843,6 +2244,23 @@ const DesignManagerDashboard = () => {
                   fontSize: '1rem',
                   minHeight: 56,
                   color: currentTab === 3 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
+                label={`التصاميم`}
+                icon={<ImageIcon />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 4 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',
                   zIndex: 1,
                   '&.Mui-selected': {
@@ -1861,7 +2279,7 @@ const DesignManagerDashboard = () => {
           {/* Orders Content for other tabs */}
           {currentTab !== 0 && (
             <>
-              {currentTab !== 3 && (
+              {currentTab !== 3 && currentTab !== 4 && (
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
                 <Box sx={{ flex: '0 0 auto', width: '50%', position: 'relative' }}>
                   <TextField
@@ -1967,6 +2385,537 @@ const DesignManagerDashboard = () => {
 
           {currentTab === 3 ? (
             <EmployeeAttendanceCalendar />
+          ) : currentTab === 4 ? (
+            <Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  التصاميم الواردة من المصممين ({getFilteredAndSortedDesigns().length})
+                </Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  onClick={loadDesigns}
+                  disabled={loadingDesigns}
+                  size="small"
+                >
+                  تحديث
+                </Button>
+              </Box>
+
+              {/* Filters */}
+              <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <FilterList sx={{ color: calmPalette.textSecondary }} />
+                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary, fontWeight: 600 }}>
+                    فلترة:
+                  </Typography>
+                </Box>
+                <TextField
+                  select
+                  label="الحالة"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  size="small"
+                  sx={{
+                    minWidth: 150,
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    },
+                  }}
+                >
+                  <MenuItem value="all">الكل</MenuItem>
+                  <MenuItem value="1">في الانتظار</MenuItem>
+                  <MenuItem value="2">مقبول</MenuItem>
+                  <MenuItem value="3">مرفوض</MenuItem>
+                </TextField>
+                <TextField
+                  type="date"
+                  label="التاريخ"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  size="small"
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={{
+                    minWidth: 180,
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    },
+                  }}
+                />
+                <TextField
+                  select
+                  label="اسم المصمم"
+                  value={designerFilter}
+                  onChange={(e) => setDesignerFilter(e.target.value)}
+                  size="small"
+                  sx={{
+                    minWidth: 180,
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    },
+                  }}
+                >
+                  <MenuItem value="all">الكل</MenuItem>
+                  {Object.entries(usersMap)
+                    .filter(([id, name]) => name && name.trim() !== "")
+                    .map(([id, name]) => (
+                      <MenuItem key={id} value={id}>
+                        {name}
+                      </MenuItem>
+                    ))}
+                </TextField>
+                {(statusFilter !== "all" || dateFilter || designerFilter !== "all") && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => {
+                      setStatusFilter("all");
+                      setDateFilter("");
+                      setDesignerFilter("all");
+                    }}
+                    sx={{ color: calmPalette.textSecondary }}
+                  >
+                    إلغاء الفلترة
+                  </Button>
+                )}
+              </Box>
+
+              {loadingDesigns && designs.length === 0 ? (
+                <Box sx={{ textAlign: "center", py: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : designs.length === 0 ? (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 4,
+                    textAlign: "center",
+                    backgroundColor: "rgba(255, 255, 255, 0.6)",
+                    borderRadius: 2,
+                    border: "1px solid rgba(94, 78, 62, 0.1)",
+                  }}
+                >
+                  <ImageIcon
+                    sx={{
+                      fontSize: 64,
+                      color: calmPalette.textSecondary,
+                      mb: 2,
+                      opacity: 0.5,
+                    }}
+                  />
+                  <Typography variant="h6" sx={{ color: calmPalette.textPrimary, mb: 1 }}>
+                    لا توجد تصاميم
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+                    لم يتم إرسال أي تصاميم بعد
+                  </Typography>
+                </Paper>
+              ) : (
+                <TableContainer 
+                  component={Paper} 
+                  elevation={0} 
+                  sx={{ 
+                    borderRadius: 3,
+                    border: `1px solid ${calmPalette.primary}15`,
+                    boxShadow: "0 4px 20px rgba(94, 78, 62, 0.08)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Table>
+                    <TableHead>
+                      <TableRow 
+                        sx={{ 
+                          background: `linear-gradient(135deg, ${calmPalette.primary}12 0%, ${calmPalette.primary}08 100%)`,
+                          borderBottom: `2px solid ${calmPalette.primary}20`,
+                        }}
+                      >
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }}>الصورة</TableCell>
+                        <TableCell 
+                          sx={{ 
+                            fontWeight: 700, 
+                            fontSize: "0.95rem", 
+                            py: 2,
+                            cursor: "pointer",
+                            userSelect: "none",
+                            "&:hover": { backgroundColor: `${calmPalette.primary}15` },
+                          }}
+                          onClick={() => handleSort("serialNumber")}
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            الرقم التسلسلي
+                            {getSortIcon("serialNumber")}
+                          </Box>
+                        </TableCell>
+                        <TableCell 
+                          sx={{ 
+                            fontWeight: 700, 
+                            fontSize: "0.95rem", 
+                            py: 2,
+                            cursor: "pointer",
+                            userSelect: "none",
+                            "&:hover": { backgroundColor: `${calmPalette.primary}15` },
+                          }}
+                          onClick={() => handleSort("designer")}
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            اسم المصمم
+                            {getSortIcon("designer")}
+                          </Box>
+                        </TableCell>
+                        <TableCell 
+                          sx={{ 
+                            fontWeight: 700, 
+                            fontSize: "0.95rem", 
+                            py: 2,
+                            cursor: "pointer",
+                            userSelect: "none",
+                            "&:hover": { backgroundColor: `${calmPalette.primary}15` },
+                          }}
+                          onClick={() => handleSort("date")}
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            تاريخ التصميم
+                            {getSortIcon("date")}
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }}>الملفات</TableCell>
+                        <TableCell 
+                          sx={{ 
+                            fontWeight: 700, 
+                            fontSize: "0.95rem", 
+                            py: 2,
+                            cursor: "pointer",
+                            userSelect: "none",
+                            "&:hover": { backgroundColor: `${calmPalette.primary}15` },
+                          }}
+                          onClick={() => handleSort("status")}
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            الحالة
+                            {getSortIcon("status")}
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }} align="center">الإجراءات</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {getFilteredAndSortedDesigns().map((design, index) => (
+                        <TableRow
+                          key={design.id}
+                          sx={{
+                            backgroundColor: index % 2 === 0 ? "rgba(255, 255, 255, 0.5)" : "rgba(250, 248, 245, 0.3)",
+                            transition: "all 0.2s ease",
+                            "&:hover": { 
+                              backgroundColor: "rgba(94, 78, 62, 0.08)",
+                              transform: "translateY(-1px)",
+                              boxShadow: "0 2px 8px rgba(94, 78, 62, 0.1)",
+                            },
+                            "& td": {
+                              borderBottom: `1px solid ${calmPalette.primary}08`,
+                              py: 2,
+                            },
+                          }}
+                        >
+                          <TableCell>
+                            {design.designImageUrl ? (
+                              <Box
+                                sx={{
+                                  width: 70,
+                                  height: 70,
+                                  borderRadius: 2,
+                                  overflow: "hidden",
+                                  border: `2px solid ${calmPalette.primary}20`,
+                                  cursor: "pointer",
+                                  boxShadow: "0 2px 8px rgba(94, 78, 62, 0.15)",
+                                  transition: "all 0.3s ease",
+                                  "&:hover": {
+                                    transform: "scale(1.08)",
+                                    boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
+                                    borderColor: calmPalette.primary + "40",
+                                  },
+                                }}
+                                onClick={() => {
+                                  setSelectedImage(design.designImageUrl);
+                                  setImageDialogOpen(true);
+                                }}
+                              >
+                                <img
+                                  src={design.designImageUrl}
+                                  alt={design.designName}
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "cover",
+                                  }}
+                                />
+                              </Box>
+                            ) : (
+                              <Box
+                                sx={{
+                                  width: 70,
+                                  height: 70,
+                                  borderRadius: 2,
+                                  border: `2px dashed ${calmPalette.primary}30`,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  backgroundColor: `${calmPalette.primary}08`,
+                                }}
+                              >
+                                <ImageIcon sx={{ color: calmPalette.textSecondary, fontSize: 28, opacity: 0.5 }} />
+                              </Box>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary }}>
+                              {design.serialNumber}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: calmPalette.textPrimary, fontWeight: 500 }}>
+                              {getDesignerName(design)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+                              {design.createdAt
+                                ? new Date(design.createdAt).toLocaleDateString("ar-SA")
+                                : "-"}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            {design.designFileUrls && design.designFileUrls.length > 0 ? (
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <Chip
+                                  icon={<AttachFile sx={{ fontSize: 16 }} />}
+                                  label={`${design.designFileUrls.length} ملف`}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor: `${calmPalette.primary}15`,
+                                    color: calmPalette.primary,
+                                    fontWeight: 600,
+                                    border: `1px solid ${calmPalette.primary}30`,
+                                    "& .MuiChip-icon": {
+                                      color: calmPalette.primary,
+                                    },
+                                  }}
+                                />
+                                <Tooltip title="تحميل جميع الملفات" arrow>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleDownloadAllFiles(design)}
+                                    sx={{
+                                      color: calmPalette.primary,
+                                      backgroundColor: `${calmPalette.primary}10`,
+                                      border: `1px solid ${calmPalette.primary}30`,
+                                      width: 32,
+                                      height: 32,
+                                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                      "&:hover": {
+                                        backgroundColor: `${calmPalette.primary}20`,
+                                        transform: "scale(1.1) translateY(-2px)",
+                                        boxShadow: `0 4px 12px ${calmPalette.primary}30`,
+                                      },
+                                      "&:active": {
+                                        transform: "scale(1.05)",
+                                      },
+                                    }}
+                                  >
+                                    <Download sx={{ fontSize: 18 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" sx={{ color: calmPalette.textSecondary, fontStyle: "italic" }}>
+                                لا توجد ملفات
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={
+                                design.status === 1
+                                  ? "في الانتظار"
+                                  : design.status === 2
+                                  ? "مقبول"
+                                  : design.status === 3
+                                  ? "مرفوض"
+                                  : design.statusName || "في الانتظار"
+                              }
+                              size="small"
+                              sx={{
+                                fontWeight: 600,
+                                fontSize: "0.85rem",
+                                ...(design.status === 2
+                                  ? {
+                                      backgroundColor: "#e8f5e9",
+                                      color: "#2e7d32",
+                                      border: "1px solid #4caf50",
+                                    }
+                                  : design.status === 3
+                                  ? {
+                                      backgroundColor: "#ffebee",
+                                      color: "#d32f2f",
+                                      border: "1px solid #f44336",
+                                    }
+                                  : {
+                                      backgroundColor: "#fff3e0",
+                                      color: "#f57c00",
+                                      border: "1px solid #ff9800",
+                                    }),
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+                              <Tooltip title="عرض التصميم" arrow>
+                                <IconButton
+                                  size="medium"
+                                  onClick={async () => {
+                                    try {
+                                      const fullDesign = await mainDesignerService.getDesignById(design.id);
+                                      setViewingDesign(fullDesign);
+                                      
+                                      // Generate download URL for image
+                                      if (fullDesign.designImageKey || fullDesign.designImageUrl) {
+                                        try {
+                                          const fileKey = fullDesign.designImageKey || extractFileKeyFromUrl(fullDesign.designImageUrl);
+                                          if (fileKey && typeof fileKey === 'string' && !fileKey.startsWith('http')) {
+                                            const downloadData = await mainDesignerService.generateDownloadUrl(fileKey);
+                                            if (downloadData.downloadUrl) {
+                                              setImageUrl(downloadData.downloadUrl);
+                                            } else {
+                                              setImageUrl(fullDesign.designImageUrl);
+                                            }
+                                          } else {
+                                            setImageUrl(fullDesign.designImageUrl);
+                                          }
+                                        } catch (error) {
+                                          console.error("Error generating image URL:", error);
+                                          setImageUrl(fullDesign.designImageUrl);
+                                        }
+                                      } else {
+                                        setImageUrl(null);
+                                      }
+                                    } catch (error) {
+                                      console.error("Error loading design:", error);
+                                    }
+                                  }}
+                                  sx={{ 
+                                    color: calmPalette.primary,
+                                    backgroundColor: `${calmPalette.primary}10`,
+                                    border: `1px solid ${calmPalette.primary}30`,
+                                    width: 40,
+                                    height: 40,
+                                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                    "&:hover": {
+                                      backgroundColor: `${calmPalette.primary}20`,
+                                      transform: "scale(1.1) translateY(-2px)",
+                                      boxShadow: `0 4px 12px ${calmPalette.primary}30`,
+                                    },
+                                    "&:active": {
+                                      transform: "scale(1.05)",
+                                    },
+                                  }}
+                                >
+                                  <Visibility fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              {design.status === 1 && (
+                                <>
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    startIcon={<CheckCircle />}
+                                    onClick={() => {
+                                      setSelectedDesignForStatus({ ...design, actionType: "approve" });
+                                      setStatusNotes("");
+                                      setStatusDialogOpen(true);
+                                    }}
+                                    sx={{
+                                      minWidth: 100,
+                                      height: 36,
+                                      backgroundColor: "#4caf50",
+                                      color: "#ffffff",
+                                      fontWeight: 600,
+                                      fontSize: "0.85rem",
+                                      borderRadius: 2,
+                                      textTransform: "none",
+                                      boxShadow: "0 2px 8px rgba(76, 175, 80, 0.3)",
+                                      border: "1px solid #2e7d32",
+                                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                      "&:hover": {
+                                        backgroundColor: "#2e7d32",
+                                        boxShadow: "0 4px 16px rgba(46, 125, 50, 0.5)",
+                                        transform: "translateY(-2px)",
+                                      },
+                                      "&:active": {
+                                        transform: "translateY(0)",
+                                        boxShadow: "0 2px 8px rgba(46, 125, 50, 0.4)",
+                                      },
+                                      "& .MuiButton-startIcon": {
+                                        marginRight: 0.5,
+                                        "& svg": {
+                                          fontSize: 18,
+                                        },
+                                      },
+                                    }}
+                                  >
+                                    قبول
+                                  </Button>
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    startIcon={<Cancel />}
+                                    onClick={() => {
+                                      setSelectedDesignForStatus({ ...design, actionType: "reject" });
+                                      setStatusNotes("");
+                                      setStatusDialogOpen(true);
+                                    }}
+                                    sx={{
+                                      minWidth: 100,
+                                      height: 36,
+                                      backgroundColor: "#f44336",
+                                      color: "#ffffff",
+                                      fontWeight: 600,
+                                      fontSize: "0.85rem",
+                                      borderRadius: 2,
+                                      textTransform: "none",
+                                      boxShadow: "0 2px 8px rgba(244, 67, 54, 0.3)",
+                                      border: "1px solid #d32f2f",
+                                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                      "&:hover": {
+                                        backgroundColor: "#d32f2f",
+                                        boxShadow: "0 4px 16px rgba(211, 47, 47, 0.5)",
+                                        transform: "translateY(-2px)",
+                                      },
+                                      "&:active": {
+                                        transform: "translateY(0)",
+                                        boxShadow: "0 2px 8px rgba(211, 47, 47, 0.4)",
+                                      },
+                                      "& .MuiButton-startIcon": {
+                                        marginRight: 0.5,
+                                        "& svg": {
+                                          fontSize: 18,
+                                        },
+                                      },
+                                    }}
+                                  >
+                                    رفض
+                                  </Button>
+                                </>
+                              )}
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
           ) : (
             <>
               {loading ? (
@@ -3105,6 +4054,399 @@ const DesignManagerDashboard = () => {
         </DialogContent>
       </Dialog>
 
+      {/* View Design Dialog - Same as Main Designer */}
+      <Dialog
+        open={Boolean(viewingDesign)}
+        onClose={() => {
+          setViewingDesign(null);
+          setImageUrl(null);
+        }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: "#ffffff",
+            boxShadow: "0 8px 32px rgba(94, 78, 62, 0.12)",
+            border: "none",
+            overflow: "hidden",
+          },
+        }}
+      >
+        {viewingDesign && (
+          <>
+            <DialogTitle 
+              sx={{ 
+                fontWeight: 700,
+                pb: 2,
+                pt: 2.5,
+                px: 3,
+                background: "#ffffff",
+                borderBottom: `1px solid ${calmPalette.primary}20`,
+                fontSize: "1.1rem",
+                color: calmPalette.textPrimary,
+              }}
+            >
+              عرض التصميم
+            </DialogTitle>
+            <DialogContent sx={{ pt: 2.5, px: 3, pb: 2, backgroundColor: "#fafafa" }}>
+              <Grid container spacing={2} sx={{ mb: 2.5 }}>
+                <Grid item xs={6}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: calmPalette.textSecondary, 
+                      display: "block", 
+                      mb: 0.5,
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    الرقم التسلسلي
+                  </Typography>
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      color: calmPalette.textPrimary,
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    {viewingDesign.serialNumber}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: calmPalette.textSecondary, 
+                      display: "block", 
+                      mb: 0.5,
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    تاريخ التصميم
+                  </Typography>
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      color: calmPalette.textPrimary,
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    {viewingDesign.createdAt
+                      ? new Date(viewingDesign.createdAt).toLocaleDateString("ar-SA")
+                      : viewingDesign.designDate
+                      ? new Date(viewingDesign.designDate).toLocaleDateString("ar-SA")
+                      : "-"}
+                  </Typography>
+                </Grid>
+              </Grid>
+              <Box sx={{ mb: 2.5 }}>
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    mb: 1.5, 
+                    fontWeight: 600, 
+                    color: calmPalette.textPrimary,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  صورة التصميم
+                </Typography>
+                {imageUrl || viewingDesign.designImageUrl ? (
+                  <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-start" }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<Visibility />}
+                      onClick={() => {
+                        setSelectedImageForView(imageUrl || viewingDesign.designImageUrl);
+                        setImageViewDialogOpen(true);
+                      }}
+                      sx={{ 
+                        backgroundColor: calmPalette.primary,
+                        color: "#ffffff",
+                        px: 2,
+                        py: 0.75,
+                        borderRadius: 1.5,
+                        fontWeight: 500,
+                        textTransform: "none",
+                        fontSize: "0.875rem",
+                        "&:hover": {
+                          backgroundColor: calmPalette.primary + "dd",
+                        },
+                      }}
+                    >
+                      عرض الصورة
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<Download />}
+                      onClick={async () => {
+                        try {
+                          const fileKey = viewingDesign.designImageKey || extractFileKeyFromUrl(viewingDesign.designImageUrl);
+                          if (fileKey) {
+                            await handleDownloadFile(fileKey, `design_image_${viewingDesign.serialNumber || viewingDesign.id}`);
+                          } else {
+                            setShowMessageNotification(true);
+                            setNewMessageData({
+                              type: "error",
+                              message: "لا يمكن العثور على مفتاح الصورة",
+                            });
+                          }
+                        } catch (error) {
+                          console.error("Error downloading image:", error);
+                          setShowMessageNotification(true);
+                          setNewMessageData({
+                            type: "error",
+                            message: error.message || "فشل في تحميل الصورة",
+                          });
+                        }
+                      }}
+                      sx={{ 
+                        backgroundColor: calmPalette.primary,
+                        color: "#ffffff",
+                        px: 2,
+                        py: 0.75,
+                        borderRadius: 1.5,
+                        fontWeight: 500,
+                        textTransform: "none",
+                        fontSize: "0.875rem",
+                        "&:hover": {
+                          backgroundColor: calmPalette.primary + "dd",
+                        },
+                      }}
+                    >
+                      تحميل الصورة
+                    </Button>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+                    لا توجد صورة
+                  </Typography>
+                )}
+              </Box>
+              
+              <Box>
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    mb: 1.5, 
+                    fontWeight: 600, 
+                    color: calmPalette.textPrimary,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  ملفات التصميم
+                </Typography>
+                {viewingDesign.designFileUrls && viewingDesign.designFileUrls.length > 0 ? (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    {viewingDesign.designFileUrls.map((fileItem, index) => {
+                      let fileKey = null;
+                      let fileName = `الملف ${index + 1}`;
+                      let serialNumber = null;
+                      let downloadUrl = null;
+                      
+                      if (typeof fileItem === 'object' && fileItem !== null) {
+                        fileKey = fileItem.fileKey;
+                        fileName = fileItem.printFileName || fileName;
+                        serialNumber = fileItem.serialNumber;
+                        downloadUrl = fileItem.downloadUrl;
+                      } else if (typeof fileItem === 'string') {
+                        fileKey = extractFileKeyFromUrl(fileItem) || fileItem;
+                        downloadUrl = fileItem;
+                      }
+                      
+                      return (
+                        <Box
+                          key={index}
+                          sx={{
+                            p: 1.5,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.5,
+                            backgroundColor: "#ffffff",
+                            borderRadius: 1.5,
+                            border: `1px solid ${calmPalette.primary}20`,
+                            "&:hover": {
+                              borderColor: calmPalette.primary + "40",
+                              boxShadow: "0 2px 4px rgba(94, 78, 62, 0.08)",
+                            },
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          <AttachFile sx={{ color: calmPalette.primary, fontSize: 20 }} />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            {serialNumber && (
+                              <Typography 
+                                variant="caption" 
+                                sx={{ 
+                                  color: calmPalette.textSecondary, 
+                                  display: "block", 
+                                  mb: 0.25,
+                                  fontSize: "0.7rem",
+                                }}
+                              >
+                                الرقم: {serialNumber}
+                              </Typography>
+                            )}
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                fontWeight: 500, 
+                                color: calmPalette.textPrimary,
+                                fontSize: "0.85rem",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {fileName}
+                            </Typography>
+                          </Box>
+                          <Button
+                            startIcon={<Download />}
+                            onClick={() => {
+                              if (downloadUrl) {
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                link.download = fileName;
+                                link.target = '_blank';
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                setTimeout(() => {
+                                  document.body.removeChild(link);
+                                }, 100);
+                              } else if (fileKey) {
+                                handleDownloadFile(fileKey, fileName);
+                              }
+                            }}
+                            variant="outlined"
+                            size="small"
+                            sx={{
+                              minWidth: 90,
+                              borderColor: calmPalette.primary + "30",
+                              color: calmPalette.primary,
+                              backgroundColor: "#ffffff",
+                              fontSize: "0.8rem",
+                              textTransform: "none",
+                              borderRadius: 1.5,
+                              px: 1.5,
+                              "&:hover": {
+                                borderColor: calmPalette.primary,
+                                backgroundColor: calmPalette.primary + "08",
+                              },
+                            }}
+                          >
+                            تحميل
+                          </Button>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: "center" }}>
+                    لا توجد ملفات
+                  </Typography>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ 
+              px: 3, 
+              py: 2, 
+              borderTop: `1px solid ${calmPalette.primary}20`, 
+              backgroundColor: "#ffffff",
+            }}>
+              <Button 
+                onClick={() => {
+                  setViewingDesign(null);
+                  setImageUrl(null);
+                }}
+                variant="outlined"
+                size="small"
+                sx={{
+                  color: calmPalette.textPrimary,
+                  borderColor: calmPalette.primary + "30",
+                  backgroundColor: "#ffffff",
+                  px: 2.5,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  fontWeight: 500,
+                  textTransform: "none",
+                  fontSize: "0.875rem",
+                  "&:hover": {
+                    borderColor: calmPalette.primary,
+                    backgroundColor: calmPalette.primary + "08",
+                  },
+                }}
+              >
+                إغلاق
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* Image View Dialog for Design Image */}
+      <Dialog
+        open={imageViewDialogOpen}
+        onClose={() => setImageViewDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            background: "#ffffff",
+            boxShadow: calmPalette.shadow,
+            border: "1px solid rgba(94, 78, 62, 0.15)",
+          },
+        }}
+      >
+        <DialogTitle 
+          sx={{ 
+            fontWeight: 700,
+            pb: 1.5,
+            pt: 2,
+            px: 2.5,
+            background: "#ffffff",
+            borderBottom: `1px solid ${calmPalette.primary}20`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          عرض الصورة
+          <IconButton
+            onClick={() => setImageViewDialogOpen(false)}
+            size="small"
+            sx={{
+              color: calmPalette.textSecondary,
+            }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2, px: 2.5, pb: 2, backgroundColor: "#ffffff" }}>
+          {selectedImageForView && (
+            <Box sx={{ textAlign: "center" }}>
+              <img
+                src={selectedImageForView}
+                alt="صورة التصميم"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "70vh",
+                  borderRadius: 8,
+                }}
+                onError={(e) => {
+                  e.target.src = "/placeholder.png";
+                }}
+              />
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Notes Dialog */}
 
       <NotesDialog
@@ -3299,8 +4641,8 @@ const DesignManagerDashboard = () => {
             console.log("🔔 Closing notification from Alert...");
             setShowMessageNotification(false);
           }} 
-          severity="info"
-          icon={<MessageIcon />}
+          severity={newMessageData?.type || "info"}
+          icon={newMessageData?.type === "success" || newMessageData?.type === "error" ? undefined : <MessageIcon />}
           sx={{ 
             width: '100%',
             minWidth: 300,
@@ -3310,7 +4652,7 @@ const DesignManagerDashboard = () => {
             boxShadow: "0 8px 24px rgba(94, 78, 62, 0.3)",
             border: `1px solid ${calmPalette.primary}`,
             "& .MuiAlert-icon": {
-              color: "#1976d2",
+              color: newMessageData?.type === "success" ? "#2e7d32" : newMessageData?.type === "error" ? "#d32f2f" : "#1976d2",
             },
             "& .MuiAlert-message": {
               width: "100%",
@@ -3319,14 +4661,141 @@ const DesignManagerDashboard = () => {
         >
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
-              {newMessageData?.title || "رسالة جديدة"}
+              {newMessageData?.title || (newMessageData?.type === "success" ? "نجح" : newMessageData?.type === "error" ? "خطأ" : "رسالة جديدة")}
             </Typography>
             <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
-              {newMessageData?.content || "لديك رسالة جديدة من الإدارة"}
+              {newMessageData?.message || newMessageData?.content || "لديك رسالة جديدة من الإدارة"}
             </Typography>
           </Box>
         </Alert>
       </Snackbar>
+
+      {/* Design Status Change Dialog */}
+      <Dialog
+        open={statusDialogOpen}
+        onClose={() => {
+          if (!updatingDesignStatus) {
+            setStatusDialogOpen(false);
+            setSelectedDesignForStatus(null);
+            setStatusNotes("");
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: "linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 248, 245, 0.98) 100%)",
+            boxShadow: "0 8px 32px rgba(94, 78, 62, 0.2)",
+            border: `1px solid ${calmPalette.primary}30`,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            background: `linear-gradient(135deg, ${calmPalette.primary}15 0%, ${calmPalette.primary}05 100%)`,
+            borderBottom: `1px solid ${calmPalette.primary}20`,
+            pb: 2,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+          }}
+        >
+          {selectedDesignForStatus?.actionType === "approve" ? (
+            <CheckCircle sx={{ color: "#2e7d32", fontSize: 28 }} />
+          ) : (
+            <Cancel sx={{ color: "#d32f2f", fontSize: 28 }} />
+          )}
+          <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
+            {selectedDesignForStatus?.actionType === "approve" ? "قبول التصميم" : "رفض التصميم"}
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mb: 1 }}>
+              الرقم التسلسلي: <strong>{selectedDesignForStatus?.serialNumber}</strong>
+            </Typography>
+            {selectedDesignForStatus?.designName && (
+              <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+                اسم التصميم: <strong>{selectedDesignForStatus.designName}</strong>
+              </Typography>
+            )}
+          </Box>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="ملاحظات (اختياري)"
+            value={statusNotes}
+            onChange={(e) => setStatusNotes(e.target.value)}
+            placeholder="أضف ملاحظات حول قرارك..."
+            sx={{
+              mt: 2,
+              "& .MuiOutlinedInput-root": {
+                backgroundColor: "rgba(255, 255, 255, 0.8)",
+                "& fieldset": {
+                  borderColor: calmPalette.primary + "40",
+                },
+                "&:hover fieldset": {
+                  borderColor: calmPalette.primary + "60",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: calmPalette.primary,
+                },
+              },
+            }}
+          />
+        </DialogContent>
+        <Box sx={{ p: 2.5, pt: 1, display: "flex", gap: 1.5, justifyContent: "flex-end" }}>
+          <Button
+            onClick={() => {
+              setStatusDialogOpen(false);
+              setSelectedDesignForStatus(null);
+              setStatusNotes("");
+            }}
+            disabled={updatingDesignStatus}
+            sx={{
+              color: calmPalette.textSecondary,
+              "&:hover": {
+                backgroundColor: "rgba(94, 78, 62, 0.08)",
+              },
+            }}
+          >
+            إلغاء
+          </Button>
+          <Button
+            onClick={() => {
+              const newStatus = selectedDesignForStatus?.actionType === "approve" ? 2 : 3;
+              handleStatusChange(newStatus);
+            }}
+            disabled={updatingDesignStatus}
+            variant="contained"
+            startIcon={
+              updatingDesignStatus ? (
+                <CircularProgress size={16} sx={{ color: "inherit" }} />
+              ) : selectedDesignForStatus?.actionType === "approve" ? (
+                <CheckCircle />
+              ) : (
+                <Cancel />
+              )
+            }
+            sx={{
+              backgroundColor:
+                selectedDesignForStatus?.actionType === "approve" ? "#2e7d32" : "#d32f2f",
+              "&:hover": {
+                backgroundColor:
+                  selectedDesignForStatus?.actionType === "approve" ? "#1b5e20" : "#b71c1c",
+              },
+            }}
+          >
+            {updatingDesignStatus
+              ? "جاري المعالجة..."
+              : selectedDesignForStatus?.actionType === "approve"
+              ? "قبول"
+              : "رفض"}
+          </Button>
+        </Box>
+      </Dialog>
     </Box>
   );
 };

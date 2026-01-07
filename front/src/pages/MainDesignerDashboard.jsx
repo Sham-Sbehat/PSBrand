@@ -22,6 +22,7 @@ import {
   Refresh,
   Image as ImageIcon,
   Upload,
+  Add,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -434,7 +435,7 @@ const MainDesignerDashboard = () => {
       )}
 
       {/* Main Content */}
-      <Container maxWidth="xl" sx={{ paddingY: 5 }}>
+      <Container maxWidth="lg" sx={{ paddingY: 5 }}>
         <Paper
           elevation={0}
           sx={{
@@ -443,6 +444,7 @@ const MainDesignerDashboard = () => {
             background: calmPalette.surface,
             boxShadow: calmPalette.shadow,
             backdropFilter: "blur(8px)",
+            mb: 3,
           }}
         >
           <Box sx={{ marginBottom: 3 }}>
@@ -484,8 +486,8 @@ const MainDesignerDashboard = () => {
                 }}
               />
               <Tab
-                label="التصاميم"
-                icon={<ImageIcon />}
+                label="إضافة تصميم جديد"
+                icon={<Add />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
@@ -493,6 +495,23 @@ const MainDesignerDashboard = () => {
                   fontSize: '1rem',
                   minHeight: 56,
                   color: currentTab === 1 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
+                label="تصاميمي"
+                icon={<ImageIcon />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 2 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',
                   zIndex: 1,
                   '&.Mui-selected': {
@@ -508,9 +527,14 @@ const MainDesignerDashboard = () => {
             <WelcomePage onNewMessage={newMessageReceived} />
           )}
 
-          {/* Designs Management */}
+          {/* Add Design Form */}
           {currentTab === 1 && (
-            <DesignsManagement />
+            <DesignsManagement showFormInTab={true} />
+          )}
+
+          {/* Designs Management */}
+          {currentTab === 2 && (
+            <DesignsManagement showFormInTab={false} />
           )}
         </Paper>
       </Container>

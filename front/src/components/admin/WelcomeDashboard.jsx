@@ -174,7 +174,6 @@ const WelcomeDashboard = () => {
         : (data?.designers || data?.data || []);
       setStatistics(statsArray);
     } catch (error) {
-      console.error("Error fetching designers statistics:", error);
       setStatistics([]);
     } finally {
       setLoading(false);
@@ -192,7 +191,6 @@ const WelcomeDashboard = () => {
       setFabricTypeStats(statsArray);
       setFabricTypeStatsFull(data); // Save full response object
     } catch (error) {
-      console.error("Error fetching fabric type statistics:", error);
       setFabricTypeStats([]);
       setFabricTypeStatsFull(null);
     } finally {
@@ -209,7 +207,6 @@ const WelcomeDashboard = () => {
       const statsArray = Array.isArray(data) ? data : (data?.dailyStatistics || []);
       setDeliveryStats(statsArray);
     } catch (error) {
-      console.error("Error fetching delivery orders statistics:", error);
       setDeliveryStats([]);
     } finally {
       setLoadingDeliveryStats(false);
@@ -233,7 +230,6 @@ const WelcomeDashboard = () => {
       const logsData = Array.isArray(response) ? response : response?.data || [];
       setTodayShifts(logsData);
     } catch (error) {
-      console.error("Error fetching shifts:", error);
       setTodayShifts([]);
     } finally {
       setLoadingShifts(false);

@@ -42,7 +42,6 @@ const NotificationsBell = ({ onNewNotification, onNotificationClick }) => {
       setNotifications(notificationsList);
       setUnreadCount(count);
     } catch (error) {
-      console.error("Error loading notifications:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -76,7 +75,6 @@ const NotificationsBell = ({ onNewNotification, onNotificationClick }) => {
       await notificationsService.markAsRead(notificationId);
       await loadNotifications(false);
     } catch (error) {
-      console.error("Error marking notification as read:", error);
     }
   };
 
@@ -85,7 +83,6 @@ const NotificationsBell = ({ onNewNotification, onNotificationClick }) => {
       await notificationsService.markAllAsRead();
       await loadNotifications(false);
     } catch (error) {
-      console.error("Error marking all as read:", error);
     }
   };
 
@@ -94,7 +91,6 @@ const NotificationsBell = ({ onNewNotification, onNotificationClick }) => {
       await notificationsService.deleteNotification(notificationId);
       await loadNotifications(false);
     } catch (error) {
-      console.error("Error deleting notification:", error);
     }
   };
 
@@ -117,7 +113,6 @@ const NotificationsBell = ({ onNewNotification, onNotificationClick }) => {
       setShipmentDetails(shipmentData);
       setReturnedShipmentDetails(returnedShipmentData);
     } catch (error) {
-      console.error("Error fetching order details:", error);
       setOrderDetails(null);
       setShipmentDetails(null);
       setReturnedShipmentDetails(null);

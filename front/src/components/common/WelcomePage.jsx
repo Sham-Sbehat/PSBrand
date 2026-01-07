@@ -83,7 +83,6 @@ const WelcomePage = ({ onNewMessage }) => {
       highOsc.start(baseTime);
       highOsc.stop(baseTime + 0.15);
     } catch (error) {
-      console.log("Audio not supported or blocked:", error);
     }
   };
 
@@ -119,7 +118,6 @@ const WelcomePage = ({ onNewMessage }) => {
         currentTime += 0.25; // Faster beeps for more excitement
       }
     } catch (error) {
-      console.log("Audio not supported or blocked:", error);
     }
   };
 
@@ -182,7 +180,6 @@ const WelcomePage = ({ onNewMessage }) => {
         }
       }, 500);
     } catch (error) {
-      console.log("Audio not supported or blocked:", error);
     }
   };
 

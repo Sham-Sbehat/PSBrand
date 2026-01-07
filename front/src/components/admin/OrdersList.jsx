@@ -239,9 +239,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
     } catch (error) {
       // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
       const errorCode = error.response?.data?.code;
-      if (errorCode !== 'NO_SHIPMENT') {
-      console.error(`Error fetching delivery status for order ${orderId}:`, error);
-      }
       // Set null to indicate failed to load
       setDeliveryStatuses(prev => ({ ...prev, [orderId]: null }));
     } finally {
@@ -427,7 +424,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                     existingOrder.isContacted !== updated[existingIndex].isContacted ||
                     existingOrder.isContactedWithClient !== updated[existingIndex].isContactedWithClient
                   )) {
-                    console.log('📞 Contacted status updated via OrderStatusChanged:', order.id, updated[existingIndex].isContactedWithClient);
                   }
                   
                   return updated;
@@ -452,7 +448,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           },
           onOrderContactedStatusChanged: async (orderId, isContacted) => {
             // Update contacted status in real-time - fetch only the specific order
-            console.log('📞 Contacted status changed via SignalR:', orderId, isContacted);
             
             try {
               // Fetch only the updated order from API
@@ -477,7 +472,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               }
             } catch (error) {
               // If API call fails, update locally from SignalR data
-              console.warn('Failed to fetch updated order, updating locally:', error);
               setAllOrders(prev => {
                 const existingIndex = prev.findIndex(o => o.id === orderId);
                 if (existingIndex >= 0) {
@@ -539,7 +533,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           },
           onDeliveryStatusChanged: (orderId, deliveryStatus) => {
             // Update delivery status in real-time when backend sends update
-            console.log('Delivery status updated via SignalR for order:', orderId, deliveryStatus);
             setDeliveryStatuses(prev => ({
               ...prev,
               [orderId]: deliveryStatus
@@ -547,7 +540,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           },
           onShipmentStatusUpdated: (shipmentData) => {
             // Handle shipment status update from webhook (ShipmentStatusUpdated event)
-            console.log('📦 Shipment status updated via SignalR (webhook):', shipmentData);
             const orderId = shipmentData?.orderId;
             if (orderId) {
               if (shipmentData?.status) {
@@ -593,7 +585,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           },
         });
       } catch (err) {
-        console.error('Failed to connect to updates hub:', err);
       }
     })();
 
@@ -836,7 +827,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           }, 10000); // 10 seconds - enough time for download
         }, 1000);
       } catch (error) {
-        console.error('Error opening base64 file:', error);
         alert('حدث خطأ أثناء فتح الملف.\n' + error.message + '\n\nيرجى المحاولة مرة أخرى أو الاتصال بالدعم.');
       }
     } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
@@ -874,22 +864,12 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         const design = fullOrder.orderDesigns?.find(d => d.id === designId);
         
         if (design?.printFileUrl && design.printFileUrl !== 'image_data_excluded') {
-          console.log('File found, opening...', {
-            fileUrlLength: design.printFileUrl.length,
-            isBase64: design.printFileUrl.startsWith('data:'),
-            startsWith: design.printFileUrl.substring(0, 50)
-          });
           // Open file using helper function
           await openFile(getFullUrl(design.printFileUrl));
         } else {
-          console.error('File not available:', { 
-            hasPrintFileUrl: !!design?.printFileUrl, 
-            printFileUrl: design?.printFileUrl 
-          });
           alert('الملف غير متوفر في قاعدة البيانات');
         }
       } catch (error) {
-        console.error('Error fetching order file:', error);
         alert('حدث خطأ أثناء جلب الملف: ' + (error.message || 'خطأ غير معروف'));
       } finally {
         setLoadingImage(null);
@@ -932,7 +912,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       setOrderToEdit(fullOrder || order);
       setOpenEditDialog(true);
     } catch (error) {
-      console.error('Error loading order for edit:', error);
       alert('حدث خطأ أثناء جلب بيانات الطلب للتعديل');
     } finally {
       setEditLoading(false);
@@ -996,10 +975,8 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       try {
         await fetchOrders();
       } catch (refreshError) {
-        console.error('Error refreshing orders after status change:', refreshError);
       }
     } catch (error) {
-      console.error('Error updating order status:', error);
       setSnackbar({
         open: true,
         message: `حدث خطأ أثناء تحديث حالة الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
@@ -1070,7 +1047,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       try {
         await orderStatusService.setSentToDeliveryCompany(orderToShip.id);
       } catch (statusError) {
-        console.error('Error setting order status to sent to delivery company:', statusError);
         // Don't show error to user - shipment was created successfully
       }
       
@@ -1092,11 +1068,8 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         const updatedOrders = await ordersService.getAllOrders();
         setAllOrders(updatedOrders || []);
       } catch (refreshError) {
-        console.error('Error refreshing orders after shipping:', refreshError);
       }
     } catch (error) {
-      console.error('Error sending order to delivery company:', error);
-      
       // Close dialog first even on error
       handleCloseShippingDialog();
       
@@ -1158,12 +1131,10 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         await Promise.all(
           orderToShip.orderIds.map(orderId => 
             orderStatusService.setSentToDeliveryCompany(orderId).catch(err => {
-              console.error(`Error setting status for order ${orderId}:`, err);
             })
           )
         );
       } catch (statusError) {
-        console.error('Error setting order statuses:', statusError);
       }
       
       // Close dialog first
@@ -1184,11 +1155,8 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         const updatedOrders = await ordersService.getAllOrders();
         setAllOrders(updatedOrders || []);
       } catch (refreshError) {
-        console.error('Error refreshing orders after shipping:', refreshError);
       }
     } catch (error) {
-      console.error('Error sending orders to delivery company:', error);
-      
       // Close dialog first even on error
       handleCloseShippingDialog();
       
@@ -1252,7 +1220,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
       const errorCode = error.response?.data?.code;
       if (errorCode !== 'NO_SHIPMENT') {
-      console.error('Error fetching delivery status:', error);
       setSnackbar({
         open: true,
         message: `حدث خطأ أثناء جلب حالة التوصيل: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`,
@@ -1295,12 +1262,8 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         const updatedOrders = await ordersService.getAllOrders();
         setAllOrders(updatedOrders || []);
       } catch (refreshError) {
-        console.error('Error refreshing orders:', refreshError);
       }
     } catch (error) {
-      console.error('Error deleting order:', error);
-      console.error('Error details:', error.response);
-      console.error('Error message:', error.message);
       alert(`حدث خطأ أثناء حذف الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
       
       // Revert optimistic update by refreshing
@@ -1308,7 +1271,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         const updatedOrders = await ordersService.getAllOrders();
         setAllOrders(updatedOrders || []);
       } catch (refreshError) {
-        console.error('Error refreshing after failed delete:', refreshError);
       }
     } finally {
       setDeleteLoading(false);
@@ -1334,10 +1296,8 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         const updatedOrders = await ordersService.getAllOrders();
         setAllOrders(updatedOrders || []);
       } catch (refreshError) {
-        console.error('Error refreshing orders after cancellation:', refreshError);
       }
     } catch (error) {
-      console.error('Error cancelling order:', error);
       alert(`حدث خطأ أثناء إلغاء الطلب: ${error.response?.data?.message || error.message || 'خطأ غير معروف'}`);
     } finally {
       setCancelLoading(false);
@@ -1376,7 +1336,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
 
       setOrderToEdit(updatedSelected);
     } catch (error) {
-      console.error("Error updating order:", error);
       alert(
         `حدث خطأ أثناء تحديث الطلب: ${
           error.response?.data?.message || error.message || "خطأ غير معروف"
@@ -1462,7 +1421,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       const colorsData = await colorsService.getAllColors();
       setColors(Array.isArray(colorsData) ? colorsData : []);
     } catch (error) {
-      console.error('Error loading colors:', error);
       setColors([]);
     } finally {
       setLoadingColors(false);
@@ -1476,7 +1434,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       const sizesData = await sizesService.getAllSizes();
       setSizes(Array.isArray(sizesData) ? sizesData : []);
     } catch (error) {
-      console.error('Error loading sizes:', error);
       setSizes([]);
     } finally {
       setLoadingSizes(false);
@@ -1490,7 +1447,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       const fabricTypesData = await fabricTypesService.getAllFabricTypes();
       setFabricTypes(Array.isArray(fabricTypesData) ? fabricTypesData : []);
     } catch (error) {
-      console.error('Error loading fabric types:', error);
       setFabricTypes([]);
     } finally {
       setLoadingFabricTypes(false);
@@ -1794,7 +1750,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                         return formattedAreas;
                       })
                       .catch(error => {
-                        console.error(`Error loading areas for city ${cityId}:`, error);
                         return [];
                       })
                   );
@@ -1818,7 +1773,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         }
         setAreas(allAreas || []);
       } catch (error) {
-        console.error('Error loading cities:', error);
       }
     };
     loadCitiesAndAreas();
@@ -1893,7 +1847,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       const parsed = JSON.parse(modificationDetailsString);
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
-      console.error('Error parsing modification details:', error);
       return [];
     }
   };

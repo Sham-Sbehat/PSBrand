@@ -50,7 +50,6 @@ const SizesManagement = () => {
       const data = await sizesService.getAllSizes();
       setSizes(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching sizes:', error);
       setSnackbar({ open: true, message: 'فشل في تحميل المقاسات', severity: 'error' });
       setSizes([]);
     } finally {
@@ -95,7 +94,6 @@ const SizesManagement = () => {
       handleCloseDialog();
       fetchSizes();
     } catch (error) {
-      console.error('Error saving size:', error);
       setSnackbar({ open: true, message: 'فشل في حفظ المقاس', severity: 'error' });
     }
   };
@@ -114,7 +112,6 @@ const SizesManagement = () => {
       setDeleteDialog({ open: false, sizeId: null, sizeName: '' });
       fetchSizes();
     } catch (error) {
-      console.error('Error deleting size:', error);
       setSnackbar({ open: true, message: 'فشل في حذف المقاس', severity: 'error' });
     } finally {
       setDeletingId(null);

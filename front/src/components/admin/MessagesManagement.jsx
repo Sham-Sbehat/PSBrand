@@ -68,7 +68,6 @@ const MessagesManagement = () => {
       const data = await messagesService.getAllMessages();
       setMessages(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching messages:', error);
       setSnackbar({ open: true, message: 'فشل في تحميل الرسائل', severity: 'error' });
       setMessages([]);
     } finally {
@@ -123,7 +122,6 @@ const MessagesManagement = () => {
       setSnackbar({ open: true, message: 'تم حذف الرسالة بنجاح', severity: 'success' });
       setDeleteDialog({ open: false, messageId: null, messageTitle: '' });
     } catch (error) {
-      console.error('Error deleting message:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'فشل في حذف الرسالة',
@@ -153,7 +151,6 @@ const MessagesManagement = () => {
       });
       setSnackbar({ open: true, message: 'تم تحديث حالة الرسالة بنجاح', severity: 'success' });
     } catch (error) {
-      console.error('Error toggling message:', error);
       setSnackbar({
         open: true,
         message: error.response?.data?.message || 'فشل في تحديث حالة الرسالة',

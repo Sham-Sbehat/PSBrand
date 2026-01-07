@@ -50,7 +50,6 @@ const NotesDialog = ({
       setOrderNotes('');
       setIsEditingNotes(false);
     } catch (error) {
-      console.error('Error saving notes:', error);
     } finally {
       setSavingNotes(false);
     }

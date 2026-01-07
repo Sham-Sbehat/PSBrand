@@ -21,6 +21,7 @@ const getAuthToken = () => {
 
 const HUB_PATH = "/orderUpdatesHub";
 const MESSAGES_HUB_PATH = "/messagesHub";
+const DESIGNS_HUB_PATH = "/designsHub";
 
 export const createOrderUpdatesConnection = () => {
   const base = getApiBase();
@@ -551,6 +552,195 @@ export const subscribeToMessages = async ({ onNewMessage, onMessageUpdated, onMe
   }
 
   throw new Error("All SignalR MessagesHub connection attempts failed.");
+};
+
+// Subscribe to Designs Hub for real-time design updates
+export const subscribeToDesigns = async ({ onDesignCreated, onDesignUpdated, onDesignStatusChanged } = {}) => {
+  const primaryBase = getApiBase();
+  const DESIGNS_HUB_PATH = "/designUpdatesHub";
+  const candidates = [
+    `${primaryBase}${DESIGNS_HUB_PATH}`,
+    `${primaryBase.replace(/^https:\/\//, 'http://')}${DESIGNS_HUB_PATH}`,
+  ];
+
+  // Add common local dev fallbacks if base is localhost
+  if (/^https?:\/\/localhost/.test(primaryBase)) {
+    candidates.push(
+      `https://localhost:44345${DESIGNS_HUB_PATH}`,
+      `https://localhost:7036${DESIGNS_HUB_PATH}`,
+      `http://localhost:5219${DESIGNS_HUB_PATH}`
+    );
+  }
+
+  // Helper function to register design event handlers
+  const registerDesignHandlers = (connection) => {
+    if (onDesignCreated) {
+      connection.on("DesignCreated", (designData) => {
+        console.log("🔔 SignalR DesignsHub: DesignCreated event received", designData);
+        onDesignCreated(designData);
+      });
+    }
+    if (onDesignUpdated) {
+      connection.on("DesignUpdated", (designData) => {
+        console.log("🔔 SignalR DesignsHub: DesignUpdated event received", designData);
+        onDesignUpdated(designData);
+      });
+    }
+    if (onDesignStatusChanged) {
+      connection.on("DesignStatusChanged", (designData) => {
+        console.log("🔔 SignalR DesignsHub: DesignStatusChanged event received", designData);
+        onDesignStatusChanged(designData);
+      });
+    }
+    
+    connection.onclose((error) => {
+      if (error) {
+        console.error("SignalR DesignsHub - Connection closed with error:", error);
+      }
+    });
+  };
+
+  // Get auth token for SignalR connection
+  const authToken = getAuthToken();
+  
+  // Try WebSockets FIRST
+  for (const hubUrl of candidates) {
+    try {
+      const wsConnection = new HubConnectionBuilder()
+        .withUrl(hubUrl, { 
+          skipNegotiation: true, 
+          transport: HttpTransportType.WebSockets,
+          accessTokenFactory: () => authToken || ""
+        })
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000;
+          }
+        })
+        .configureLogging(LogLevel.Warning)
+        .build();
+
+      registerDesignHandlers(wsConnection);
+      wsConnection.serverTimeoutInMilliseconds = 120000;
+
+      wsConnection.onreconnecting(err => {
+        if (err && !err.message?.includes('timeout')) {
+          console.warn("SignalR DesignsHub reconnecting due to error:", err);
+        }
+      });
+      wsConnection.onreconnected(() => {
+        // Silent reconnection
+      });
+      wsConnection.onclose(err => {
+        if (err) {
+          console.error("SignalR DesignsHub connection closed with error:", err);
+        }
+      });
+
+      await wsConnection.start();
+      
+      if (wsConnection.state === "Connected") {
+        console.info("✅ SignalR DesignsHub connected via WebSockets");
+      }
+      
+      return () => {
+        wsConnection.stop();
+      };
+    } catch (e1) {
+      // Silent fail, try next candidate
+    }
+  }
+
+  // Fallback to negotiation
+  for (const hubUrl of candidates) {
+    try {
+      const connection = new HubConnectionBuilder()
+        .withUrl(hubUrl, {
+          accessTokenFactory: () => authToken || "",
+          transport: HttpTransportType.WebSockets | HttpTransportType.ServerSentEvents
+        })
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000;
+          }
+        })
+        .configureLogging(LogLevel.Warning)
+        .build();
+
+      registerDesignHandlers(connection);
+      connection.serverTimeoutInMilliseconds = 120000;
+
+      connection.onreconnecting(err => {
+        if (err && !err.message?.includes('timeout')) {
+          console.warn("SignalR DesignsHub reconnecting due to error:", err);
+        }
+      });
+      connection.onreconnected(() => {
+        // Silent reconnection
+      });
+      connection.onclose(err => {
+        if (err) {
+          console.error("SignalR DesignsHub connection closed with error:", err);
+        }
+      });
+
+      await connection.start();
+      const transportName = connection.connection?.transport?.transport?.name || "unknown";
+      
+      if (connection.state === "Connected") {
+        console.info(`✅ SignalR DesignsHub connected via ${transportName}`);
+      }
+      
+      return () => {
+        connection.stop();
+      };
+    } catch (e2) {
+      // Silent fail, try next candidate
+    }
+  }
+
+  // Last resort: LongPolling
+  for (const hubUrl of candidates) {
+    try {
+      const lpConnection = new HubConnectionBuilder()
+        .withUrl(hubUrl, { 
+          transport: HttpTransportType.LongPolling,
+          accessTokenFactory: () => authToken || ""
+        })
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: (retryContext) => {
+            if (retryContext.previousRetryCount === 0) return 0;
+            if (retryContext.previousRetryCount === 1) return 2000;
+            if (retryContext.previousRetryCount === 2) return 10000;
+            if (retryContext.previousRetryCount === 3) return 30000;
+            return 60000;
+          }
+        })
+        .configureLogging(LogLevel.Warning)
+        .build();
+
+      registerDesignHandlers(lpConnection);
+      lpConnection.serverTimeoutInMilliseconds = 120000;
+
+      await lpConnection.start();
+      if (lpConnection.state === "Connected") {
+        console.warn("⚠️ SignalR DesignsHub connected via LongPolling");
+      }
+      return () => lpConnection.stop();
+    } catch (e3) {
+      // Silent fail
+    }
+  }
+
+  throw new Error("All SignalR DesignsHub connection attempts failed.");
 };
 
 

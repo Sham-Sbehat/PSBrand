@@ -60,7 +60,6 @@ const MessagesTab = ({ onNewMessage }) => {
 
       setMessages(activeMessages);
     } catch (error) {
-      console.error("Error loading messages:", error);
       setMessages([]);
     } finally {
       setLoading(false);
@@ -99,7 +98,6 @@ const MessagesTab = ({ onNewMessage }) => {
         });
         unsubscribeRef.current = unsubscribe;
       } catch (error) {
-        console.error("Error setting up real-time messages:", error);
       }
     };
 

@@ -70,7 +70,6 @@ const SellerManagement = () => {
       const response = await employeesService.getUsersByRole(2); // role 2 = Designer/Seller
       setSellers(Array.isArray(response) ? response : []);
     } catch (err) {
-      console.error('Error loading sellers:', err);
       setSellers([]);
     } finally {
       setLoading(false);
@@ -101,16 +100,7 @@ const SellerManagement = () => {
         totalAmountWithoutDelivery: response?.totalAmountWithoutDelivery || 0,
         periodDescription: response?.periodDescription || ''
       });
-      
-      console.log('Loaded seller orders:', {
-        totalCount: response?.totalCount || orders.length,
-        ordersCount: orders.length,
-        periodDescription: response?.periodDescription,
-        totalAmountWithDelivery: response?.totalAmountWithDelivery,
-        totalAmountWithoutDelivery: response?.totalAmountWithoutDelivery
-      });
     } catch (err) {
-      console.error('Error loading seller orders:', err);
       setSellerOrders([]);
     } finally {
       setOrdersLoading(false);

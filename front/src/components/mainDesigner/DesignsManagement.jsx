@@ -44,21 +44,26 @@ import {
   AttachFile,
 } from "@mui/icons-material";
 import { mainDesignerService } from "../../services/api";
+import { useApp } from "../../context/AppContext";
+import { subscribeToDesigns } from "../../services/realtime";
 import Swal from "sweetalert2";
 import calmPalette from "../../theme/calmPalette";
+import { USER_ROLES } from "../../constants";
 
-const DesignsManagement = () => {
+const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
+  const { user } = useApp();
   const [designs, setDesigns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDesign, setEditingDesign] = useState(null);
   const [viewingDesign, setViewingDesign] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
-  const [uploadingFiles, setUploadingFiles] = useState([]);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState([]); // Array of { name, type }
   const [uploadProgress, setUploadProgress] = useState({});
   const [formData, setFormData] = useState({
     serialNumber: "",
-    designName: "",
     designDate: new Date().toISOString().split("T")[0],
     designImageKey: "",
     designFileKeys: [], // Array of objects: [{ serialNumber, printFileName, fileKey }]
@@ -67,18 +72,71 @@ const DesignsManagement = () => {
     image: null,
     files: [], // Array of objects: [{ name, key, serialNumber, printFileName }]
   });
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState("all"); // "all", 1, 2, 3
+  const [dateFilter, setDateFilter] = useState(""); // Date string or empty
+  const [sortField, setSortField] = useState(null); // null, "serialNumber", "date", "status"
+  const [sortDirection, setSortDirection] = useState("asc"); // "asc", "desc"
 
   useEffect(() => {
+    if (!showFormInTab) {
     loadDesigns();
-  }, []);
+    }
+    if (showFormInTab) {
+      // Reset form when showing in tab
+      handleOpenDialog(null);
+    }
+  }, [showFormInTab]);
+
+  // Subscribe to real-time design updates
+  useEffect(() => {
+    if (showFormInTab) return; // Don't subscribe if showing form in tab
+    if (!user?.id) return; // Don't subscribe if no user
+    
+    let unsubscribe;
+    (async () => {
+      try {
+        unsubscribe = await subscribeToDesigns({
+          onDesignCreated: (designData) => {
+            // Only reload if it belongs to current user
+            if (designData && designData.createdBy === user.id) {
+              loadDesigns();
+            }
+          },
+          onDesignUpdated: (designData) => {
+            // Only reload if it belongs to current user
+            if (designData && designData.createdBy === user.id) {
+              loadDesigns();
+            }
+          },
+          onDesignStatusChanged: (designData) => {
+            // Only reload if it belongs to current user
+            if (designData && designData.createdBy === user.id) {
+              loadDesigns();
+            }
+          },
+        });
+      } catch (err) {
+      }
+    })();
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [user?.id, showFormInTab]);
 
   const loadDesigns = async () => {
     setLoading(true);
     try {
-      const data = await mainDesignerService.getDesigns();
+      if (!user?.id) {
+        setDesigns([]);
+        setLoading(false);
+        return;
+      }
+      // Get designs only for the current user (designer)
+      const data = await mainDesignerService.getDesignsByCreator(user.id);
       setDesigns(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error loading designs:", error);
       Swal.fire({
         icon: "error",
         title: "خطأ",
@@ -126,17 +184,34 @@ const DesignsManagement = () => {
           }).filter(Boolean)
         : [];
       
+      // Extract fileKey from designImageUrl if designImageKey is not available
+      let imageKey = design.designImageKey || "";
+      if (!imageKey && design.designImageUrl) {
+        // Try to extract fileKey from URL
+        imageKey = extractFileKeyFromUrl(design.designImageUrl) || "";
+      }
+      
       setFormData({
         serialNumber: design.serialNumber || "",
-        designName: design.designName || "",
         designDate: design.designDate ? design.designDate.split("T")[0] : new Date().toISOString().split("T")[0],
-        designImageKey: design.designImageKey || "",
+        designImageKey: imageKey,
         designFileKeys: fileKeys,
       });
       
       // Set uploaded files for display
+      // For image, use designImageUrl if available, otherwise use designImageKey
+      const imageName = design.designImageUrl 
+        ? (design.designName || "صورة التصميم")
+        : (design.designImageKey ? (design.designName || "صورة التصميم") : null);
+      
       setUploadedFiles({
-        image: design.designImageKey ? { name: design.designName || "صورة", key: design.designImageKey } : null,
+        image: imageKey || design.designImageUrl 
+          ? { 
+              name: imageName || "صورة التصميم", 
+              key: imageKey,
+              url: design.designImageUrl || null
+            } 
+          : null,
         files: fileKeys.map((item) => ({
           name: item.printFileName || item.fileKey || "ملف",
           key: item.fileKey,
@@ -148,18 +223,21 @@ const DesignsManagement = () => {
       setEditingDesign(null);
       setFormData({
         serialNumber: "",
-        designName: "",
         designDate: new Date().toISOString().split("T")[0],
         designImageKey: "",
         designFileKeys: [],
       });
-      setUploadedFiles({ image: null, files: [] });
+    setUploadedFiles({ image: null, files: [] });
     }
+    if (!showFormInTab) {
     setOpenDialog(true);
+    }
   };
 
   const handleCloseDialog = () => {
+    if (!showFormInTab) {
     setOpenDialog(false);
+    }
     setEditingDesign(null);
     setFormData({
       serialNumber: "",
@@ -191,14 +269,13 @@ const DesignsManagement = () => {
     }
 
     try {
-      setUploadingFiles((prev) => [...prev, file.name]);
-      setUploadProgress((prev) => ({ ...prev, [file.name]: 0 }));
+      const fileIdentifier = `${type}_${file.name}`;
+      setUploadingFiles((prev) => [...prev, { name: file.name, type, identifier: fileIdentifier }]);
+      setUploadProgress((prev) => ({ ...prev, [fileIdentifier]: 0 }));
 
       // Step 1: Generate upload URL
       const contentType = isPSD ? "application/octet-stream" : file.type;
       const folder = type === "image" ? "designs/images" : "designs/files";
-      
-      console.log("📤 Requesting upload URL:", { fileName: file.name, fileSize: file.size, contentType, folder });
       
       const uploadData = await mainDesignerService.generateUploadUrl(
         file.name,
@@ -207,17 +284,12 @@ const DesignsManagement = () => {
         folder
       );
 
-      console.log("✅ Received upload data:", uploadData);
-
       if (!uploadData.uploadUrl || !uploadData.fileKey) {
         throw new Error("فشل في الحصول على رابط الرفع");
       }
 
       // Step 2: Upload file directly to R2 using Presigned URL
       // The backend expects the file to be uploaded to R2 before confirming
-      console.log("📤 Uploading file to R2:", uploadData.uploadUrl.substring(0, 100) + "...");
-      console.log("📋 File details:", { name: file.name, size: file.size, type: contentType });
-      
       try {
         // Use fetch with PUT method to upload directly to R2
         // Important: Don't add any extra headers that aren't in the signed URL
@@ -229,28 +301,19 @@ const DesignsManagement = () => {
           },
           // Don't include credentials or other headers
         });
-        
-        console.log("📥 Upload response status:", uploadResponse.status);
-        console.log("📥 Upload response headers:", Object.fromEntries(uploadResponse.headers.entries()));
 
         if (!uploadResponse.ok) {
           let errorMessage = `فشل في رفع الملف (${uploadResponse.status})`;
           try {
             const errorText = await uploadResponse.text();
             if (errorText) {
-              console.error("❌ Upload error response:", errorText);
               errorMessage += `: ${errorText}`;
             }
           } catch (e) {
-            console.error("❌ Upload error:", uploadResponse.status, uploadResponse.statusText);
           }
           throw new Error(errorMessage);
         }
-        
-        console.log("✅ File uploaded successfully to R2");
       } catch (uploadError) {
-        console.error("❌ Upload failed:", uploadError);
-        
         // Check if it's a CORS error
         if (uploadError.message.includes("CORS") || uploadError.message.includes("Failed to fetch")) {
           Swal.fire({
@@ -293,23 +356,13 @@ const DesignsManagement = () => {
 
       // Step 3: Confirm upload with backend
       // Backend will verify the file exists in R2 before saving
-      console.log("✅ Confirming upload:", { 
-        fileKey: uploadData.fileKey, 
-        fileSize: file.size, 
-        contentType,
-        fullFileKey: uploadData.fileKey 
-      });
-      
       try {
-        const confirmResult = await mainDesignerService.confirmFileUpload(
+        await mainDesignerService.confirmFileUpload(
           uploadData.fileKey,
           file.size,
           contentType
         );
-        
-        console.log("✅ Upload confirmed successfully:", confirmResult);
       } catch (confirmError) {
-        console.error("❌ Confirm upload failed:", confirmError);
         // Don't throw here - the file is already uploaded to R2
         // Just log the error and continue
         Swal.fire({
@@ -323,29 +376,23 @@ const DesignsManagement = () => {
 
       // Update form data
       if (type === "image") {
-        console.log("💾 Saving image key to form:", uploadData.fileKey);
         setFormData((prev) => {
-          const updated = { ...prev, designImageKey: uploadData.fileKey };
-          console.log("💾 Updated formData:", updated);
-          return updated;
+          return { ...prev, designImageKey: uploadData.fileKey };
         });
         setUploadedFiles((prev) => ({ ...prev, image: { name: file.name, key: uploadData.fileKey } }));
       } else {
         // For files, create object with serialNumber and printFileName (empty initially, user will fill)
-        const newFileObject = {
-          serialNumber: "",
-          printFileName: file.name,
-          fileKey: uploadData.fileKey,
-        };
-        
-        console.log("💾 Saving file key to form:", newFileObject);
-        setFormData((prev) => {
-          const updated = {
-            ...prev,
-            designFileKeys: [...prev.designFileKeys, newFileObject],
+          const newFileObject = {
+            serialNumber: "",
+            printFileName: file.name,
+            fileKey: uploadData.fileKey,
           };
-          console.log("💾 Updated formData:", updated);
-          return updated;
+          
+        setFormData((prev) => {
+            return {
+            ...prev,
+              designFileKeys: [...prev.designFileKeys, newFileObject],
+          };
         });
         setUploadedFiles((prev) => ({
           ...prev,
@@ -358,12 +405,12 @@ const DesignsManagement = () => {
         }));
       }
 
-      setUploadProgress((prev) => ({ ...prev, [file.name]: 100 }));
+      setUploadProgress((prev) => ({ ...prev, [fileIdentifier]: 100 }));
       setTimeout(() => {
-        setUploadingFiles((prev) => prev.filter((name) => name !== file.name));
+        setUploadingFiles((prev) => prev.filter((item) => item.identifier !== fileIdentifier));
         setUploadProgress((prev) => {
           const newProgress = { ...prev };
-          delete newProgress[file.name];
+          delete newProgress[fileIdentifier];
           return newProgress;
         });
       }, 1000);
@@ -376,11 +423,11 @@ const DesignsManagement = () => {
         timer: 2000,
       });
     } catch (error) {
-      console.error("Error uploading file:", error);
-      setUploadingFiles((prev) => prev.filter((name) => name !== file.name));
+      const errorFileIdentifier = `${type}_${file.name}`;
+      setUploadingFiles((prev) => prev.filter((item) => item.identifier !== errorFileIdentifier));
       setUploadProgress((prev) => {
         const newProgress = { ...prev };
-        delete newProgress[file.name];
+        delete newProgress[errorFileIdentifier];
         return newProgress;
       });
       Swal.fire({
@@ -424,7 +471,18 @@ const DesignsManagement = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.serialNumber || !formData.designName || !formData.designDate) {
+    // التحقق من صلاحيات المستخدم
+    if (!user || (user.role !== USER_ROLES.MAIN_DESIGNER && user.role !== USER_ROLES.ADMIN && user.role !== USER_ROLES.DESIGN_MANAGER)) {
+      Swal.fire({
+        icon: "error",
+        title: "غير مصرح",
+        text: "المستخدم غير مصرح له بإنشاء التصاميم. يجب أن تكون MainDesigner أو Admin أو DesignManager",
+        confirmButtonColor: calmPalette.primary,
+      });
+      return;
+    }
+
+    if (!formData.serialNumber || !formData.designDate) {
       Swal.fire({
         icon: "error",
         title: "بيانات ناقصة",
@@ -465,7 +523,6 @@ const DesignsManagement = () => {
       // Prepare design data according to API spec
       const designPayload = {
         serialNumber: formData.serialNumber,
-        designName: formData.designName,
         designDate: formData.designDate,
         designImageKey: formData.designImageKey,
         designFileKeys: Array.isArray(formData.designFileKeys) 
@@ -477,9 +534,6 @@ const DesignsManagement = () => {
           : [],
       };
       
-      console.log("📤 Sending design data:", designPayload);
-      console.log("📤 DesignImageKey value:", designPayload.designImageKey);
-      console.log("📤 DesignFileKeys:", designPayload.designFileKeys);
       
       if (editingDesign) {
         await mainDesignerService.updateDesign(editingDesign.id, designPayload);
@@ -503,7 +557,6 @@ const DesignsManagement = () => {
       handleCloseDialog();
       loadDesigns();
     } catch (error) {
-      console.error("Error saving design:", error);
       Swal.fire({
         icon: "error",
         title: "خطأ",
@@ -540,7 +593,6 @@ const DesignsManagement = () => {
         });
         loadDesigns();
       } catch (error) {
-        console.error("Error deleting design:", error);
         Swal.fire({
           icon: "error",
           title: "خطأ",
@@ -575,14 +627,12 @@ const DesignsManagement = () => {
             setImageUrl(fullDesign.designImageUrl);
           }
         } catch (error) {
-          console.error("Error generating image URL:", error);
           setImageUrl(fullDesign.designImageUrl);
         }
       } else {
         setImageUrl(null);
       }
     } catch (error) {
-      console.error("Error loading design:", error);
       Swal.fire({
         icon: "error",
         title: "خطأ",
@@ -634,15 +684,33 @@ const DesignsManagement = () => {
         throw new Error("FileKey غير متوفر");
       }
 
+      // تنظيف fileKey - إزالة أي URLs كاملة
+      let cleanFileKey = fileKey;
+      if (typeof fileKey === 'string' && fileKey.startsWith('http')) {
+        cleanFileKey = extractFileKeyFromUrl(fileKey);
+        if (!cleanFileKey) {
+          throw new Error("لا يمكن استخراج مفتاح الملف من الرابط");
+        }
+      }
+
       // استخدام API لتوليد download URL
-      const downloadData = await mainDesignerService.generateDownloadUrl(fileKey);
+      const downloadData = await mainDesignerService.generateDownloadUrl(cleanFileKey);
       if (downloadData.downloadUrl) {
-        window.open(downloadData.downloadUrl, "_blank");
+        // إنشاء رابط تحميل
+        const link = document.createElement('a');
+        link.href = downloadData.downloadUrl;
+        link.download = fileName || cleanFileKey.split('/').pop() || 'file';
+        link.target = '_blank';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
       } else {
         throw new Error("فشل في توليد رابط التحميل");
       }
-    } catch (error) {
-      console.error("Error downloading file:", error);
+    } catch (error) {;
       Swal.fire({
         icon: "error",
         title: "خطأ",
@@ -651,6 +719,515 @@ const DesignsManagement = () => {
       });
     }
   };
+
+  // Render form content (used in both Dialog and Tab)
+  const renderFormContent = () => (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: showFormInTab ? 0 : 2 }}>
+      {/* Basic Information Section */}
+        <Paper
+          elevation={0}
+          sx={{
+          p: 2,
+            backgroundColor: "rgba(255, 255, 255, 0.6)",
+            borderRadius: 2,
+            border: "1px solid rgba(94, 78, 62, 0.1)",
+          }}
+        >
+        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 600, color: calmPalette.textPrimary, fontSize: "0.95rem" }}>
+          المعلومات الأساسية
+          </Typography>
+        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            <TextField
+            size="small"
+              label="الرقم التسلسلي *"
+              value={formData.serialNumber}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, serialNumber: e.target.value }))
+              }
+              required
+            sx={{ flex: 1, minWidth: 200 }}
+            />
+            <TextField
+            size="small"
+              type="date"
+              label="تاريخ التصميم *"
+              value={formData.designDate}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, designDate: e.target.value }))
+              }
+              InputLabelProps={{ shrink: true }}
+              required
+            sx={{ flex: 1, minWidth: 200 }}
+            />
+        </Box>
+      </Paper>
+
+            {/* Image Upload */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          backgroundColor: "rgba(255, 255, 255, 0.6)",
+          borderRadius: 2,
+          border: "1px solid rgba(94, 78, 62, 0.1)",
+        }}
+      >
+        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 600, color: calmPalette.textPrimary, fontSize: "0.95rem" }}>
+                صورة التصميم *
+              </Typography>
+              <input
+                accept="image/png,image/jpeg,image/jpg,.psd"
+                style={{ display: "none" }}
+                id="image-upload"
+                type="file"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleFileSelect(e.target.files[0], "image");
+                  }
+                }}
+              />
+              <label htmlFor="image-upload">
+                <Button
+                  variant="outlined"
+            size="small"
+                  component="span"
+                  startIcon={<Upload />}
+                  fullWidth
+                  sx={{
+                    borderColor: calmPalette.primary,
+                    color: calmPalette.primary,
+                    "&:hover": {
+                      borderColor: calmPalette.primaryDark,
+                      backgroundColor: "rgba(94, 78, 62, 0.05)",
+                    },
+                  }}
+                >
+                  رفع صورة التصميم (PSD أو PNG)
+                </Button>
+              </label>
+        
+        {/* Show uploading image with loader */}
+        {uploadingFiles.some((item) => item.type === "image" && !uploadedFiles.image) && !uploadedFiles.image ? (
+          <Box
+            sx={{
+              mt: 2,
+              p: 2,
+              backgroundColor: "rgba(94, 78, 62, 0.05)",
+              borderRadius: 2,
+              border: "1px solid rgba(94, 78, 62, 0.2)",
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+              <CircularProgress size={24} sx={{ color: calmPalette.primary }} />
+              <Typography variant="body2" sx={{ flex: 1 }}>
+                جاري رفع الصورة...
+              </Typography>
+            </Box>
+            <LinearProgress sx={{ mt: 1 }} />
+            <Typography variant="caption" sx={{ mt: 1, display: "block", color: calmPalette.textSecondary }}>
+              يرجى الانتظار حتى يكتمل الرفع
+            </Typography>
+          </Box>
+        ) : uploadedFiles.image ? (
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 2,
+                    backgroundColor: "rgba(94, 78, 62, 0.05)",
+                    borderRadius: 2,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+              border: uploadingFiles.some((item) => item.name === uploadedFiles.image.name && item.type === "image")
+                ? "1px solid rgba(94, 78, 62, 0.2)" 
+                : "1px solid rgba(94, 78, 62, 0.1)",
+              opacity: uploadingFiles.some((item) => item.name === uploadedFiles.image.name && item.type === "image") ? 0.7 : 1,
+            }}
+          >
+            {uploadingFiles.some((item) => item.name === uploadedFiles.image.name && item.type === "image") ? (
+              <Box sx={{ width: "100%" }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+                  <CircularProgress size={20} sx={{ color: calmPalette.primary }} />
+                  <Typography variant="body2" sx={{ flex: 1 }}>
+                    جاري معالجة: {uploadedFiles.image.name}
+                  </Typography>
+                </Box>
+                <LinearProgress sx={{ mt: 1 }} />
+                <Typography variant="caption" sx={{ mt: 1, display: "block", color: calmPalette.textSecondary }}>
+                  يرجى الانتظار حتى يكتمل الرفع
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <CheckCircle sx={{ color: "success.main", fontSize: 20 }} />
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {uploadedFiles.image.name}
+                  </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleRemoveFile("image")}
+                    sx={{ color: "error.main" }}
+                  >
+                    <Close />
+                  </IconButton>
+              </>
+            )}
+                </Box>
+        ) : null}
+      </Paper>
+
+            {/* Files Upload */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          backgroundColor: "rgba(255, 255, 255, 0.6)",
+          borderRadius: 2,
+          border: "1px solid rgba(94, 78, 62, 0.1)",
+        }}
+      >
+        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 600, color: calmPalette.textPrimary, fontSize: "0.95rem" }}>
+                ملفات التصميم (اختياري)
+              </Typography>
+              <input
+                accept=".psd,.png,.jpg,.jpeg"
+                style={{ display: "none" }}
+                id="files-upload"
+                type="file"
+                multiple
+                onChange={(e) => {
+                  if (e.target.files) {
+                    Array.from(e.target.files).forEach((file) => {
+                      handleFileSelect(file, "file");
+                    });
+                  }
+                }}
+              />
+              <label htmlFor="files-upload">
+                <Button
+                  variant="outlined"
+            size="small"
+                  component="span"
+                  startIcon={<Upload />}
+                  fullWidth
+                  sx={{
+                    borderColor: calmPalette.primary,
+                    color: calmPalette.primary,
+                    "&:hover": {
+                      borderColor: calmPalette.primaryDark,
+                      backgroundColor: "rgba(94, 78, 62, 0.05)",
+                    },
+                  }}
+                >
+                  رفع ملفات التصميم (متعدد)
+                </Button>
+              </label>
+        
+        {/* Show uploading files with loader */}
+        {uploadingFiles.filter((item) => {
+          return item.type === "file" && !uploadedFiles.files.some((f) => f.name === item.name);
+        }).map((uploadingItem, uploadIndex) => (
+          <Box
+            key={`uploading-${uploadIndex}`}
+                      sx={{
+              mt: 2,
+              p: 2,
+                        backgroundColor: "rgba(94, 78, 62, 0.05)",
+                        borderRadius: 2,
+              border: "1px solid rgba(94, 78, 62, 0.2)",
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+              <CircularProgress size={24} sx={{ color: calmPalette.primary }} />
+              <Typography variant="body2" sx={{ flex: 1 }}>
+                جاري رفع: {uploadingItem.name}
+              </Typography>
+            </Box>
+            <LinearProgress sx={{ mt: 1 }} />
+            <Typography variant="caption" sx={{ mt: 1, display: "block", color: calmPalette.textSecondary }}>
+              يرجى الانتظار حتى يكتمل الرفع
+            </Typography>
+          </Box>
+        ))}
+        
+        {/* Show uploaded files */}
+        {uploadedFiles.files.length > 0 && (
+          <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+            {uploadedFiles.files.map((file, index) => {
+              const isUploading = uploadingFiles.some((item) => item.name === file.name && item.type === "file");
+              return (
+                <Paper
+                  key={index}
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    backgroundColor: isUploading ? "rgba(94, 78, 62, 0.05)" : "rgba(94, 78, 62, 0.03)",
+                    borderRadius: 2,
+                    border: isUploading 
+                      ? "1px solid rgba(94, 78, 62, 0.2)" 
+                      : "1px solid rgba(94, 78, 62, 0.1)",
+                    opacity: isUploading ? 0.7 : 1,
+                  }}
+                >
+                  {isUploading ? (
+                    <Box>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+                        <CircularProgress size={20} sx={{ color: calmPalette.primary }} />
+                        <Typography variant="body2" sx={{ flex: 1 }}>
+                          جاري معالجة: {file.name}
+                        </Typography>
+                      </Box>
+                      <LinearProgress sx={{ mt: 1 }} />
+                      <Typography variant="caption" sx={{ mt: 1, display: "block", color: calmPalette.textSecondary }}>
+                        يرجى الانتظار حتى يكتمل الرفع
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
+                          <CheckCircle sx={{ color: "success.main", fontSize: 20 }} />
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {file.name}
+                          </Typography>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemoveFile("file", index)}
+                        sx={{ color: "error.main" }}
+                      >
+                        <Close />
+                      </IconButton>
+                    </Box>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="الرقم التسلسلي *"
+                            value={file.serialNumber || ""}
+                            onChange={(e) => handleUpdateFileInfo(index, "serialNumber", e.target.value)}
+                            placeholder="أدخل الرقم التسلسلي"
+                            required
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="اسم الملف للطباعة *"
+                            value={file.printFileName || ""}
+                            onChange={(e) => handleUpdateFileInfo(index, "printFileName", e.target.value)}
+                            placeholder="أدخل اسم الملف"
+                            required
+                          />
+                        </Grid>
+                      </Grid>
+                    </>
+                  )}
+                </Paper>
+              );
+            })}
+                </Box>
+              )}
+      </Paper>
+            </Box>
+  );
+
+  // التحقق من صلاحيات المستخدم لإنشاء التصاميم
+  const canCreateDesign = user && (
+    user.role === USER_ROLES.MAIN_DESIGNER || 
+    user.role === USER_ROLES.ADMIN || 
+    user.role === USER_ROLES.DESIGN_MANAGER
+  );
+
+  // If showFormInTab is true, render only the form
+  if (showFormInTab) {
+    // التحقق من صلاحيات المستخدم
+    if (!canCreateDesign) {
+      return (
+        <Box sx={{ maxWidth: 900, mx: "auto" }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+              غير مصرح
+            </Typography>
+            <Typography variant="body2">
+              المستخدم غير مصرح له بإنشاء التصاميم. يجب أن تكون MainDesigner أو Admin أو DesignManager.
+            </Typography>
+          </Alert>
+          </Box>
+      );
+    }
+    
+    return (
+      <Box sx={{ maxWidth: 900, mx: "auto" }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: "1.25rem" }}>
+          {editingDesign ? "تعديل التصميم" : "إضافة تصميم جديد"}
+        </Typography>
+        {renderFormContent()}
+        <Box sx={{ display: "flex", gap: 2, mt: 3, justifyContent: "flex-end" }}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => {
+              handleCloseDialog();
+            }}
+            disabled={loading}
+            sx={{
+              borderColor: calmPalette.primary,
+              color: calmPalette.primary,
+            }}
+          >
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleSubmit}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={16} /> : <CheckCircle />}
+            sx={{
+              backgroundColor: calmPalette.primary,
+              "&:hover": {
+                backgroundColor: calmPalette.primaryDark,
+              },
+            }}
+          >
+            {loading ? "جاري الحفظ..." : editingDesign ? "تحديث" : "إنشاء"}
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Filter and sort designs
+  const getFilteredAndSortedDesigns = () => {
+    let filtered = [...designs];
+
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((design) => design.status === Number(statusFilter));
+    }
+
+    // Apply date filter
+    if (dateFilter) {
+      const filterDate = new Date(dateFilter);
+      filterDate.setHours(0, 0, 0, 0);
+      filtered = filtered.filter((design) => {
+        if (!design.createdAt) return false;
+        const designDate = new Date(design.createdAt);
+        designDate.setHours(0, 0, 0, 0);
+        return designDate.getTime() === filterDate.getTime();
+      });
+    }
+
+    // Apply sorting
+    if (sortField) {
+      filtered.sort((a, b) => {
+        let aValue, bValue;
+
+        switch (sortField) {
+          case "serialNumber":
+            aValue = a.serialNumber || "";
+            bValue = b.serialNumber || "";
+            break;
+          case "date":
+            aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            break;
+          case "status":
+            aValue = a.status || 0;
+            bValue = b.status || 0;
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+        if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortIcon = (field) => {
+    if (sortField !== field) return null;
+    return sortDirection === "asc" ? "↑" : "↓";
+  };
+
+  const filteredDesigns = getFilteredAndSortedDesigns();
+
+  // If showFormInTab is true, render only the form
+  if (showFormInTab) {
+    // التحقق من صلاحيات المستخدم
+    if (!canCreateDesign) {
+      return (
+        <Box sx={{ maxWidth: 900, mx: "auto" }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
+              غير مصرح
+            </Typography>
+            <Typography variant="body2">
+              المستخدم غير مصرح له بإنشاء التصاميم. يجب أن تكون MainDesigner أو Admin أو DesignManager.
+            </Typography>
+          </Alert>
+        </Box>
+      );
+    }
+    
+    return (
+      <Box sx={{ maxWidth: 900, mx: "auto" }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2, fontSize: "1.25rem" }}>
+          {editingDesign ? "تعديل التصميم" : "إضافة تصميم جديد"}
+        </Typography>
+        {renderFormContent()}
+        <Box sx={{ display: "flex", gap: 2, mt: 3, justifyContent: "flex-end" }}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => {
+              handleCloseDialog();
+            }}
+            disabled={loading}
+            sx={{
+              borderColor: calmPalette.primary,
+              color: calmPalette.primary,
+            }}
+          >
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleSubmit}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={16} /> : <CheckCircle />}
+            sx={{
+              backgroundColor: calmPalette.primary,
+              "&:hover": {
+                backgroundColor: calmPalette.primaryDark,
+              },
+            }}
+          >
+            {loading ? "جاري الحفظ..." : editingDesign ? "تحديث" : "إنشاء"}
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -663,22 +1240,92 @@ const DesignsManagement = () => {
         }}
       >
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          إدارة التصاميم ({designs.length})
+          إدارة التصاميم ({filteredDesigns.length})
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleOpenDialog()}
-          sx={{
-            backgroundColor: calmPalette.primary,
-            "&:hover": {
-              backgroundColor: calmPalette.primaryDark,
-            },
-          }}
-        >
-          إضافة تصميم
-        </Button>
+        {!canCreateDesign && (
+          <Alert severity="warning" sx={{ flex: 1, mr: 2 }}>
+            أنت غير مصرح لك بإنشاء تصاميم جديدة. يجب أن تكون MainDesigner أو Admin أو DesignManager.
+          </Alert>
+        )}
       </Box>
+
+      {/* Filters */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          mb: 3,
+          backgroundColor: "#ffffff",
+          borderRadius: 2,
+          border: `1px solid ${calmPalette.primary}15`,
+        }}
+      >
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={4} md={3}>
+            <TextField
+              select
+              fullWidth
+              size="small"
+              label="الحالة"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              SelectProps={{
+                native: true,
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "#ffffff",
+                },
+              }}
+            >
+              <option value="all">الكل</option>
+              <option value="1">في الانتظار</option>
+              <option value="2">مقبول</option>
+              <option value="3">مرفوض</option>
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={4} md={3}>
+            <TextField
+              fullWidth
+              size="small"
+              type="date"
+              label="التاريخ"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "#ffffff",
+                },
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4} md={3}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                setStatusFilter("all");
+                setDateFilter("");
+                setSortField(null);
+                setSortDirection("asc");
+              }}
+              sx={{
+                borderColor: calmPalette.primary + "30",
+                color: calmPalette.primary,
+                "&:hover": {
+                  borderColor: calmPalette.primary,
+                  backgroundColor: calmPalette.primary + "08",
+                },
+              }}
+            >
+              إلغاء الفلترة
+            </Button>
+          </Grid>
+        </Grid>
+      </Paper>
 
       {loading && designs.length === 0 ? (
         <Box sx={{ textAlign: "center", py: 4 }}>
@@ -716,18 +1363,47 @@ const DesignsManagement = () => {
             <TableHead>
               <TableRow sx={{ backgroundColor: calmPalette.surface }}>
                 <TableCell sx={{ fontWeight: 700 }}>الصورة</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>الرقم التسلسلي</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>اسم التصميم</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>تاريخ التصميم</TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    userSelect: "none",
+                    "&:hover": { backgroundColor: calmPalette.primary + "08" },
+                  }}
+                  onClick={() => handleSort("serialNumber")}
+                >
+                  الرقم التسلسلي {getSortIcon("serialNumber")}
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    userSelect: "none",
+                    "&:hover": { backgroundColor: calmPalette.primary + "08" },
+                  }}
+                  onClick={() => handleSort("date")}
+                >
+                  تاريخ التصميم {getSortIcon("date")}
+                </TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>الملفات</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    userSelect: "none",
+                    "&:hover": { backgroundColor: calmPalette.primary + "08" },
+                  }}
+                  onClick={() => handleSort("status")}
+                >
+                  الحالة {getSortIcon("status")}
+                </TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center">
                   الإجراءات
                 </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {designs.map((design) => (
+              {filteredDesigns.map((design) => (
                 <TableRow
                   key={design.id}
                   sx={{
@@ -785,7 +1461,6 @@ const DesignsManagement = () => {
                     )}
                   </TableCell>
                   <TableCell>{design.serialNumber}</TableCell>
-                  <TableCell>{design.designName}</TableCell>
                   <TableCell>
                     {design.createdAt
                       ? new Date(design.createdAt).toLocaleDateString("ar-SA")
@@ -881,304 +1556,21 @@ const DesignsManagement = () => {
           {editingDesign ? "تعديل التصميم" : "إضافة تصميم جديد"}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3, pt: 2 }}>
-            <TextField
-              fullWidth
-              label="الرقم التسلسلي *"
-              value={formData.serialNumber}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, serialNumber: e.target.value }))
-              }
-              required
-            />
-
-            <TextField
-              fullWidth
-              label="اسم التصميم *"
-              value={formData.designName}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, designName: e.target.value }))
-              }
-              required
-            />
-
-            <TextField
-              fullWidth
-              type="date"
-              label="تاريخ التصميم *"
-              value={formData.designDate}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, designDate: e.target.value }))
-              }
-              InputLabelProps={{ shrink: true }}
-              required
-            />
-
-            {/* Image Upload */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                صورة التصميم *
+          {!canCreateDesign && !editingDesign ? (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                المستخدم غير مصرح له بإنشاء التصاميم. يجب أن تكون MainDesigner أو Admin أو DesignManager.
               </Typography>
-              <input
-                accept="image/png,image/jpeg,image/jpg,.psd"
-                style={{ display: "none" }}
-                id="image-upload"
-                type="file"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFileSelect(e.target.files[0], "image");
-                  }
-                }}
-              />
-              <label htmlFor="image-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<Upload />}
-                  fullWidth
-                  sx={{
-                    borderColor: calmPalette.primary,
-                    color: calmPalette.primary,
-                    "&:hover": {
-                      borderColor: calmPalette.primaryDark,
-                      backgroundColor: "rgba(94, 78, 62, 0.05)",
-                    },
-                  }}
-                >
-                  رفع صورة التصميم (PSD أو PNG)
-                </Button>
-              </label>
-              
-              {/* Show uploading image with loader */}
-              {uploadingFiles.some((name) => {
-                // Check if image is being uploaded (not in uploadedFiles yet)
-                return name.includes("image") || 
-                  (uploadedFiles.image && name === uploadedFiles.image.name);
-              }) && !uploadedFiles.image ? (
-                <Box
-                  sx={{
-                    mt: 2,
-                    p: 2,
-                    backgroundColor: "rgba(94, 78, 62, 0.05)",
-                    borderRadius: 2,
-                    border: "1px solid rgba(94, 78, 62, 0.2)",
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
-                    <CircularProgress size={24} sx={{ color: calmPalette.primary }} />
-                    <Typography variant="body2" sx={{ flex: 1 }}>
-                      جاري رفع الصورة...
-                    </Typography>
-                  </Box>
-                  <LinearProgress sx={{ mt: 1 }} />
-                  <Typography variant="caption" sx={{ mt: 1, display: "block", color: calmPalette.textSecondary }}>
-                    يرجى الانتظار حتى يكتمل الرفع
-                  </Typography>
-                </Box>
-              ) : uploadedFiles.image ? (
-                <Box
-                  sx={{
-                    mt: 2,
-                    p: 2,
-                    backgroundColor: "rgba(94, 78, 62, 0.05)",
-                    borderRadius: 2,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    border: uploadingFiles.includes(uploadedFiles.image.name) 
-                      ? "1px solid rgba(94, 78, 62, 0.2)" 
-                      : "1px solid rgba(94, 78, 62, 0.1)",
-                    opacity: uploadingFiles.includes(uploadedFiles.image.name) ? 0.7 : 1,
-                  }}
-                >
-                  {uploadingFiles.includes(uploadedFiles.image.name) ? (
-                    <Box sx={{ width: "100%" }}>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
-                        <CircularProgress size={20} sx={{ color: calmPalette.primary }} />
-                        <Typography variant="body2" sx={{ flex: 1 }}>
-                          جاري معالجة: {uploadedFiles.image.name}
-                        </Typography>
-                      </Box>
-                      <LinearProgress sx={{ mt: 1 }} />
-                      <Typography variant="caption" sx={{ mt: 1, display: "block", color: calmPalette.textSecondary }}>
-                        يرجى الانتظار حتى يكتمل الرفع
-                      </Typography>
-                    </Box>
-                  ) : (
-                    <>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <CheckCircle sx={{ color: "success.main", fontSize: 20 }} />
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                          {uploadedFiles.image.name}
-                        </Typography>
-                      </Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRemoveFile("image")}
-                        sx={{ color: "error.main" }}
-                      >
-                        <Close />
-                      </IconButton>
-                    </>
-                  )}
-                </Box>
-              ) : null}
-            </Box>
-
-            {/* Files Upload */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                ملفات التصميم (اختياري)
-              </Typography>
-              <input
-                accept=".psd,.png,.jpg,.jpeg"
-                style={{ display: "none" }}
-                id="files-upload"
-                type="file"
-                multiple
-                onChange={(e) => {
-                  if (e.target.files) {
-                    Array.from(e.target.files).forEach((file) => {
-                      handleFileSelect(file, "file");
-                    });
-                  }
-                }}
-              />
-              <label htmlFor="files-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<Upload />}
-                  fullWidth
-                  sx={{
-                    borderColor: calmPalette.primary,
-                    color: calmPalette.primary,
-                    "&:hover": {
-                      borderColor: calmPalette.primaryDark,
-                      backgroundColor: "rgba(94, 78, 62, 0.05)",
-                    },
-                  }}
-                >
-                  رفع ملفات التصميم (متعدد)
-                </Button>
-              </label>
-              
-              {/* Show uploading files with loader */}
-              {uploadingFiles.filter((name) => {
-                // Check if this file is being uploaded (not in uploadedFiles yet)
-                // Exclude image files (they have their own section)
-                return !name.includes("image") && !uploadedFiles.files.some((f) => f.name === name);
-              }).map((uploadingFileName, uploadIndex) => (
-                <Box
-                  key={`uploading-${uploadIndex}`}
-                  sx={{
-                    mt: 2,
-                    p: 2,
-                    backgroundColor: "rgba(94, 78, 62, 0.05)",
-                    borderRadius: 2,
-                    border: "1px solid rgba(94, 78, 62, 0.2)",
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
-                    <CircularProgress size={24} sx={{ color: calmPalette.primary }} />
-                    <Typography variant="body2" sx={{ flex: 1 }}>
-                      جاري رفع: {uploadingFileName}
-                    </Typography>
-                  </Box>
-                  <LinearProgress sx={{ mt: 1 }} />
-                  <Typography variant="caption" sx={{ mt: 1, display: "block", color: calmPalette.textSecondary }}>
-                    يرجى الانتظار حتى يكتمل الرفع
-                  </Typography>
-                </Box>
-              ))}
-              
-              {/* Show uploaded files */}
-              {uploadedFiles.files.length > 0 && (
-                <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-                  {uploadedFiles.files.map((file, index) => {
-                    const isUploading = uploadingFiles.includes(file.name);
-                    return (
-                      <Paper
-                        key={index}
-                        elevation={0}
-                        sx={{
-                          p: 2,
-                          backgroundColor: isUploading ? "rgba(94, 78, 62, 0.05)" : "rgba(94, 78, 62, 0.03)",
-                          borderRadius: 2,
-                          border: isUploading 
-                            ? "1px solid rgba(94, 78, 62, 0.2)" 
-                            : "1px solid rgba(94, 78, 62, 0.1)",
-                          opacity: isUploading ? 0.7 : 1,
-                        }}
-                      >
-                        {isUploading ? (
-                          <Box>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
-                              <CircularProgress size={20} sx={{ color: calmPalette.primary }} />
-                              <Typography variant="body2" sx={{ flex: 1 }}>
-                                جاري معالجة: {file.name}
-                              </Typography>
-                            </Box>
-                            <LinearProgress sx={{ mt: 1 }} />
-                            <Typography variant="caption" sx={{ mt: 1, display: "block", color: calmPalette.textSecondary }}>
-                              يرجى الانتظار حتى يكتمل الرفع
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <>
-                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
-                                <CheckCircle sx={{ color: "success.main", fontSize: 20 }} />
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                  {file.name}
-                                </Typography>
-                              </Box>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleRemoveFile("file", index)}
-                                sx={{ color: "error.main" }}
-                              >
-                                <Close />
-                              </IconButton>
-                            </Box>
-                            <Grid container spacing={2}>
-                              <Grid item xs={12} sm={6}>
-                                <TextField
-                                  fullWidth
-                                  size="small"
-                                  label="الرقم التسلسلي *"
-                                  value={file.serialNumber || ""}
-                                  onChange={(e) => handleUpdateFileInfo(index, "serialNumber", e.target.value)}
-                                  placeholder="أدخل الرقم التسلسلي"
-                                  required
-                                />
-                              </Grid>
-                              <Grid item xs={12} sm={6}>
-                                <TextField
-                                  fullWidth
-                                  size="small"
-                                  label="اسم الملف للطباعة *"
-                                  value={file.printFileName || ""}
-                                  onChange={(e) => handleUpdateFileInfo(index, "printFileName", e.target.value)}
-                                  placeholder="أدخل اسم الملف"
-                                  required
-                                />
-                              </Grid>
-                            </Grid>
-                          </>
-                        )}
-                      </Paper>
-                    );
-                  })}
-                </Box>
-              )}
-            </Box>
-          </Box>
+            </Alert>
+          ) : (
+            renderFormContent()
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2.5 }}>
           <Button onClick={handleCloseDialog} disabled={loading}>
             إلغاء
           </Button>
+          {(canCreateDesign || editingDesign) && (
           <Button
             variant="contained"
             onClick={handleSubmit}
@@ -1193,6 +1585,7 @@ const DesignsManagement = () => {
           >
             {loading ? "جاري الحفظ..." : editingDesign ? "تحديث" : "إنشاء"}
           </Button>
+          )}
         </DialogActions>
       </Dialog>
 
@@ -1203,152 +1596,394 @@ const DesignsManagement = () => {
           setViewingDesign(null);
           setImageUrl(null);
         }}
-        maxWidth="lg"
+        maxWidth="md"
         fullWidth
         PaperProps={{
           sx: {
             borderRadius: 3,
             background: "#ffffff",
-            boxShadow: calmPalette.shadow,
-            backdropFilter: "blur(8px)",
+            boxShadow: "0 8px 32px rgba(94, 78, 62, 0.12)",
+            border: "none",
+            overflow: "hidden",
           },
         }}
       >
         {viewingDesign && (
           <>
-            <DialogTitle sx={{ fontWeight: 700, pb: 2 }}>
-              عرض التصميم: {viewingDesign.designName}
+            <DialogTitle 
+              sx={{ 
+                fontWeight: 700,
+                pb: 2,
+                pt: 2.5,
+                px: 3,
+                background: "#ffffff",
+                borderBottom: `1px solid ${calmPalette.primary}20`,
+                fontSize: "1.1rem",
+                color: calmPalette.textPrimary,
+              }}
+            >
+              عرض التصميم
             </DialogTitle>
-            <DialogContent>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+            <DialogContent sx={{ pt: 2.5, px: 3, pb: 2, backgroundColor: "#fafafa" }}>
+              <Grid container spacing={2} sx={{ mb: 2.5 }}>
+                <Grid item xs={6}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: calmPalette.textSecondary, 
+                      display: "block", 
+                      mb: 0.5,
+                      fontSize: "0.75rem",
+                    }}
+                  >
                     الرقم التسلسلي
                   </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      color: calmPalette.textPrimary,
+                      fontSize: "0.95rem",
+                    }}
+                  >
                     {viewingDesign.serialNumber}
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                <Grid item xs={6}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: calmPalette.textSecondary, 
+                      display: "block", 
+                      mb: 0.5,
+                      fontSize: "0.75rem",
+                    }}
+                  >
                     تاريخ التصميم
                   </Typography>
-                  <Typography variant="body1" sx={{ mb: 2 }}>
-                    {viewingDesign.designDate
+                  <Typography 
+                    variant="body1" 
+                    sx={{ 
+                      fontWeight: 600, 
+                      color: calmPalette.textPrimary,
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    {viewingDesign.createdAt
+                      ? new Date(viewingDesign.createdAt).toLocaleDateString("ar-SA")
+                      : viewingDesign.designDate
                       ? new Date(viewingDesign.designDate).toLocaleDateString("ar-SA")
                       : "-"}
                   </Typography>
                 </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              </Grid>
+              <Box sx={{ mb: 2.5 }}>
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    mb: 1.5, 
+                    fontWeight: 600, 
+                    color: calmPalette.textPrimary,
+                    fontSize: "0.9rem",
+                  }}
+                >
                     صورة التصميم
                   </Typography>
-                  {imageUrl || viewingDesign.designImageUrl ? (
-                    <Box
+                {imageUrl || viewingDesign.designImageUrl ? (
+                  <Box sx={{ display: "flex", gap: 1.5, justifyContent: "flex-start" }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<Visibility />}
+                      onClick={() => {
+                        setSelectedImage(imageUrl || viewingDesign.designImageUrl);
+                        setImageDialogOpen(true);
+                      }}
                       sx={{
-                        mt: 1,
-                        p: 2,
-                        backgroundColor: "rgba(94, 78, 62, 0.05)",
-                        borderRadius: 2,
-                        textAlign: "center",
+                        backgroundColor: calmPalette.primary,
+                        color: "#ffffff",
+                        px: 2,
+                        py: 0.75,
+                        borderRadius: 1.5,
+                        fontWeight: 500,
+                        textTransform: "none",
+                        fontSize: "0.875rem",
+                        "&:hover": {
+                          backgroundColor: calmPalette.primary + "dd",
+                        },
                       }}
                     >
-                      <img
-                        src={imageUrl || viewingDesign.designImageUrl}
-                        alt={viewingDesign.designName}
-                        style={{
-                          maxWidth: "100%",
-                          maxHeight: "400px",
-                          borderRadius: 8,
-                        }}
-                        onError={(e) => {
-                          // إذا فشل تحميل الصورة من API، جرب الـ URL الأصلي
-                          if (imageUrl && imageUrl !== viewingDesign.designImageUrl) {
-                            e.target.src = viewingDesign.designImageUrl;
-                          }
-                        }}
-                      />
+                      عرض الصورة
+                    </Button>
                       <Button
+                      variant="contained"
+                      size="small"
                         startIcon={<Download />}
-                        onClick={() =>
-                          handleDownloadFile(
-                            viewingDesign.designImageKey || viewingDesign.designImageUrl,
-                            `${viewingDesign.designName}_image`
-                          )
+                      onClick={async () => {
+                        try {
+                          const fileKey = viewingDesign.designImageKey || extractFileKeyFromUrl(viewingDesign.designImageUrl);
+                          if (fileKey) {
+                            await handleDownloadFile(fileKey, `design_image_${viewingDesign.serialNumber || viewingDesign.id}`);
+                          } else {
+                            Swal.fire({
+                              icon: "error",
+                              title: "خطأ",
+                              text: "لا يمكن العثور على مفتاح الصورة",
+                              confirmButtonColor: calmPalette.primary,
+                            });
+                          }
+                        } catch (error) {
+                          Swal.fire({
+                            icon: "error",
+                            title: "خطأ",
+                            text: error.message || "فشل في تحميل الصورة",
+                            confirmButtonColor: calmPalette.primary,
+                          });
                         }
-                        sx={{ mt: 2 }}
+                      }}
+                      sx={{ 
+                        backgroundColor: calmPalette.primary,
+                        color: "#ffffff",
+                        px: 2,
+                        py: 0.75,
+                        borderRadius: 1.5,
+                        fontWeight: 500,
+                        textTransform: "none",
+                        fontSize: "0.875rem",
+                        "&:hover": {
+                          backgroundColor: calmPalette.primary + "dd",
+                        },
+                      }}
                       >
                         تحميل الصورة
                       </Button>
                     </Box>
                   ) : (
-                    <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
                       لا توجد صورة
                     </Typography>
                   )}
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+              </Box>
+              
+              <Box>
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    mb: 1.5, 
+                    fontWeight: 600, 
+                    color: calmPalette.textPrimary,
+                    fontSize: "0.9rem",
+                  }}
+                >
                     ملفات التصميم
                   </Typography>
                   {viewingDesign.designFileUrls && viewingDesign.designFileUrls.length > 0 ? (
                     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                      {viewingDesign.designFileUrls.map((fileItem, index) => {
-                        // designFileUrls is now array of objects: [{ serialNumber, printFileName, fileKey, downloadUrl }]
-                        let fileKey = null;
-                        let fileName = `الملف ${index + 1}`;
-                        let downloadUrl = null;
-                        
-                        if (typeof fileItem === 'object' && fileItem !== null) {
-                          // New format: object with fileKey, printFileName, downloadUrl
-                          fileKey = fileItem.fileKey;
-                          fileName = fileItem.printFileName || fileName;
-                          downloadUrl = fileItem.downloadUrl;
-                        } else if (typeof fileItem === 'string') {
-                          // Legacy format: string URL
-                          fileKey = extractFileKeyFromUrl(fileItem) || fileItem;
-                          downloadUrl = fileItem;
-                        }
-                        
-                        return (
+                    {viewingDesign.designFileUrls.map((fileItem, index) => {
+                      // designFileUrls is now array of objects: [{ serialNumber, printFileName, fileKey, downloadUrl }]
+                      let fileKey = null;
+                      let fileName = `الملف ${index + 1}`;
+                      let serialNumber = null;
+                      let downloadUrl = null;
+                      
+                      if (typeof fileItem === 'object' && fileItem !== null) {
+                        // New format: object with fileKey, printFileName, downloadUrl, serialNumber
+                        fileKey = fileItem.fileKey;
+                        fileName = fileItem.printFileName || fileName;
+                        serialNumber = fileItem.serialNumber;
+                        downloadUrl = fileItem.downloadUrl;
+                      } else if (typeof fileItem === 'string') {
+                        // Legacy format: string URL
+                        fileKey = extractFileKeyFromUrl(fileItem) || fileItem;
+                        downloadUrl = fileItem;
+                      }
+                      
+                      return (
+                        <Box
+                          key={index}
+                          sx={{
+                            p: 1.5,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.5,
+                            backgroundColor: "#ffffff",
+                            borderRadius: 1.5,
+                            border: `1px solid ${calmPalette.primary}20`,
+                            "&:hover": {
+                              borderColor: calmPalette.primary + "40",
+                              boxShadow: "0 2px 4px rgba(94, 78, 62, 0.08)",
+                            },
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          <AttachFile sx={{ color: calmPalette.primary, fontSize: 20 }} />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            {serialNumber && (
+                              <Typography 
+                                variant="caption" 
+                                sx={{ 
+                                  color: calmPalette.textSecondary, 
+                                  display: "block", 
+                                  mb: 0.25,
+                                  fontSize: "0.7rem",
+                                }}
+                              >
+                                الرقم: {serialNumber}
+                              </Typography>
+                            )}
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                fontWeight: 500, 
+                                color: calmPalette.textPrimary,
+                                fontSize: "0.85rem",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {fileName}
+                            </Typography>
+                          </Box>
                           <Button
-                            key={index}
-                            startIcon={<Download />}
+                          startIcon={<Download />}
                             onClick={() => {
                               if (downloadUrl) {
-                                // Use downloadUrl directly if available
-                                window.open(downloadUrl, "_blank");
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                link.download = fileName;
+                                link.target = '_blank';
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                setTimeout(() => {
+                                  document.body.removeChild(link);
+                                }, 100);
                               } else if (fileKey) {
-                                // Otherwise generate download URL
                                 handleDownloadFile(fileKey, fileName);
                               }
                             }}
-                            variant="outlined"
-                            fullWidth
-                            sx={{
-                              justifyContent: "flex-start",
-                              borderColor: calmPalette.primary,
-                              color: calmPalette.primary,
+                          variant="outlined"
+                            size="small"
+                          sx={{
+                              minWidth: 90,
+                              borderColor: calmPalette.primary + "30",
+                            color: calmPalette.primary,
+                              backgroundColor: "#ffffff",
+                              fontSize: "0.8rem",
+                              textTransform: "none",
+                              borderRadius: 1.5,
+                              px: 1.5,
+                              "&:hover": {
+                                borderColor: calmPalette.primary,
+                                backgroundColor: calmPalette.primary + "08",
+                              },
                             }}
                           >
-                            تحميل {fileName}
-                          </Button>
-                        );
-                      })}
+                            تحميل
+                        </Button>
+                        </Box>
+                      );
+                    })}
                     </Box>
                   ) : (
-                    <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 1, textAlign: "center" }}>
                       لا توجد ملفات
                     </Typography>
                   )}
-                </Grid>
-              </Grid>
+              </Box>
             </DialogContent>
-            <DialogActions sx={{ p: 2.5 }}>
-              <Button onClick={() => setViewingDesign(null)}>إغلاق</Button>
+            <DialogActions sx={{ 
+              px: 3, 
+              py: 2, 
+              borderTop: `1px solid ${calmPalette.primary}20`, 
+              backgroundColor: "#ffffff",
+            }}>
+              <Button 
+                onClick={() => {
+                  setViewingDesign(null);
+                  setImageUrl(null);
+                }}
+                variant="outlined"
+                size="small"
+                sx={{
+                  color: calmPalette.textPrimary,
+                  borderColor: calmPalette.primary + "30",
+                  backgroundColor: "#ffffff",
+                  px: 2.5,
+                  py: 0.75,
+                  borderRadius: 1.5,
+                  fontWeight: 500,
+                  textTransform: "none",
+                  fontSize: "0.875rem",
+                  "&:hover": {
+                    borderColor: calmPalette.primary,
+                    backgroundColor: calmPalette.primary + "08",
+                  },
+                }}
+              >
+                إغلاق
+              </Button>
             </DialogActions>
           </>
         )}
+      </Dialog>
+
+      {/* Image View Dialog */}
+      <Dialog
+        open={imageDialogOpen}
+        onClose={() => setImageDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            background: "#ffffff",
+            boxShadow: calmPalette.shadow,
+            border: "1px solid rgba(94, 78, 62, 0.15)",
+          },
+        }}
+      >
+        <DialogTitle 
+          sx={{ 
+            fontWeight: 700,
+            pb: 1.5,
+            pt: 2,
+            px: 2.5,
+            background: "#ffffff",
+            borderBottom: `1px solid ${calmPalette.primary}20`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          عرض الصورة
+          <IconButton
+            onClick={() => setImageDialogOpen(false)}
+            size="small"
+            sx={{
+              color: calmPalette.textSecondary,
+            }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2, px: 2.5, pb: 2, backgroundColor: "#ffffff" }}>
+          {selectedImage && (
+            <Box sx={{ textAlign: "center" }}>
+              <img
+                src={selectedImage}
+                alt="صورة التصميم"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "70vh",
+                  borderRadius: 8,
+                }}
+                onError={(e) => {
+                  e.target.src = "/placeholder.png";
+                }}
+              />
+            </Box>
+          )}
+        </DialogContent>
       </Dialog>
     </Box>
   );
