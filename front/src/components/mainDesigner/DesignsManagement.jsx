@@ -608,10 +608,12 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
       
       if (editingDesign) {
         await mainDesignerService.updateDesign(editingDesign.id, designPayload);
+        // Reset status to "في الانتظار" (1) after update
+        await mainDesignerService.updateDesignStatus(editingDesign.id, 1, "");
         Swal.fire({
           icon: "success",
           title: "تم التحديث بنجاح",
-          text: "تم تحديث التصميم بنجاح",
+          text: "تم تحديث التصميم بنجاح وتم إعادة الحالة إلى 'في الانتظار'",
           confirmButtonColor: calmPalette.primary,
           timer: 2000,
         });
