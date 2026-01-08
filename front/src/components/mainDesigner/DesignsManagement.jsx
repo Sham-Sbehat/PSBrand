@@ -28,6 +28,7 @@ import {
   Select,
   Tooltip,
   LinearProgress,
+  Snackbar,
 } from "@mui/material";
 import {
   Add,
@@ -42,6 +43,7 @@ import {
   CheckCircle,
   Cancel,
   AttachFile,
+  Note,
 } from "@mui/icons-material";
 import { mainDesignerService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
@@ -60,6 +62,9 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   const [imageUrl, setImageUrl] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [selectedDesignNotes, setSelectedDesignNotes] = useState(null);
+  const [statusChangeToasts, setStatusChangeToasts] = useState([]); // Array of toasts
   const [uploadingFiles, setUploadingFiles] = useState([]); // Array of { name, type }
   const [uploadProgress, setUploadProgress] = useState({});
   const [formData, setFormData] = useState({
@@ -112,6 +117,72 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
           onDesignStatusChanged: (designData) => {
             // Only reload if it belongs to current user
             if (designData && designData.createdBy === user.id) {
+              // Find the previous status from current designs state
+              const previousDesign = designs.find(d => d.id === designData.id);
+              const previousStatus = previousDesign?.status;
+              const newStatus = designData.status;
+              
+              // Show notification if status actually changed or if we don't have previous status
+              if (previousStatus !== newStatus || !previousDesign) {
+                const statusLabels = {
+                  1: "في الانتظار",
+                  2: "مقبول",
+                  3: "مرفوض",
+                  4: "مرتجع"
+                };
+                
+                const statusIcons = {
+                  1: "⏳",
+                  2: "✅",
+                  3: "❌",
+                  4: "↩️"
+                };
+                
+                // Determine severity based on new status
+                let severity = "info";
+                if (newStatus === 2) severity = "success";
+                else if (newStatus === 3) severity = "error";
+                else if (newStatus === 4) severity = "warning";
+                
+                const previousLabel = previousStatus ? statusLabels[previousStatus] : "غير محدد";
+                const newLabel = statusLabels[newStatus] || "غير محدد";
+                const icon = statusIcons[newStatus] || "";
+                
+                // Play notification sound
+                try {
+                  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                  const oscillator = audioContext.createOscillator();
+                  const gainNode = audioContext.createGain();
+                  
+                  oscillator.connect(gainNode);
+                  gainNode.connect(audioContext.destination);
+                  
+                  oscillator.frequency.value = 800; // Frequency in Hz
+                  oscillator.type = 'sine';
+                  
+                  gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                  
+                  oscillator.start(audioContext.currentTime);
+                  oscillator.stop(audioContext.currentTime + 0.2);
+                } catch (error) {
+                  console.log("Could not play notification sound:", error);
+                }
+                
+                // Add new toast to array (don't replace existing ones)
+                const newToast = {
+                  id: Date.now() + Math.random(), // Unique ID
+                  open: true,
+                  message: `تم تغيير حالة التصميم`,
+                  severity: severity,
+                  serialNumber: designData.serialNumber || "غير محدد",
+                  previousStatus: previousLabel,
+                  newStatus: `${icon} ${newLabel}`,
+                  notes: designData.notes || ""
+                };
+                setStatusChangeToasts(prev => [...prev, newToast]);
+              }
+              
               loadDesigns();
             }
           },
@@ -1534,33 +1605,76 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                     />
                   </TableCell>
                   <TableCell align="center">
-                    <Tooltip title="عرض">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleViewDesign(design)}
-                        sx={{ color: calmPalette.primary }}
-                      >
-                        <Visibility />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="تعديل">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenDialog(design)}
-                        sx={{ color: calmPalette.primary }}
-                      >
-                        <Edit />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="حذف">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDelete(design.id)}
-                        sx={{ color: "error.main" }}
-                      >
-                        <Delete />
-                      </IconButton>
-                    </Tooltip>
+                    <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center", alignItems: "center" }}>
+                      <Tooltip title="عرض">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleViewDesign(design)}
+                          sx={{ 
+                            color: calmPalette.primary,
+                            "&:hover": {
+                              backgroundColor: `${calmPalette.primary}10`,
+                            },
+                          }}
+                        >
+                          <Visibility />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="تعديل">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenDialog(design)}
+                          sx={{ 
+                            color: calmPalette.primary,
+                            "&:hover": {
+                              backgroundColor: `${calmPalette.primary}10`,
+                            },
+                          }}
+                        >
+                          <Edit />
+                        </IconButton>
+                      </Tooltip>
+                       <Tooltip title={design.notes && design.notes.trim() ? "عرض الملاحظات" : "لا توجد ملاحظات"}>
+                         <IconButton
+                           size="small"
+                           disabled={!design.notes || !design.notes.trim()}
+                           onClick={() => {
+                             if (design.notes && design.notes.trim()) {
+                               setSelectedDesignNotes(design);
+                               setNotesDialogOpen(true);
+                             }
+                           }}
+                           sx={{ 
+                             color: design.notes && design.notes.trim() ? "#8b4513" : "#9e9e9e",
+                             backgroundColor: design.notes && design.notes.trim() ? "rgba(139, 69, 19, 0.15)" : "transparent",
+                             "&:hover": {
+                               backgroundColor: design.notes && design.notes.trim() ? "rgba(139, 69, 19, 0.25)" : "rgba(0, 0, 0, 0.04)",
+                             },
+                             "&.Mui-disabled": {
+                               backgroundColor: "transparent",
+                               color: "#9e9e9e",
+                               cursor: "default",
+                             },
+                           }}
+                         >
+                           <Note />
+                         </IconButton>
+                       </Tooltip>
+                      <Tooltip title="حذف">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDelete(design.id)}
+                          sx={{ 
+                            color: "error.main",
+                            "&:hover": {
+                              backgroundColor: "rgba(211, 47, 47, 0.1)",
+                            },
+                          }}
+                        >
+                          <Delete />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
@@ -2017,6 +2131,152 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Notes Dialog */}
+      <Dialog
+        open={notesDialogOpen}
+        onClose={() => {
+          setNotesDialogOpen(false);
+          setSelectedDesignNotes(null);
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            backgroundColor: calmPalette.primary + "10",
+            borderBottom: `1px solid ${calmPalette.primary}20`,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 2,
+          }}
+        >
+          <Note sx={{ color: calmPalette.primary, fontSize: 28 }} />
+          <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
+            ملاحظات التصميم
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {selectedDesignNotes && (
+            <Box>
+              <Box sx={{ mb: 2, p: 2, backgroundColor: calmPalette.primary + "05", borderRadius: 2 }}>
+                <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mb: 0.5 }}>
+                  الرقم التسلسلي:
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600, color: calmPalette.textPrimary }}>
+                  {selectedDesignNotes.serialNumber}
+                </Typography>
+              </Box>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mb: 1, fontWeight: 600 }}>
+                  الملاحظات:
+                </Typography>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    backgroundColor: "#ffffff",
+                    border: `1px solid ${calmPalette.primary}20`,
+                    borderRadius: 2,
+                    minHeight: 100,
+                  }}
+                >
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: calmPalette.textPrimary,
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    {selectedDesignNotes.notes}
+                  </Typography>
+                </Paper>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, borderTop: `1px solid ${calmPalette.primary}10` }}>
+          <Button
+            onClick={() => {
+              setNotesDialogOpen(false);
+              setSelectedDesignNotes(null);
+            }}
+            variant="contained"
+            sx={{
+              backgroundColor: calmPalette.primary,
+              "&:hover": {
+                backgroundColor: calmPalette.primaryDark,
+              },
+            }}
+          >
+            إغلاق
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Status Change Toasts - Persistent (Multiple) */}
+      {statusChangeToasts.map((toast, index) => (
+        <Box
+          key={toast.id}
+          sx={{
+            position: "fixed",
+            top: `${20 + (index * 80)}px`,
+            left: "20px",
+            zIndex: 9999,
+            minWidth: 300,
+            maxWidth: 350,
+          }}
+        >
+          <Alert
+            onClose={() => {
+              setStatusChangeToasts(prev => prev.filter(t => t.id !== toast.id));
+            }}
+            severity="info"
+            variant="outlined"
+            icon={false}
+            sx={{
+              width: "100%",
+              direction: "rtl",
+              textAlign: "right",
+              backgroundColor: "#ffffff",
+              border: "1.5px solid #9e9e9e",
+              color: "#212121",
+              py: 1.2,
+              px: 1.5,
+              boxShadow: "0 3px 10px rgba(0, 0, 0, 0.15)",
+              borderRadius: 2,
+              "& .MuiAlert-message": {
+                width: "100%",
+                padding: 0,
+              },
+              "& .MuiAlert-action": {
+                paddingLeft: 0,
+                paddingRight: 0,
+                marginRight: 0.5,
+                "& .MuiIconButton-root": {
+                  color: "#616161",
+                  padding: 0.5,
+                  "&:hover": {
+                    backgroundColor: "rgba(0, 0, 0, 0.08)",
+                  },
+                },
+              },
+            }}
+          >
+            <Typography variant="body2" sx={{ fontSize: "0.875rem", lineHeight: 1.6, color: "#212121", fontWeight: 500 }}>
+              تم تغيير حالة التصميم {toast.serialNumber} إلى {toast.newStatus}
+            </Typography>
+          </Alert>
+        </Box>
+      ))}
     </Box>
   );
 };

@@ -97,6 +97,8 @@ const DesignManagerDashboard = () => {
   const [updatingDesignStatus, setUpdatingDesignStatus] = useState(false);
   const [statusMenuAnchor, setStatusMenuAnchor] = useState(null);
   const [selectedDesignForMenu, setSelectedDesignForMenu] = useState(null);
+  const [designNotesDialogOpen, setDesignNotesDialogOpen] = useState(false);
+  const [selectedDesignForNotes, setSelectedDesignForNotes] = useState(null);
   // Filtering and sorting states
   const [statusFilter, setStatusFilter] = useState("all"); // "all", 1, 2, 3
   const [dateFilter, setDateFilter] = useState(""); // Date string or empty
@@ -1887,7 +1889,7 @@ const DesignManagerDashboard = () => {
     activeImageLoads.current.clear();
   }, [currentTab, searchQuery, searchQueryInPrinting]);
 
-  return (
+    return (
       <Box
         sx={{
           minHeight: "100vh",
@@ -2903,130 +2905,186 @@ const DesignManagerDashboard = () => {
                                   <Visibility fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              {design.status === 1 && (
-                                <>
-                                  <Button
-                                    variant="contained"
-                                    size="small"
-                                    startIcon={<CheckCircle />}
-                                    onClick={() => {
-                                      setSelectedDesignForStatus({ ...design, actionType: "approve" });
-                                      setStatusNotes("");
-                                      setStatusDialogOpen(true);
-                                    }}
-                                    sx={{
-                                      minWidth: 100,
-                                      height: 36,
-                                      backgroundColor: "#4caf50",
-                                      color: "#ffffff",
-                                      fontWeight: 600,
-                                      fontSize: "0.85rem",
-                                      borderRadius: 2,
-                                      textTransform: "none",
-                                      boxShadow: "0 2px 8px rgba(76, 175, 80, 0.3)",
-                                      border: "1px solid #2e7d32",
-                                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                                      "&:hover": {
-                                        backgroundColor: "#2e7d32",
-                                        boxShadow: "0 4px 16px rgba(46, 125, 50, 0.5)",
-                                        transform: "translateY(-2px)",
-                                      },
-                                      "&:active": {
-                                        transform: "translateY(0)",
-                                        boxShadow: "0 2px 8px rgba(46, 125, 50, 0.4)",
-                                      },
-                                      "& .MuiButton-startIcon": {
-                                        marginRight: 0.5,
-                                        "& svg": {
-                                          fontSize: 18,
-                                        },
-                                      },
-                                    }}
-                                  >
-                                    قبول
-                                  </Button>
-                                  <Button
-                                    variant="contained"
-                                    size="small"
-                                    startIcon={<Cancel />}
-                                    onClick={() => {
-                                      setSelectedDesignForStatus({ ...design, actionType: "reject" });
-                                      setStatusNotes("");
-                                      setStatusDialogOpen(true);
-                                    }}
-                                    sx={{
-                                      minWidth: 100,
-                                      height: 36,
-                                      backgroundColor: "#f44336",
-                                      color: "#ffffff",
-                                      fontWeight: 600,
-                                      fontSize: "0.85rem",
-                                      borderRadius: 2,
-                                      textTransform: "none",
-                                      boxShadow: "0 2px 8px rgba(244, 67, 54, 0.3)",
-                                      border: "1px solid #d32f2f",
-                                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                                      "&:hover": {
-                                        backgroundColor: "#d32f2f",
-                                        boxShadow: "0 4px 16px rgba(211, 47, 47, 0.5)",
-                                        transform: "translateY(-2px)",
-                                      },
-                                      "&:active": {
-                                        transform: "translateY(0)",
-                                        boxShadow: "0 2px 8px rgba(211, 47, 47, 0.4)",
-                                      },
-                                      "& .MuiButton-startIcon": {
-                                        marginRight: 0.5,
-                                        "& svg": {
-                                          fontSize: 18,
-                                        },
-                                      },
-                                    }}
-                                  >
-                                    رفض
-                                  </Button>
-                                  <Button
-                                    variant="contained"
-                                    size="small"
-                                    startIcon={<Undo />}
-                                    onClick={() => {
-                                      setSelectedDesignForStatus({ ...design, actionType: "return" });
-                                      setStatusNotes("");
-                                      setStatusDialogOpen(true);
-                                    }}
-                                    sx={{
-                                      minWidth: 100,
-                                      height: 36,
-                                      backgroundColor: "#2196f3",
-                                      color: "#ffffff",
-                                      fontWeight: 600,
-                                      fontSize: "0.85rem",
-                                      borderRadius: 2,
-                                      textTransform: "none",
-                                      boxShadow: "0 2px 8px rgba(33, 150, 243, 0.3)",
-                                      border: "1px solid #1976d2",
-                                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                                      "&:hover": {
-                                        backgroundColor: "#1976d2",
-                                        boxShadow: "0 4px 16px rgba(25, 118, 210, 0.5)",
-                                        transform: "translateY(-2px)",
-                                      },
-                                      "&:active": {
-                                        transform: "translateY(0)",
-                                        boxShadow: "0 2px 8px rgba(25, 118, 210, 0.4)",
-                                      },
-                                      "& .MuiButton-startIcon": {
-                                        marginRight: 0.5,
-                                        "& svg": {
-                                          fontSize: 18,
-                                        },
-                                      },
-                                    }}
-                                  >
-                                    مرتجع
-                                  </Button>
-                                </>
-                              )}
+                              <Tooltip title={design.notes && design.notes.trim() ? "عرض الملاحظات" : "لا توجد ملاحظات"} arrow>
+                                <IconButton
+                                  size="medium"
+                                  disabled={!design.notes || !design.notes.trim()}
+                                  onClick={() => {
+                                    if (design.notes && design.notes.trim()) {
+                                      setSelectedDesignForNotes(design);
+                                      setDesignNotesDialogOpen(true);
+                                    }
+                                  }}
+                                  sx={{ 
+                                    color: design.notes && design.notes.trim() ? "#8b4513" : "#9e9e9e",
+                                    backgroundColor: design.notes && design.notes.trim() ? "rgba(139, 69, 19, 0.15)" : "transparent",
+                                    border: design.notes && design.notes.trim() ? "1px solid rgba(139, 69, 19, 0.3)" : "1px solid transparent",
+                                    width: 40,
+                                    height: 40,
+                                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                    "&:hover": {
+                                      backgroundColor: design.notes && design.notes.trim() ? "rgba(139, 69, 19, 0.25)" : "rgba(0, 0, 0, 0.04)",
+                                      transform: design.notes && design.notes.trim() ? "scale(1.1) translateY(-2px)" : "none",
+                                      boxShadow: design.notes && design.notes.trim() ? "0 4px 12px rgba(139, 69, 19, 0.3)" : "none",
+                                    },
+                                    "&:active": {
+                                      transform: design.notes && design.notes.trim() ? "scale(1.05)" : "none",
+                                    },
+                                    "&.Mui-disabled": {
+                                      backgroundColor: "transparent",
+                                      color: "#9e9e9e",
+                                      border: "1px solid transparent",
+                                      cursor: "default",
+                                    },
+                                  }}
+                                >
+                                  <Note fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<CheckCircle />}
+                                disabled={design.status !== 1}
+                                onClick={() => {
+                                  if (design.status === 1) {
+                                    setSelectedDesignForStatus({ ...design, actionType: "approve" });
+                                    setStatusNotes("");
+                                    setStatusDialogOpen(true);
+                                  }
+                                }}
+                                sx={{
+                                  minWidth: 100,
+                                  height: 36,
+                                  backgroundColor: design.status === 1 ? "#4caf50" : "#e0e0e0",
+                                  color: design.status === 1 ? "#ffffff" : "#9e9e9e",
+                                  fontWeight: 600,
+                                  fontSize: "0.85rem",
+                                  borderRadius: 2,
+                                  textTransform: "none",
+                                  boxShadow: design.status === 1 ? "0 2px 8px rgba(76, 175, 80, 0.3)" : "none",
+                                  border: design.status === 1 ? "1px solid #2e7d32" : "1px solid #bdbdbd",
+                                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                  "&:hover": {
+                                    backgroundColor: design.status === 1 ? "#2e7d32" : "#e0e0e0",
+                                    boxShadow: design.status === 1 ? "0 4px 16px rgba(46, 125, 50, 0.5)" : "none",
+                                    transform: design.status === 1 ? "translateY(-2px)" : "none",
+                                  },
+                                  "&:active": {
+                                    transform: design.status === 1 ? "translateY(0)" : "none",
+                                    boxShadow: design.status === 1 ? "0 2px 8px rgba(46, 125, 50, 0.4)" : "none",
+                                  },
+                                  "&.Mui-disabled": {
+                                    backgroundColor: "#e0e0e0",
+                                    color: "#9e9e9e",
+                                    border: "1px solid #bdbdbd",
+                                  },
+                                  "& .MuiButton-startIcon": {
+                                    marginRight: 0.5,
+                                    "& svg": {
+                                      fontSize: 18,
+                                    },
+                                  },
+                                }}
+                              >
+                                قبول
+                              </Button>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<Cancel />}
+                                disabled={design.status !== 1}
+                                onClick={() => {
+                                  if (design.status === 1) {
+                                    setSelectedDesignForStatus({ ...design, actionType: "reject" });
+                                    setStatusNotes("");
+                                    setStatusDialogOpen(true);
+                                  }
+                                }}
+                                sx={{
+                                  minWidth: 100,
+                                  height: 36,
+                                  backgroundColor: design.status === 1 ? "#f44336" : "#e0e0e0",
+                                  color: design.status === 1 ? "#ffffff" : "#9e9e9e",
+                                  fontWeight: 600,
+                                  fontSize: "0.85rem",
+                                  borderRadius: 2,
+                                  textTransform: "none",
+                                  boxShadow: design.status === 1 ? "0 2px 8px rgba(244, 67, 54, 0.3)" : "none",
+                                  border: design.status === 1 ? "1px solid #d32f2f" : "1px solid #bdbdbd",
+                                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                  "&:hover": {
+                                    backgroundColor: design.status === 1 ? "#d32f2f" : "#e0e0e0",
+                                    boxShadow: design.status === 1 ? "0 4px 16px rgba(211, 47, 47, 0.5)" : "none",
+                                    transform: design.status === 1 ? "translateY(-2px)" : "none",
+                                  },
+                                  "&:active": {
+                                    transform: design.status === 1 ? "translateY(0)" : "none",
+                                    boxShadow: design.status === 1 ? "0 2px 8px rgba(211, 47, 47, 0.4)" : "none",
+                                  },
+                                  "&.Mui-disabled": {
+                                    backgroundColor: "#e0e0e0",
+                                    color: "#9e9e9e",
+                                    border: "1px solid #bdbdbd",
+                                  },
+                                  "& .MuiButton-startIcon": {
+                                    marginRight: 0.5,
+                                    "& svg": {
+                                      fontSize: 18,
+                                    },
+                                  },
+                                }}
+                              >
+                                رفض
+                              </Button>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<Undo />}
+                                disabled={design.status !== 1}
+                                onClick={() => {
+                                  if (design.status === 1) {
+                                    setSelectedDesignForStatus({ ...design, actionType: "return" });
+                                    setStatusNotes("");
+                                    setStatusDialogOpen(true);
+                                  }
+                                }}
+                                sx={{
+                                  minWidth: 100,
+                                  height: 36,
+                                  backgroundColor: design.status === 1 ? "#2196f3" : "#e0e0e0",
+                                  color: design.status === 1 ? "#ffffff" : "#9e9e9e",
+                                  fontWeight: 600,
+                                  fontSize: "0.85rem",
+                                  borderRadius: 2,
+                                  textTransform: "none",
+                                  boxShadow: design.status === 1 ? "0 2px 8px rgba(33, 150, 243, 0.3)" : "none",
+                                  border: design.status === 1 ? "1px solid #1976d2" : "1px solid #bdbdbd",
+                                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                  "&:hover": {
+                                    backgroundColor: design.status === 1 ? "#1976d2" : "#e0e0e0",
+                                    boxShadow: design.status === 1 ? "0 4px 16px rgba(25, 118, 210, 0.5)" : "none",
+                                    transform: design.status === 1 ? "translateY(-2px)" : "none",
+                                  },
+                                  "&:active": {
+                                    transform: design.status === 1 ? "translateY(0)" : "none",
+                                    boxShadow: design.status === 1 ? "0 2px 8px rgba(25, 118, 210, 0.4)" : "none",
+                                  },
+                                  "&.Mui-disabled": {
+                                    backgroundColor: "#e0e0e0",
+                                    color: "#9e9e9e",
+                                    border: "1px solid #bdbdbd",
+                                  },
+                                  "& .MuiButton-startIcon": {
+                                    marginRight: 0.5,
+                                    "& svg": {
+                                      fontSize: 18,
+                                    },
+                                  },
+                                }}
+                              >
+                                مرتجع
+                              </Button>
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -3496,9 +3554,9 @@ const DesignManagerDashboard = () => {
           )}
             </>
           )}
-           </>
-      )} 
-          </Paper>
+          </>
+        )}
+        </Paper>
       </Container>
 
       {/* Details Dialog */}
@@ -5078,6 +5136,106 @@ const DesignManagerDashboard = () => {
           <ListItemText primary="مرتجع" />
         </MenuItem>
       </Menu>
+
+      {/* Design Notes Dialog */}
+      <Dialog
+        open={designNotesDialogOpen}
+        onClose={() => {
+          setDesignNotesDialogOpen(false);
+          setSelectedDesignForNotes(null);
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            backgroundColor: calmPalette.primary + "10",
+            borderBottom: `1px solid ${calmPalette.primary}20`,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            py: 2,
+          }}
+        >
+          <Note sx={{ color: calmPalette.primary, fontSize: 28 }} />
+          <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
+            ملاحظات التصميم
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {selectedDesignForNotes && (
+            <Box>
+              <Box sx={{ mb: 2, p: 2, backgroundColor: calmPalette.primary + "05", borderRadius: 2 }}>
+                <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mb: 0.5 }}>
+                  الرقم التسلسلي:
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600, color: calmPalette.textPrimary }}>
+                  {selectedDesignForNotes.serialNumber}
+                </Typography>
+                {selectedDesignForNotes.statusName && (
+                  <>
+                    <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mb: 0.5, mt: 1 }}>
+                      الحالة:
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: calmPalette.textPrimary }}>
+                      {selectedDesignForNotes.statusName}
+                    </Typography>
+                  </>
+                )}
+              </Box>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mb: 1, fontWeight: 600 }}>
+                  الملاحظات:
+                </Typography>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    backgroundColor: "#ffffff",
+                    border: `1px solid ${calmPalette.primary}20`,
+                    borderRadius: 2,
+                    minHeight: 100,
+                  }}
+                >
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: calmPalette.textPrimary,
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    {selectedDesignForNotes.notes}
+                  </Typography>
+                </Paper>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, borderTop: `1px solid ${calmPalette.primary}10` }}>
+          <Button
+            onClick={() => {
+              setDesignNotesDialogOpen(false);
+              setSelectedDesignForNotes(null);
+            }}
+            variant="contained"
+            sx={{
+              backgroundColor: calmPalette.primary,
+              "&:hover": {
+                backgroundColor: calmPalette.primaryDark,
+              },
+            }}
+          >
+            إغلاق
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
