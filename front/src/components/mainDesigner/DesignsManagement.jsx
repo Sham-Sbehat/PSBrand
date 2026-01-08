@@ -1492,13 +1492,45 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={design.statusName || design.status || "في الانتظار"}
-                      color={
-                        design.statusName === "نشط" || design.status === 1
-                          ? "success"
-                          : "default"
+                      label={
+                        design.status === 1
+                          ? "في الانتظار"
+                          : design.status === 2
+                          ? "مقبول"
+                          : design.status === 3
+                          ? "مرفوض"
+                          : design.status === 4
+                          ? "مرتجع"
+                          : design.statusName || "في الانتظار"
                       }
                       size="small"
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        ...(design.status === 2
+                          ? {
+                              backgroundColor: "#e8f5e9",
+                              color: "#2e7d32",
+                              border: "1px solid #4caf50",
+                            }
+                          : design.status === 3
+                          ? {
+                              backgroundColor: "#ffebee",
+                              color: "#d32f2f",
+                              border: "1px solid #f44336",
+                            }
+                          : design.status === 4
+                          ? {
+                              backgroundColor: "#e3f2fd",
+                              color: "#1976d2",
+                              border: "1px solid #2196f3",
+                            }
+                          : {
+                              backgroundColor: "#fff3e0",
+                              color: "#f57c00",
+                              border: "1px solid #ff9800",
+                            }),
+                      }}
                     />
                   </TableCell>
                   <TableCell align="center">
