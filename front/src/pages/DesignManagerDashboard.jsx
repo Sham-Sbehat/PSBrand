@@ -32,6 +32,9 @@ import {
   Popover,
   Snackbar,
   Alert,
+  Menu,
+  ListItemIcon,
+  ListItemText,
 } from "@mui/material";
 import {
   Logout,
@@ -57,6 +60,8 @@ import {
   UnfoldMore,
   FilterList,
   Download,
+  Undo,
+  Edit,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -90,6 +95,8 @@ const DesignManagerDashboard = () => {
   const [selectedDesignForStatus, setSelectedDesignForStatus] = useState(null);
   const [statusNotes, setStatusNotes] = useState("");
   const [updatingDesignStatus, setUpdatingDesignStatus] = useState(false);
+  const [statusMenuAnchor, setStatusMenuAnchor] = useState(null);
+  const [selectedDesignForMenu, setSelectedDesignForMenu] = useState(null);
   // Filtering and sorting states
   const [statusFilter, setStatusFilter] = useState("all"); // "all", 1, 2, 3
   const [dateFilter, setDateFilter] = useState(""); // Date string or empty
@@ -483,35 +490,44 @@ const DesignManagerDashboard = () => {
   };
 
   // Handle design status change
-  const handleStatusChange = async (newStatus) => {
-    if (!selectedDesignForStatus) return;
+  const handleStatusChange = async (newStatus, design = null, notes = "") => {
+    const targetDesign = design || selectedDesignForStatus;
+    if (!targetDesign) return;
 
     setUpdatingDesignStatus(true);
     try {
       await mainDesignerService.updateDesignStatus(
-        selectedDesignForStatus.id,
+        targetDesign.id,
         newStatus,
-        statusNotes
+        notes || statusNotes
       );
       
       // Update the design in the list
       setDesigns((prevDesigns) =>
-        prevDesigns.map((design) =>
-          design.id === selectedDesignForStatus.id
-            ? { ...design, status: newStatus }
-            : design
+        prevDesigns.map((d) =>
+          d.id === targetDesign.id
+            ? { ...d, status: newStatus }
+            : d
         )
       );
 
       setStatusDialogOpen(false);
       setSelectedDesignForStatus(null);
       setStatusNotes("");
+      setStatusMenuAnchor(null);
+      setSelectedDesignForMenu(null);
       
       // Show success message
       setShowMessageNotification(true);
+      const statusMessages = {
+        1: "تم تحديث الحالة إلى في الانتظار بنجاح",
+        2: "تم قبول التصميم بنجاح",
+        3: "تم رفض التصميم بنجاح",
+        4: "تم إرجاع التصميم بنجاح"
+      };
       setNewMessageData({
         type: "success",
-        message: newStatus === 2 ? "تم قبول التصميم بنجاح" : "تم رفض التصميم بنجاح",
+        message: statusMessages[newStatus] || "تم تحديث حالة التصميم بنجاح",
       });
     } catch (error) {
       console.error("Error updating design status:", error);
@@ -522,6 +538,43 @@ const DesignManagerDashboard = () => {
       });
     } finally {
       setUpdatingDesignStatus(false);
+    }
+  };
+
+  // Handle status menu click
+  const handleStatusMenuClick = (event, design) => {
+    event.stopPropagation();
+    setStatusMenuAnchor(event.currentTarget);
+    setSelectedDesignForMenu(design);
+  };
+
+  // Handle status menu close
+  const handleStatusMenuClose = () => {
+    setStatusMenuAnchor(null);
+    setSelectedDesignForMenu(null);
+  };
+
+  // Handle status selection from menu
+  const handleStatusSelect = (newStatus) => {
+    if (!selectedDesignForMenu) return;
+    
+    // If changing to same status, just close menu
+    if (selectedDesignForMenu.status === newStatus) {
+      handleStatusMenuClose();
+      return;
+    }
+
+    // For status changes that might need notes, open dialog
+    // Otherwise, change directly
+    if (newStatus === 2 || newStatus === 3 || newStatus === 4) {
+      setSelectedDesignForStatus({ ...selectedDesignForMenu, actionType: newStatus === 2 ? "approve" : newStatus === 3 ? "reject" : "return" });
+      setStatusNotes("");
+      setStatusDialogOpen(true);
+      handleStatusMenuClose();
+    } else {
+      // Direct change for pending status
+      handleStatusChange(newStatus, selectedDesignForMenu, "");
+      handleStatusMenuClose();
     }
   };
 
@@ -2427,6 +2480,7 @@ const DesignManagerDashboard = () => {
                   <MenuItem value="1">في الانتظار</MenuItem>
                   <MenuItem value="2">مقبول</MenuItem>
                   <MenuItem value="3">مرفوض</MenuItem>
+                  <MenuItem value="4">مرتجع</MenuItem>
                 </TextField>
                 <TextField
                   type="date"
@@ -2734,39 +2788,65 @@ const DesignManagerDashboard = () => {
                             )}
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              label={
-                                design.status === 1
-                                  ? "في الانتظار"
-                                  : design.status === 2
-                                  ? "مقبول"
-                                  : design.status === 3
-                                  ? "مرفوض"
-                                  : design.statusName || "في الانتظار"
-                              }
-                              size="small"
-                              sx={{
-                                fontWeight: 600,
-                                fontSize: "0.85rem",
-                                ...(design.status === 2
-                                  ? {
-                                      backgroundColor: "#e8f5e9",
-                                      color: "#2e7d32",
-                                      border: "1px solid #4caf50",
-                                    }
-                                  : design.status === 3
-                                  ? {
-                                      backgroundColor: "#ffebee",
-                                      color: "#d32f2f",
-                                      border: "1px solid #f44336",
-                                    }
-                                  : {
-                                      backgroundColor: "#fff3e0",
-                                      color: "#f57c00",
-                                      border: "1px solid #ff9800",
-                                    }),
-                              }}
-                            />
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                              <Chip
+                                label={
+                                  design.status === 1
+                                    ? "في الانتظار"
+                                    : design.status === 2
+                                    ? "مقبول"
+                                    : design.status === 3
+                                    ? "مرفوض"
+                                    : design.status === 4
+                                    ? "مرتجع"
+                                    : design.statusName || "في الانتظار"
+                                }
+                                size="small"
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: "0.85rem",
+                                  ...(design.status === 2
+                                    ? {
+                                        backgroundColor: "#e8f5e9",
+                                        color: "#2e7d32",
+                                        border: "1px solid #4caf50",
+                                      }
+                                    : design.status === 3
+                                    ? {
+                                        backgroundColor: "#ffebee",
+                                        color: "#d32f2f",
+                                        border: "1px solid #f44336",
+                                      }
+                                    : design.status === 4
+                                    ? {
+                                        backgroundColor: "#e3f2fd",
+                                        color: "#1976d2",
+                                        border: "1px solid #2196f3",
+                                      }
+                                    : {
+                                        backgroundColor: "#fff3e0",
+                                        color: "#f57c00",
+                                        border: "1px solid #ff9800",
+                                      }),
+                                }}
+                              />
+                              <Tooltip title="تغيير الحالة" arrow placement="top">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => handleStatusMenuClick(e, design)}
+                                  sx={{
+                                    color: calmPalette.textSecondary,
+                                    padding: 0.5,
+                                    "&:hover": {
+                                      backgroundColor: "rgba(94, 78, 62, 0.08)",
+                                      color: calmPalette.primary,
+                                    },
+                                  }}
+                                >
+                                  <Edit fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
                           </TableCell>
                           <TableCell align="center">
                             <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
@@ -2904,6 +2984,46 @@ const DesignManagerDashboard = () => {
                                     }}
                                   >
                                     رفض
+                                  </Button>
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    startIcon={<Undo />}
+                                    onClick={() => {
+                                      setSelectedDesignForStatus({ ...design, actionType: "return" });
+                                      setStatusNotes("");
+                                      setStatusDialogOpen(true);
+                                    }}
+                                    sx={{
+                                      minWidth: 100,
+                                      height: 36,
+                                      backgroundColor: "#2196f3",
+                                      color: "#ffffff",
+                                      fontWeight: 600,
+                                      fontSize: "0.85rem",
+                                      borderRadius: 2,
+                                      textTransform: "none",
+                                      boxShadow: "0 2px 8px rgba(33, 150, 243, 0.3)",
+                                      border: "1px solid #1976d2",
+                                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                      "&:hover": {
+                                        backgroundColor: "#1976d2",
+                                        boxShadow: "0 4px 16px rgba(25, 118, 210, 0.5)",
+                                        transform: "translateY(-2px)",
+                                      },
+                                      "&:active": {
+                                        transform: "translateY(0)",
+                                        boxShadow: "0 2px 8px rgba(25, 118, 210, 0.4)",
+                                      },
+                                      "& .MuiButton-startIcon": {
+                                        marginRight: 0.5,
+                                        "& svg": {
+                                          fontSize: 18,
+                                        },
+                                      },
+                                    }}
+                                  >
+                                    مرتجع
                                   </Button>
                                 </>
                               )}
@@ -4703,11 +4823,13 @@ const DesignManagerDashboard = () => {
         >
           {selectedDesignForStatus?.actionType === "approve" ? (
             <CheckCircle sx={{ color: "#2e7d32", fontSize: 28 }} />
+          ) : selectedDesignForStatus?.actionType === "return" ? (
+            <Undo sx={{ color: "#1976d2", fontSize: 28 }} />
           ) : (
             <Cancel sx={{ color: "#d32f2f", fontSize: 28 }} />
           )}
           <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
-            {selectedDesignForStatus?.actionType === "approve" ? "قبول التصميم" : "رفض التصميم"}
+            {selectedDesignForStatus?.actionType === "approve" ? "قبول التصميم" : selectedDesignForStatus?.actionType === "return" ? "إرجاع التصميم" : "رفض التصميم"}
           </Typography>
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
@@ -4765,7 +4887,14 @@ const DesignManagerDashboard = () => {
           </Button>
           <Button
             onClick={() => {
-              const newStatus = selectedDesignForStatus?.actionType === "approve" ? 2 : 3;
+              let newStatus;
+              if (selectedDesignForStatus?.actionType === "approve") {
+                newStatus = 2;
+              } else if (selectedDesignForStatus?.actionType === "return") {
+                newStatus = 4;
+              } else {
+                newStatus = 3;
+              }
               handleStatusChange(newStatus);
             }}
             disabled={updatingDesignStatus}
@@ -4775,16 +4904,26 @@ const DesignManagerDashboard = () => {
                 <CircularProgress size={16} sx={{ color: "inherit" }} />
               ) : selectedDesignForStatus?.actionType === "approve" ? (
                 <CheckCircle />
+              ) : selectedDesignForStatus?.actionType === "return" ? (
+                <Undo />
               ) : (
                 <Cancel />
               )
             }
             sx={{
               backgroundColor:
-                selectedDesignForStatus?.actionType === "approve" ? "#2e7d32" : "#d32f2f",
+                selectedDesignForStatus?.actionType === "approve" 
+                  ? "#2e7d32" 
+                  : selectedDesignForStatus?.actionType === "return"
+                  ? "#1976d2"
+                  : "#d32f2f",
               "&:hover": {
                 backgroundColor:
-                  selectedDesignForStatus?.actionType === "approve" ? "#1b5e20" : "#b71c1c",
+                  selectedDesignForStatus?.actionType === "approve" 
+                    ? "#1b5e20" 
+                    : selectedDesignForStatus?.actionType === "return"
+                    ? "#1565c0"
+                    : "#b71c1c",
               },
             }}
           >
@@ -4792,10 +4931,153 @@ const DesignManagerDashboard = () => {
               ? "جاري المعالجة..."
               : selectedDesignForStatus?.actionType === "approve"
               ? "قبول"
+              : selectedDesignForStatus?.actionType === "return"
+              ? "إرجاع"
               : "رفض"}
           </Button>
         </Box>
       </Dialog>
+
+      {/* Status Change Menu */}
+      <Menu
+        anchorEl={statusMenuAnchor}
+        open={Boolean(statusMenuAnchor)}
+        onClose={handleStatusMenuClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+        PaperProps={{
+          sx: {
+            mt: 1,
+            minWidth: 180,
+            boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+            borderRadius: 2,
+            border: "1px solid rgba(94, 78, 62, 0.1)",
+          },
+        }}
+      >
+        <MenuItem
+          onClick={() => handleStatusSelect(1)}
+          selected={selectedDesignForMenu?.status === 1}
+          sx={{
+            py: 1.5,
+            "&.Mui-selected": {
+              backgroundColor: "rgba(255, 152, 0, 0.1)",
+              "&:hover": {
+                backgroundColor: "rgba(255, 152, 0, 0.15)",
+              },
+            },
+          }}
+        >
+          <ListItemIcon>
+            <Chip
+              label="في الانتظار"
+              size="small"
+              sx={{
+                backgroundColor: "#fff3e0",
+                color: "#f57c00",
+                border: "1px solid #ff9800",
+                fontWeight: 600,
+                fontSize: "0.75rem",
+                height: 24,
+              }}
+            />
+          </ListItemIcon>
+          <ListItemText primary="في الانتظار" />
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleStatusSelect(2)}
+          selected={selectedDesignForMenu?.status === 2}
+          sx={{
+            py: 1.5,
+            "&.Mui-selected": {
+              backgroundColor: "rgba(76, 175, 80, 0.1)",
+              "&:hover": {
+                backgroundColor: "rgba(76, 175, 80, 0.15)",
+              },
+            },
+          }}
+        >
+          <ListItemIcon>
+            <Chip
+              label="مقبول"
+              size="small"
+              sx={{
+                backgroundColor: "#e8f5e9",
+                color: "#2e7d32",
+                border: "1px solid #4caf50",
+                fontWeight: 600,
+                fontSize: "0.75rem",
+                height: 24,
+              }}
+            />
+          </ListItemIcon>
+          <ListItemText primary="مقبول" />
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleStatusSelect(3)}
+          selected={selectedDesignForMenu?.status === 3}
+          sx={{
+            py: 1.5,
+            "&.Mui-selected": {
+              backgroundColor: "rgba(244, 67, 54, 0.1)",
+              "&:hover": {
+                backgroundColor: "rgba(244, 67, 54, 0.15)",
+              },
+            },
+          }}
+        >
+          <ListItemIcon>
+            <Chip
+              label="مرفوض"
+              size="small"
+              sx={{
+                backgroundColor: "#ffebee",
+                color: "#d32f2f",
+                border: "1px solid #f44336",
+                fontWeight: 600,
+                fontSize: "0.75rem",
+                height: 24,
+              }}
+            />
+          </ListItemIcon>
+          <ListItemText primary="مرفوض" />
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleStatusSelect(4)}
+          selected={selectedDesignForMenu?.status === 4}
+          sx={{
+            py: 1.5,
+            "&.Mui-selected": {
+              backgroundColor: "rgba(33, 150, 243, 0.1)",
+              "&:hover": {
+                backgroundColor: "rgba(33, 150, 243, 0.15)",
+              },
+            },
+          }}
+        >
+          <ListItemIcon>
+            <Chip
+              label="مرتجع"
+              size="small"
+              sx={{
+                backgroundColor: "#e3f2fd",
+                color: "#1976d2",
+                border: "1px solid #2196f3",
+                fontWeight: 600,
+                fontSize: "0.75rem",
+                height: 24,
+              }}
+            />
+          </ListItemIcon>
+          <ListItemText primary="مرتجع" />
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };
