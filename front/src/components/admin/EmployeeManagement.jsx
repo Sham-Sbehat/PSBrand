@@ -24,6 +24,8 @@ import {
   InputAdornment,
   Tabs,
   Tab,
+  Switch,
+  Tooltip,
 } from '@mui/material';
 import {
   Add,
@@ -130,6 +132,60 @@ const EmployeeManagement = () => {
       setSubmitSuccess(false);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleActive = async (employee) => {
+    const currentActiveState = employee.isActive !== false; // Default to true if undefined
+    const newActiveState = !currentActiveState;
+    const actionText = newActiveState ? 'تفعيل' : 'تعطيل';
+    
+    const result = await Swal.fire({
+      title: `هل أنت متأكد من ${actionText} الحساب؟`,
+      text: `سيتم ${actionText} حساب الموظف "${employee.name}"`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: newActiveState ? '#3085d6' : '#d33',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: `نعم، ${actionText}`,
+      cancelButtonText: 'إلغاء',
+      reverseButtons: true
+    });
+
+    if (result.isConfirmed) {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Use the new ToggleUserActiveStatus API
+        await employeesService.toggleUserActiveStatus(employee.id, newActiveState);
+        
+        // Update local state
+        setEmployees((prev) =>
+          prev.map((emp) =>
+            emp.id === employee.id ? { ...emp, isActive: newActiveState } : emp
+          )
+        );
+        
+        Swal.fire({
+          title: 'تم التحديث!',
+          text: `تم ${actionText} حساب الموظف بنجاح.`,
+          icon: 'success',
+          confirmButtonColor: '#3085d6',
+          timer: 2000
+        });
+      } catch (err) {
+        console.error('Error toggling employee active state:', err);
+        setError(`فشل في ${actionText} حساب الموظف`);
+        Swal.fire({
+          title: 'خطأ!',
+          text: `فشل في ${actionText} حساب الموظف. حاول مرة أخرى.`,
+          icon: 'error',
+          confirmButtonColor: '#d33'
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -287,6 +343,7 @@ const EmployeeManagement = () => {
                 <TableCell sx={{ fontWeight: 700 }}>الهاتف</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>الوظيفة</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>تاريخ الإضافة</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="center">الحالة</TableCell>
                 <TableCell sx={{ fontWeight: 700 }} align="center">
                   الإجراءات
                 </TableCell>
@@ -330,12 +387,38 @@ const EmployeeManagement = () => {
                     {new Date(employee.createdAt).toLocaleDateString('ar')}
                   </TableCell>
                   <TableCell align="center">
-                    <IconButton
-                      color="error"
-                      onClick={() => handleDelete(employee.id)}
-                    >
-                      <Delete />
-                    </IconButton>
+                    <Chip
+                      label={employee.isActive ? 'نشط' : 'معطل'}
+                      color={employee.isActive ? 'success' : 'default'}
+                      size="small"
+                      sx={{
+                        fontWeight: 600,
+                        minWidth: 70,
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                      <Tooltip title={employee.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب'} arrow>
+                        <Switch
+                          checked={employee.isActive !== false}
+                          onChange={() => handleToggleActive(employee)}
+                          disabled={loading}
+                          color="primary"
+                          size="small"
+                        />
+                      </Tooltip>
+                      <Tooltip title="حذف الموظف" arrow>
+                        <IconButton
+                          color="error"
+                          onClick={() => handleDelete(employee.id)}
+                          disabled={loading}
+                          size="small"
+                        >
+                          <Delete />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}

@@ -62,6 +62,7 @@ import {
   Download,
   Undo,
   Edit,
+  Delete,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -75,6 +76,7 @@ import GlassDialog from "../components/common/GlassDialog";
 import EmployeeAttendanceCalendar from "../components/admin/EmployeeAttendanceCalendar";
 import WelcomePage from "../components/common/WelcomePage";
 import calmPalette from "../theme/calmPalette";
+import Swal from "sweetalert2";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
@@ -540,6 +542,53 @@ const DesignManagerDashboard = () => {
       });
     } finally {
       setUpdatingDesignStatus(false);
+    }
+  };
+
+  // Handle design deletion
+  const handleDeleteDesign = async (design) => {
+    if (!design) return;
+
+    // Show confirmation dialog
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "تأكيد الحذف",
+      text: `هل أنت متأكد من حذف التصميم برقم: ${design.serialNumber || design.id}؟`,
+      showCancelButton: true,
+      confirmButtonText: "نعم، احذف",
+      cancelButtonText: "إلغاء",
+      confirmButtonColor: "#d32f2f",
+      cancelButtonColor: calmPalette.primary,
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setLoadingDesigns(true);
+      await mainDesignerService.deleteDesign(design.id);
+      
+      // Remove the design from the list
+      setDesigns((prevDesigns) => prevDesigns.filter((d) => d.id !== design.id));
+
+      // Show success message
+      Swal.fire({
+        icon: "success",
+        title: "تم الحذف بنجاح",
+        text: "تم حذف التصميم بنجاح",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+    } catch (error) {
+      console.error("Error deleting design:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ في الحذف",
+        text: error.response?.data?.message || "حدث خطأ أثناء حذف التصميم",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setLoadingDesigns(false);
     }
   };
 
@@ -2955,34 +3004,45 @@ const DesignManagerDashboard = () => {
                                 }}
                                 sx={{
                                   minWidth: 100,
-                                  height: 36,
-                                  backgroundColor: design.status === 1 ? "#4caf50" : "#e0e0e0",
-                                  color: design.status === 1 ? "#ffffff" : "#9e9e9e",
-                                  fontWeight: 600,
-                                  fontSize: "0.85rem",
-                                  borderRadius: 2,
+                                  height: 38,
+                                  background: design.status === 1 
+                                    ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" 
+                                    : "#e5e7eb",
+                                  color: design.status === 1 ? "#ffffff" : "#9ca3af",
+                                  fontWeight: 700,
+                                  fontSize: "0.875rem",
+                                  borderRadius: "8px",
                                   textTransform: "none",
-                                  boxShadow: design.status === 1 ? "0 2px 8px rgba(76, 175, 80, 0.3)" : "none",
-                                  border: design.status === 1 ? "1px solid #2e7d32" : "1px solid #bdbdbd",
-                                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                  boxShadow: design.status === 1 
+                                    ? "0 4px 14px 0 rgba(16, 185, 129, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1)" 
+                                    : "none",
+                                  border: design.status === 1 ? "none" : "1px solid #d1d5db",
+                                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                                   "&:hover": {
-                                    backgroundColor: design.status === 1 ? "#2e7d32" : "#e0e0e0",
-                                    boxShadow: design.status === 1 ? "0 4px 16px rgba(46, 125, 50, 0.5)" : "none",
-                                    transform: design.status === 1 ? "translateY(-2px)" : "none",
+                                    background: design.status === 1 
+                                      ? "linear-gradient(135deg, #059669 0%, #047857 100%)" 
+                                      : "#e5e7eb",
+                                    boxShadow: design.status === 1 
+                                      ? "0 6px 20px 0 rgba(16, 185, 129, 0.5), 0 4px 8px rgba(0, 0, 0, 0.15)" 
+                                      : "none",
+                                    transform: design.status === 1 ? "translateY(-2px) scale(1.02)" : "none",
                                   },
                                   "&:active": {
-                                    transform: design.status === 1 ? "translateY(0)" : "none",
-                                    boxShadow: design.status === 1 ? "0 2px 8px rgba(46, 125, 50, 0.4)" : "none",
+                                    transform: design.status === 1 ? "translateY(0) scale(0.98)" : "none",
+                                    boxShadow: design.status === 1 
+                                      ? "0 2px 8px 0 rgba(16, 185, 129, 0.3)" 
+                                      : "none",
                                   },
                                   "&.Mui-disabled": {
-                                    backgroundColor: "#e0e0e0",
-                                    color: "#9e9e9e",
-                                    border: "1px solid #bdbdbd",
+                                    background: "#e5e7eb",
+                                    color: "#9ca3af",
+                                    border: "1px solid #d1d5db",
+                                    cursor: "not-allowed",
                                   },
                                   "& .MuiButton-startIcon": {
                                     marginRight: 0.5,
                                     "& svg": {
-                                      fontSize: 18,
+                                      fontSize: 20,
                                     },
                                   },
                                 }}
@@ -3003,34 +3063,45 @@ const DesignManagerDashboard = () => {
                                 }}
                                 sx={{
                                   minWidth: 100,
-                                  height: 36,
-                                  backgroundColor: design.status === 1 ? "#f44336" : "#e0e0e0",
-                                  color: design.status === 1 ? "#ffffff" : "#9e9e9e",
-                                  fontWeight: 600,
-                                  fontSize: "0.85rem",
-                                  borderRadius: 2,
+                                  height: 38,
+                                  background: design.status === 1 
+                                    ? "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" 
+                                    : "#e5e7eb",
+                                  color: design.status === 1 ? "#ffffff" : "#9ca3af",
+                                  fontWeight: 700,
+                                  fontSize: "0.875rem",
+                                  borderRadius: "8px",
                                   textTransform: "none",
-                                  boxShadow: design.status === 1 ? "0 2px 8px rgba(244, 67, 54, 0.3)" : "none",
-                                  border: design.status === 1 ? "1px solid #d32f2f" : "1px solid #bdbdbd",
-                                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                  boxShadow: design.status === 1 
+                                    ? "0 4px 14px 0 rgba(239, 68, 68, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1)" 
+                                    : "none",
+                                  border: design.status === 1 ? "none" : "1px solid #d1d5db",
+                                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                                   "&:hover": {
-                                    backgroundColor: design.status === 1 ? "#d32f2f" : "#e0e0e0",
-                                    boxShadow: design.status === 1 ? "0 4px 16px rgba(211, 47, 47, 0.5)" : "none",
-                                    transform: design.status === 1 ? "translateY(-2px)" : "none",
+                                    background: design.status === 1 
+                                      ? "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)" 
+                                      : "#e5e7eb",
+                                    boxShadow: design.status === 1 
+                                      ? "0 6px 20px 0 rgba(239, 68, 68, 0.5), 0 4px 8px rgba(0, 0, 0, 0.15)" 
+                                      : "none",
+                                    transform: design.status === 1 ? "translateY(-2px) scale(1.02)" : "none",
                                   },
                                   "&:active": {
-                                    transform: design.status === 1 ? "translateY(0)" : "none",
-                                    boxShadow: design.status === 1 ? "0 2px 8px rgba(211, 47, 47, 0.4)" : "none",
+                                    transform: design.status === 1 ? "translateY(0) scale(0.98)" : "none",
+                                    boxShadow: design.status === 1 
+                                      ? "0 2px 8px 0 rgba(239, 68, 68, 0.3)" 
+                                      : "none",
                                   },
                                   "&.Mui-disabled": {
-                                    backgroundColor: "#e0e0e0",
-                                    color: "#9e9e9e",
-                                    border: "1px solid #bdbdbd",
+                                    background: "#e5e7eb",
+                                    color: "#9ca3af",
+                                    border: "1px solid #d1d5db",
+                                    cursor: "not-allowed",
                                   },
                                   "& .MuiButton-startIcon": {
                                     marginRight: 0.5,
                                     "& svg": {
-                                      fontSize: 18,
+                                      fontSize: 20,
                                     },
                                   },
                                 }}
@@ -3051,40 +3122,82 @@ const DesignManagerDashboard = () => {
                                 }}
                                 sx={{
                                   minWidth: 100,
-                                  height: 36,
-                                  backgroundColor: design.status === 1 ? "#2196f3" : "#e0e0e0",
-                                  color: design.status === 1 ? "#ffffff" : "#9e9e9e",
-                                  fontWeight: 600,
-                                  fontSize: "0.85rem",
-                                  borderRadius: 2,
+                                  height: 38,
+                                  background: design.status === 1 
+                                    ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" 
+                                    : "#e5e7eb",
+                                  color: design.status === 1 ? "#ffffff" : "#9ca3af",
+                                  fontWeight: 700,
+                                  fontSize: "0.875rem",
+                                  borderRadius: "8px",
                                   textTransform: "none",
-                                  boxShadow: design.status === 1 ? "0 2px 8px rgba(33, 150, 243, 0.3)" : "none",
-                                  border: design.status === 1 ? "1px solid #1976d2" : "1px solid #bdbdbd",
-                                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                  boxShadow: design.status === 1 
+                                    ? "0 4px 14px 0 rgba(59, 130, 246, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1)" 
+                                    : "none",
+                                  border: design.status === 1 ? "none" : "1px solid #d1d5db",
+                                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                                   "&:hover": {
-                                    backgroundColor: design.status === 1 ? "#1976d2" : "#e0e0e0",
-                                    boxShadow: design.status === 1 ? "0 4px 16px rgba(25, 118, 210, 0.5)" : "none",
-                                    transform: design.status === 1 ? "translateY(-2px)" : "none",
+                                    background: design.status === 1 
+                                      ? "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)" 
+                                      : "#e5e7eb",
+                                    boxShadow: design.status === 1 
+                                      ? "0 6px 20px 0 rgba(59, 130, 246, 0.5), 0 4px 8px rgba(0, 0, 0, 0.15)" 
+                                      : "none",
+                                    transform: design.status === 1 ? "translateY(-2px) scale(1.02)" : "none",
                                   },
                                   "&:active": {
-                                    transform: design.status === 1 ? "translateY(0)" : "none",
-                                    boxShadow: design.status === 1 ? "0 2px 8px rgba(25, 118, 210, 0.4)" : "none",
+                                    transform: design.status === 1 ? "translateY(0) scale(0.98)" : "none",
+                                    boxShadow: design.status === 1 
+                                      ? "0 2px 8px 0 rgba(59, 130, 246, 0.3)" 
+                                      : "none",
                                   },
                                   "&.Mui-disabled": {
-                                    backgroundColor: "#e0e0e0",
-                                    color: "#9e9e9e",
-                                    border: "1px solid #bdbdbd",
+                                    background: "#e5e7eb",
+                                    color: "#9ca3af",
+                                    border: "1px solid #d1d5db",
+                                    cursor: "not-allowed",
                                   },
                                   "& .MuiButton-startIcon": {
                                     marginRight: 0.5,
                                     "& svg": {
-                                      fontSize: 18,
+                                      fontSize: 20,
                                     },
                                   },
                                 }}
                               >
                                 مرتجع
                               </Button>
+                              <Tooltip title="حذف التصميم" arrow>
+                                <IconButton
+                                  size="medium"
+                                  onClick={() => handleDeleteDesign(design)}
+                                  disabled={loadingDesigns}
+                                  sx={{ 
+                                    color: "#d32f2f",
+                                    backgroundColor: "rgba(211, 47, 47, 0.1)",
+                                    border: "1px solid rgba(211, 47, 47, 0.3)",
+                                    width: 40,
+                                    height: 40,
+                                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                    "&:hover": {
+                                      backgroundColor: "rgba(211, 47, 47, 0.2)",
+                                      transform: "scale(1.1) translateY(-2px)",
+                                      boxShadow: "0 4px 12px rgba(211, 47, 47, 0.3)",
+                                    },
+                                    "&:active": {
+                                      transform: "scale(1.05)",
+                                    },
+                                    "&.Mui-disabled": {
+                                      backgroundColor: "rgba(0, 0, 0, 0.05)",
+                                      color: "#9e9e9e",
+                                      border: "1px solid transparent",
+                                      cursor: "default",
+                                    },
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                             </Box>
                           </TableCell>
                         </TableRow>

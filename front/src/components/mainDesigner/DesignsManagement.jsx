@@ -337,19 +337,34 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   const handleFileSelect = async (file, type = "file") => {
     if (!file) return;
 
-    // Validate file type
-    const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "application/octet-stream", "image/vnd.adobe.photoshop"];
-    const isPSD = file.name.toLowerCase().endsWith(".psd");
-    const isValidType = allowedTypes.includes(file.type) || isPSD;
+    // Validate file type based on upload type
+    if (type === "image") {
+      // For design image: allow any image format
+      const isImage = file.type.startsWith("image/") || /\.(jpg|jpeg|png|gif|bmp|webp|psd)$/i.test(file.name);
+      if (!isImage) {
+        Swal.fire({
+          icon: "error",
+          title: "نوع ملف غير مدعوم",
+          text: "يرجى اختيار ملف صورة",
+          confirmButtonColor: calmPalette.primary,
+        });
+        return;
+      }
+    } else {
+      // For design files: Only PNG and PSD allowed
+      const isPNG = file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
+      const isPSD = file.name.toLowerCase().endsWith(".psd") || file.type === "image/vnd.adobe.photoshop" || (file.type === "application/octet-stream" && file.name.toLowerCase().endsWith(".psd"));
+      const isValidType = isPNG || isPSD;
 
-    if (!isValidType) {
-      Swal.fire({
-        icon: "error",
-        title: "نوع ملف غير مدعوم",
-        text: "يرجى اختيار ملف PSD أو PNG",
-        confirmButtonColor: calmPalette.primary,
-      });
-      return;
+      if (!isValidType) {
+        Swal.fire({
+          icon: "error",
+          title: "نوع ملف غير مدعوم",
+          text: "يرجى اختيار ملف بصيغة PSD أو PNG فقط",
+          confirmButtonColor: calmPalette.primary,
+        });
+        return;
+      }
     }
 
     try {
@@ -358,7 +373,8 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
       setUploadProgress((prev) => ({ ...prev, [fileIdentifier]: 0 }));
 
       // Step 1: Generate upload URL
-      const contentType = isPSD ? "application/octet-stream" : file.type;
+      const isPSDFile = file.name.toLowerCase().endsWith(".psd") || file.type === "image/vnd.adobe.photoshop" || (file.type === "application/octet-stream" && file.name.toLowerCase().endsWith(".psd"));
+      const contentType = isPSDFile ? "application/octet-stream" : file.type;
       const folder = type === "image" ? "designs/images" : "designs/files";
       
       const uploadData = await mainDesignerService.generateUploadUrl(
@@ -876,7 +892,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                 صورة التصميم *
               </Typography>
               <input
-                accept="image/png,image/jpeg,image/jpg,.psd"
+                accept="image/*"
                 style={{ display: "none" }}
                 id="image-upload"
                 type="file"
@@ -902,7 +918,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                     },
                   }}
                 >
-                  رفع صورة التصميم (PSD أو PNG)
+                  رفع صورة التصميم
                 </Button>
               </label>
         
@@ -989,10 +1005,10 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
         }}
       >
         <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 600, color: calmPalette.textPrimary, fontSize: "0.95rem" }}>
-                ملفات التصميم (اختياري)
+                ملفات التصميم
               </Typography>
               <input
-                accept=".psd,.png,.jpg,.jpeg"
+                accept=".psd,.png,image/png,image/vnd.adobe.photoshop"
                 style={{ display: "none" }}
                 id="files-upload"
                 type="file"
@@ -1021,7 +1037,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                     },
                   }}
                 >
-                  رفع ملفات التصميم (متعدد)
+                  رفع ملفات التصميم PSD أو PNG (متعدد)
                 </Button>
               </label>
         

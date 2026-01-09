@@ -513,6 +513,44 @@ export const employeesService = {
     return response.data;
   },
 
+  updateEmployee: async (id, employeeData) => {
+    // Prepare data according to API spec: /api/Users/UpdateUser{id}
+    // Required fields: id, name, username, password, phone, role, isActive
+    const apiData = {
+      id: id,
+      name: employeeData.name || '',
+      username: employeeData.username || '',
+      password: employeeData.password !== undefined ? employeeData.password : '', // Empty string if not updating password
+      phone: employeeData.phone || '',
+      role: typeof employeeData.role === 'number' ? employeeData.role : (employeeData.role || 1),
+      isActive: employeeData.isActive !== undefined ? employeeData.isActive : true,
+    };
+
+    // Add optional fields only if they are provided and not empty
+    if (employeeData.monthlySalary !== undefined && employeeData.monthlySalary !== null) {
+      apiData.monthlySalary = employeeData.monthlySalary;
+    }
+    if (employeeData.jobTitle) {
+      apiData.jobTitle = employeeData.jobTitle;
+    }
+    if (employeeData.email) {
+      apiData.email = employeeData.email;
+    }
+    if (employeeData.notes) {
+      apiData.notes = employeeData.notes;
+    }
+
+    const response = await api.put(`/Users/UpdateUser${id}`, apiData);
+    return response.data;
+  },
+
+  toggleUserActiveStatus: async (id, isActive) => {
+    const response = await api.put(`/Users/ToggleUserActiveStatus/${id}`, {
+      isActive: isActive,
+    });
+    return response.data;
+  },
+
   deleteEmployee: async (id) => {
     const response = await api.delete(`/Users/DeleteUser/${id}`);
     return response.data;
