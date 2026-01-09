@@ -221,6 +221,19 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   };
 
   const handleOpenDialog = (design = null) => {
+    // Prevent opening dialog if design is accepted or rejected
+    if (design && (design.status === 2 || design.status === 3)) {
+      Swal.fire({
+        icon: "warning",
+        title: "غير مسموح",
+        text: design.status === 2 
+          ? "لا يمكن تعديل التصميم لأنه مقبول" 
+          : "لا يمكن تعديل التصميم لأنه مرفوض",
+        confirmButtonColor: calmPalette.primary,
+      });
+      return;
+    }
+    
     if (design) {
       setEditingDesign(design);
       // Convert designFileUrls to new format
@@ -607,6 +620,20 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
       
       
       if (editingDesign) {
+        // Check if design is accepted or rejected - prevent update
+        if (editingDesign.status === 2 || editingDesign.status === 3) {
+          Swal.fire({
+            icon: "error",
+            title: "غير مسموح",
+            text: editingDesign.status === 2 
+              ? "لا يمكن تعديل التصميم لأنه مقبول" 
+              : "لا يمكن تعديل التصميم لأنه مرفوض",
+            confirmButtonColor: calmPalette.primary,
+          });
+          setLoading(false);
+          return;
+        }
+        
         await mainDesignerService.updateDesign(editingDesign.id, designPayload);
         // Reset status to "في الانتظار" (1) after update
         await mainDesignerService.updateDesignStatus(editingDesign.id, 1, "");
@@ -1622,19 +1649,50 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                           <Visibility />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="تعديل">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenDialog(design)}
-                          sx={{ 
-                            color: calmPalette.primary,
-                            "&:hover": {
-                              backgroundColor: `${calmPalette.primary}10`,
-                            },
-                          }}
-                        >
-                          <Edit />
-                        </IconButton>
+                      <Tooltip 
+                        title={
+                          design.status === 2 
+                            ? "لا يمكن التعديل - التصميم مقبول" 
+                            : design.status === 3 
+                            ? "لا يمكن التعديل - التصميم مرفوض" 
+                            : "تعديل"
+                        }
+                      >
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              if (design.status === 2 || design.status === 3) {
+                                Swal.fire({
+                                  icon: "warning",
+                                  title: "غير مسموح",
+                                  text: design.status === 2 
+                                    ? "لا يمكن تعديل التصميم لأنه مقبول" 
+                                    : "لا يمكن تعديل التصميم لأنه مرفوض",
+                                  confirmButtonColor: calmPalette.primary,
+                                });
+                                return;
+                              }
+                              handleOpenDialog(design);
+                            }}
+                            disabled={design.status === 2 || design.status === 3}
+                            sx={{ 
+                              color: design.status === 2 || design.status === 3 
+                                ? "action.disabled" 
+                                : calmPalette.primary,
+                              "&:hover": {
+                                backgroundColor: design.status === 2 || design.status === 3
+                                  ? "transparent"
+                                  : `${calmPalette.primary}10`,
+                              },
+                              "&.Mui-disabled": {
+                                color: "action.disabled",
+                              },
+                            }}
+                          >
+                            <Edit />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                        <Tooltip title={design.notes && design.notes.trim() ? "عرض الملاحظات" : "لا توجد ملاحظات"}>
                          <IconButton
