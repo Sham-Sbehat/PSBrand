@@ -37,6 +37,8 @@ import {
   VisibilityOff,
   Store,
   AccessTime,
+  Search,
+  FilterList,
 } from '@mui/icons-material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { useApp } from '../../context/AppContext';
@@ -54,6 +56,10 @@ const EmployeeManagement = () => {
   const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [currentSubTab, setCurrentSubTab] = useState(0);
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
   useEffect(() => {
     loadEmployees();
   }, []);
@@ -321,36 +327,166 @@ const EmployeeManagement = () => {
         </Alert>
       )}
 
-      {loading && employees.length === 0 ? (
-        <Box sx={{ textAlign: 'center', padding: 4 }}>
-          <Typography variant="h6" color="text.secondary">
-            جاري تحميل الموظفين...
-          </Typography>
+      {/* Filters */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          mb: 3,
+          backgroundColor: '#ffffff',
+          borderRadius: 2,
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+        }}
+      >
+        <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FilterList sx={{ color: 'text.secondary' }} />
+            <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+              فلترة:
+            </Typography>
+          </Box>
+          <TextField
+            placeholder="بحث بالاسم أو اسم المستخدم..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size="small"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              minWidth: 250,
+              flex: 1,
+              maxWidth: 400,
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              },
+            }}
+          />
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel>الوظيفة</InputLabel>
+            <Select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              label="الوظيفة"
+            >
+              <MenuItem value="all">الكل</MenuItem>
+              <MenuItem value="admin">أدمن</MenuItem>
+              <MenuItem value="designer">بائع</MenuItem>
+              <MenuItem value="designmanager">مدير التصميم</MenuItem>
+              <MenuItem value="maindesigner">مصمم</MenuItem>
+              <MenuItem value="packager">مسؤول تغليف</MenuItem>
+              <MenuItem value="preparer">محضر طلبات</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>الحالة</InputLabel>
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              label="الحالة"
+            >
+              <MenuItem value="all">الكل</MenuItem>
+              <MenuItem value="active">نشط</MenuItem>
+              <MenuItem value="inactive">معطل</MenuItem>
+            </Select>
+          </FormControl>
+          {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all') && (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                setSearchQuery('');
+                setRoleFilter('all');
+                setStatusFilter('all');
+              }}
+              sx={{ color: 'text.secondary' }}
+            >
+              إلغاء الفلترة
+            </Button>
+          )}
         </Box>
-      ) : employees.length === 0 ? (
-        <Box sx={{ textAlign: 'center', padding: 4 }}>
-          <Typography variant="h6" color="text.secondary">
-            لا يوجد موظفين مسجلين
-          </Typography>
-        </Box>
-      ) : (
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>الاسم</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>اسم المستخدم</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>الهاتف</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>الوظيفة</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>تاريخ الإضافة</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="center">الحالة</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="center">
-                  الإجراءات
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {employees.map((employee) => (
+      </Paper>
+
+      {/* Filtered employees count display */}
+      {(() => {
+        // Apply filters
+        let filteredEmployees = [...employees];
+
+        // Search filter
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          filteredEmployees = filteredEmployees.filter(
+            (emp) =>
+              emp.name?.toLowerCase().includes(query) ||
+              emp.username?.toLowerCase().includes(query)
+          );
+        }
+
+        // Role filter
+        if (roleFilter !== 'all') {
+          filteredEmployees = filteredEmployees.filter((emp) => emp.role === roleFilter);
+        }
+
+        // Status filter
+        if (statusFilter !== 'all') {
+          if (statusFilter === 'active') {
+            filteredEmployees = filteredEmployees.filter((emp) => emp.isActive !== false);
+          } else if (statusFilter === 'inactive') {
+            filteredEmployees = filteredEmployees.filter((emp) => emp.isActive === false);
+          }
+        }
+
+        // Update title with filtered count
+        const filteredCount = filteredEmployees.length;
+        const totalCount = employees.length;
+        const showFilteredCount = searchQuery || roleFilter !== 'all' || statusFilter !== 'all';
+
+        return (
+          <>
+            {showFilteredCount && filteredCount !== totalCount && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  عرض {filteredCount} من أصل {totalCount} موظف
+                </Typography>
+              </Box>
+            )}
+            {loading && filteredEmployees.length === 0 && employees.length === 0 ? (
+              <Box sx={{ textAlign: 'center', padding: 4 }}>
+                <Typography variant="h6" color="text.secondary">
+                  جاري تحميل الموظفين...
+                </Typography>
+              </Box>
+            ) : filteredEmployees.length === 0 ? (
+              <Box sx={{ textAlign: 'center', padding: 4 }}>
+                <Typography variant="h6" color="text.secondary">
+                  {searchQuery || roleFilter !== 'all' || statusFilter !== 'all'
+                    ? 'لا توجد نتائج للفلترة المحددة'
+                    : 'لا يوجد موظفين مسجلين'}
+                </Typography>
+              </Box>
+            ) : (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700 }}>الاسم</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>اسم المستخدم</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>الهاتف</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>الوظيفة</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>تاريخ الإضافة</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="center">الحالة</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="center">
+                        الإجراءات
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredEmployees.map((employee) => (
                 <TableRow
                   key={employee.id}
                   sx={{
@@ -425,7 +561,10 @@ const EmployeeManagement = () => {
             </TableBody>
           </Table>
         </TableContainer>
-      )}
+            )}
+          </>
+        );
+      })()}
 
       {/* نافذة إضافة موظف */}
       <GlassDialog

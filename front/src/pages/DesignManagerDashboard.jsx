@@ -92,6 +92,7 @@ const DesignManagerDashboard = () => {
   const [pendingPrintingOrders, setPendingPrintingOrders] = useState([]); // Tab 1: Status 1 (PENDING_PRINTING)
   const [inPrintingOrders, setInPrintingOrders] = useState([]); // Tab 2: Status 2 (IN_PRINTING)
   const [designs, setDesigns] = useState([]); // Tab 4: Designs from Main Designers
+  const [allDesigns, setAllDesigns] = useState([]); // Keep all designs for count display
   const [loadingDesigns, setLoadingDesigns] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedDesignForStatus, setSelectedDesignForStatus] = useState(null);
@@ -102,7 +103,7 @@ const DesignManagerDashboard = () => {
   const [designNotesDialogOpen, setDesignNotesDialogOpen] = useState(false);
   const [selectedDesignForNotes, setSelectedDesignForNotes] = useState(null);
   // Filtering and sorting states
-  const [statusFilter, setStatusFilter] = useState("all"); // "all", 1, 2, 3
+  const [statusTab, setStatusTab] = useState(0); // 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
   const [dateFilter, setDateFilter] = useState(""); // Date string or empty
   const [designerFilter, setDesignerFilter] = useState("all"); // "all" or designerId
   const [sortField, setSortField] = useState(null); // null, "serialNumber", "date", "status", "designer"
@@ -242,10 +243,25 @@ const DesignManagerDashboard = () => {
       await loadUsers();
       const data = await mainDesignerService.getDesigns();
       console.log("Loaded designs:", data);
-      setDesigns(Array.isArray(data) ? data : []);
+      const allDesignsArray = Array.isArray(data) ? data : [];
+      setAllDesigns(allDesignsArray);
+      
+      // Filter designs locally based on selected tab
+      // Map tab index to status: 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
+      const statusMap = {
+        0: 1,    // في الانتظار
+        1: 2,    // مقبول
+        2: 3,    // مرفوض
+        3: 4     // مرتجع
+      };
+      
+      const status = statusMap[statusTab];
+      const filteredDesigns = allDesignsArray.filter(design => design.status === status);
+      setDesigns(filteredDesigns);
     } catch (error) {
       console.error("Error loading designs:", error);
       setDesigns([]);
+      setAllDesigns([]);
     } finally {
       setLoadingDesigns(false);
     }
@@ -406,14 +422,11 @@ const DesignManagerDashboard = () => {
     }
   };
 
-  // Filter and sort designs
+  // Filter and sort designs (status filter is now handled by statusTab in loadDesigns)
   const getFilteredAndSortedDesigns = () => {
     let filtered = [...designs];
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((design) => design.status === Number(statusFilter));
-    }
+    // Status filter is now handled by statusTab in loadDesigns, so no need to filter by status here
 
     // Apply date filter
     if (dateFilter) {
@@ -506,14 +519,27 @@ const DesignManagerDashboard = () => {
         notes || statusNotes
       );
       
-      // Update the design in the list
-      setDesigns((prevDesigns) =>
+      // Update the design in both lists
+      setAllDesigns((prevDesigns) =>
         prevDesigns.map((d) =>
           d.id === targetDesign.id
             ? { ...d, status: newStatus }
             : d
         )
       );
+      
+      // Filter designs based on current statusTab
+      const statusMap = { 0: 1, 1: 2, 2: 3, 3: 4 };
+      const currentStatus = statusMap[statusTab];
+      setDesigns((prevDesigns) => {
+        const updated = prevDesigns.map((d) =>
+          d.id === targetDesign.id
+            ? { ...d, status: newStatus }
+            : d
+        );
+        // If the updated design no longer matches the current filter, remove it
+        return updated.filter(d => d.status === currentStatus);
+      });
 
       setStatusDialogOpen(false);
       setSelectedDesignForStatus(null);
@@ -568,7 +594,8 @@ const DesignManagerDashboard = () => {
       setLoadingDesigns(true);
       await mainDesignerService.deleteDesign(design.id);
       
-      // Remove the design from the list
+      // Remove the design from both lists
+      setAllDesigns((prevDesigns) => prevDesigns.filter((d) => d.id !== design.id));
       setDesigns((prevDesigns) => prevDesigns.filter((d) => d.id !== design.id));
 
       // Show success message
@@ -643,12 +670,12 @@ const DesignManagerDashboard = () => {
     loadFabricTypes();
   }, []);
 
-  // Load designs when Tab 4 is opened
+  // Load designs when Tab 4 is opened or when statusTab changes
   useEffect(() => {
     if (currentTab === 4) {
       loadDesigns();
     }
-  }, [currentTab]);
+  }, [currentTab, statusTab]);
 
   useEffect(() => {
     fetchOrders(true); // Show loading on initial fetch only
@@ -2506,33 +2533,206 @@ const DesignManagerDashboard = () => {
                 </Button>
               </Box>
 
-              {/* Filters */}
+              {/* Status Tabs */}
+              <Box
+                sx={{
+                  mb: 3,
+                  backgroundColor: "#ffffff",
+                  borderRadius: 2,
+                  border: "1px solid rgba(0, 0, 0, 0.08)",
+                  overflow: "hidden",
+                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+                }}
+              >
+                <Tabs
+                  value={statusTab}
+                  onChange={(e, newValue) => setStatusTab(newValue)}
+                  variant="fullWidth"
+                  sx={{
+                    minHeight: 64,
+                    backgroundColor: "#f5f5f5",
+                    "& .MuiTabs-flexContainer": {
+                      gap: 0.75,
+                      px: 0.75,
+                      py: 0.75,
+                    },
+                    "& .MuiTab-root": {
+                      minHeight: 56,
+                      textTransform: "none",
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      color: calmPalette.textSecondary,
+                      px: 2,
+                      py: 1.25,
+                      borderRadius: 1.5,
+                      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                      position: "relative",
+                      "&:hover:not(.Mui-selected)": {
+                        backgroundColor: "rgba(255, 255, 255, 0.8)",
+                        transform: "translateY(-1px)",
+                        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                      },
+                    },
+                    "& .MuiTabs-indicator": {
+                      display: "none",
+                    },
+                  }}
+                >
+                  <Tab
+                    sx={{
+                      backgroundColor: statusTab === 0 ? "transparent" : "rgba(255, 255, 255, 0.7)",
+                      "&.Mui-selected": {
+                        color: "#ffffff",
+                        fontWeight: 700,
+                        background: "linear-gradient(135deg, #f57c00 0%, #ef6c00 100%)",
+                        boxShadow: "0 4px 12px rgba(245, 124, 0, 0.35)",
+                        "&:hover": {
+                          background: "linear-gradient(135deg, #ef6c00 0%, #e65100 100%)",
+                        },
+                      },
+                    }}
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
+                        <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
+                          في الانتظار
+                        </Typography>
+                        <Chip
+                          label={allDesigns.filter(d => d.status === 1).length}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            minWidth: 28,
+                            fontSize: "0.75rem",
+                            backgroundColor: statusTab === 0 ? "rgba(255, 255, 255, 0.3)" : "rgba(245, 124, 0, 0.15)",
+                            color: statusTab === 0 ? "#ffffff" : "#f57c00",
+                            fontWeight: 700,
+                            borderRadius: "12px",
+                            transition: "all 0.25s ease",
+                            border: statusTab !== 0 ? "1px solid rgba(245, 124, 0, 0.3)" : "none",
+                          }}
+                        />
+                      </Box>
+                    }
+                  />
+                  <Tab
+                    sx={{
+                      backgroundColor: statusTab === 1 ? "transparent" : "rgba(255, 255, 255, 0.7)",
+                      "&.Mui-selected": {
+                        color: "#ffffff",
+                        fontWeight: 700,
+                        background: "linear-gradient(135deg, #4caf50 0%, #43a047 100%)",
+                        boxShadow: "0 4px 12px rgba(76, 175, 80, 0.35)",
+                        "&:hover": {
+                          background: "linear-gradient(135deg, #43a047 0%, #388e3c 100%)",
+                        },
+                      },
+                    }}
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
+                        <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
+                          مقبول
+                        </Typography>
+                        <Chip
+                          label={allDesigns.filter(d => d.status === 2).length}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            minWidth: 28,
+                            fontSize: "0.75rem",
+                            backgroundColor: statusTab === 1 ? "rgba(255, 255, 255, 0.3)" : "rgba(76, 175, 80, 0.15)",
+                            color: statusTab === 1 ? "#ffffff" : "#4caf50",
+                            fontWeight: 700,
+                            borderRadius: "12px",
+                            transition: "all 0.25s ease",
+                            border: statusTab !== 1 ? "1px solid rgba(76, 175, 80, 0.3)" : "none",
+                          }}
+                        />
+                      </Box>
+                    }
+                  />
+                  <Tab
+                    sx={{
+                      backgroundColor: statusTab === 2 ? "transparent" : "rgba(255, 255, 255, 0.7)",
+                      "&.Mui-selected": {
+                        color: "#ffffff",
+                        fontWeight: 700,
+                        background: "linear-gradient(135deg, #f44336 0%, #e53935 100%)",
+                        boxShadow: "0 4px 12px rgba(244, 67, 54, 0.35)",
+                        "&:hover": {
+                          background: "linear-gradient(135deg, #e53935 0%, #d32f2f 100%)",
+                        },
+                      },
+                    }}
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
+                        <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
+                          مرفوض
+                        </Typography>
+                        <Chip
+                          label={allDesigns.filter(d => d.status === 3).length}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            minWidth: 28,
+                            fontSize: "0.75rem",
+                            backgroundColor: statusTab === 2 ? "rgba(255, 255, 255, 0.3)" : "rgba(244, 67, 54, 0.15)",
+                            color: statusTab === 2 ? "#ffffff" : "#f44336",
+                            fontWeight: 700,
+                            borderRadius: "12px",
+                            transition: "all 0.25s ease",
+                            border: statusTab !== 2 ? "1px solid rgba(244, 67, 54, 0.3)" : "none",
+                          }}
+                        />
+                      </Box>
+                    }
+                  />
+                  <Tab
+                    sx={{
+                      backgroundColor: statusTab === 3 ? "transparent" : "rgba(255, 255, 255, 0.7)",
+                      "&.Mui-selected": {
+                        color: "#ffffff",
+                        fontWeight: 700,
+                        background: "linear-gradient(135deg, #2196f3 0%, #1e88e5 100%)",
+                        boxShadow: "0 4px 12px rgba(33, 150, 243, 0.35)",
+                        "&:hover": {
+                          background: "linear-gradient(135deg, #1e88e5 0%, #1976d2 100%)",
+                        },
+                      },
+                    }}
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
+                        <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
+                          مرتجع
+                        </Typography>
+                        <Chip
+                          label={allDesigns.filter(d => d.status === 4).length}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            minWidth: 28,
+                            fontSize: "0.75rem",
+                            backgroundColor: statusTab === 3 ? "rgba(255, 255, 255, 0.3)" : "rgba(33, 150, 243, 0.15)",
+                            color: statusTab === 3 ? "#ffffff" : "#2196f3",
+                            fontWeight: 700,
+                            borderRadius: "12px",
+                            transition: "all 0.25s ease",
+                            border: statusTab !== 3 ? "1px solid rgba(33, 150, 243, 0.3)" : "none",
+                          }}
+                        />
+                      </Box>
+                    }
+                  />
+                </Tabs>
+              </Box>
+
+              {/* Date and Designer Filters */}
               <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <FilterList sx={{ color: calmPalette.textSecondary }} />
                   <Typography variant="body2" sx={{ color: calmPalette.textSecondary, fontWeight: 600 }}>
-                    فلترة:
+                    فلترة إضافية:
                   </Typography>
                 </Box>
-                <TextField
-                  select
-                  label="الحالة"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  size="small"
-                  sx={{
-                    minWidth: 150,
-                    "& .MuiOutlinedInput-root": {
-                      backgroundColor: "rgba(255, 255, 255, 0.9)",
-                    },
-                  }}
-                >
-                  <MenuItem value="all">الكل</MenuItem>
-                  <MenuItem value="1">في الانتظار</MenuItem>
-                  <MenuItem value="2">مقبول</MenuItem>
-                  <MenuItem value="3">مرفوض</MenuItem>
-                  <MenuItem value="4">مرتجع</MenuItem>
-                </TextField>
                 <TextField
                   type="date"
                   label="التاريخ"
@@ -2571,12 +2771,11 @@ const DesignManagerDashboard = () => {
                       </MenuItem>
                     ))}
                 </TextField>
-                {(statusFilter !== "all" || dateFilter || designerFilter !== "all") && (
+                {(dateFilter || designerFilter !== "all") && (
                   <Button
                     size="small"
                     variant="outlined"
                     onClick={() => {
-                      setStatusFilter("all");
                       setDateFilter("");
                       setDesignerFilter("all");
                     }}

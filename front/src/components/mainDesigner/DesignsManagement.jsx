@@ -29,6 +29,8 @@ import {
   Tooltip,
   LinearProgress,
   Snackbar,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import {
   Add,
@@ -55,6 +57,7 @@ import { USER_ROLES } from "../../constants";
 const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   const { user } = useApp();
   const [designs, setDesigns] = useState([]);
+  const [allDesigns, setAllDesigns] = useState([]); // Keep all designs for count display
   const [loading, setLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDesign, setEditingDesign] = useState(null);
@@ -77,21 +80,21 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
     image: null,
     files: [], // Array of objects: [{ name, key, serialNumber, printFileName }]
   });
-  // Filter states
-  const [statusFilter, setStatusFilter] = useState("all"); // "all", 1, 2, 3
+  // Tab state for status filtering
+  const [statusTab, setStatusTab] = useState(0); // 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
   const [dateFilter, setDateFilter] = useState(""); // Date string or empty
   const [sortField, setSortField] = useState(null); // null, "serialNumber", "date", "status"
   const [sortDirection, setSortDirection] = useState("asc"); // "asc", "desc"
 
   useEffect(() => {
     if (!showFormInTab) {
-    loadDesigns();
+      loadDesigns();
     }
     if (showFormInTab) {
       // Reset form when showing in tab
       handleOpenDialog(null);
     }
-  }, [showFormInTab]);
+  }, [showFormInTab, statusTab]); // Reload when statusTab changes
 
   // Subscribe to real-time design updates
   useEffect(() => {
@@ -201,13 +204,31 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
     try {
       if (!user?.id) {
         setDesigns([]);
+        setAllDesigns([]);
         setLoading(false);
         return;
       }
-      // Get designs only for the current user (designer)
-      const data = await mainDesignerService.getDesignsByCreator(user.id);
-      setDesigns(Array.isArray(data) ? data : []);
+      
+      // Always load all designs first to get counts for tabs
+      const allData = await mainDesignerService.getDesignsByCreatorAndStatus(user.id, null);
+      const allDesignsArray = Array.isArray(allData) ? allData : [];
+      setAllDesigns(allDesignsArray);
+      
+      // Map tab index to status: 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
+      const statusMap = {
+        0: 1,    // في الانتظار
+        1: 2,    // مقبول
+        2: 3,    // مرفوض
+        3: 4     // مرتجع
+      };
+      
+      const status = statusMap[statusTab];
+      
+      // Filter designs locally based on selected tab
+      const filteredDesigns = allDesignsArray.filter(design => design.status === status);
+      setDesigns(filteredDesigns);
     } catch (error) {
+      console.error("Error loading designs:", error);
       Swal.fire({
         icon: "error",
         title: "خطأ",
@@ -215,6 +236,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
         confirmButtonColor: calmPalette.primary,
       });
       setDesigns([]);
+      setAllDesigns([]);
     } finally {
       setLoading(false);
     }
@@ -1218,14 +1240,11 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
     );
   }
 
-  // Filter and sort designs
+  // Filter and sort designs (status filter is now handled by API, but date filter still needed)
   const getFilteredAndSortedDesigns = () => {
     let filtered = [...designs];
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((design) => design.status === Number(statusFilter));
-    }
+    // Status filter is now handled by API via statusTab, so no need to filter by status here
 
     // Apply date filter
     if (dateFilter) {
@@ -1346,13 +1365,13 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   }
 
   return (
-    <Box>
+    <Box sx={{ px: 2, py: 1 }}>
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          mb: 3,
+          mb: 4,
         }}
       >
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
@@ -1365,7 +1384,199 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
         )}
       </Box>
 
-      {/* Filters */}
+      {/* Status Tabs */}
+      <Box
+        sx={{
+          mb: 3,
+          backgroundColor: "#ffffff",
+          borderRadius: 2,
+          border: "1px solid rgba(0, 0, 0, 0.08)",
+          overflow: "hidden",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+        }}
+      >
+        <Tabs
+          value={statusTab}
+          onChange={(e, newValue) => setStatusTab(newValue)}
+          variant="fullWidth"
+          sx={{
+            minHeight: 64,
+            backgroundColor: "#f5f5f5",
+            "& .MuiTabs-flexContainer": {
+              gap: 0.75,
+              px: 0.75,
+              py: 0.75,
+            },
+            "& .MuiTab-root": {
+              minHeight: 56,
+              textTransform: "none",
+              fontSize: "0.875rem",
+              fontWeight: 600,
+              color: calmPalette.textSecondary,
+              px: 2,
+              py: 1.25,
+              borderRadius: 1.5,
+              transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+              position: "relative",
+              "&:hover:not(.Mui-selected)": {
+                backgroundColor: "rgba(255, 255, 255, 0.8)",
+                transform: "translateY(-1px)",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+              },
+            },
+            "& .MuiTabs-indicator": {
+              display: "none",
+            },
+          }}
+        >
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 0 ? "transparent" : "rgba(255, 255, 255, 0.7)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #f57c00 0%, #ef6c00 100%)",
+                boxShadow: "0 4px 12px rgba(245, 124, 0, 0.35)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #ef6c00 0%, #e65100 100%)",
+                },
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
+                  في الانتظار
+                </Typography>
+                <Chip
+                  label={allDesigns.filter(d => d.status === 1).length}
+                  size="small"
+                  sx={{
+                    height: 24,
+                    minWidth: 28,
+                    fontSize: "0.75rem",
+                    backgroundColor: statusTab === 0 ? "rgba(255, 255, 255, 0.3)" : "rgba(245, 124, 0, 0.15)",
+                    color: statusTab === 0 ? "#ffffff" : "#f57c00",
+                    fontWeight: 700,
+                    borderRadius: "12px",
+                    transition: "all 0.25s ease",
+                    border: statusTab !== 0 ? "1px solid rgba(245, 124, 0, 0.3)" : "none",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 1 ? "transparent" : "rgba(255, 255, 255, 0.7)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #4caf50 0%, #43a047 100%)",
+                boxShadow: "0 4px 12px rgba(76, 175, 80, 0.35)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #43a047 0%, #388e3c 100%)",
+                },
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
+                  مقبول
+                </Typography>
+                <Chip
+                  label={allDesigns.filter(d => d.status === 2).length}
+                  size="small"
+                  sx={{
+                    height: 24,
+                    minWidth: 28,
+                    fontSize: "0.75rem",
+                    backgroundColor: statusTab === 1 ? "rgba(255, 255, 255, 0.3)" : "rgba(76, 175, 80, 0.15)",
+                    color: statusTab === 1 ? "#ffffff" : "#4caf50",
+                    fontWeight: 700,
+                    borderRadius: "12px",
+                    transition: "all 0.25s ease",
+                    border: statusTab !== 1 ? "1px solid rgba(76, 175, 80, 0.3)" : "none",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 2 ? "transparent" : "rgba(255, 255, 255, 0.7)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #f44336 0%, #e53935 100%)",
+                boxShadow: "0 4px 12px rgba(244, 67, 54, 0.35)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #e53935 0%, #d32f2f 100%)",
+                },
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
+                  مرفوض
+                </Typography>
+                <Chip
+                  label={allDesigns.filter(d => d.status === 3).length}
+                  size="small"
+                  sx={{
+                    height: 24,
+                    minWidth: 28,
+                    fontSize: "0.75rem",
+                    backgroundColor: statusTab === 2 ? "rgba(255, 255, 255, 0.3)" : "rgba(244, 67, 54, 0.15)",
+                    color: statusTab === 2 ? "#ffffff" : "#f44336",
+                    fontWeight: 700,
+                    borderRadius: "12px",
+                    transition: "all 0.25s ease",
+                    border: statusTab !== 2 ? "1px solid rgba(244, 67, 54, 0.3)" : "none",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 3 ? "transparent" : "rgba(255, 255, 255, 0.7)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #2196f3 0%, #1e88e5 100%)",
+                boxShadow: "0 4px 12px rgba(33, 150, 243, 0.35)",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #1e88e5 0%, #1976d2 100%)",
+                },
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
+                  مرتجع
+                </Typography>
+                <Chip
+                  label={allDesigns.filter(d => d.status === 4).length}
+                  size="small"
+                  sx={{
+                    height: 24,
+                    minWidth: 28,
+                    fontSize: "0.75rem",
+                    backgroundColor: statusTab === 3 ? "rgba(255, 255, 255, 0.3)" : "rgba(33, 150, 243, 0.15)",
+                    color: statusTab === 3 ? "#ffffff" : "#2196f3",
+                    fontWeight: 700,
+                    borderRadius: "12px",
+                    transition: "all 0.25s ease",
+                    border: statusTab !== 3 ? "1px solid rgba(33, 150, 243, 0.3)" : "none",
+                  }}
+                />
+              </Box>
+            }
+          />
+        </Tabs>
+      </Box>
+
+      {/* Date Filter */}
       <Paper
         elevation={0}
         sx={{
@@ -1379,33 +1590,10 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={4} md={3}>
             <TextField
-              select
-              fullWidth
-              size="small"
-              label="الحالة"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              SelectProps={{
-                native: true,
-              }}
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  backgroundColor: "#ffffff",
-                },
-              }}
-            >
-              <option value="all">الكل</option>
-              <option value="1">في الانتظار</option>
-              <option value="2">مقبول</option>
-              <option value="3">مرفوض</option>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={4} md={3}>
-            <TextField
               fullWidth
               size="small"
               type="date"
-              label="التاريخ"
+              label="فلترة حسب التاريخ"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
               InputLabelProps={{
@@ -1423,7 +1611,6 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
               variant="outlined"
               size="small"
               onClick={() => {
-                setStatusFilter("all");
                 setDateFilter("");
                 setSortField(null);
                 setSortDirection("asc");

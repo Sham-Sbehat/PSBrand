@@ -435,12 +435,12 @@ const MainDesignerDashboard = () => {
       )}
 
       {/* Main Content */}
-      <Container maxWidth="lg" sx={{ paddingY: 5 }}>
+      <Container maxWidth="xl" sx={{ paddingY: 6, px: 4 }}>
         <Paper
           elevation={0}
           sx={{
-            padding: 4,
-            borderRadius: 3,
+            padding: 5,
+            borderRadius: 4,
             background: calmPalette.surface,
             boxShadow: calmPalette.shadow,
             backdropFilter: "blur(8px)",

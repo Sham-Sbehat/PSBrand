@@ -1105,14 +1105,24 @@ export const mainDesignerService = {
   },
 
   // Get all designs
-  getDesigns: async () => {
-    const response = await api.get('/MainDesigner/GetDesigns');
+  getDesigns: async (params = {}) => {
+    const response = await api.get('/MainDesigner/GetDesigns', { params });
     return response.data;
   },
 
   // Get designs by creator userId
   getDesignsByCreator: async (userId) => {
     const response = await api.get(`/MainDesigner/GetDesignsByCreator/${userId}`);
+    return response.data;
+  },
+
+  // Get designs by creator userId with status filter
+  getDesignsByCreatorAndStatus: async (userId, status = null) => {
+    const params = { createdBy: userId };
+    if (status !== null && status !== undefined) {
+      params.status = status;
+    }
+    const response = await api.get('/MainDesigner/GetDesigns', { params });
     return response.data;
   },
 
