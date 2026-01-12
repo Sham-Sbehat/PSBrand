@@ -253,6 +253,13 @@ export const ordersService = {
     return response.data;
   },
 
+  getOrderStatusStatistics: async (status) => {
+    const response = await api.get("/Orders/GetOrderStatusStatistics", {
+      params: { status },
+    });
+    return response.data;
+  },
+
   createOrder: async (orderData) => {
     const response = await api.post("/Orders/CreateOrder", orderData);
     return response.data;

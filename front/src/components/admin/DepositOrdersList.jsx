@@ -39,6 +39,7 @@ import {
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { depositOrdersService, shipmentsService } from "../../services/api";
+import { subscribeToOrderUpdates } from "../../services/realtime";
 import GlassDialog from "../common/GlassDialog";
 import DepositOrderForm from "../employee/DepositOrderForm";
 
@@ -134,6 +135,40 @@ const DepositOrdersList = () => {
     setPage(0);
   }, [filterDate, filterDesignerId]);
 
+  // Subscribe to SignalR for deposit order shipment status updates and notifications
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let unsubscribe;
+    (async () => {
+      try {
+        unsubscribe = await subscribeToOrderUpdates({
+          onShipmentStatusUpdated: (shipmentData) => {
+            // Handle shipment status update from webhook (ShipmentStatusUpdated event)
+            const orderId = shipmentData?.orderId || shipmentData?.depositOrderId;
+            if (orderId) {
+              // Refresh deposit orders to get updated status
+              fetchDepositOrders();
+            }
+          },
+          onShipmentNoteAdded: (shipmentData) => {
+            // Handle shipment note added from webhook (ShipmentNoteAdded event)
+            const orderId = shipmentData?.orderId || shipmentData?.depositOrderId;
+            if (orderId) {
+              // Refresh deposit orders to get updated status
+              fetchDepositOrders();
+            }
+          },
+        });
+      } catch (err) {
+        console.error("Failed to connect to updates hub for deposit orders:", err);
+      }
+    })();
+
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, [user?.id, fetchDepositOrders]);
 
   const loadCities = async () => {
     try {

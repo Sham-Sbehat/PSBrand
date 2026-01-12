@@ -26,6 +26,14 @@ import {
   AccessTime,
   ShowChart,
   Inventory,
+  CheckCircle,
+  Pending,
+  Print,
+  LocalShipping,
+  Inventory2,
+  Cancel,
+  OpenInNew,
+  Assignment,
 } from "@mui/icons-material";
 import {
   BarChart as RechartsBarChart,
@@ -119,6 +127,8 @@ const WelcomeDashboard = () => {
   });
   const [fabricTypePieces, setFabricTypePieces] = useState(null);
   const [loadingFabricPieces, setLoadingFabricPieces] = useState(false);
+  const [orderStatusStats, setOrderStatusStats] = useState([]);
+  const [loadingStatusStats, setLoadingStatusStats] = useState(false);
 
   // Load employees on mount
   useEffect(() => {
@@ -253,6 +263,55 @@ const WelcomeDashboard = () => {
     }
   };
 
+  // Fetch order status statistics for all statuses
+  const fetchOrderStatusStatistics = async () => {
+    setLoadingStatusStats(true);
+    try {
+      const statuses = [1, 2, 3, 4, 5, 6, 7, 8];
+      const statusNames = {
+        1: "بانتظار الطباعة",
+        2: "في مرحلة الطباعة",
+        3: "في مرحلة التحضير",
+        4: "مكتمل",
+        5: "ملغي",
+        6: "الطلب مفتوح",
+        7: "تم الإرسال لشركة التوصيل",
+        8: "في مرحلة التغليف",
+      };
+      
+      const promises = statuses.map(status => 
+        ordersService.getOrderStatusStatistics(status).catch((err) => {
+          console.error(`Error fetching status ${status}:`, err);
+          return {
+            status,
+            statusNameAr: statusNames[status] || `حالة ${status}`,
+            ordersCount: 0,
+            totalAmount: 0,
+            totalAmountWithoutDelivery: 0,
+          };
+        })
+      );
+      const results = await Promise.all(promises);
+      // عرض جميع الحالات حتى لو كانت 0، وإزالة التكرارات
+      const uniqueResults = results
+        .filter(stat => stat !== null)
+        .reduce((acc, stat) => {
+          // التأكد من عدم وجود تكرارات لنفس الحالة
+          const existing = acc.find(s => s.status === stat.status);
+          if (!existing) {
+            acc.push(stat);
+          }
+          return acc;
+        }, []);
+      setOrderStatusStats(uniqueResults);
+    } catch (error) {
+      console.error("Error fetching order status statistics:", error);
+      setOrderStatusStats([]);
+    } finally {
+      setLoadingStatusStats(false);
+    }
+  };
+
   useEffect(() => {
     fetchStatistics();
   }, [dateFilter, selectedDate, selectedMonth, selectedYear]);
@@ -268,6 +327,7 @@ const WelcomeDashboard = () => {
 
   useEffect(() => {
     fetchFabricTypePiecesCount();
+    fetchOrderStatusStatistics();
   }, []);
 
   const totalOrders = statistics.reduce((sum, item) => sum + (item.ordersCount || 0), 0);
@@ -2118,6 +2178,269 @@ const WelcomeDashboard = () => {
           )}
         </Paper>
       </Box>
+
+      {/* Order Status Statistics - Creative Display */}
+      {orderStatusStats.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <Paper
+            elevation={0}
+            sx={{
+              background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(250,248,245,0.98) 100%)",
+              borderRadius: 3,
+              padding: { xs: 2, sm: 3 },
+              boxShadow: "0 8px 32px rgba(139, 69, 19, 0.12)",
+              border: "1px solid rgba(139, 69, 19, 0.08)",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 3,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Box
+                  sx={{
+                    background: "linear-gradient(135deg, #A67C8E 0%, #6B8E7F 100%)",
+                    borderRadius: 2,
+                    width: 56,
+                    height: 56,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 4px 12px rgba(166, 124, 142, 0.3)",
+                  }}
+                >
+                  <Assignment sx={{ fontSize: 28, color: "#ffffff" }} />
+                </Box>
+                <Box>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      fontWeight: 700,
+                      color: calmPalette.textPrimary,
+                      fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
+                    }}
+                  >
+                    إحصائيات حالة الطلبات
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.textSecondary,
+                      mt: 0.5,
+                      fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                    }}
+                  >
+                    نظرة شاملة على جميع حالات الطلبات
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            {loadingStatusStats ? (
+              <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 6 }}>
+                <CircularProgress sx={{ color: "#A67C8E" }} />
+              </Box>
+            ) : orderStatusStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <ComposedChart
+                  data={[...orderStatusStats].sort((a, b) => a.status - b.status)}
+                  margin={{ top: 5, right: 15, left: 5, bottom: 40 }}
+                >
+                  <defs>
+                    <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6B8E7F" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#6B8E7F" stopOpacity={0.1} />
+                    </linearGradient>
+                    <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#A67C8E" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#A67C8E" stopOpacity={0.1} />
+                    </linearGradient>
+                    <linearGradient id="colorAmountWithoutDelivery" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8B7FA8" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#8B7FA8" stopOpacity={0.1} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
+                  <XAxis
+                    dataKey="statusNameAr"
+                    tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }}
+                    label={{
+                      value: "عدد الطلبات",
+                      angle: -90,
+                      position: "insideLeft",
+                      fill: "#6B8E7F",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    }}
+                    width={60}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }}
+                    width={70}
+                    label={{
+                      value: "المبلغ (₪)",
+                      angle: 90,
+                      position: "insideRight",
+                      fill: "#A67C8E",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      offset: 5,
+                    }}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <Paper
+                            sx={{
+                              padding: 2.5,
+                              backgroundColor: "rgba(255, 255, 255, 0.98)",
+                              boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+                              borderRadius: 3,
+                              border: "2px solid #A67C8E",
+                              minWidth: 250,
+                            }}
+                          >
+                            <Typography
+                              variant="h6"
+                              sx={{
+                                fontWeight: 700,
+                                mb: 1.5,
+                                color: "#2C1810",
+                                fontSize: "1.1rem",
+                                borderBottom: "2px solid #A67C8E",
+                                pb: 1,
+                              }}
+                            >
+                              {data.statusNameAr || `حالة ${data.status}`}
+                            </Typography>
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  p: 1,
+                                  borderRadius: 1,
+                                  backgroundColor: "rgba(107, 142, 127, 0.1)",
+                                }}
+                              >
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: "#2C1810" }}>
+                                  عدد الطلبات:
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 700, color: "#6B8E7F" }}>
+                                  {data.ordersCount || 0}
+                                </Typography>
+                              </Box>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  p: 1,
+                                  borderRadius: 1,
+                                  backgroundColor: "rgba(166, 124, 142, 0.1)",
+                                }}
+                              >
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: "#2C1810" }}>
+                                  المبلغ الإجمالي:
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 700, color: "#A67C8E" }}>
+                                  {data.totalAmount?.toLocaleString() || 0} ₪
+                                </Typography>
+                              </Box>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  p: 1,
+                                  borderRadius: 1,
+                                  backgroundColor: "rgba(139, 127, 168, 0.1)",
+                                }}
+                              >
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: "#2C1810" }}>
+                                  بدون التوصيل:
+                                </Typography>
+                                <Typography variant="body1" sx={{ fontWeight: 700, color: "#8B7FA8" }}>
+                                  {data.totalAmountWithoutDelivery?.toLocaleString() || 0} ₪
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Paper>
+                        );
+                      }
+                      return null;
+                    }}
+                    cursor={{ fill: "rgba(139, 69, 19, 0.1)" }}
+                  />
+                  <Bar
+                    yAxisId="left"
+                    dataKey="ordersCount"
+                    fill="url(#colorOrders)"
+                    radius={[8, 8, 0, 0]}
+                    name="عدد الطلبات"
+                  >
+                    <LabelList
+                      dataKey="ordersCount"
+                      position="top"
+                      style={{
+                        fill: "#2C1810",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        fontFamily: "Cairo, Tajawal, sans-serif",
+                      }}
+                    />
+                  </Bar>
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="totalAmount"
+                    stroke="#A67C8E"
+                    strokeWidth={3}
+                    dot={{ fill: "#A67C8E", r: 5 }}
+                    activeDot={{ r: 7 }}
+                    name="المبلغ الإجمالي"
+                  />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="totalAmountWithoutDelivery"
+                    stroke="#8B7FA8"
+                    strokeWidth={3}
+                    strokeDasharray="5 5"
+                    dot={{ fill: "#8B7FA8", r: 5 }}
+                    activeDot={{ r: 7 }}
+                    name="بدون التوصيل"
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <Box sx={{ textAlign: "center", py: 6 }}>
+                <Typography variant="body1" sx={{ color: calmPalette.textSecondary }}>
+                  لا توجد بيانات لإحصائيات حالة الطلبات
+                </Typography>
+              </Box>
+            )}
+          </Paper>
+        </Box>
+      )}
     </Box>
   );
 };

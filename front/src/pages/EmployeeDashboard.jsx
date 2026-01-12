@@ -1008,32 +1008,40 @@ const EmployeeDashboard = () => {
             // Handle shipment status update from webhook (ShipmentStatusUpdated event)
             const orderId = shipmentData?.orderId;
             if (orderId) {
-              // استخدام البيانات مباشرة من SignalR
-              if (shipmentData?.status) {
-                const statusData = {
-                  orderId: shipmentData.orderId,
-                  shipmentId: shipmentData.shipmentId,
-                  roadFnShipmentId: shipmentData.roadFnShipmentId,
-                  trackingNumber: shipmentData.trackingNumber,
-                  status:
-                    typeof shipmentData.status === "string"
-                      ? {
-                          arabic: shipmentData.status,
-                          english: shipmentData.status,
-                        }
-                    : shipmentData.status,
-                  lastUpdate: shipmentData.lastUpdate,
-                };
-                setDeliveryStatuses((prev) => ({
-                  ...prev,
-                  [orderId]: statusData,
-                }));
+              // Check if this is a deposit order
+              const depositOrderId = shipmentData?.depositOrderId;
+              if (depositOrderId) {
+                // Refresh deposit orders to get updated status
+                fetchDepositOrders();
               } else {
-                // إذا لم تكن البيانات كاملة، نجلب من API فقط إذا كان الطلب مرسل لشركة التوصيل
-                // Find order in ordersList to check isSentToDeliveryCompany
-                const order = ordersList.find((o) => o.id === orderId);
-                if (order && order.isSentToDeliveryCompany) {
-                  fetchDeliveryStatus(orderId, order);
+                // Handle regular orders (existing logic)
+                // استخدام البيانات مباشرة من SignalR
+                if (shipmentData?.status) {
+                  const statusData = {
+                    orderId: shipmentData.orderId,
+                    shipmentId: shipmentData.shipmentId,
+                    roadFnShipmentId: shipmentData.roadFnShipmentId,
+                    trackingNumber: shipmentData.trackingNumber,
+                    status:
+                      typeof shipmentData.status === "string"
+                        ? {
+                            arabic: shipmentData.status,
+                            english: shipmentData.status,
+                          }
+                        : shipmentData.status,
+                    lastUpdate: shipmentData.lastUpdate,
+                  };
+                  setDeliveryStatuses((prev) => ({
+                    ...prev,
+                    [orderId]: statusData,
+                  }));
+                } else {
+                  // إذا لم تكن البيانات كاملة، نجلب من API فقط إذا كان الطلب مرسل لشركة التوصيل
+                  // Find order in ordersList to check isSentToDeliveryCompany
+                  const order = ordersList.find((o) => o.id === orderId);
+                  if (order && order.isSentToDeliveryCompany) {
+                    fetchDeliveryStatus(orderId, order);
+                  }
                 }
               }
             }
