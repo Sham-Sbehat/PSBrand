@@ -87,8 +87,8 @@ const DELIVERY_STATUSES = {
   "23": { id: 23, label: "طرود مرتجعه مغلقه", en: "Closed Returned" },
 };
 
-const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp, orderIdToOpen, onOrderOpened }) => {
-  const { orders, user } = useApp();
+const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp, designerFilter: designerFilterProp, orderIdToOpen, onOrderOpened }) => {
+  const { orders, user, employees } = useApp();
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [totalSum, setTotalSum] = useState(null);
@@ -106,6 +106,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [statusFilter, setStatusFilter] = useState("all");
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("all");
+  const [designerFilter, setDesignerFilter] = useState(designerFilterProp ? String(designerFilterProp) : "all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState(dateFilterProp || ""); // Date filter for filtering orders by date
   const [page, setPage] = useState(0);
@@ -124,6 +125,14 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       setStatusFilter(statusFilterProp);
     }
   }, [statusFilterProp]);
+
+  // Update designerFilter when prop changes
+  useEffect(() => {
+    if (designerFilterProp !== undefined && designerFilterProp !== null) {
+      setDesignerFilter(String(designerFilterProp));
+    }
+  }, [designerFilterProp]);
+
   const [sortByState, setSortByState] = useState('asc'); // 'asc', 'desc', or null
   const [openCancelDialog, setOpenCancelDialog] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState(null);
@@ -269,6 +278,12 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${currentDateFilter}`;
         }
         
+        // Add designer filter to params if selected
+        if (designerFilter && designerFilter !== "all") {
+          params.designerId = parseInt(designerFilter);
+          cacheKey = `${cacheKey}_designer_${designerFilter}`;
+        }
+        
         // Check cache first (5 minutes TTL)
         const cachedData = getCache(cacheKey);
         if (cachedData) {
@@ -342,7 +357,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         setTotalSumWithoutDelivery(null);
         return [];
       }
-    }, [dateFilterProp, dateFilter]);
+    }, [dateFilterProp, dateFilter, designerFilter]);
     
   // Fetch all orders from API + subscribe to realtime updates
   // Load colors, sizes, and fabric types on component mount
@@ -1861,11 +1876,20 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       ? allOrders
       : allOrders.filter((order) => order.status === parseInt(statusFilter));
 
+  // Filter by designer
+  const designerFilteredOrders =
+    designerFilter === "all" || !designerFilter
+      ? statusFilteredOrders
+      : statusFilteredOrders.filter((order) => {
+          const orderDesignerId = order.designerId || order.designer?.id;
+          return orderDesignerId === parseInt(designerFilter);
+        });
+
   // Filter by delivery status
   const deliveryStatusFilteredOrders =
     deliveryStatusFilter === "all"
-      ? statusFilteredOrders
-      : statusFilteredOrders.filter((order) => {
+      ? designerFilteredOrders
+      : designerFilteredOrders.filter((order) => {
           const statusData = deliveryStatuses[order.id];
           
           // No shipment
@@ -2040,6 +2064,25 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
             <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
             <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
+            value={designerFilter}
+            onChange={(e) => {
+              setDesignerFilter(e.target.value);
+              setPage(0); // Reset to first page when filtering
+            }}
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="all">جميع المصممين</MenuItem>
+            {employees
+              .filter(emp => emp.role === USER_ROLES.DESIGNER || emp.role === USER_ROLES.MAIN_DESIGNER)
+              .map((designer) => (
+                <MenuItem key={designer.id} value={String(designer.id)}>
+                  {designer.name}
+                </MenuItem>
+              ))}
           </TextField>
           <TextField
             select

@@ -9,6 +9,7 @@ import {
   Assignment as AssignmentIcon,
   LocalShipping as LocalShippingIcon,
   Undo as UndoIcon,
+  AccountBalance as AccountBalanceIcon,
 } from "@mui/icons-material";
 import calmPalette from "../../theme/calmPalette";
 
@@ -165,7 +166,7 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrder
 
               {/* Content */}
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 0.5 }}>
+                <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 0.5, flexWrap: "wrap", gap: 0.5 }}>
                   <Typography
                     variant="subtitle2"
                     sx={{
@@ -176,19 +177,55 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrder
                   >
                     {notification.title}
                   </Typography>
-                  {!notification.isRead && (
-                    <Chip
-                      label="جديد"
-                      size="small"
-                      sx={{
-                        height: 18,
-                        fontSize: "0.65rem",
-                        backgroundColor: "#1976d2",
-                        color: "white",
-                        ml: 1,
-                      }}
-                    />
-                  )}
+                  <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+                    {/* Check if notification is for deposit order */}
+                    {(() => {
+                      const typeLower = (notification.type || "").toLowerCase();
+                      const messageLower = (notification.message || "").toLowerCase();
+                      const titleLower = (notification.title || "").toLowerCase();
+                      const isDepositOrder = 
+                        typeLower.includes("deposit") || 
+                        typeLower.includes("عربون") ||
+                        messageLower.includes("عربون") ||
+                        messageLower.includes("deposit") ||
+                        titleLower.includes("عربون") ||
+                        titleLower.includes("deposit") ||
+                        (notification.message && notification.message.includes("للعربون"));
+                      
+                      if (isDepositOrder) {
+                        return (
+                          <Chip
+                            icon={<AccountBalanceIcon sx={{ fontSize: "0.75rem !important" }} />}
+                            label="عربون"
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: "0.7rem",
+                              backgroundColor: "#ff9800",
+                              color: "white",
+                              fontWeight: 600,
+                              "& .MuiChip-icon": {
+                                color: "white",
+                              },
+                            }}
+                          />
+                        );
+                      }
+                      return null;
+                    })()}
+                    {!notification.isRead && (
+                      <Chip
+                        label="جديد"
+                        size="small"
+                        sx={{
+                          height: 18,
+                          fontSize: "0.65rem",
+                          backgroundColor: "#1976d2",
+                          color: "white",
+                        }}
+                      />
+                    )}
+                  </Box>
                 </Box>
 
                 <Typography
