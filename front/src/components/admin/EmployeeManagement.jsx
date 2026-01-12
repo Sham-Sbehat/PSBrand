@@ -59,7 +59,7 @@ const EmployeeManagement = () => {
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [activeTab, setActiveTab] = useState(0); // 0: active, 1: inactive
   useEffect(() => {
     loadEmployees();
   }, []);
@@ -383,26 +383,13 @@ const EmployeeManagement = () => {
               <MenuItem value="preparer">محضر طلبات</MenuItem>
             </Select>
           </FormControl>
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>الحالة</InputLabel>
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              label="الحالة"
-            >
-              <MenuItem value="all">الكل</MenuItem>
-              <MenuItem value="active">نشط</MenuItem>
-              <MenuItem value="inactive">معطل</MenuItem>
-            </Select>
-          </FormControl>
-          {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all') && (
+          {(searchQuery || roleFilter !== 'all') && (
             <Button
               size="small"
               variant="outlined"
               onClick={() => {
                 setSearchQuery('');
                 setRoleFilter('all');
-                setStatusFilter('all');
               }}
               sx={{ color: 'text.secondary' }}
             >
@@ -412,10 +399,111 @@ const EmployeeManagement = () => {
         </Box>
       </Paper>
 
+      {/* Status Tabs */}
+      {(() => {
+        // Calculate counts for each tab
+        const activeEmployees = employees.filter((emp) => emp.isActive !== false);
+        const inactiveEmployees = employees.filter((emp) => emp.isActive === false);
+
+        return (
+          <Box
+            sx={{
+              mb: 3,
+              backgroundColor: '#ffffff',
+              borderRadius: 2,
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+              overflow: 'hidden',
+            }}
+          >
+            <Tabs
+              value={activeTab}
+              onChange={(e, newValue) => setActiveTab(newValue)}
+              sx={{
+                minHeight: 60,
+                '& .MuiTabs-indicator': {
+                  height: 3,
+                  borderRadius: '3px 3px 0 0',
+                  background: 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)',
+                },
+              }}
+            >
+              <Tab
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                      حسابات نشطة
+                    </Typography>
+                    <Chip
+                      label={activeEmployees.length}
+                      size="small"
+                      sx={{
+                        height: 22,
+                        minWidth: 22,
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                        color: '#1976d2',
+                      }}
+                    />
+                  </Box>
+                }
+                sx={{
+                  textTransform: 'none',
+                  fontSize: '0.95rem',
+                  fontWeight: activeTab === 0 ? 700 : 500,
+                  color: activeTab === 0 ? '#1976d2' : 'text.secondary',
+                  minHeight: 60,
+                  px: 3,
+                }}
+              />
+              <Tab
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                     حسابات معطلة
+                    </Typography>
+                    <Chip
+                      label={inactiveEmployees.length}
+                      size="small"
+                      sx={{
+                        height: 22,
+                        minWidth: 22,
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        backgroundColor: 'rgba(158, 158, 158, 0.1)',
+                        color: '#757575',
+                      }}
+                    />
+                  </Box>
+                }
+                sx={{
+                  textTransform: 'none',
+                  fontSize: '0.95rem',
+                  fontWeight: activeTab === 1 ? 700 : 500,
+                  color: activeTab === 1 ? '#1976d2' : 'text.secondary',
+                  minHeight: 60,
+                  px: 3,
+                }}
+              />
+            </Tabs>
+          </Box>
+        );
+      })()}
+
       {/* Filtered employees count display */}
       {(() => {
         // Apply filters
         let filteredEmployees = [...employees];
+
+        // Status filter based on active tab
+        if (activeTab === 0) {
+          // Active employees
+          filteredEmployees = filteredEmployees.filter((emp) => emp.isActive !== false);
+        } else {
+          // Inactive employees
+          filteredEmployees = filteredEmployees.filter((emp) => emp.isActive === false);
+        }
 
         // Search filter
         if (searchQuery) {
@@ -432,26 +520,19 @@ const EmployeeManagement = () => {
           filteredEmployees = filteredEmployees.filter((emp) => emp.role === roleFilter);
         }
 
-        // Status filter
-        if (statusFilter !== 'all') {
-          if (statusFilter === 'active') {
-            filteredEmployees = filteredEmployees.filter((emp) => emp.isActive !== false);
-          } else if (statusFilter === 'inactive') {
-            filteredEmployees = filteredEmployees.filter((emp) => emp.isActive === false);
-          }
-        }
-
         // Update title with filtered count
         const filteredCount = filteredEmployees.length;
-        const totalCount = employees.length;
-        const showFilteredCount = searchQuery || roleFilter !== 'all' || statusFilter !== 'all';
+        const totalCount = activeTab === 0 
+          ? employees.filter((emp) => emp.isActive !== false).length
+          : employees.filter((emp) => emp.isActive === false).length;
+        const showFilteredCount = searchQuery || roleFilter !== 'all';
 
         return (
           <>
             {showFilteredCount && filteredCount !== totalCount && (
               <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="text.secondary">
-                  عرض {filteredCount} من أصل {totalCount} موظف
+                  عرض {filteredCount} من أصل {totalCount} موظف {activeTab === 0 ? 'نشط' : 'معطل'}
                 </Typography>
               </Box>
             )}
