@@ -2031,7 +2031,7 @@ const WelcomeDashboard = () => {
                     fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
                   }}
                 >
-                  عدد القطع لكل نوع قماش
+                  عدد القطع لكل نوع قماش قبل الطباعة
                 </Typography>
                 {fabricTypePieces && (
                   <Typography
@@ -2103,21 +2103,10 @@ const WelcomeDashboard = () => {
                               boxShadow: `0 4px 12px ${color}50`,
                             }}
                           >
-                            <Typography sx={{ fontSize: 20, color: "#ffffff", fontWeight: 700 }}>
-                              {fabric.fabricTypeId}
+                            <Typography sx={{ fontSize: 16, color: "#ffffff", fontWeight: 700 }}>
+                              {percentage}%
                             </Typography>
                           </Box>
-                          <Chip
-                            label={`${percentage}%`}
-                            size="small"
-                            sx={{
-                              backgroundColor: `${color}20`,
-                              color: color,
-                              fontWeight: 700,
-                              fontSize: "0.75rem",
-                              height: 24,
-                            }}
-                          />
                         </Box>
                         <Typography
                           variant="h6"
