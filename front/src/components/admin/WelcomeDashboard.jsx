@@ -25,6 +25,7 @@ import {
   CalendarToday,
   AccessTime,
   ShowChart,
+  Inventory,
 } from "@mui/icons-material";
 import {
   BarChart as RechartsBarChart,
@@ -116,6 +117,8 @@ const WelcomeDashboard = () => {
     const day = String(today.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   });
+  const [fabricTypePieces, setFabricTypePieces] = useState(null);
+  const [loadingFabricPieces, setLoadingFabricPieces] = useState(false);
 
   // Load employees on mount
   useEffect(() => {
@@ -236,6 +239,20 @@ const WelcomeDashboard = () => {
     }
   };
 
+  // Fetch fabric type pieces count
+  const fetchFabricTypePiecesCount = async () => {
+    setLoadingFabricPieces(true);
+    try {
+      const data = await ordersService.getFabricTypePiecesCount();
+      setFabricTypePieces(data);
+    } catch (error) {
+      console.error("Error fetching fabric type pieces count:", error);
+      setFabricTypePieces(null);
+    } finally {
+      setLoadingFabricPieces(false);
+    }
+  };
+
   useEffect(() => {
     fetchStatistics();
   }, [dateFilter, selectedDate, selectedMonth, selectedYear]);
@@ -248,6 +265,10 @@ const WelcomeDashboard = () => {
   useEffect(() => {
     fetchTodayShifts();
   }, [shiftsDate]);
+
+  useEffect(() => {
+    fetchFabricTypePiecesCount();
+  }, []);
 
   const totalOrders = statistics.reduce((sum, item) => sum + (item.ordersCount || 0), 0);
   const totalAmount = statistics.reduce((sum, item) => sum + (item.totalAmountWithoutDelivery || 0), 0);
@@ -1903,6 +1924,200 @@ const WelcomeDashboard = () => {
           </Grid>
         </Grid>
       )}
+
+      {/* Fabric Type Pieces Count */}
+      <Box sx={{ mt: 4 }}>
+        <Paper
+          elevation={0}
+          sx={{
+            background: "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(250,248,245,0.98) 100%)",
+            borderRadius: 3,
+            padding: { xs: 2, sm: 3 },
+            boxShadow: "0 8px 32px rgba(139, 69, 19, 0.12)",
+            border: "1px solid rgba(139, 69, 19, 0.08)",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 3,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Box
+                sx={{
+                  background: "linear-gradient(135deg, #6B8E7F 0%, #8B7FA8 100%)",
+                  borderRadius: 2,
+                  width: 56,
+                  height: 56,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 12px rgba(107, 142, 127, 0.3)",
+                }}
+              >
+                <Inventory sx={{ fontSize: 28, color: "#ffffff" }} />
+              </Box>
+              <Box>
+                <Typography
+                  variant="h5"
+                  sx={{
+                    fontWeight: 700,
+                    color: calmPalette.textPrimary,
+                    fontSize: { xs: "1.1rem", sm: "1.3rem", md: "1.5rem" },
+                  }}
+                >
+                  عدد القطع لكل نوع قماش
+                </Typography>
+                {fabricTypePieces && (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: calmPalette.textSecondary,
+                      mt: 0.5,
+                      fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                    }}
+                  >
+                    إجمالي القطع: {fabricTypePieces.totalPieces?.toLocaleString() || 0}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          </Box>
+
+          {loadingFabricPieces ? (
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 6 }}>
+              <CircularProgress sx={{ color: "#6B8E7F" }} />
+            </Box>
+          ) : fabricTypePieces && fabricTypePieces.fabricTypes && fabricTypePieces.fabricTypes.length > 0 ? (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "row",
+                flexWrap: "nowrap",
+                gap: 2,
+                width: "100%",
+              }}
+            >
+              {fabricTypePieces.fabricTypes.map((fabric, index) => {
+                const colorIndex = index % COLORS.length;
+                const color = COLORS[colorIndex];
+                const percentage = fabricTypePieces.totalPieces > 0
+                  ? ((fabric.totalPieces / fabricTypePieces.totalPieces) * 100).toFixed(1)
+                  : 0;
+
+                return (
+                  <Card
+                    key={fabric.fabricTypeId}
+                    sx={{
+                      flex: "1 1 0",
+                      minWidth: 0,
+                      height: "100%",
+                      background: `linear-gradient(135deg, ${color}15 0%, ${color}08 100%)`,
+                      borderRadius: 3,
+                      border: `2px solid ${color}40`,
+                      boxShadow: `0 4px 16px ${color}20`,
+                      transition: "all 0.3s ease",
+                      "&:hover": {
+                        transform: "translateY(-4px)",
+                        boxShadow: `0 8px 24px ${color}40`,
+                        borderColor: `${color}80`,
+                      },
+                    }}
+                  >
+                      <CardContent sx={{ p: 2.5 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+                          <Box
+                            sx={{
+                              background: color,
+                              borderRadius: 2,
+                              width: 48,
+                              height: 48,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              boxShadow: `0 4px 12px ${color}50`,
+                            }}
+                          >
+                            <Typography sx={{ fontSize: 20, color: "#ffffff", fontWeight: 700 }}>
+                              {fabric.fabricTypeId}
+                            </Typography>
+                          </Box>
+                          <Chip
+                            label={`${percentage}%`}
+                            size="small"
+                            sx={{
+                              backgroundColor: `${color}20`,
+                              color: color,
+                              fontWeight: 700,
+                              fontSize: "0.75rem",
+                              height: 24,
+                            }}
+                          />
+                        </Box>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 700,
+                            color: calmPalette.textPrimary,
+                            mb: 1,
+                            fontSize: { xs: "0.95rem", sm: "1.1rem" },
+                            minHeight: 40,
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          {fabric.fabricTypeNameAr || `نوع قماش ${fabric.fabricTypeId}`}
+                        </Typography>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "baseline",
+                            gap: 1,
+                            mt: 2,
+                            pt: 2,
+                            borderTop: `1px solid ${color}30`,
+                          }}
+                        >
+                          <Typography
+                            variant="h4"
+                            sx={{
+                              fontWeight: 800,
+                              color: color,
+                              fontSize: { xs: "1.5rem", sm: "1.75rem" },
+                            }}
+                          >
+                            {fabric.totalPieces?.toLocaleString() || 0}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: calmPalette.textSecondary,
+                              fontWeight: 600,
+                              fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                            }}
+                          >
+                            قطعة
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                );
+              })}
+            </Box>
+          ) : (
+            <Box sx={{ textAlign: "center", py: 6 }}>
+              <Typography variant="body1" sx={{ color: calmPalette.textSecondary }}>
+                لا توجد بيانات لأنواع القماش
+              </Typography>
+            </Box>
+          )}
+        </Paper>
+      </Box>
     </Box>
   );
 };

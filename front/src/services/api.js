@@ -248,6 +248,11 @@ export const ordersService = {
     return response.data;
   },
 
+  getFabricTypePiecesCount: async () => {
+    const response = await api.get("/Orders/GetFabricTypePiecesCount");
+    return response.data;
+  },
+
   createOrder: async (orderData) => {
     const response = await api.post("/Orders/CreateOrder", orderData);
     return response.data;
