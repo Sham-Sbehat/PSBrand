@@ -15,6 +15,9 @@ import {
   Chip,
   Avatar,
   useTheme,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -34,6 +37,7 @@ import {
   Cancel,
   OpenInNew,
   Assignment,
+  ExpandMore,
 } from "@mui/icons-material";
 import {
   BarChart as RechartsBarChart,
@@ -2153,6 +2157,95 @@ const WelcomeDashboard = () => {
                             قطعة
                           </Typography>
                         </Box>
+                        
+                        {/* Display sizes for this fabric type */}
+                        {fabric.sizes && fabric.sizes.length > 0 && (
+                          <Accordion
+                            sx={{
+                              mt: 1.5,
+                              boxShadow: "none",
+                              border: `1px solid ${color}30`,
+                              borderRadius: 2,
+                              "&:before": {
+                                display: "none",
+                              },
+                              "&.Mui-expanded": {
+                margin: "12px 0",
+              },
+                            }}
+                          >
+                            <AccordionSummary
+                              expandIcon={<ExpandMore sx={{ color: color }} />}
+                              sx={{
+                                minHeight: 40,
+                                "& .MuiAccordionSummary-content": {
+                                  margin: "8px 0",
+                                },
+                              }}
+                            >
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: calmPalette.textSecondary,
+                                  fontWeight: 600,
+                                  fontSize: { xs: "0.8rem", sm: "0.9rem" },
+                                }}
+                              >
+                                المقاسات ({fabric.sizes.length})
+                              </Typography>
+                            </AccordionSummary>
+                            <AccordionDetails
+                              sx={{
+                                pt: 1,
+                                pb: 1.5,
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 1,
+                                }}
+                              >
+                                {fabric.sizes.map((size) => (
+                                  <Box
+                                    key={size.sizeId}
+                                    sx={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center",
+                                      p: 1,
+                                      borderRadius: 1,
+                                      background: `${color}10`,
+                                      border: `1px solid ${color}20`,
+                                    }}
+                                  >
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        color: calmPalette.textPrimary,
+                                        fontWeight: 500,
+                                        fontSize: { xs: "0.75rem", sm: "0.85rem" },
+                                      }}
+                                    >
+                                      {size.sizeName || size.sizeNameAr || `مقاس ${size.sizeId}`}
+                                    </Typography>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        color: color,
+                                        fontWeight: 700,
+                                        fontSize: { xs: "0.8rem", sm: "0.9rem" },
+                                      }}
+                                    >
+                                      {size.piecesCount?.toLocaleString() || 0}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            </AccordionDetails>
+                          </Accordion>
+                        )}
                       </CardContent>
                     </Card>
                 );
