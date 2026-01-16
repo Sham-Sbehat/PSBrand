@@ -246,20 +246,29 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrder
                   </Typography>
 
                   <Box sx={{ display: "flex", gap: 0.5 }}>
-                    {notification.relatedEntityId && (
-                      <Tooltip title="عرض تفاصيل الطلب">
-                        <IconButton
-                          size="small"
-                          onClick={() => onViewOrderDetails && onViewOrderDetails(notification.relatedEntityId)}
-                          sx={{
-                            color: calmPalette.textMuted,
-                            "&:hover": { color: "#1976d2" },
-                          }}
-                        >
-                          <AssignmentIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    )}
+                    {(() => {
+                      // إخفاء أيقونة التفاصيل لإشعارات "تحديث ملاحظة الطلب"
+                      const isOrderNoteUpdated = 
+                        notification.type === "order_note_updated" ||
+                        (notification.type && notification.type.toLowerCase().includes("order_note")) ||
+                        (notification.title && notification.title.includes("تحديث ملاحظة"));
+                      
+                      // عرض الأيقونة فقط إذا لم يكن الإشعار من نوع "تحديث ملاحظة الطلب"
+                      return !isOrderNoteUpdated && notification.relatedEntityId ? (
+                        <Tooltip title="عرض تفاصيل الطلب">
+                          <IconButton
+                            size="small"
+                            onClick={() => onViewOrderDetails && onViewOrderDetails(notification.relatedEntityId)}
+                            sx={{
+                              color: calmPalette.textMuted,
+                              "&:hover": { color: "#1976d2" },
+                            }}
+                          >
+                            <AssignmentIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      ) : null;
+                    })()}
                     {!notification.isRead && (
                       <Tooltip title="تحديد كمقروء">
                         <IconButton
