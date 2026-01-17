@@ -102,6 +102,7 @@ const PreparerDashboard = () => {
   const [openNotesDialog, setOpenNotesDialog] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [returningOrderId, setReturningOrderId] = useState(null);
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const [selectedImage, setSelectedImage] = useState(null); // Selected image for dialog
@@ -128,6 +129,7 @@ const PreparerDashboard = () => {
   const [loadingSizes, setLoadingSizes] = useState(false);
   const [fabricTypes, setFabricTypes] = useState([]);
   const [loadingFabricTypes, setLoadingFabricTypes] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   // Fetch available orders (Status 3: IN_PREPARATION) - Tab 0
   const fetchAvailableOrders = async (showLoading = false) => {
@@ -1364,6 +1366,34 @@ const PreparerDashboard = () => {
     }
   };
 
+  // Handle returning order to design manager 
+  const handleReturnToDesignManager = async (orderId) => {
+    setReturningOrderId(orderId);
+    try {
+      await orderStatusService.setInPrinting(orderId);
+      setMyOpenOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+      setAvailableOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
+      
+      // Refresh the orders list to get latest data from server
+      fetchAllOrders(false); // Don't show loading after action      
+      setSnackbar({
+        open: true,
+        message: 'تم إرجاع الطلب لمدير التصميم بنجاح',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error returning order to design manager:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'خطأ غير معروف';
+      setSnackbar({
+        open: true,
+        message: `حدث خطأ أثناء إرجاع الطلب لمدير التصميم: ${errorMessage}`,
+        severity: 'error'
+      });
+    } finally {
+      setReturningOrderId(null);
+    }
+  };
+
   // Mark order as OPEN_ORDER (when preparer takes the order)
   const handleOpenOrder = async (orderId) => {
     setUpdatingOrderId(orderId);
@@ -2344,6 +2374,29 @@ const InfoItem = ({ label, value }) => (
                               sx={{ minWidth: '120px' }}
                             />
                           ) : null}
+                          {order.status === ORDER_STATUS.IN_PREPARATION && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="error"
+                              startIcon={<ArrowBack />}
+                              onClick={() => handleReturnToDesignManager(order.id)}
+                              disabled={returningOrderId === order.id}
+                              sx={{ 
+                                minWidth: '150px',
+                                fontSize: '0.8rem'
+                              }}
+                            >
+                              {returningOrderId === order.id ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <CircularProgress size={14} color="inherit" />
+                                  جاري...
+                                </Box>
+                              ) : (
+                                'إرجاع لمدير التصميم'
+                              )}
+                            </Button>
+                          )}
                           {order.needsPhotography && (
                             <Tooltip title="يحتاج تصوير">
                               <CameraAlt sx={{ color: 'primary.main', fontSize: 20, ml: 1 }} />
@@ -2492,30 +2545,52 @@ const InfoItem = ({ label, value }) => (
                           >
                             عرض التفاصيل
                           </Button>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="warning"
-                            startIcon={<ArrowBack />}
-                            onClick={() => handleReturnOrder(order.id)}
-                            disabled={
-                              order.status !== ORDER_STATUS.OPEN_ORDER ||
-                              updatingOrderId === order.id
-                            }
-                            sx={{ 
-                              minWidth: '120px',
-                              fontSize: '0.8rem'
-                            }}
-                          >
-                            {updatingOrderId === order.id ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <CircularProgress size={14} color="inherit" />
-                                جاري...
-                              </Box>
-                            ) : (
-                              'إرجاع الطلب'
-                            )}
-                          </Button>
+                          {order.status === ORDER_STATUS.OPEN_ORDER && (
+                            <>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<ArrowBack />}
+                                onClick={() => handleReturnOrder(order.id)}
+                                disabled={updatingOrderId === order.id}
+                                sx={{ 
+                                  minWidth: '120px',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                {updatingOrderId === order.id ? (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <CircularProgress size={14} color="inherit" />
+                                    جاري...
+                                  </Box>
+                                ) : (
+                                  'إرجاع الطلب'
+                                )}
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                startIcon={<ArrowBack />}
+                                onClick={() => handleReturnToDesignManager(order.id)}
+                                disabled={returningOrderId === order.id}
+                                sx={{ 
+                                  minWidth: '150px',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                {returningOrderId === order.id ? (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <CircularProgress size={14} color="inherit" />
+                                    جاري...
+                                  </Box>
+                                ) : (
+                                  'إرجاع لمدير التصميم'
+                                )}
+                              </Button>
+                            </>
+                          )}
                           <Button
                             size="small"
                             variant="contained"
@@ -2922,23 +2997,55 @@ const InfoItem = ({ label, value }) => (
                     </Button>
                   )}
                   {canSendToPackaging && (
-                    <Button
-                      variant="contained"
-                      color="success"
-                      onClick={async () => {
-                        await handleStatusUpdate(selectedOrder.id);
-                        handleCloseDetailsModal();
-                      }}
-                      disabled={updatingOrderId === selectedOrder.id}
-                      sx={{
-                        backgroundColor: '#2e7d32',
-                        '&:hover': {
-                          backgroundColor: '#1b5e20',
-                        },
-                      }}
-                    >
-                      {updatingOrderId === selectedOrder.id ? 'جاري التحميل...' : 'إرسال للتغليف'}
-                    </Button>
+                    <>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        startIcon={<ArrowBack />}
+                        onClick={async () => {
+                          await handleReturnOrder(selectedOrder.id);
+                          handleCloseDetailsModal();
+                        }}
+                        disabled={updatingOrderId === selectedOrder.id}
+                        sx={{
+                          minWidth: '120px',
+                        }}
+                      >
+                        {updatingOrderId === selectedOrder.id ? 'جاري...' : 'إرجاع الطلب'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        startIcon={<ArrowBack />}
+                        onClick={async () => {
+                          await handleReturnToDesignManager(selectedOrder.id);
+                          handleCloseDetailsModal();
+                        }}
+                        disabled={returningOrderId === selectedOrder.id}
+                        sx={{
+                          minWidth: '150px',
+                        }}
+                      >
+                        {returningOrderId === selectedOrder.id ? 'جاري...' : 'إرجاع لمدير التصميم'}
+                      </Button>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        onClick={async () => {
+                          await handleStatusUpdate(selectedOrder.id);
+                          handleCloseDetailsModal();
+                        }}
+                        disabled={updatingOrderId === selectedOrder.id}
+                        sx={{
+                          backgroundColor: '#2e7d32',
+                          '&:hover': {
+                            backgroundColor: '#1b5e20',
+                          },
+                        }}
+                      >
+                        {updatingOrderId === selectedOrder.id ? 'جاري التحميل...' : 'إرسال للتغليف'}
+                      </Button>
+                    </>
                   )}
                 </>
               );
@@ -3575,6 +3682,31 @@ const InfoItem = ({ label, value }) => (
           <Typography variant="body2" sx={{ fontSize: "0.9rem", color: calmPalette.textSecondary }}>
             {newMessageData?.title || "رسالة جديدة"}
           </Typography>
+        </Alert>
+      </Snackbar>
+
+      {/* General Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ 
+          mt: 2,
+          zIndex: 10001,
+        }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ 
+            width: '100%',
+            minWidth: 300,
+            maxWidth: 500,
+            boxShadow: "0 8px 24px rgba(94, 78, 62, 0.3)",
+          }}
+        >
+          {snackbar.message}
         </Alert>
       </Snackbar>
 
