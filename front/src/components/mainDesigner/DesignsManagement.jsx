@@ -129,8 +129,8 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
               if (previousStatus !== newStatus || !previousDesign) {
                 const statusLabels = {
                   1: "في الانتظار",
-                  2: "مقبول",
-                  3: "مرفوض",
+                  2: "معتمد",
+                  3: "غير معتمد",
                   4: "مرتجع"
                 };
                 
@@ -217,8 +217,8 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
       // Map tab index to status: 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
       const statusMap = {
         0: 1,    // في الانتظار
-        1: 2,    // مقبول
-        2: 3,    // مرفوض
+        1: 2,    // معتمد
+        2: 3,    // غير معتمد
         3: 4     // مرتجع
       };
       
@@ -249,8 +249,8 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
         icon: "warning",
         title: "غير مسموح",
         text: design.status === 2 
-          ? "لا يمكن تعديل التصميم لأنه مقبول" 
-          : "لا يمكن تعديل التصميم لأنه مرفوض",
+          ? "لا يمكن تعديل التصميم لأنه معتمد" 
+          : "لا يمكن تعديل التصميم لأنه غير معتمد",
         confirmButtonColor: calmPalette.primary,
       });
       return;
@@ -664,8 +664,8 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
             icon: "error",
             title: "غير مسموح",
             text: editingDesign.status === 2 
-              ? "لا يمكن تعديل التصميم لأنه مقبول" 
-              : "لا يمكن تعديل التصميم لأنه مرفوض",
+              ? "لا يمكن تعديل التصميم لأنه معتمد" 
+              : "لا يمكن تعديل التصميم لأنه غير معتمد",
             confirmButtonColor: calmPalette.primary,
           });
           setLoading(false);
@@ -1481,7 +1481,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
             label={
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
                 <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
-                  مقبول
+                  معتمد
                 </Typography>
                 <Chip
                   label={allDesigns.filter(d => d.status === 2).length}
@@ -1517,7 +1517,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
             label={
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
                 <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
-                  مرفوض
+                  غير معتمد
                 </Typography>
                 <Chip
                   label={allDesigns.filter(d => d.status === 3).length}
@@ -1799,9 +1799,9 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                         design.status === 1
                           ? "في الانتظار"
                           : design.status === 2
-                          ? "مقبول"
+                          ? "معتمد"
                           : design.status === 3
-                          ? "مرفوض"
+                          ? "غير معتمد"
                           : design.status === 4
                           ? "مرتجع"
                           : design.statusName || "في الانتظار"
@@ -1855,9 +1855,9 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                       <Tooltip 
                         title={
                           design.status === 2 
-                            ? "لا يمكن التعديل - التصميم مقبول" 
+                            ? "لا يمكن التعديل - التصميم معتمد" 
                             : design.status === 3 
-                            ? "لا يمكن التعديل - التصميم مرفوض" 
+                            ? "لا يمكن التعديل - التصميم غير معتمد" 
                             : "تعديل"
                         }
                       >
@@ -1870,8 +1870,8 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                                   icon: "warning",
                                   title: "غير مسموح",
                                   text: design.status === 2 
-                                    ? "لا يمكن تعديل التصميم لأنه مقبول" 
-                                    : "لا يمكن تعديل التصميم لأنه مرفوض",
+                                    ? "لا يمكن تعديل التصميم لأنه معتمد" 
+                                    : "لا يمكن تعديل التصميم لأنه غير معتمد",
                                   confirmButtonColor: calmPalette.primary,
                                 });
                                 return;

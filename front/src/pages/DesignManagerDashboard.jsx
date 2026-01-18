@@ -250,8 +250,8 @@ const DesignManagerDashboard = () => {
       // Map tab index to status: 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
       const statusMap = {
         0: 1,    // في الانتظار
-        1: 2,    // مقبول
-        2: 3,    // مرفوض
+        1: 2,    // معتمد
+        2: 3,    // غير معتمد
         3: 4     // مرتجع
       };
       
@@ -551,8 +551,8 @@ const DesignManagerDashboard = () => {
       setShowMessageNotification(true);
       const statusMessages = {
         1: "تم تحديث الحالة إلى في الانتظار بنجاح",
-        2: "تم قبول التصميم بنجاح",
-        3: "تم رفض التصميم بنجاح",
+        2: "تم اعتماد التصميم بنجاح",
+        3: "تم رفض اعتماد التصميم بنجاح",
         4: "تم إرجاع التصميم بنجاح"
       };
       setNewMessageData({
@@ -2630,7 +2630,7 @@ const DesignManagerDashboard = () => {
                     label={
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
                         <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
-                          مقبول
+                          معتمد
                         </Typography>
                         <Chip
                           label={allDesigns.filter(d => d.status === 2).length}
@@ -2666,7 +2666,7 @@ const DesignManagerDashboard = () => {
                     label={
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.25, flexDirection: "row" }}>
                         <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.875rem" }}>
-                          مرفوض
+                          غير معتمد
                         </Typography>
                         <Chip
                           label={allDesigns.filter(d => d.status === 3).length}
@@ -3044,9 +3044,9 @@ const DesignManagerDashboard = () => {
                                   design.status === 1
                                     ? "في الانتظار"
                                     : design.status === 2
-                                    ? "مقبول"
+                                    ? "معتمد"
                                     : design.status === 3
-                                    ? "مرفوض"
+                                    ? "غير معتمد"
                                     : design.status === 4
                                     ? "مرتجع"
                                     : design.statusName || "في الانتظار"
@@ -3246,7 +3246,7 @@ const DesignManagerDashboard = () => {
                                   },
                                 }}
                               >
-                                قبول
+                                معتمد 
                               </Button>
                               <Button
                                 variant="contained"
@@ -3305,7 +3305,7 @@ const DesignManagerDashboard = () => {
                                   },
                                 }}
                               >
-                                رفض
+                                 غير معتمد
                               </Button>
                               <Button
                                 variant="contained"
@@ -5239,7 +5239,7 @@ const DesignManagerDashboard = () => {
             <Cancel sx={{ color: "#d32f2f", fontSize: 28 }} />
           )}
           <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
-            {selectedDesignForStatus?.actionType === "approve" ? "قبول التصميم" : selectedDesignForStatus?.actionType === "return" ? "إرجاع التصميم" : "رفض التصميم"}
+            {selectedDesignForStatus?.actionType === "approve" ? "اعتماد التصميم" : selectedDesignForStatus?.actionType === "return" ? "إرجاع التصميم" : "رفض اعتماد التصميم"}
           </Typography>
         </DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
@@ -5340,10 +5340,10 @@ const DesignManagerDashboard = () => {
             {updatingDesignStatus
               ? "جاري المعالجة..."
               : selectedDesignForStatus?.actionType === "approve"
-              ? "قبول"
+              ? "اعتماد"
               : selectedDesignForStatus?.actionType === "return"
               ? "إرجاع"
-              : "رفض"}
+              : " غير معتمد"}
           </Button>
         </Box>
       </Dialog>
@@ -5415,7 +5415,7 @@ const DesignManagerDashboard = () => {
         >
           <ListItemIcon>
             <Chip
-              label="مقبول"
+              label="معتمد"
               size="small"
               sx={{
                 backgroundColor: "#e8f5e9",
@@ -5427,7 +5427,7 @@ const DesignManagerDashboard = () => {
               }}
             />
           </ListItemIcon>
-          <ListItemText primary="مقبول" />
+          <ListItemText primary="معتمد" />
         </MenuItem>
         <MenuItem
           onClick={() => handleStatusSelect(3)}
@@ -5444,7 +5444,7 @@ const DesignManagerDashboard = () => {
         >
           <ListItemIcon>
             <Chip
-              label="مرفوض"
+              label="غير معتمد"
               size="small"
               sx={{
                 backgroundColor: "#ffebee",
@@ -5456,7 +5456,7 @@ const DesignManagerDashboard = () => {
               }}
             />
           </ListItemIcon>
-          <ListItemText primary="مرفوض" />
+          <ListItemText primary="غير معتمد" />
         </MenuItem>
         <MenuItem
           onClick={() => handleStatusSelect(4)}
