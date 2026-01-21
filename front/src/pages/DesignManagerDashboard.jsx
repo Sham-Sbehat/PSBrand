@@ -46,6 +46,7 @@ import {
   ArrowForward,
   Visibility,
   Search,
+  Clear,
   CameraAlt,
   History,
   AccessTime,
@@ -94,6 +95,18 @@ const DesignManagerDashboard = () => {
   const [designs, setDesigns] = useState([]); // Tab 4: Designs from Main Designers
   const [allDesigns, setAllDesigns] = useState([]); // Keep all designs for count display
   const [loadingDesigns, setLoadingDesigns] = useState(false);
+  // Pagination state for designs
+  const [designsPage, setDesignsPage] = useState(0);
+  const [designsPageSize, setDesignsPageSize] = useState(10);
+  const [designsTotalCount, setDesignsTotalCount] = useState(0);
+  const [designsTotalPages, setDesignsTotalPages] = useState(0);
+  // Total counts for each status (for tab badges)
+  const [statusCounts, setStatusCounts] = useState({
+    1: 0, // في الانتظار
+    2: 0, // معتمد
+    3: 0, //  معتمد
+    4: 0  // مرتجع
+  });
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedDesignForStatus, setSelectedDesignForStatus] = useState(null);
   const [statusNotes, setStatusNotes] = useState("");
@@ -106,6 +119,7 @@ const DesignManagerDashboard = () => {
   const [statusTab, setStatusTab] = useState(0); // 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
   const [dateFilter, setDateFilter] = useState(""); // Date string or empty
   const [designerFilter, setDesignerFilter] = useState("all"); // "all" or designerId
+  const [searchTerm, setSearchTerm] = useState(""); // Search term for filtering designs
   const [sortField, setSortField] = useState(null); // null, "serialNumber", "date", "status", "designer"
   const [sortDirection, setSortDirection] = useState("asc"); // "asc", "desc"
   // Users mapping for designer names
@@ -235,18 +249,51 @@ const DesignManagerDashboard = () => {
     }
   };
 
+  // Load total counts for each status (for tab badges)
+  const loadStatusCounts = async () => {
+    try {
+      // Only load counts if no filters are applied (to show accurate totals)
+      if (dateFilter || designerFilter !== "all" || searchTerm) {
+        // If filters are applied, don't update counts (they would be filtered counts, not totals)
+        return;
+      }
+
+      const statuses = [1, 2, 3, 4]; // في الانتظار، معتمد، غير معتمد، مرتجع
+      const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+
+      // Fetch count for each status (only first page to get totalCount)
+      await Promise.all(
+        statuses.map(async (status) => {
+          try {
+            const params = {
+              page: 1,
+              pageSize: 1, // Only need totalCount, so 1 item is enough
+              status: status
+            };
+            const response = await mainDesignerService.getDesigns(params);
+            if (response && typeof response === 'object' && !Array.isArray(response)) {
+              counts[status] = response.totalCount || 0;
+            }
+          } catch (error) {
+            console.error(`Error loading count for status ${status}:`, error);
+            counts[status] = 0;
+          }
+        })
+      );
+
+      setStatusCounts(counts);
+    } catch (error) {
+      console.error("Error loading status counts:", error);
+    }
+  };
+
   // Load designs from Main Designers
-  const loadDesigns = async () => {
+  const loadDesigns = async (page = designsPage, pageSize = designsPageSize) => {
     setLoadingDesigns(true);
     try {
       // Load users first to ensure mapping is ready
       await loadUsers();
-      const data = await mainDesignerService.getDesigns();
-      console.log("Loaded designs:", data);
-      const allDesignsArray = Array.isArray(data) ? data : [];
-      setAllDesigns(allDesignsArray);
       
-      // Filter designs locally based on selected tab
       // Map tab index to status: 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
       const statusMap = {
         0: 1,    // في الانتظار
@@ -256,12 +303,95 @@ const DesignManagerDashboard = () => {
       };
       
       const status = statusMap[statusTab];
-      const filteredDesigns = allDesignsArray.filter(design => design.status === status);
-      setDesigns(filteredDesigns);
+      
+      // Build params for API call
+      const params = {
+        page: page + 1, // API uses 1-based page numbers
+        pageSize: pageSize,
+        status: status
+      };
+      
+      // Add date filter if set
+      if (dateFilter) {
+        params.date = dateFilter;
+      }
+      
+      // Add designer filter if set
+      if (designerFilter !== "all") {
+        params.createdBy = designerFilter;
+      }
+      
+      // Use SearchDesigns API if searchTerm is provided, otherwise use GetDesigns
+      let response;
+      if (searchTerm && searchTerm.trim()) {
+        // Remove search from params as it will be passed as first argument
+        const { search, ...restParams } = params;
+        response = await mainDesignerService.searchDesigns(searchTerm.trim(), restParams);
+      } else {
+        response = await mainDesignerService.getDesigns(params);
+      }
+      console.log("Loaded designs response:", response);
+      
+      // Handle paginated response
+      if (response && typeof response === 'object' && !Array.isArray(response)) {
+        // Response has pagination structure
+        // Check if data is in nested property or if response itself is the array with pagination props
+        let designsArray = [];
+        let totalCount = 0;
+        let totalPages = 1;
+        let responsePageSize = pageSize;
+        
+        // Try to find the designs array
+        if (Array.isArray(response.data)) {
+          designsArray = response.data;
+        } else if (Array.isArray(response.designs)) {
+          designsArray = response.designs;
+        } else if (Array.isArray(response.items)) {
+          designsArray = response.items;
+        } else if (Array.isArray(response)) {
+          // Response might be array with pagination props mixed in
+          designsArray = response.filter(item => item && typeof item === 'object' && item.id);
+        }
+        
+        // Get pagination info
+        totalCount = response.totalCount || designsArray.length;
+        totalPages = response.totalPages || Math.ceil(totalCount / pageSize) || 1;
+        responsePageSize = response.pageSize || pageSize;
+        
+        setDesigns(designsArray);
+        setDesignsTotalCount(totalCount);
+        setDesignsTotalPages(totalPages);
+        setDesignsPageSize(responsePageSize);
+        setAllDesigns(designsArray); // For now, just use current page
+        
+        // Update status count for current status
+        if (status && totalCount !== undefined) {
+          setStatusCounts(prev => ({
+            ...prev,
+            [status]: totalCount
+          }));
+        }
+      } else if (Array.isArray(response)) {
+        // Fallback: if response is array (old format without pagination)
+        setDesigns(response);
+        setAllDesigns(response);
+        setDesignsTotalCount(response.length);
+        setDesignsTotalPages(1);
+        setDesignsPageSize(pageSize);
+      } else {
+        // Empty or invalid response
+        setDesigns([]);
+        setAllDesigns([]);
+        setDesignsTotalCount(0);
+        setDesignsTotalPages(0);
+        setDesignsPageSize(pageSize);
+      }
     } catch (error) {
       console.error("Error loading designs:", error);
       setDesigns([]);
       setAllDesigns([]);
+      setDesignsTotalCount(0);
+      setDesignsTotalPages(0);
     } finally {
       setLoadingDesigns(false);
     }
@@ -422,32 +552,12 @@ const DesignManagerDashboard = () => {
     }
   };
 
-  // Filter and sort designs (status filter is now handled by statusTab in loadDesigns)
+  // Sort designs (filtering is now handled by API in loadDesigns)
   const getFilteredAndSortedDesigns = () => {
     let filtered = [...designs];
 
-    // Status filter is now handled by statusTab in loadDesigns, so no need to filter by status here
-
-    // Apply date filter
-    if (dateFilter) {
-      const filterDate = new Date(dateFilter);
-      filterDate.setHours(0, 0, 0, 0);
-      filtered = filtered.filter((design) => {
-        if (!design.createdAt) return false;
-        const designDate = new Date(design.createdAt);
-        designDate.setHours(0, 0, 0, 0);
-        return designDate.getTime() === filterDate.getTime();
-      });
-    }
-
-    // Apply designer filter
-    if (designerFilter !== "all") {
-      filtered = filtered.filter((design) => {
-        const designerId = design.creatorId || design.createdBy || design.userId || design.mainDesignerId || 
-                          design.creator?.id || design.mainDesigner?.id;
-        return String(designerId) === String(designerFilter) || Number(designerId) === Number(designerFilter);
-      });
-    }
+    // All filtering (status, date, designer) is now handled by API in loadDesigns
+    // Only apply client-side sorting here
 
     // Apply sorting
     if (sortField) {
@@ -546,6 +656,21 @@ const DesignManagerDashboard = () => {
       setStatusNotes("");
       setStatusMenuAnchor(null);
       setSelectedDesignForMenu(null);
+      
+      // Update status counts
+      const oldStatus = targetDesign.status;
+      if (oldStatus && oldStatus !== newStatus) {
+        setStatusCounts(prev => ({
+          ...prev,
+          [oldStatus]: Math.max(0, (prev[oldStatus] || 0) - 1),
+          [newStatus]: (prev[newStatus] || 0) + 1
+        }));
+      }
+      
+      // Reload status counts to ensure accuracy
+      if (!dateFilter && designerFilter === "all" && !searchTerm) {
+        loadStatusCounts();
+      }
       
       // Show success message
       setShowMessageNotification(true);
@@ -670,12 +795,28 @@ const DesignManagerDashboard = () => {
     loadFabricTypes();
   }, []);
 
-  // Load designs when Tab 4 is opened or when statusTab changes
+  // Load status counts when Tab 4 is opened (only if no filters)
+  useEffect(() => {
+    if (currentTab === 4 && !dateFilter && designerFilter === "all" && !searchTerm) {
+      loadStatusCounts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTab, dateFilter, designerFilter, searchTerm]);
+  
+  // Load designs when Tab 4 is opened or when statusTab, dateFilter, designerFilter, or searchTerm changes
   useEffect(() => {
     if (currentTab === 4) {
-      loadDesigns();
+      setDesignsPage(0); // Reset to first page when filters change
     }
-  }, [currentTab, statusTab]);
+  }, [currentTab, statusTab, dateFilter, designerFilter, searchTerm]);
+  
+  // Load designs when page, pageSize, or filters change
+  useEffect(() => {
+    if (currentTab === 4) {
+      loadDesigns(designsPage, designsPageSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTab, designsPage, designsPageSize, statusTab, dateFilter, designerFilter, searchTerm]);
 
   useEffect(() => {
     fetchOrders(true); // Show loading on initial fetch only
@@ -2597,7 +2738,7 @@ const DesignManagerDashboard = () => {
                           في الانتظار
                         </Typography>
                         <Chip
-                          label={allDesigns.filter(d => d.status === 1).length}
+                          label={statusCounts[1]}
                           size="small"
                           sx={{
                             height: 24,
@@ -2633,7 +2774,7 @@ const DesignManagerDashboard = () => {
                           معتمد
                         </Typography>
                         <Chip
-                          label={allDesigns.filter(d => d.status === 2).length}
+                          label={statusCounts[2]}
                           size="small"
                           sx={{
                             height: 24,
@@ -2669,7 +2810,7 @@ const DesignManagerDashboard = () => {
                           غير معتمد
                         </Typography>
                         <Chip
-                          label={allDesigns.filter(d => d.status === 3).length}
+                          label={statusCounts[3]}
                           size="small"
                           sx={{
                             height: 24,
@@ -2705,7 +2846,7 @@ const DesignManagerDashboard = () => {
                           مرتجع
                         </Typography>
                         <Chip
-                          label={allDesigns.filter(d => d.status === 4).length}
+                          label={statusCounts[4]}
                           size="small"
                           sx={{
                             height: 24,
@@ -2723,6 +2864,46 @@ const DesignManagerDashboard = () => {
                     }
                   />
                 </Tabs>
+              </Box>
+
+              {/* Search Field */}
+              <Box sx={{ mb: 3 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="بحث في التصاميم باستخدام الرقم التسلسلي.."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginRight: 1,
+                          color: searchTerm ? calmPalette.primary : 'text.secondary',
+                          transition: 'color 0.3s ease',
+                        }}
+                      >
+                        <Search />
+                      </Box>
+                    ),
+                    endAdornment: searchTerm && (
+                      <IconButton
+                        size="small"
+                        onClick={() => setSearchTerm("")}
+                        sx={{ padding: 0.5 }}
+                      >
+                        <Clear fontSize="small" />
+                      </IconButton>
+                    ),
+                  }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    },
+                  }}
+                />
               </Box>
 
               {/* Date and Designer Filters */}
@@ -2771,13 +2952,14 @@ const DesignManagerDashboard = () => {
                       </MenuItem>
                     ))}
                 </TextField>
-                {(dateFilter || designerFilter !== "all") && (
+                {(dateFilter || designerFilter !== "all" || searchTerm) && (
                   <Button
                     size="small"
                     variant="outlined"
                     onClick={() => {
                       setDateFilter("");
                       setDesignerFilter("all");
+                      setSearchTerm("");
                     }}
                     sx={{ color: calmPalette.textSecondary }}
                   >
@@ -2948,6 +3130,7 @@ const DesignManagerDashboard = () => {
                                 <img
                                   src={design.designImageUrl}
                                   alt={design.designName}
+                                  loading="lazy"
                                   style={{
                                     width: "100%",
                                     height: "100%",
@@ -3405,6 +3588,29 @@ const DesignManagerDashboard = () => {
                   </Table>
                 </TableContainer>
               )}
+              
+              {/* Pagination for designs */}
+              {currentTab === 4 && (
+                <TablePagination
+                  component="div"
+                  count={designsTotalCount}
+                  page={designsPage}
+                  onPageChange={(event, newPage) => {
+                    setDesignsPage(newPage);
+                  }}
+                  rowsPerPage={designsPageSize}
+                  onRowsPerPageChange={(event) => {
+                    const newPageSize = parseInt(event.target.value, 10);
+                    setDesignsPageSize(newPageSize);
+                    setDesignsPage(0); // Reset to first page
+                  }}
+                  labelRowsPerPage="عدد الصفوف في الصفحة:"
+                  labelDisplayedRows={({ from, to, count }) => 
+                    `${from}–${to} من ${count !== -1 ? count : `أكثر من ${to}`}`
+                  }
+                  rowsPerPageOptions={[10, 20, 50, 100]}
+                />
+              )}
             </Box>
           ) : (
             <>
@@ -3619,6 +3825,7 @@ const DesignManagerDashboard = () => {
                                         <img 
                                           src={displayImage} 
                                           alt={design.designName}
+                                          loading="lazy"
                                           onClick={() => {
                                             if (displayImage && displayImage !== 'image_data_excluded') {
                                               setSelectedImage(displayImage);
@@ -4341,6 +4548,7 @@ const DesignManagerDashboard = () => {
                                             <img
                                               src={displayUrl}
                                               alt={`${design.designName} - صورة ${idx + 1}`}
+                                              loading="lazy"
                                               onClick={() =>
                                                 handleImageClick(imageUrl, selectedOrder.id, design.id)
                                               }
@@ -5595,3 +5803,4 @@ const DesignManagerDashboard = () => {
 export default DesignManagerDashboard;
 
 
+``

@@ -1122,6 +1122,16 @@ export const mainDesignerService = {
     return response.data;
   },
 
+  // Search designs
+  searchDesigns: async (searchTerm, params = {}) => {
+    const searchParams = {
+      ...params,
+      searchTerm: searchTerm
+    };
+    const response = await api.get('/MainDesigner/SearchDesigns', { params: searchParams });
+    return response.data;
+  },
+
   // Get designs by creator userId
   getDesignsByCreator: async (userId) => {
     const response = await api.get(`/MainDesigner/GetDesignsByCreator/${userId}`);
