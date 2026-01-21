@@ -314,7 +314,7 @@ const DepositOrdersList = () => {
   const getCityName = (cityId) => {
     if (!cityId) return "-";
     const city = cities.find((c) => c.id === cityId || c.Id === cityId);
-    return city?.name || city?.Name || "-";
+    return city?.arabicCityName || city?.cityName || city?.name || city?.Name || "-";
   };
 
   const getAreaName = (areaId, cityId) => {

@@ -696,7 +696,7 @@ const EmployeeDashboard = () => {
           );
         });
          if (city) {
-           const cityName = city.name || city.Name || city.cityName;
+           const cityName = city.arabicCityName || city.cityName || city.name || city.Name;
            if (cityName) {
              return cityName;
            }
@@ -4379,7 +4379,7 @@ const EmployeeDashboard = () => {
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
                   <InfoItem
-                    label="الدولة"
+                    label="البلد"
                     value={selectedOrder.country || "-"}
                   />
                 </Grid>

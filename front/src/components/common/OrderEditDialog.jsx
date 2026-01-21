@@ -190,7 +190,7 @@ const OrderEditDialog = ({
           </Grid>
           <Grid item xs={12} sm={4}>
             <TextField
-              label="الدولة"
+              label="البلد"
               fullWidth
               value={formValues.country}
               onChange={handleChange("country")}

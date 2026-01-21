@@ -555,9 +555,10 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                           sx={{ minWidth: "200px" }}
                           options={cities}
                           getOptionLabel={(option) =>
+                            option.arabicCityName ||
+                            option.cityName ||
                             option.name ||
                             option.Name ||
-                            option.cityName ||
                             `المدينة ${option.id || option.Id || option.cityId}`
                           }
                           value={selectedCity}
@@ -635,9 +636,10 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                                 },
                               }}
                             >
-                              {option.name ||
-                                option.Name ||
+                              {option.arabicCityName ||
                                 option.cityName ||
+                                option.name ||
+                                option.Name ||
                                 `المدينة ${option.id || option.Id || option.cityId}`}
                             </Box>
                           )}

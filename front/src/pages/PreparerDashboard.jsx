@@ -3198,7 +3198,7 @@ const InfoItem = ({ label, value }) => (
                   <InfoItem label="المنطقة" value={selectedOrder.district || "-"} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="الدولة" value={selectedOrder.country || "-"} />
+                  <InfoItem label="البلد" value={selectedOrder.country || "-"} />
                 </Grid>
               </Grid>
             </Box>

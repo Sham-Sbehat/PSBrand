@@ -1839,7 +1839,7 @@ const DesignManagerDashboard = () => {
                  (cityId && String(cityId) === valueStr);
         });
         if (city) {
-          const cityName = city.name || city.Name || city.cityName;
+          const cityName = city.arabicCityName || city.cityName || city.name || city.Name;
           if (cityName) {
             return cityName;
           }
@@ -4027,7 +4027,7 @@ const DesignManagerDashboard = () => {
                   <InfoItem label="المنطقة" value={selectedOrder.district || "-"} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="الدولة" value={selectedOrder.country || "-"} />
+                  <InfoItem label="البلد" value={selectedOrder.country || "-"} />
                 </Grid>
               </Grid>
             </Box>

@@ -1884,8 +1884,9 @@ const OrderForm = ({
                       fullWidth
                       options={dialogCities}
                       getOptionLabel={(option) =>
-                        option.name ||
+                        option.arabicCityName ||
                         option.cityName ||
+                        option.name ||
                         `المدينة ${option.id || option.cityId}`
                       }
                       value={
@@ -1969,8 +1970,9 @@ const OrderForm = ({
                             },
                           }}
                         >
-                          {option.name ||
+                          {option.arabicCityName ||
                             option.cityName ||
+                            option.name ||
                             `المدينة ${option.id || option.cityId}`}
                         </Box>
                       )}
@@ -2377,8 +2379,9 @@ const OrderForm = ({
                     sx={{ minWidth: "250px" }}
                     options={cities}
                     getOptionLabel={(option) =>
-                      option.name ||
+                      option.arabicCityName ||
                       option.cityName ||
+                      option.name ||
                       `المدينة ${option.id || option.cityId}`
                     }
                     value={
@@ -2463,8 +2466,9 @@ const OrderForm = ({
                           },
                         }}
                       >
-                        {option.name ||
+                        {option.arabicCityName ||
                           option.cityName ||
+                          option.name ||
                           `المدينة ${option.id || option.cityId}`}
                       </Box>
                     )}

@@ -1818,7 +1818,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                  (cityId && String(cityId) === valueStr);
         });
         if (city) {
-          const cityName = city.name || city.Name || city.cityName;
+          const cityName = city.arabicCityName || city.cityName || city.name || city.Name;
           if (cityName) {
             return cityName;
           }
