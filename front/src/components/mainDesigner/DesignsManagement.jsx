@@ -31,6 +31,7 @@ import {
   Snackbar,
   Tabs,
   Tab,
+  TablePagination,
 } from "@mui/material";
 import {
   Add,
@@ -57,8 +58,19 @@ import { USER_ROLES } from "../../constants";
 const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   const { user } = useApp();
   const [designs, setDesigns] = useState([]);
-  const [allDesigns, setAllDesigns] = useState([]); // Keep all designs for count display
   const [loading, setLoading] = useState(false);
+  // Total counts for each status (for tab badges)
+  const [statusCounts, setStatusCounts] = useState({
+    1: 0, // في الانتظار
+    2: 0, // معتمد
+    3: 0, // غير معتمد
+    4: 0  // مرتجع
+  });
+  // Pagination state for designs
+  const [designsPage, setDesignsPage] = useState(0);
+  const [designsPageSize, setDesignsPageSize] = useState(10);
+  const [designsTotalCount, setDesignsTotalCount] = useState(0);
+  const [designsTotalPages, setDesignsTotalPages] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingDesign, setEditingDesign] = useState(null);
   const [viewingDesign, setViewingDesign] = useState(null);
@@ -86,15 +98,31 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   const [sortField, setSortField] = useState(null); // null, "serialNumber", "date", "status"
   const [sortDirection, setSortDirection] = useState("asc"); // "asc", "desc"
 
+  // Load status counts when component mounts or when filters change
+  useEffect(() => {
+    if (!showFormInTab && user?.id) {
+      loadStatusCounts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFormInTab, user?.id, dateFilter]);
+  
   useEffect(() => {
     if (!showFormInTab) {
-      loadDesigns();
+      setDesignsPage(0); // Reset to first page when statusTab changes
     }
     if (showFormInTab) {
       // Reset form when showing in tab
       handleOpenDialog(null);
     }
   }, [showFormInTab, statusTab]); // Reload when statusTab changes
+  
+  // Load designs when page, pageSize, or statusTab changes
+  useEffect(() => {
+    if (!showFormInTab) {
+      loadDesigns(designsPage, designsPageSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFormInTab, designsPage, designsPageSize, statusTab]);
 
   // Subscribe to real-time design updates
   useEffect(() => {
@@ -199,20 +227,79 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
     };
   }, [user?.id, showFormInTab]);
 
-  const loadDesigns = async () => {
+  // Load status counts for tabs
+  const loadStatusCounts = async () => {
+    try {
+      // Only load counts if no filters are applied (to show accurate totals)
+      if (dateFilter) {
+        // If filters are applied, don't update counts (they would be filtered counts, not totals)
+        return;
+      }
+
+      if (!user?.id) return;
+
+      const statuses = [1, 2, 3, 4]; // في الانتظار، معتمد، غير معتمد، مرتجع
+      const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+
+      // Fetch count for each status (only first page to get totalCount)
+      await Promise.all(
+        statuses.map(async (status) => {
+          try {
+            const params = {
+              page: 1,
+              pageSize: 1, // Only need totalCount, so 1 item is enough
+              createdBy: user.id,
+              status: status
+            };
+            const response = await mainDesignerService.getDesigns(params);
+            
+            // Handle different response formats
+            let totalCount = 0;
+            
+            if (Array.isArray(response)) {
+              const paginationObject = response.find(item => 
+                item && typeof item === 'object' && 
+                !Array.isArray(item) &&
+                (item.page !== undefined || item.totalCount !== undefined || item.totalPages !== undefined)
+              );
+              
+              if (paginationObject) {
+                totalCount = paginationObject.totalCount || 0;
+              } else {
+                totalCount = response.filter(item => 
+                  item && typeof item === 'object' && 
+                  !Array.isArray(item) &&
+                  (item.id !== undefined || item.serialNumber !== undefined)
+                ).length;
+              }
+            } else if (response && typeof response === 'object') {
+              totalCount = response.totalCount || response.total || response.count || 0;
+            }
+            
+            counts[status] = totalCount;
+          } catch (error) {
+            console.error(`Error loading count for status ${status}:`, error);
+            counts[status] = 0;
+          }
+        })
+      );
+
+      setStatusCounts(counts);
+    } catch (error) {
+      console.error("Error loading status counts:", error);
+    }
+  };
+
+  const loadDesigns = async (page = designsPage, pageSize = designsPageSize) => {
     setLoading(true);
     try {
       if (!user?.id) {
         setDesigns([]);
-        setAllDesigns([]);
+        setDesignsTotalCount(0);
+        setDesignsTotalPages(0);
         setLoading(false);
         return;
       }
-      
-      // Always load all designs first to get counts for tabs
-      const allData = await mainDesignerService.getDesignsByCreatorAndStatus(user.id, null);
-      const allDesignsArray = Array.isArray(allData) ? allData : [];
-      setAllDesigns(allDesignsArray);
       
       // Map tab index to status: 0 = waiting (1), 1 = accepted (2), 2 = rejected (3), 3 = returned (4)
       const statusMap = {
@@ -224,9 +311,110 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
       
       const status = statusMap[statusTab];
       
-      // Filter designs locally based on selected tab
-      const filteredDesigns = allDesignsArray.filter(design => design.status === status);
-      setDesigns(filteredDesigns);
+      // Build params for API call with pagination
+      const params = {
+        page: page + 1, // API uses 1-based page numbers
+        pageSize: pageSize,
+        createdBy: user.id,
+        status: status
+      };
+      
+      // Load designs with pagination
+      const response = await mainDesignerService.getDesigns(params);
+      console.log("Loaded designs response:", response);
+      console.log("Response type:", typeof response, "Is array:", Array.isArray(response));
+      
+      // Handle different response formats
+      let designsArray = [];
+      let totalCount = 0;
+      let totalPages = 1;
+      let responsePageSize = pageSize;
+      
+      if (Array.isArray(response)) {
+        // Response is an array - could be:
+        // 1. Simple array of designs
+        // 2. Array with pagination object at the end
+        // Find pagination object (object with page, pageSize, totalCount properties)
+        const paginationObject = response.find(item => 
+          item && typeof item === 'object' && 
+          !Array.isArray(item) &&
+          (item.page !== undefined || item.totalCount !== undefined || item.totalPages !== undefined)
+        );
+        
+        if (paginationObject) {
+          // Extract pagination info from the object
+          totalCount = paginationObject.totalCount || 0;
+          totalPages = paginationObject.totalPages || 1;
+          responsePageSize = paginationObject.pageSize || pageSize;
+          
+          // Filter out the pagination object from the array - keep only design objects
+          designsArray = response.filter(item => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              return false;
+            }
+            // Check if it's a pagination object
+            if (item.page !== undefined || item.totalCount !== undefined || item.totalPages !== undefined) {
+              return false;
+            }
+            // Check if it looks like a design object
+            return item.id !== undefined || 
+                   item.serialNumber !== undefined || 
+                   item.designImageUrl !== undefined ||
+                   (Array.isArray(item.designFileUrls) && item.designFileUrls.length > 0);
+          });
+        } else {
+          // Simple array without pagination object
+          designsArray = response.filter(item => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              return false;
+            }
+            return item.id !== undefined || 
+                   item.serialNumber !== undefined || 
+                   item.designImageUrl !== undefined ||
+                   (Array.isArray(item.designFileUrls) && item.designFileUrls.length > 0);
+          });
+          totalCount = designsArray.length;
+          totalPages = 1;
+        }
+      } else if (response && typeof response === 'object') {
+        // Response has pagination structure
+        // Try to find the designs array in common property names
+        if (Array.isArray(response.data)) {
+          designsArray = response.data;
+        } else if (Array.isArray(response.designs)) {
+          designsArray = response.designs;
+        } else if (Array.isArray(response.items)) {
+          designsArray = response.items;
+        } else if (Array.isArray(response.results)) {
+          designsArray = response.results;
+        }
+        
+        // Get pagination info
+        totalCount = response.totalCount || response.total || response.count || designsArray.length;
+        totalPages = response.totalPages || Math.ceil(totalCount / pageSize) || 1;
+        responsePageSize = response.pageSize || pageSize;
+      }
+      
+      console.log("Extracted designs array length:", designsArray.length);
+      console.log("Total count:", totalCount, "Total pages:", totalPages);
+      
+      setDesigns(designsArray);
+      setDesignsTotalCount(totalCount);
+      setDesignsTotalPages(totalPages);
+      setDesignsPageSize(responsePageSize);
+      
+      // Update status count for current status
+      if (status && totalCount !== undefined) {
+        setStatusCounts(prev => ({
+          ...prev,
+          [status]: totalCount
+        }));
+      }
+      
+      // Load status counts (only if no filters are applied)
+      if (!dateFilter) {
+        loadStatusCounts();
+      }
     } catch (error) {
       console.error("Error loading designs:", error);
       Swal.fire({
@@ -236,7 +424,8 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
         confirmButtonColor: calmPalette.primary,
       });
       setDesigns([]);
-      setAllDesigns([]);
+      setDesignsTotalCount(0);
+      setDesignsTotalPages(0);
     } finally {
       setLoading(false);
     }
@@ -1375,7 +1564,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
         }}
       >
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          إدارة التصاميم ({filteredDesigns.length})
+          إدارة التصاميم ({designsTotalCount})
         </Typography>
         {!canCreateDesign && (
           <Alert severity="warning" sx={{ flex: 1, mr: 2 }}>
@@ -1448,7 +1637,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                   في الانتظار
                 </Typography>
                 <Chip
-                  label={allDesigns.filter(d => d.status === 1).length}
+                  label={statusCounts[1]}
                   size="small"
                   sx={{
                     height: 24,
@@ -1484,7 +1673,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                   معتمد
                 </Typography>
                 <Chip
-                  label={allDesigns.filter(d => d.status === 2).length}
+                  label={statusCounts[2]}
                   size="small"
                   sx={{
                     height: 24,
@@ -1520,7 +1709,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                   غير معتمد
                 </Typography>
                 <Chip
-                  label={allDesigns.filter(d => d.status === 3).length}
+                  label={statusCounts[3]}
                   size="small"
                   sx={{
                     height: 24,
@@ -1556,7 +1745,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                   مرتجع
                 </Typography>
                 <Chip
-                  label={allDesigns.filter(d => d.status === 4).length}
+                  label={statusCounts[4]}
                   size="small"
                   sx={{
                     height: 24,
@@ -1734,6 +1923,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                         <img
                           src={design.designImageUrl}
                           alt={design.designName}
+                          loading="lazy"
                           style={{
                             width: "100%",
                             height: "100%",
@@ -1943,6 +2133,23 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
               ))}
             </TableBody>
           </Table>
+          <TablePagination
+            component="div"
+            count={designsTotalCount}
+            page={designsPage}
+            onPageChange={(event, newPage) => {
+              setDesignsPage(newPage);
+            }}
+            rowsPerPage={designsPageSize}
+            onRowsPerPageChange={(event) => {
+              const newPageSize = parseInt(event.target.value, 10);
+              setDesignsPageSize(newPageSize);
+              setDesignsPage(0); // Reset to first page
+            }}
+            rowsPerPageOptions={[5, 10, 20, 50]}
+            labelRowsPerPage="عدد الصفوف في الصفحة:"
+            labelDisplayedRows={({ from, to, count }) => `${from}-${to} من ${count !== -1 ? count : `أكثر من ${to}`}`}
+          />
         </TableContainer>
       )}
 
