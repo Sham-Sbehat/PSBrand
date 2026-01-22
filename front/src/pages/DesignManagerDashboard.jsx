@@ -97,7 +97,7 @@ const DesignManagerDashboard = () => {
   const [loadingDesigns, setLoadingDesigns] = useState(false);
   // Pagination state for designs
   const [designsPage, setDesignsPage] = useState(0);
-  const [designsPageSize, setDesignsPageSize] = useState(10);
+  const [designsPageSize, setDesignsPageSize] = useState(5);
   const [designsTotalCount, setDesignsTotalCount] = useState(0);
   const [designsTotalPages, setDesignsTotalPages] = useState(0);
   // Total counts for each status (for tab badges)

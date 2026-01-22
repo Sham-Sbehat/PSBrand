@@ -68,7 +68,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   });
   // Pagination state for designs
   const [designsPage, setDesignsPage] = useState(0);
-  const [designsPageSize, setDesignsPageSize] = useState(10);
+  const [designsPageSize, setDesignsPageSize] = useState(5);
   const [designsTotalCount, setDesignsTotalCount] = useState(0);
   const [designsTotalPages, setDesignsTotalPages] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);

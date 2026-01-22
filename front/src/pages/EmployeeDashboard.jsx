@@ -57,6 +57,7 @@ import {
   LocalShipping,
   Message as MessageIcon,
   Refresh,
+  Add,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -85,6 +86,7 @@ import {
 import { openWhatsApp } from "../utils";
 import OrderForm from "../components/employee/OrderForm";
 import DepositOrderForm from "../components/employee/DepositOrderForm";
+import CreateDesignForm from "../components/employee/CreateDesignForm";
 import GlassDialog from "../components/common/GlassDialog";
 import NotificationsBell from "../components/common/NotificationsBell";
 import WelcomePage from "../components/common/WelcomePage";
@@ -2427,6 +2429,19 @@ const EmployeeDashboard = () => {
                   },
                 }}
               />
+              <Tab
+                label="إنشاء تصميم جديد"
+                icon={<Add />}
+                iconPosition="start"
+                sx={{
+                  fontWeight: 600,
+                  fontSize: "1rem",
+                  color: calmPalette.textMuted,
+                  "&.Mui-selected": {
+                    color: "#f7f2ea",
+                  },
+                }}
+              />
             </Tabs>
           </Box>
 
@@ -2724,6 +2739,9 @@ const EmployeeDashboard = () => {
               </Box>
             </>
           )}
+
+          {/* New Design Form Content for Tab 3 */}
+          {currentTab === 3 && <CreateDesignForm />}
         </Paper>
       </Container>
 
@@ -4127,7 +4145,7 @@ const EmployeeDashboard = () => {
                 </TableBody>
               </Table>
             </TableContainer>
-              </>
+              </>  
             )}
           </>
         )}
