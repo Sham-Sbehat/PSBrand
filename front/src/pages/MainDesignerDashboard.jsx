@@ -31,6 +31,7 @@ import { subscribeToMessages } from "../services/realtime";
 import MessagesTab from "../components/common/MessagesTab";
 import WelcomePage from "../components/common/WelcomePage";
 import DesignsManagement from "../components/mainDesigner/DesignsManagement";
+import AvailableDesignsTab from "../components/mainDesigner/AvailableDesignsTab";
 import calmPalette from "../theme/calmPalette";
 
 const MainDesignerDashboard = () => {
@@ -512,6 +513,23 @@ const MainDesignerDashboard = () => {
                   fontSize: '1rem',
                   minHeight: 56,
                   color: currentTab === 2 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
+                label="التصاميم المتاحة"
+                icon={<ImageIcon />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 3 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',
                   zIndex: 1,
                   '&.Mui-selected': {
@@ -535,6 +553,11 @@ const MainDesignerDashboard = () => {
           {/* Designs Management */}
           {currentTab === 2 && (
             <DesignsManagement showFormInTab={false} />
+          )}
+
+          {/* Available Designs */}
+          {currentTab === 3 && (
+            <AvailableDesignsTab />
           )}
         </Paper>
       </Container>

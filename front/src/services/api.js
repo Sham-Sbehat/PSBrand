@@ -1269,6 +1269,77 @@ export const messagesService = {
   },
 };
 
+// Design Requests Service
+export const designRequestsService = {
+  // Upload images for design request
+  uploadImages: async (files) => {
+    console.log("🚀 designRequestsService.uploadImages called with files:", files);
+    const formData = new FormData();
+    if (Array.isArray(files)) {
+      files.forEach((file) => {
+        formData.append("files", file);
+      });
+    } else {
+      formData.append("files", files);
+    }
+    
+    console.log("📤 Sending request to /DesignRequests/UploadImages");
+    try {
+      const response = await api.post("/DesignRequests/UploadImages", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      console.log("✅ Upload response received:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Upload error:", error);
+      console.error("❌ Error response:", error.response?.data);
+      throw error;
+    }
+  },
+
+  // Create design request
+  createDesignRequest: async (designData) => {
+    console.log("🚀 designRequestsService.createDesignRequest called");
+    console.log("📤 Request payload:", JSON.stringify(designData, null, 2));
+    try {
+      const response = await api.post("/DesignRequests", designData);
+      console.log("✅ Create design request response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Create design request error:", error);
+      console.error("❌ Error response:", error.response?.data);
+      throw error;
+    }
+  },
+
+  // Get design requests with pagination and filters
+  getDesignRequests: async (params = {}) => {
+    const queryParams = {
+      page: params.page || 1,
+      pageSize: params.pageSize || 20,
+    };
+    
+    if (params.status !== undefined && params.status !== null) {
+      queryParams.status = params.status;
+    }
+    
+    if (params.createdBy !== undefined && params.createdBy !== null) {
+      queryParams.createdBy = params.createdBy;
+    }
+    
+    if (params.mainDesignerId !== undefined && params.mainDesignerId !== null) {
+      queryParams.mainDesignerId = params.mainDesignerId;
+    }
+
+    const response = await api.get("/DesignRequests", {
+      params: queryParams,
+    });
+    return response.data;
+  },
+};
+
 // Shift Time Constants
 export const SHIFT_TIME_VALUES = ['A', 'B', 'A+B', 'OFF'];
 export const SHIFT_TIME_ENUM = {

@@ -20,12 +20,12 @@ import {
   Note,
   Create,
 } from "@mui/icons-material";
-import { ordersService, mainDesignerService } from "../../services/api";
+import { designRequestsService } from "../../services/api";
 import Swal from "sweetalert2";
 import calmPalette from "../../theme/calmPalette";
 
 const CreateDesignForm = () => {
-  const [designImages, setDesignImages] = useState([]); // Array of { url, previewUrl, name }
+  const [designImages, setDesignImages] = useState([]); // Array of { url, previewUrl, name, imageKey }
   const [uploadingImages, setUploadingImages] = useState(false);
   const [creatingDesign, setCreatingDesign] = useState(false);
 
@@ -54,33 +54,16 @@ const CreateDesignForm = () => {
     };
   }, []);
 
-  // Extract fileKey from URL
-  const extractFileKeyFromUrl = (url) => {
-    if (!url) return null;
-
-    if (typeof url !== "string") {
-      return null;
-    }
-
-    try {
-      const urlObj = new URL(url);
-      const pathParts = urlObj.pathname.split("/").filter((p) => p);
-      if (pathParts.length > 1) {
-        return pathParts.slice(1).join("/");
-      }
-      return pathParts[0] || null;
-    } catch (e) {
-      if (typeof url === "string" && url.startsWith("designs/")) {
-        return url;
-      }
-      return null;
-    }
-  };
-
   // Handle image upload
   const handleImageUpload = async (event) => {
+    console.log("🖼️ handleImageUpload called", event.target.files);
     const files = Array.from(event.target.files);
-    if (files.length === 0) return;
+    console.log("📁 Files array:", files);
+    
+    if (files.length === 0) {
+      console.warn("⚠️ No files selected");
+      return;
+    }
 
     setUploadingImages(true);
     try {
@@ -99,38 +82,70 @@ const CreateDesignForm = () => {
         return;
       }
 
-      const uploadResponse = await ordersService.uploadFiles(imageFiles);
+      // Upload images using DesignRequests API
+      console.log("📤 Uploading images to DesignRequests API...", imageFiles);
+      const uploadResponse = await designRequestsService.uploadImages(imageFiles);
+      console.log("✅ Upload response:", uploadResponse);
 
-      if (
-        uploadResponse &&
-        uploadResponse.success &&
-        uploadResponse.files
-      ) {
-        const uploadedImages = [];
-        for (let index = 0; index < uploadResponse.files.length; index++) {
-          const uploadedFile = uploadResponse.files[index];
-          const originalFile = imageFiles[index];
+      // The API should return imageKeys array
+      // Try different possible response structures
+      let imageKeys = [];
+      
+      if (Array.isArray(uploadResponse)) {
+        // If response is directly an array
+        imageKeys = uploadResponse;
+      } else if (uploadResponse?.imageKeys && Array.isArray(uploadResponse.imageKeys)) {
+        // If response has imageKeys property
+        imageKeys = uploadResponse.imageKeys;
+      } else if (uploadResponse?.data?.imageKeys && Array.isArray(uploadResponse.data.imageKeys)) {
+        // If response has data.imageKeys
+        imageKeys = uploadResponse.data.imageKeys;
+      } else if (uploadResponse?.data && Array.isArray(uploadResponse.data)) {
+        // If response.data is an array
+        imageKeys = uploadResponse.data;
+      } else if (uploadResponse?.files && Array.isArray(uploadResponse.files)) {
+        // If response has files array (similar to ordersService.uploadFiles)
+        imageKeys = uploadResponse.files.map(file => file.fileKey || file.key || file.url);
+      }
+      
+      console.log("🔑 Extracted imageKeys:", imageKeys);
+      
+      if (!Array.isArray(imageKeys) || imageKeys.length === 0) {
+        console.error("❌ Invalid response structure:", uploadResponse);
+        throw new Error("فشل في الحصول على مفاتيح الصور من الاستجابة. بنية الاستجابة: " + JSON.stringify(uploadResponse));
+      }
 
-          // Create preview URL
-          const preview = URL.createObjectURL(originalFile);
+      const uploadedImages = [];
+      for (let index = 0; index < imageFiles.length; index++) {
+        const originalFile = imageFiles[index];
+        const imageKey = imageKeys[index];
 
-          uploadedImages.push({
-            url: uploadedFile.url,
-            previewUrl: preview,
-            name: uploadedFile.fileName || originalFile.name,
-          });
+        if (!imageKey) {
+          console.warn(`No imageKey for file ${index}`);
+          continue;
         }
 
+        // Create preview URL
+        const preview = URL.createObjectURL(originalFile);
+
+        uploadedImages.push({
+          imageKey: imageKey,
+          previewUrl: preview,
+          name: originalFile.name,
+        });
+      }
+
+      if (uploadedImages.length > 0) {
         setDesignImages((prev) => [...prev, ...uploadedImages]);
       } else {
-        throw new Error("فشل في رفع الصور");
+        throw new Error("لم يتم رفع أي صور");
       }
     } catch (error) {
       console.error("Error uploading images:", error);
       Swal.fire({
         icon: "error",
         title: "خطأ",
-        text: error.response?.data?.message || "فشل في رفع الصور",
+        text: error.response?.data?.message || error.message || "فشل في رفع الصور",
         confirmButtonColor: calmPalette.primary,
       });
     } finally {
@@ -167,45 +182,72 @@ const CreateDesignForm = () => {
 
     setCreatingDesign(true);
     try {
-      // Extract fileKeys from URLs
-      const fileKeys = designImages.map((img) => {
-        const fileKey = extractFileKeyFromUrl(img.url);
-        return {
-          url: img.url,
-          fileKey: fileKey || img.url,
-          name: img.name,
-        };
-      });
+      // Extract imageKeys from uploaded images - ensure they are strings
+      const imageKeys = designImages
+        .map((img) => {
+          // Ensure imageKey is a string
+          const key = img.imageKey;
+          if (typeof key === 'string') {
+            return key;
+          } else if (key && typeof key === 'object') {
+            // If it's an object, try to extract the key
+            return key.key || key.fileKey || key.url || String(key);
+          }
+          return String(key || '');
+        })
+        .filter((key) => key && key.trim() !== ''); // Filter out empty strings
 
-      if (fileKeys.length === 0 || !fileKeys[0].fileKey) {
-        throw new Error("فشل في استخراج مفاتيح الملفات");
+      console.log("🔑 Final imageKeys to send:", imageKeys);
+
+      if (imageKeys.length === 0) {
+        throw new Error("فشل في الحصول على مفاتيح الصور");
       }
 
-      // Use first image as designImageKey
-      const designImageKey = fileKeys[0].fileKey;
+      // Validate required fields before sending
+      if (!data.designName || data.designName.trim() === '') {
+        Swal.fire({
+          icon: "error",
+          title: "خطأ",
+          text: "اسم التصميم مطلوب",
+          confirmButtonColor: calmPalette.primary,
+        });
+        setCreatingDesign(false);
+        return;
+      }
 
-      // Use remaining images as designFileKeys (if any)
-      const designFileKeys = fileKeys.slice(1).map((file, index) => ({
-        serialNumber: `${data.designName}_${index + 1}`,
-        printFileName: file.name || `صورة_${index + 2}`,
-        fileKey: file.fileKey,
-      }));
+      if (!data.notes || data.notes.trim() === '') {
+        Swal.fire({
+          icon: "error",
+          title: "خطأ",
+          text: "الوصف مطلوب",
+          confirmButtonColor: calmPalette.primary,
+        });
+        setCreatingDesign(false);
+        return;
+      }
 
-      // Create design payload according to API spec
-      const designPayload = {
-        serialNumber: data.designName,
-        designDate: new Date().toISOString().split("T")[0],
-        designImageKey: designImageKey,
-        designFileKeys: designFileKeys,
-        notes: data.notes || "",
+      // Create design request payload according to API spec
+      // API expects fields directly (not wrapped in dto) with lowercase field names
+      const designRequestPayload = {
+        title: String(data.designName.trim()), // API expects "title" (lowercase) and it's required
+        description: String(data.notes.trim()), // API expects "description" (lowercase) and it's required
+        imageKeys: imageKeys, // Array of image keys (strings) from upload
+        status: 1, // Default status
+        mainDesignerId: 0, // Can be 0 or null, depending on API requirements
+        note: String(data.notes.trim() || ''), // Additional notes field
       };
 
-      await mainDesignerService.createDesign(designPayload);
+      console.log("📤 Creating design request with payload:", JSON.stringify(designRequestPayload, null, 2));
+      console.log("📤 title value:", designRequestPayload.title);
+      console.log("📤 description value:", designRequestPayload.description);
+      console.log("📤 imageKeys:", designRequestPayload.imageKeys);
+      
+      await designRequestsService.createDesignRequest(designRequestPayload);
 
       Swal.fire({
         icon: "success",
         title: "تم الإنشاء بنجاح",
-        text: "تم إنشاء التصميم بنجاح",
+        text: "تم إنشاء طلب التصميم بنجاح",
         confirmButtonColor: calmPalette.primary,
         timer: 2000,
       });
@@ -221,14 +263,14 @@ const CreateDesignForm = () => {
         }
       });
     } catch (error) {
-      console.error("Error creating design:", error);
+      console.error("Error creating design request:", error);
       Swal.fire({
         icon: "error",
         title: "خطأ",
         text:
           error.response?.data?.message ||
           error.message ||
-          "فشل في إنشاء التصميم",
+          "فشل في إنشاء طلب التصميم",
         confirmButtonColor: calmPalette.primary,
       });
     } finally {
@@ -567,7 +609,7 @@ const CreateDesignForm = () => {
                 )}
               </Box>
 
-              {/* Notes */}
+              {/* Notes / Description */}
               <Box>
                 <Typography
                   variant="body1"
@@ -581,18 +623,28 @@ const CreateDesignForm = () => {
                   }}
                 >
                   <Note sx={{ fontSize: 20, color: calmPalette.primary }} />
-                  ملاحظات
+                  الوصف / الملاحظات
+                  <Typography
+                    component="span"
+                    sx={{ color: "error.main", fontSize: "1.2rem" }}
+                  >
+                    *
+                  </Typography>
                 </Typography>
                 <Controller
                   name="notes"
                   control={control}
+                  rules={{ required: "الوصف مطلوب" }}
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      placeholder="أضف أي ملاحظات إضافية..."
+                      placeholder="أدخل وصف التصميم أو الملاحظات..."
                       fullWidth
+                      required
                       multiline
                       rows={5}
+                      error={!!errors.notes}
+                      helperText={errors.notes?.message}
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           backgroundColor: "rgba(255, 255, 255, 0.95)",
