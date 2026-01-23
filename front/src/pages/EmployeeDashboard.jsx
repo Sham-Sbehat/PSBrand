@@ -86,7 +86,9 @@ import {
 import { openWhatsApp } from "../utils";
 import OrderForm from "../components/employee/OrderForm";
 import DepositOrderForm from "../components/employee/DepositOrderForm";
-import CreateDesignForm from "../components/employee/CreateDesignForm";
+import CreateDesignTab from "../components/employee/CreateDesignTab";
+import OrdersTab from "../components/employee/OrdersTab";
+import DepositOrdersTab from "../components/employee/DepositOrdersTab";
 import GlassDialog from "../components/common/GlassDialog";
 import NotificationsBell from "../components/common/NotificationsBell";
 import WelcomePage from "../components/common/WelcomePage";
@@ -659,7 +661,6 @@ const EmployeeDashboard = () => {
         }
         setAreas(allAreas);
       } catch (error) {
-        console.error("Error loading cities:", error);
       }
     };
     loadCitiesAndAreas();
@@ -753,7 +754,6 @@ const EmployeeDashboard = () => {
       const parsed = JSON.parse(modificationDetailsString);
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
-      console.error("Error parsing modification details:", error);
       return [];
     }
   };
@@ -777,7 +777,6 @@ const EmployeeDashboard = () => {
           response?.orders || (Array.isArray(response) ? response : []);
         setTotalOrdersCount(response?.totalCount || orders.length);
       } catch (error) {
-        console.error("Error fetching orders count:", error);
       }
     }
   };
@@ -791,7 +790,6 @@ const EmployeeDashboard = () => {
         setDepositOrdersCount(ordersArray.length);
       }
     } catch (error) {
-      console.error("Error fetching deposit orders count:", error);
       setDepositOrdersCount(0);
     }
   };
@@ -805,7 +803,6 @@ const EmployeeDashboard = () => {
       const ordersArray = Array.isArray(response) ? response : (response?.data || []);
       setDepositOrders(ordersArray);
     } catch (error) {
-      console.error("Error fetching deposit orders:", error);
       setDepositOrders([]);
     } finally {
       setLoadingDepositOrders(false);
@@ -831,7 +828,6 @@ const EmployeeDashboard = () => {
       // Update count
       fetchDepositOrdersCount();
     } catch (error) {
-      console.error("Error updating contacted status:", error);
     }
   };
 
@@ -871,7 +867,6 @@ const EmployeeDashboard = () => {
         });
       }, 800);
     } catch (error) {
-      console.error("Error sending deposit order to delivery:", error);
       const errorMessage = error.response?.data?.message || error.message || "حدث خطأ أثناء إرسال طلب العربون";
       
       // Close dialog first - ALWAYS close even on error
@@ -975,10 +970,6 @@ const EmployeeDashboard = () => {
       // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
       const errorCode = error.response?.data?.code;
       if (errorCode !== "NO_SHIPMENT") {
-        console.error(
-          `Error fetching delivery status for order ${orderId}:`,
-          error
-        );
       }
       setDeliveryStatuses((prev) => ({ ...prev, [orderId]: null }));
     } finally {
@@ -1089,7 +1080,6 @@ const EmployeeDashboard = () => {
           },
         });
       } catch (err) {
-        console.error("Failed to connect to updates hub:", err);
       }
     })();
 
@@ -1123,36 +1113,27 @@ const EmployeeDashboard = () => {
 
   // Play notification sound
   const playMessageSound = () => {
-    console.log("🔔 Attempting to play message sound...");
     try {
       // Create or reuse audio context
       let audioContext = window.messageAudioContext;
       if (!audioContext) {
-        console.log("Creating new audio context...");
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         window.messageAudioContext = audioContext;
       }
       
-      console.log("Audio context state:", audioContext.state);
-      
       // Always try to resume first (browsers require user interaction)
       const playAudio = () => {
         if (audioContext.state === 'suspended') {
-          console.log("Resuming suspended audio context...");
           audioContext.resume().then(() => {
-            console.log("Audio context resumed, playing sound...");
             playSound(audioContext);
           }).catch((error) => {
-            console.error("Could not resume audio context:", error);
             // Try to play anyway
             try {
               playSound(audioContext);
             } catch (e) {
-              console.error("Failed to play sound:", e);
             }
           });
         } else {
-          console.log("Audio context active, playing sound...");
           playSound(audioContext);
         }
       };
@@ -1169,7 +1150,6 @@ const EmployeeDashboard = () => {
         playAudio();
       }
     } catch (error) {
-      console.error("Audio error:", error);
     }
   };
 
@@ -1201,9 +1181,7 @@ const EmployeeDashboard = () => {
         oscillator.start(startTime);
         oscillator.stop(startTime + duration);
       });
-      console.log("✅ Sound played successfully");
     } catch (error) {
-      console.error("Error playing sound:", error);
     }
   };
 
@@ -1231,7 +1209,6 @@ const EmployeeDashboard = () => {
       
       setUnreadMessagesCount(newMessages.length);
     } catch (error) {
-      console.error("Error loading messages count:", error);
     }
   };
 
@@ -1247,7 +1224,6 @@ const EmployeeDashboard = () => {
           hiddenIds = JSON.parse(saved);
         }
       } catch (e) {
-        console.error("Error reading hidden messages from localStorage:", e);
       }
 
       // Get all messages and filter for public ones (userId === null)
@@ -1278,7 +1254,6 @@ const EmployeeDashboard = () => {
       
       setPublicMessages(visibleMessages);
     } catch (error) {
-      console.error("Error loading public messages:", error);
     }
   };
 
@@ -1306,7 +1281,6 @@ const EmployeeDashboard = () => {
             window.messageAudioContext.resume().catch(() => {});
           }
         } catch (error) {
-          console.log("Audio context initialization failed:", error);
         }
       }
     };
@@ -1338,7 +1312,6 @@ const EmployeeDashboard = () => {
         setHiddenMessageIds(hiddenIds);
       }
     } catch (error) {
-      console.error("Error loading hidden messages:", error);
     }
   }, [user?.id]);
 
@@ -1364,14 +1337,9 @@ const EmployeeDashboard = () => {
       try {
         unsubscribeMessages = await subscribeToMessages({
           onNewMessage: (message) => {
-            console.log("💬💬💬 New message received in EmployeeDashboard from messagesHub:", message);
-            console.log("💬 Setting notification state...");
             setNewMessageData(message);
             setShowMessageNotification(true);
-            console.log("💬 Notification state set to true, showMessageNotification:", true);
-            
             // Play sound
-            console.log("💬 Playing sound...");
             playMessageSound();
             
             // Reload messages count and public messages
@@ -1388,7 +1356,6 @@ const EmployeeDashboard = () => {
           },
         });
       } catch (err) {
-        console.error('Failed to connect to messages hub:', err);
       }
     })();
 
@@ -1445,7 +1412,6 @@ const EmployeeDashboard = () => {
         }
       });
     } catch (error) {
-      console.error("Error fetching orders:", error);
       setOrdersList([]);
     } finally {
       setLoading(false);
@@ -1510,7 +1476,6 @@ const EmployeeDashboard = () => {
         return fullImageUrl;
       }
     } catch (error) {
-      console.error("Error loading image:", error);
     } finally {
       setLoadingImage(null);
     }
@@ -1619,7 +1584,6 @@ const EmployeeDashboard = () => {
           setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
         }, 1000);
       } catch (error) {
-        console.error("Error opening file:", error);
         alert("حدث خطأ أثناء فتح الملف.\n" + error.message);
       }
     } else {
@@ -1713,7 +1677,6 @@ const EmployeeDashboard = () => {
           refreshed = await ordersService.getAllOrders();
         }
       } catch (refreshError) {
-        console.error("Error refreshing orders after update:", refreshError);
       }
 
       if (Array.isArray(refreshed)) {
@@ -1732,7 +1695,6 @@ const EmployeeDashboard = () => {
       setOrderToEdit(updatedSelected);
       fetchDesignerOrdersCount();
     } catch (error) {
-      console.error("Error updating order:", error);
       alert("حدث خطأ أثناء تحديث الطلب. الرجاء المحاولة مرة أخرى.");
     } finally {
       setEditLoading(false);
@@ -1816,7 +1778,6 @@ const EmployeeDashboard = () => {
         }
       });
     } catch (error) {
-      console.error("Error fetching confirmed delivery orders:", error);
       setConfirmedDeliveryOrders([]);
     } finally {
       setLoadingConfirmedDelivery(false);
@@ -1876,7 +1837,6 @@ const EmployeeDashboard = () => {
       setOrderNotes(""); // Clear input
       setIsEditingNotes(false);
     } catch (error) {
-      console.error("Error saving notes:", error);
     } finally {
       setSavingNotes(false);
     }
@@ -1961,7 +1921,6 @@ const EmployeeDashboard = () => {
         );
       }
     } catch (error) {
-      console.error("Error updating contacted status:", error);
       alert("حدث خطأ أثناء تحديث حالة التواصل. الرجاء المحاولة مرة أخرى.");
     }
   };
@@ -1991,7 +1950,6 @@ const EmployeeDashboard = () => {
       // إذا كان الخطأ هو "NO_SHIPMENT" (لم يتم إنشاء شحنة بعد)، هذا طبيعي ولا نعرضه
       const errorCode = error.response?.data?.code;
       if (errorCode !== "NO_SHIPMENT") {
-        console.error("Error fetching delivery status:", error);
         alert(
           `حدث خطأ أثناء جلب حالة التوصيل: ${
             error.response?.data?.message || error.message || "خطأ غير معروف"
@@ -2452,296 +2410,39 @@ const EmployeeDashboard = () => {
 
           {/* Orders Content for Tab 1 */}
           {currentTab === 1 && (
-            <>
-        <Grid container spacing={3} sx={{ marginBottom: 4 }}>
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            const cardStyle =
-              calmPalette.statCards[index % calmPalette.statCards.length];
-            return (
-              <Grid item xs={12} sm={4} key={index}>
-                <Card
-                  onClick={() => handleCardClick(index)}
-                  sx={{
-                    position: "relative",
-                    background: cardStyle.background,
-                    color: cardStyle.highlight,
-                    borderRadius: 4,
-                    boxShadow: calmPalette.shadow,
-                    overflow: "hidden",
-                    transition: "transform 0.2s, box-shadow 0.2s",
-                    backdropFilter: "blur(6px)",
-                    cursor: (index === 0 && user?.role === USER_ROLES.DESIGNER)
-                      ? "pointer"
-                      : "default",
-                    "&::after": {
-                      content: '""',
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
-                      pointerEvents: "none",
-                    },
-                    "&:hover": {
-                      transform: "translateY(-5px)",
-                      boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
-                    },
-                  }}
-                >
-                  <CardContent>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Box>
-                        <Typography
-                          variant="h3"
-                          sx={{ fontWeight: 700, color: cardStyle.highlight }}
-                        >
-                          {stat.value}
-                        </Typography>
-                        <Typography
-                          variant="body1"
-                          sx={{
-                            marginTop: 1,
-                            color: "rgba(255, 255, 255, 0.8)",
-                          }}
-                        >
-                          {stat.title}
-                        </Typography>
-                      </Box>
-                      <Icon sx={{ fontSize: 56, color: cardStyle.highlight }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
-        <Box
-          sx={{
-            marginBottom: 4,
-            background: calmPalette.surface,
-            borderRadius: 4,
-            boxShadow: calmPalette.shadow,
-            backdropFilter: "blur(8px)",
-            padding: 3,
-          }}
-        >
-          <OrderForm
-            onSuccess={() => {
-            setShowForm(false);
-            fetchDesignerOrdersCount(); // Refresh orders count after creating new order
-            }}
-            onOpenDepositOrderDialog={() => setOpenDepositOrderDialog(true)}
-          />
-        </Box>
-
-        {employeeOrders.length > 0 && (
-          <Paper
-            elevation={0}
-            sx={{
-              padding: 4,
-              borderRadius: 4,
-              background: calmPalette.surface,
-              boxShadow: calmPalette.shadow,
-              backdropFilter: "blur(8px)",
-            }}
-          >
-            <Typography
-              variant="h5"
-              gutterBottom
-              sx={{ fontWeight: 700, marginBottom: 3 }}
-            >
-              طلباتي السابقة
-            </Typography>
-
-            <Grid container spacing={3}>
-              {employeeOrders.map((order) => (
-                <Grid item xs={12} md={6} key={order.id}>
-                  <Card
-                    sx={{
-                      background: calmPalette.surfaceHover,
-                      transition: "all 0.2s",
-                      "&:hover": {
-                        transform: "translateY(-3px)",
-                        boxShadow: "0 18px 36px rgba(46, 38, 31, 0.18)",
-                      },
-                    }}
-                  >
-                    <CardContent>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "start",
-                          marginBottom: 2,
-                        }}
-                      >
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                          {order.customerName}
-                        </Typography>
-                        <Chip
-                          label={
-                            order.status === "pending"
-                              ? "قيد الانتظار"
-                              : order.status === "completed"
-                              ? "مكتمل"
-                              : "ملغي"
-                          }
-                          color={
-                            order.status === "pending"
-                              ? "warning"
-                              : order.status === "completed"
-                              ? "success"
-                              : "error"
-                          }
-                          size="small"
-                        />
-                      </Box>
-
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        gutterBottom
-                      >
-                        <strong>الهاتف:</strong> {order.customerPhone}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        gutterBottom
-                      >
-                        <strong>المقاس:</strong> {order.size} |{" "}
-                        <strong>اللون:</strong>{" "}
-                        {getColorLabel({
-                          color: order.color,
-                          colorId: order.colorId,
-                        })}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        gutterBottom
-                      >
-                        <strong>السعر:</strong> {order.price} ₪
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: "block", marginTop: 1 }}
-                      >
-                        {new Date(order.createdAt).toLocaleDateString("ar", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Paper>
-        )}
-            </>
+            <OrdersTab
+              user={user}
+              orders={orders}
+              colors={colors}
+              totalOrdersCount={totalOrdersCount}
+              handleCardClick={handleCardClick}
+              fetchDesignerOrdersCount={fetchDesignerOrdersCount}
+              getColorLabel={getColorLabel}
+              setOpenDepositOrderDialog={setOpenDepositOrderDialog}
+              setOpenOrdersModal={setOpenOrdersModal}
+              setSelectedDate={setSelectedDate}
+              loadOrdersByDate={loadOrdersByDate}
+            />
           )}
 
           {/* Deposit Orders Content for Tab 2 */}
           {currentTab === 2 && (
-            <>
-              {/* Stats Card for Deposit Orders */}
-              <Grid container spacing={3} sx={{ marginBottom: 4 }}>
-                <Grid item xs={12} sm={4}>
-                  <Card
-                    onClick={async () => {
-                      await fetchDepositOrders();
-                      setOpenDepositOrdersList(true);
-                    }}
-                    sx={{
-                      position: "relative",
-                      background: calmPalette.statCards[1]?.background || calmPalette.statCards[0]?.background,
-                      color: calmPalette.statCards[1]?.highlight || calmPalette.statCards[0]?.highlight,
-                      borderRadius: 4,
-                      boxShadow: calmPalette.shadow,
-                      overflow: "hidden",
-                      transition: "transform 0.2s, box-shadow 0.2s",
-                      backdropFilter: "blur(6px)",
-                      cursor: "pointer",
-                      "&::after": {
-                        content: '""',
-                        position: "absolute",
-                        inset: 0,
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
-                        pointerEvents: "none",
-                      },
-                      "&:hover": {
-                        transform: "translateY(-5px)",
-                        boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
-                      },
-                    }}
-                  >
-                    <CardContent>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Box>
-                          <Typography
-                            variant="h3"
-                            sx={{ fontWeight: 700, color: calmPalette.statCards[1]?.highlight || calmPalette.statCards[0]?.highlight }}
-                          >
-                            {depositOrdersCount}
-                          </Typography>
-                          <Typography
-                            variant="body1"
-                            sx={{
-                              marginTop: 1,
-                              color: "rgba(255, 255, 255, 0.8)",
-                            }}
-                          >
-                            طلبات العربون
-                          </Typography>
-                        </Box>
-                        <AttachMoney sx={{ fontSize: 56, color: calmPalette.statCards[1]?.highlight || calmPalette.statCards[0]?.highlight }} />
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-
-              {/* Deposit Order Form */}
-              <Box
-                sx={{
-                  marginBottom: 4,
-                  background: calmPalette.surface,
-                  borderRadius: 4,
-                  boxShadow: calmPalette.shadow,
-                  backdropFilter: "blur(8px)",
-                  padding: 3,
-                }}
-              >
-                <DepositOrderForm
-                  onSuccess={() => {
-                    fetchDepositOrders();
-                    fetchDepositOrdersCount();
-                  }}
-                />
-              </Box>
-            </>
+            <DepositOrdersTab
+              depositOrdersCount={depositOrdersCount}
+              fetchDepositOrders={fetchDepositOrders}
+              fetchDepositOrdersCount={fetchDepositOrdersCount}
+              setOpenDepositOrdersList={setOpenDepositOrdersList}
+            />
           )}
 
           {/* New Design Form Content for Tab 3 */}
-          {currentTab === 3 && <CreateDesignForm />}
+          {currentTab === 3 && (
+            <CreateDesignTab
+              user={user}
+              setSelectedImage={setSelectedImage}
+              setImageDialogOpen={setImageDialogOpen}
+            />
+          )}
         </Paper>
       </Container>
 
@@ -5635,7 +5336,6 @@ const EmployeeDashboard = () => {
                                           zIndex: 1400,
                                         });
                                       } catch (error) {
-                                        console.error("Error deleting deposit order:", error);
                                         Swal.fire({
                                           title: "خطأ!",
                                           text: "حدث خطأ أثناء حذف طلب العربون. حاول مرة أخرى.",
@@ -5914,7 +5614,6 @@ const EmployeeDashboard = () => {
         open={showMessageNotification}
         autoHideDuration={6000}
         onClose={() => {
-          console.log("🔔 Closing notification from Snackbar...");
           setShowMessageNotification(false);
         }}
         anchorOrigin={{ vertical: "top", horizontal: "center" }}
@@ -5925,7 +5624,6 @@ const EmployeeDashboard = () => {
       >
         <Alert
           onClose={() => {
-            console.log("🔔 Closing notification from Alert...");
             setShowMessageNotification(false);
           }} 
           severity="info"

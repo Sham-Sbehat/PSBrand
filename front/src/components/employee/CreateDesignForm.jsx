@@ -24,7 +24,7 @@ import { designRequestsService } from "../../services/api";
 import Swal from "sweetalert2";
 import calmPalette from "../../theme/calmPalette";
 
-const CreateDesignForm = () => {
+const CreateDesignForm = ({ onSuccess }) => {
   const [designImages, setDesignImages] = useState([]); // Array of { url, previewUrl, name, imageKey }
   const [uploadingImages, setUploadingImages] = useState(false);
   const [creatingDesign, setCreatingDesign] = useState(false);
@@ -237,11 +237,6 @@ const CreateDesignForm = () => {
         note: String(data.notes.trim() || ''), // Additional notes field
       };
 
-      console.log("📤 Creating design request with payload:", JSON.stringify(designRequestPayload, null, 2));
-      console.log("📤 title value:", designRequestPayload.title);
-      console.log("📤 description value:", designRequestPayload.description);
-      console.log("📤 imageKeys:", designRequestPayload.imageKeys);
-      
       await designRequestsService.createDesignRequest(designRequestPayload);
 
       Swal.fire({
@@ -251,6 +246,11 @@ const CreateDesignForm = () => {
         confirmButtonColor: calmPalette.primary,
         timer: 2000,
       });
+
+      // Call onSuccess callback if provided
+      if (onSuccess) {
+        onSuccess();
+      }
 
       // Reset form
       reset();
@@ -292,7 +292,7 @@ const CreateDesignForm = () => {
   return (
     <Box
       sx={{
-        maxWidth: 900,
+        maxWidth: 1200,
         mx: "auto",
         p: 3,
         mt: 3,
@@ -346,16 +346,9 @@ const CreateDesignForm = () => {
                 sx={{
                   fontWeight: 700,
                   color: calmPalette.textPrimary,
-                  mb: 0.5,
                 }}
               >
                 إنشاء تصميم جديد
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: calmPalette.textSecondary }}
-              >
-                أضف التصميمات الجديدة بسهولة
               </Typography>
             </Box>
           </Box>
@@ -491,7 +484,7 @@ const CreateDesignForm = () => {
                       },
                     }}
                   >
-                    {uploadingImages ? "جاري الرفع..." : "رفع صور"}
+                    {uploadingImages ? "جاري الرفع..." : "رفع الصور"}
                   </Button>
                 </label>
 
