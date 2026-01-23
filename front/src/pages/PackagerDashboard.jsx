@@ -7,7 +7,6 @@ import {
   Toolbar,
   IconButton,
   Avatar,
-  Grid,
   Table,
   TableBody,
   TableCell,
@@ -23,7 +22,6 @@ import {
   TextField,
   CircularProgress,
   TablePagination,
-  Divider,
   Tabs,
   Tab,
   Tooltip,
@@ -37,8 +35,6 @@ import {
   Inventory,
   Close,
   Note,
-  Schedule,
-  Print,
   CheckCircle,
   ArrowBack,
   ArrowForward,
@@ -58,6 +54,7 @@ import { subscribeToOrderUpdates, subscribeToMessages } from "../services/realti
 import { ORDER_STATUS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, SIZE_LABELS, FABRIC_TYPE_LABELS, COLOR_LABELS } from "../constants";
 import NotesDialog from "../components/common/NotesDialog";
 import GlassDialog from "../components/common/GlassDialog";
+import OrderDetailsDialog from "../components/common/OrderDetailsDialog";
 import WelcomePage from "../components/common/WelcomePage";
 import MessagesTab from "../components/common/MessagesTab";
 import calmPalette from "../theme/calmPalette";
@@ -151,7 +148,6 @@ const PackagerDashboard = () => {
       const packagingOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.IN_PACKAGING);
       setPackagedOrders(packagingOrders || []);
     } catch (error) {
-      console.error('Error fetching packaged orders:', error);
       setPackagedOrders([]);
     } finally {
       if (showLoading) {
@@ -179,7 +175,6 @@ const PackagerDashboard = () => {
       const completedOrders = await ordersService.getOrdersByStatus(ORDER_STATUS.COMPLETED, dateISOString);
       setCompletedOrders(completedOrders || []);
     } catch (error) {
-      console.error('Error fetching completed orders:', error);
       setCompletedOrders([]);
     } finally {
       if (showLoading) {
@@ -226,7 +221,6 @@ const PackagerDashboard = () => {
       
       setConfirmedDeliveryOrders(orders);
     } catch (error) {
-      console.error('Error fetching confirmed delivery orders:', error);
       setConfirmedDeliveryOrders([]);
     } finally {
       if (showLoading) {
@@ -262,36 +256,29 @@ const PackagerDashboard = () => {
 
   // Play notification sound
   const playMessageSound = () => {
-    console.log("🔔 Attempting to play message sound...");
     try {
       // Create or reuse audio context
       let audioContext = window.messageAudioContext;
       if (!audioContext) {
-        console.log("Creating new audio context...");
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         window.messageAudioContext = audioContext;
       }
       
-      console.log("Audio context state:", audioContext.state);
       
       // Always try to resume first (browsers require user interaction)
       const playAudio = () => {
         if (audioContext.state === 'suspended') {
-          console.log("Resuming suspended audio context...");
           audioContext.resume().then(() => {
-            console.log("Audio context resumed, playing sound...");
             playSound(audioContext);
           }).catch((error) => {
-            console.error("Could not resume audio context:", error);
             // Try to play anyway
             try {
               playSound(audioContext);
             } catch (e) {
-              console.error("Failed to play sound:", e);
+        
             }
           });
         } else {
-          console.log("Audio context active, playing sound...");
           playSound(audioContext);
         }
       };
@@ -308,7 +295,6 @@ const PackagerDashboard = () => {
         playAudio();
       }
     } catch (error) {
-      console.error("Audio error:", error);
     }
   };
 
@@ -340,9 +326,7 @@ const PackagerDashboard = () => {
         oscillator.start(startTime);
         oscillator.stop(startTime + duration);
       });
-      console.log("✅ Sound played successfully");
     } catch (error) {
-      console.error("Error playing sound:", error);
     }
   };
 
@@ -370,7 +354,6 @@ const PackagerDashboard = () => {
       
       setUnreadMessagesCount(newMessages.length);
     } catch (error) {
-      console.error("Error loading messages count:", error);
     }
   };
 
@@ -386,7 +369,6 @@ const PackagerDashboard = () => {
           hiddenIds = JSON.parse(saved);
         }
       } catch (e) {
-        console.error("Error reading hidden messages from localStorage:", e);
       }
 
       // Get all messages and filter for public ones (userId === null)
@@ -421,7 +403,6 @@ const PackagerDashboard = () => {
         setHiddenMessageIds(hiddenIds);
       }
     } catch (error) {
-      console.error("Error loading public messages:", error);
     }
   };
 
@@ -449,7 +430,6 @@ const PackagerDashboard = () => {
             window.messageAudioContext.resume().catch(() => {});
           }
         } catch (error) {
-          console.log("Audio context initialization failed:", error);
         }
       }
     };
@@ -489,12 +469,10 @@ const PackagerDashboard = () => {
             fetchOrders(false).then(() => {
               // The state will be updated by fetchOrders
             }).catch(err => {
-              console.error('Error refreshing orders after status change:', err);
             });
           },
         });
       } catch (err) {
-        console.error('Failed to connect to updates hub:', err);
       }
     })();
 
@@ -504,32 +482,24 @@ const PackagerDashboard = () => {
       try {
         unsubscribeMessages = await subscribeToMessages({
           onNewMessage: (message) => {
-            console.log("💬💬💬 New message received in PackagerDashboard from messagesHub:", message);
-            console.log("💬 Setting notification state...");
             setNewMessageReceived(message);
             setNewMessageData(message);
             setShowMessageNotification(true);
-            console.log("💬 Notification state set to true, showMessageNotification:", true);
-            
             // Play sound
-            console.log("💬 Playing sound...");
             playMessageSound();
             
             // Reload count
             loadMessagesCount();
           },
           onMessageUpdated: (message) => {
-            console.log("💬 Message updated:", message);
             loadMessagesCount();
           },
           onMessageRemoved: (data) => {
-            console.log("💬 Message removed:", data);
             loadMessagesCount();
             loadPublicMessages();
           },
         });
       } catch (err) {
-        console.error('Failed to connect to messages hub:', err);
       }
     })();
 
@@ -538,12 +508,6 @@ const PackagerDashboard = () => {
       if (typeof unsubscribeMessages === 'function') unsubscribeMessages();
     };
   }, [user?.id]);
-
-  // Debug: Monitor showMessageNotification changes
-  useEffect(() => {
-    console.log("🔔 showMessageNotification changed to:", showMessageNotification);
-    console.log("🔔 newMessageData:", newMessageData);
-  }, [showMessageNotification, newMessageData]);
 
   // Load hidden message IDs from localStorage on mount (per user)
   useEffect(() => {
@@ -556,7 +520,6 @@ const PackagerDashboard = () => {
         setHiddenMessageIds(hiddenIds);
       }
     } catch (e) {
-      console.error("Error reading hidden messages from localStorage:", e);
     }
   }, [user?.id]);
 
@@ -626,7 +589,6 @@ const PackagerDashboard = () => {
         return design.mockupImageUrl;
       }
     } catch (error) {
-      console.error('Error loading image:', error);
     } finally {
       activeImageLoads.current.delete(loadingKey);
       setLoadingImage(null);
@@ -784,7 +746,6 @@ const PackagerDashboard = () => {
             
          
           } catch (manualError) {
-            console.error('Both methods failed:', { fetchError, manualError });
             throw new Error('فشل في تحويل الملف. قد يكون الملف تالفاً أو كبيراً جداً.');
           }
         }
@@ -858,7 +819,6 @@ const PackagerDashboard = () => {
           }, 10000); // 10 seconds - enough time for download
         }, 1000);
       } catch (error) {
-        console.error('Error opening base64 file:', error);
         alert('حدث خطأ أثناء فتح الملف.\n' + error.message + '\n\nيرجى المحاولة مرة أخرى أو الاتصال بالدعم.');
       }
     } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('/')) {
@@ -1074,12 +1034,10 @@ const PackagerDashboard = () => {
           await Promise.all(
             orderToShip.orderIds.map(orderId => 
               orderStatusService.setSentToDeliveryCompany(orderId).catch(err => {
-                console.error(`Error setting status for order ${orderId}:`, err);
               })
             )
           );
         } catch (statusError) {
-          console.error('Error setting order statuses:', statusError);
         }
         
         // Close dialog first
@@ -1096,10 +1054,8 @@ const PackagerDashboard = () => {
         try {
           await fetchOrders(false);
         } catch (refreshError) {
-          console.error('Error refreshing orders after shipping:', refreshError);
         }
       } catch (error) {
-        console.error('Error sending orders to delivery company:', error);
         
         // Close dialog first even on error
         handleCloseShippingDialog();
@@ -1141,10 +1097,8 @@ const PackagerDashboard = () => {
       try {
         await fetchOrders(false);
       } catch (refreshError) {
-        console.error('Error refreshing orders after shipping:', refreshError);
       }
     } catch (error) {
-      console.error('Error sending order to delivery company:', error);
       
       // Close dialog first even on error
       handleCloseShippingDialog();
@@ -2789,15 +2743,25 @@ const PackagerDashboard = () => {
       </Container>
 
       {/* Details Dialog */}
-      <GlassDialog
+      <OrderDetailsDialog
         open={openDialog}
         onClose={handleCloseDialog}
+        order={selectedOrder}
+        getStatusText={getStatusText}
+        getStatusChipColor={getStatusChipColor}
+        formatDateTime={formatDateTime}
+        formatCurrency={formatCurrency}
+        getFabricLabel={getFabricLabel}
+        getColorLabel={getColorLabel}
+        getSizeLabel={getSizeLabel}
+        getFullUrl={getFullUrl}
+        handleImageClick={handleImageClick}
+        loadingImage={loadingImage}
+        imageCache={imageCache}
+        openFile={(fileUrl, orderId, designId) => handleFileClick(fileUrl, orderId, designId)}
         maxWidth="md"
-        title="تفاصيل الطلب"
-        subtitle={selectedOrder?.orderNumber}
-        contentSx={{ padding: 0 }}
-        actions={
-          <Box sx={{ display: 'flex', gap: 2 }}>
+        customActions={
+          <>
             {selectedOrder && (() => {
               const numericStatus = typeof selectedOrder.status === 'number' 
                 ? selectedOrder.status 
@@ -2835,449 +2799,19 @@ const PackagerDashboard = () => {
                 </Tooltip>
               ) : null;
             })()}
-            <Button onClick={handleCloseDialog} variant="contained">
-              إغلاق
-            </Button>
-          </Box>
-        }
-      >
-        {selectedOrder && (
-          <Box sx={{ padding: 3, display: "flex", flexDirection: "column", gap: 3 }}>
-            <Box>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                معلومات الطلب
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem
-                    label="رقم الطلب"
-                    value={selectedOrder.orderNumber || `#${selectedOrder.id}`}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem
-                    label="الحالة"
-                    value={
-                      <Chip
-                        label={getStatusText(selectedOrder.status)}
-                        color={getStatusChipColor(selectedOrder.status)}
-                        size="small"
-                      />
-                    }
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="التاريخ" value={formatDateTime(selectedOrder.orderDate)} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem
-                    label="إجمالي الكمية"
-                    value={
-                      totalOrderQuantity || totalOrderQuantity === 0 ? totalOrderQuantity : "-"
-                    }
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="المجموع الفرعي" value={formatCurrency(selectedOrder.subTotal)} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="التخفيض" value={discountDisplay} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem
-                    label="رسوم التوصيل"
-                    value={formatCurrency(selectedOrder.deliveryFee ?? selectedOrder.deliveryPrice)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem
-                    label="المبلغ الإجمالي"
-                    value={formatCurrency(selectedOrder.totalAmount)}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem
-                    label="يحتاج تصوير"
-                    value={
-                      selectedOrder.needsPhotography ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <CameraAlt sx={{ color: 'primary.main' }} />
-                          <Typography variant="body2">نعم</Typography>
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">لا</Typography>
-                      )
-                    }
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem
-                    label="مصدر الطلب"
-                    value={
-                      selectedOrder.orderSource === 1 ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Box
-                            component="svg"
-                            sx={{
-                              width: 20,
-                              height: 20,
-                              fill: "#000000",
-                            }}
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
-                          </Box>
-                          <Typography variant="body2">تيك توك</Typography>
-                        </Box>
-                      ) : selectedOrder.orderSource === 2 ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Box
-                            component="svg"
-                            sx={{
-                              width: 20,
-                              height: 20,
-                              fill: "#E4405F",
-                            }}
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                          </Box>
-                          <Typography variant="body2">انستجرام</Typography>
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">-</Typography>
-                      )
-                    }
-                  />
-                </Grid>
-              </Grid>
-              {discountNotes && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    ملاحظات التخفيض
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {discountNotes}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                معلومات العميل
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="الاسم" value={selectedOrder.client?.name || "-"} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="الهاتف" value={selectedOrder.client?.phone || "-"} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="المدينة" value={selectedOrder.province || "-"} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="المنطقة" value={selectedOrder.district || "-"} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={4}>
-                  <InfoItem label="البلد" value={selectedOrder.country || "-"} />
-                </Grid>
-              </Grid>
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                الموظفون
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <InfoItem label="البائع" value={selectedOrder.designer?.name || "-"} />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <InfoItem label="المعد" value={selectedOrder.preparer?.name || "غير محدد"} />
-                </Grid>
-              </Grid>
-            </Box>
-
-            {orderNotes && (
-              <>
-                <Divider />
-                <Box>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                    ملاحظات الطلب
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {orderNotes}
-                  </Typography>
-                </Box>
-              </>
-            )}
-
-            {selectedOrderDesigns.length > 0 && (
-              <>
-                <Divider />
-                <Box>
-                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-                    التصاميم ({selectedOrderDesigns.length})
-                  </Typography>
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    {selectedOrderDesigns.map((design, index) => {
-                      const designItems = design?.orderDesignItems || [];
-                      const designQuantity =
-                        designItems.reduce(
-                          (sum, item) => sum + (item?.quantity || 0),
-                          0
-                        ) || 0;
-
-                      return (
-                        <Box
-                          key={design.id || index}
-                          sx={{
-                            border: "1px solid",
-                            borderColor: "divider",
-                            borderRadius: 2,
-                            padding: 2,
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              flexWrap: "wrap",
-                              gap: 1,
-                            }}
-                          >
-                            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                              {design.designName || `تصميم ${index + 1}`}
-                            </Typography>
-                            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                              <Chip
-                                label={`الكمية: ${designQuantity}`}
-                                size="small"
-                                color="primary"
-                                variant="outlined"
-                              />
-                              {design.totalPrice !== undefined && design.totalPrice !== null && (
-                                <Chip
-                                  label={`قيمة التصميم: ${formatCurrency(design.totalPrice)}`}
-                                  size="small"
-                                  color="secondary"
-                                  variant="outlined"
-                                />
-                              )}
-                            </Box>
-                          </Box>
-
-                          {designItems.length > 0 && (
-                            <TableContainer
-                              sx={{
-                                borderRadius: 2,
-                                border: "1px solid",
-                                borderColor: "divider",
-                              }}
-                            >
-                              <Table size="small">
-                                <TableHead>
-                                  <TableRow>
-                                    <TableCell>نوع القماش</TableCell>
-                                    <TableCell>اللون</TableCell>
-                                    <TableCell align="center">المقاس</TableCell>
-                                    <TableCell align="center">الكمية</TableCell>
-                                    <TableCell align="center">السعر الفردي</TableCell>
-                                    <TableCell align="center">الإجمالي</TableCell>
-                                  </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                  {designItems.map((item, idx) => (
-                                    <TableRow key={item?.id || idx}>
-                                      <TableCell>{getFabricLabel(item)}</TableCell>
-                                      <TableCell>{getColorLabel(item)}</TableCell>
-                                      <TableCell align="center">
-                                        {getSizeLabel(item)}
-                                      </TableCell>
-                                      <TableCell align="center">
-                                        {item?.quantity ?? "-"}
-                                      </TableCell>
-                                      <TableCell align="center">
-                                        {formatCurrency(item?.unitPrice)}
-                                      </TableCell>
-                                      <TableCell align="center">
-                                        {formatCurrency(item?.totalPrice)}
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </TableContainer>
-                          )}
-
-                          {(() => {
-                            const imageUrls =
-                              design?.mockupImageUrls ||
-                              (design?.mockupImageUrl ? [design.mockupImageUrl] : []);
-                            const validImages = imageUrls.filter(
-                              (url) => url && url !== "placeholder_mockup.jpg"
-                            );
-
-                            if (validImages.length === 0) return null;
-
-                            return (
-                              <Box>
-                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                  الصور ({validImages.length})
-                                </Typography>
-                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                  {validImages.map((imageUrl, idx) =>
-                                    imageUrl === "image_data_excluded" ? (
-                                      <Button
-                                        key={idx}
-                                        variant="outlined"
-                                        size="small"
-                                        startIcon={
-                                          loadingImage === `image-${selectedOrder.id}-${design.id}` ? (
-                                            <CircularProgress size={16} />
-                                          ) : (
-                                            <ImageIcon />
-                                          )
-                                        }
-                                        onClick={() =>
-                                          handleImageClick(imageUrl, selectedOrder.id, design.id)
-                                        }
-                                        disabled={
-                                          loadingImage === `image-${selectedOrder.id}-${design.id}`
-                                        }
-                                      >
-                                        عرض الصورة {idx + 1}
-                                      </Button>
-                                    ) : (
-                                      (() => {
-                                        const displayUrl = getFullUrl(imageUrl);
-                                        return (
-                                          <Box
-                                            key={idx}
-                                            sx={{
-                                              position: "relative",
-                                              cursor: "pointer",
-                                              "&:hover": { opacity: 0.8 },
-                                            }}
-                                          >
-                                            <img
-                                              src={displayUrl}
-                                              alt={`${design.designName} - صورة ${idx + 1}`}
-                                              onClick={() =>
-                                                handleImageClick(imageUrl, selectedOrder.id, design.id)
-                                              }
-                                              style={{
-                                                maxWidth: "150px",
-                                                maxHeight: "150px",
-                                                height: "auto",
-                                                borderRadius: "8px",
-                                                cursor: "pointer",
-                                                transition: "transform 0.2s",
-                                              }}
-                                              onMouseEnter={(e) =>
-                                                (e.currentTarget.style.transform = "scale(1.05)")
-                                              }
-                                              onMouseLeave={(e) =>
-                                                (e.currentTarget.style.transform = "scale(1)")
-                                              }
-                                            />
-                                          </Box>
-                                        );
-                                      })()
-                                    )
-                                  )}
-                                </Box>
-                              </Box>
-                            );
-                          })()}
-
-                          {(() => {
-                            const fileUrls =
-                              design?.printFileUrls ||
-                              (design?.printFileUrl ? [design.printFileUrl] : []);
-                            const validFiles = fileUrls.filter(
-                              (url) => url && url !== "placeholder_print.pdf"
-                            );
-
-                            if (validFiles.length === 0) return null;
-
-                            return (
-                              <Box>
-                                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                                  ملفات التصميم ({validFiles.length})
-                                </Typography>
-                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                  {validFiles.map((fileUrl, idx) =>
-                                    fileUrl === "image_data_excluded" ? (
-                                      <Button
-                                        key={idx}
-                                        variant="outlined"
-                                        size="small"
-                                        startIcon={
-                                          loadingImage === `file-${selectedOrder.id}-${design.id}` ? (
-                                            <CircularProgress size={16} />
-                                          ) : (
-                                            <PictureAsPdf />
-                                          )
-                                        }
-                                        onClick={() =>
-                                          handleFileClick(fileUrl, selectedOrder.id, design.id)
-                                        }
-                                        disabled={
-                                          loadingImage === `file-${selectedOrder.id}-${design.id}`
-                                        }
-                                      >
-                                        تحميل الملف {idx + 1}
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        key={idx}
-                                        variant="contained"
-                                        size="small"
-                                        startIcon={<PictureAsPdf />}
-                                        onClick={() =>
-                                          handleFileClick(fileUrl, selectedOrder.id, design.id)
-                                        }
-                                      >
-                                        📄 ملف {idx + 1}
-                                      </Button>
-                                    )
-                                  )}
-                                </Box>
-                              </Box>
-                            );
-                          })()}
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                </Box>
-              </>
-            )}
-
-            <Box sx={{ mt: 1, display: "flex", justifyContent: "center" }}>
+            {selectedOrder && (
               <Button
-                variant="contained"
+                variant="outlined"
                 startIcon={<Note />}
                 onClick={() => handleNotesClick(selectedOrder)}
                 sx={{ minWidth: 200 }}
               >
                 عرض/تعديل الملاحظات
               </Button>
-            </Box>
-          </Box>
-        )}
-      </GlassDialog>
+            )}
+          </>
+        }
+      />
 
       {/* Image Dialog */}
       <Dialog
@@ -3658,7 +3192,6 @@ const PackagerDashboard = () => {
         open={showMessageNotification}
         autoHideDuration={6000}
         onClose={() => {
-          console.log("🔔 Closing notification...");
           setShowMessageNotification(false);
         }}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
@@ -3668,13 +3201,11 @@ const PackagerDashboard = () => {
         }}
         TransitionProps={{
           onEntered: () => {
-            console.log("🔔 Toast entered/opened");
           }
         }}
       >
         <Alert 
           onClose={() => {
-            console.log("🔔 Closing notification from Alert...");
             setShowMessageNotification(false);
           }} 
           severity="info"
