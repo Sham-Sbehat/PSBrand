@@ -80,6 +80,7 @@ import calmPalette from "../theme/calmPalette";
 import Swal from "sweetalert2";
 import OrdersTab from "../components/designManager/OrdersTab";
 import DesignsFromDesignersTab from "../components/designManager/DesignsFromDesignersTab";
+import DesignRequestsTab from "../components/designManager/DesignRequestsTab";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
@@ -2464,6 +2465,23 @@ const DesignManagerDashboard = () => {
                   fontSize: '1rem',
                   minHeight: 56,
                   color: currentTab === 4 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
+                label="طلبات التصاميم"
+                icon={<FilterList />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 5 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',
                   zIndex: 1,
                   '&.Mui-selected': {
@@ -2535,6 +2553,12 @@ const DesignManagerDashboard = () => {
                     setShowMessageNotification(true);
                     setNewMessageData({ type, message });
                   }}
+                  setSelectedImage={setSelectedImage}
+                  setImageDialogOpen={setImageDialogOpen}
+                />
+              )}
+              {currentTab === 5 && (
+                <DesignRequestsTab
                   setSelectedImage={setSelectedImage}
                   setImageDialogOpen={setImageDialogOpen}
                 />

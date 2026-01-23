@@ -32,6 +32,7 @@ import MessagesTab from "../components/common/MessagesTab";
 import WelcomePage from "../components/common/WelcomePage";
 import DesignsManagement from "../components/mainDesigner/DesignsManagement";
 import AvailableDesignsTab from "../components/mainDesigner/AvailableDesignsTab";
+import MyDesignsTab from "../components/mainDesigner/MyDesignsTab";
 import calmPalette from "../theme/calmPalette";
 
 const MainDesignerDashboard = () => {
@@ -487,8 +488,8 @@ const MainDesignerDashboard = () => {
                 }}
               />
               <Tab
-                label="إضافة تصميم جديد"
-                icon={<Add />}
+                label="التصاميم الواردة"
+                icon={<ImageIcon />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
@@ -521,8 +522,8 @@ const MainDesignerDashboard = () => {
                 }}
               />
               <Tab
-                label="التصاميم المتاحة"
-                icon={<ImageIcon />}
+                label="إضافة تصميم جديد"
+                icon={<Add />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
@@ -530,6 +531,23 @@ const MainDesignerDashboard = () => {
                   fontSize: '1rem',
                   minHeight: 56,
                   color: currentTab === 3 ? '#ffffff' : calmPalette.textMuted,
+                  borderRadius: '0',
+                  zIndex: 1,
+                  '&.Mui-selected': {
+                    color: '#ffffff',
+                  },
+                }}
+              />
+              <Tab
+                label="متابعة حالة التصاميم"
+                icon={<ImageIcon />}
+                iconPosition="start"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minHeight: 56,
+                  color: currentTab === 4 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',
                   zIndex: 1,
                   '&.Mui-selected': {
@@ -542,22 +560,32 @@ const MainDesignerDashboard = () => {
 
           {/* Welcome Page */}
           {currentTab === 0 && (
-            <WelcomePage onNewMessage={newMessageReceived} />
+            <WelcomePage
+              onNewMessage={newMessageReceived}
+              userName={user?.name || "المصمم الرئيسي"}
+              dashboardTitle="لوحة المصمم"
+              greetingMessage="نتمنى لك يوم إبداع وتصميم مميز! 🎨"
+            />
+          )}
+
+          {/* Available Designs from Sellers */}
+          {currentTab === 1 && (
+            <AvailableDesignsTab />
+          )}
+
+          {/* My Assigned Designs */}
+          {currentTab === 2 && (
+            <MyDesignsTab />
           )}
 
           {/* Add Design Form */}
-          {currentTab === 1 && (
+          {currentTab === 3 && (
             <DesignsManagement showFormInTab={true} />
           )}
 
-          {/* Designs Management */}
-          {currentTab === 2 && (
+          {/* Designs Management - Follow Design Status */}
+          {currentTab === 4 && (
             <DesignsManagement showFormInTab={false} />
-          )}
-
-          {/* Available Designs */}
-          {currentTab === 3 && (
-            <AvailableDesignsTab />
           )}
         </Paper>
       </Container>

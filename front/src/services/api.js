@@ -1338,6 +1338,43 @@ export const designRequestsService = {
     });
     return response.data;
   },
+
+  // Assign designer to design request
+  assignDesigner: async (designRequestId, designerId) => {
+    console.log("🚀 designRequestsService.assignDesigner called", { designRequestId, designerId });
+    try {
+      const response = await api.put(`/DesignRequests/${designRequestId}/AssignDesigner`, {
+        designerId: designerId,
+      });
+      console.log("✅ Assign designer response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Assign designer error:", error);
+      console.error("❌ Error response:", error.response?.data);
+      throw error;
+    }
+  },
+
+  // Update design request
+  updateDesignRequest: async (designRequestId, designData) => {
+    console.log("🚀 designRequestsService.updateDesignRequest called", { designRequestId, designData });
+    try {
+      const response = await api.put(`/DesignRequests/${designRequestId}`, designData);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Delete design request
+  deleteDesignRequest: async (designRequestId) => {
+    try {
+      const response = await api.delete(`/DesignRequests/${designRequestId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
 // Shift Time Constants

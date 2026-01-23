@@ -22,6 +22,7 @@ import {
   DialogContent,
   DialogTitle,
   DialogActions,
+  InputAdornment,
 } from "@mui/material";
 import {
   Search,
@@ -34,11 +35,9 @@ import {
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
-import Swal from "sweetalert2";
 import calmPalette from "../../theme/calmPalette";
-import { CheckCircle } from "@mui/icons-material";
 
-const AvailableDesignsTab = () => {
+const MyDesignsTab = () => {
   const { user } = useApp();
   const [designs, setDesigns] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -50,46 +49,32 @@ const AvailableDesignsTab = () => {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [viewingDesign, setViewingDesign] = useState(null);
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false);
-  const [assigningDesignId, setAssigningDesignId] = useState(null);
 
-  // Load design requests (only unassigned designs - mainDesignerId === 0 or null)
-  // تحميل التصاميم المتاحة (فقط التصاميم غير المعينة - mainDesignerId === 0 أو null)
+  // Load design requests assigned to current designer
   const loadDesigns = async () => {
+    if (!user?.id) return;
+    
     setLoading(true);
     try {
       const params = {
         page: page + 1,
         pageSize: pageSize,
-        // لا نرسل mainDesignerId في الـ params لنحصل على كل التصاميم
-        // ثم نفلترها على الـ client side
+        mainDesignerId: user.id, // Filter by assigned designer
       };
 
       const response = await designRequestsService.getDesignRequests(params);
       
-      // Handle response structure and filter unassigned designs
-      // معالجة الاستجابة وفلترة التصاميم غير المعينة
-      let allDesigns = [];
+      // Handle response structure
       if (response && response.data) {
-        allDesigns = response.data;
+        setDesigns(response.data);
         setTotalCount(response.totalCount || 0);
       } else if (Array.isArray(response)) {
-        allDesigns = response;
+        setDesigns(response);
         setTotalCount(response.length);
       } else {
-        allDesigns = [];
+        setDesigns([]);
         setTotalCount(0);
       }
-
-      // الفلتر: نعرض فقط التصاميم التي mainDesignerId === 0 أو null أو undefined
-      // يعني التصاميم التي ما عندها مصمم معين
-      // عندما يصير للتصميم mainDesignerId (مثلاً 5)، ما رح يمر من هذا الفلتر
-      // لأنه: !design.mainDesignerId = false (لأنه موجود)
-      // و design.mainDesignerId === 0 = false (لأنه 5 مش 0)
-      // لذلك التصميم ما رح يظهر في القائمة
-      const unassignedDesigns = allDesigns.filter(
-        (design) => !design.mainDesignerId || design.mainDesignerId === 0
-      );
-      setDesigns(unassignedDesigns);
     } catch (error) {
       console.error("Error loading design requests:", error);
       setDesigns([]);
@@ -102,7 +87,7 @@ const AvailableDesignsTab = () => {
   // Load designs when page or pageSize changes
   useEffect(() => {
     loadDesigns();
-  }, [page, pageSize]);
+  }, [page, pageSize, user?.id]);
 
   // Filter designs based on search query
   const getFilteredDesigns = () => {
@@ -129,7 +114,7 @@ const AvailableDesignsTab = () => {
       3: { label: "غير معتمد", color: "error" },
       4: { label: "مرتجع", color: "info" },
     };
-    return statusMap[status] || { label: design.statusName || "غير محدد", color: "default" };
+    return statusMap[status] || { label: "غير محدد", color: "default" };
   };
 
   // Handle image click
@@ -160,81 +145,6 @@ const AvailableDesignsTab = () => {
     }
   };
 
-  // Handle assign designer
-  const handleAssignDesigner = async (designId) => {
-    if (!user?.id) {
-      Swal.fire({
-        icon: "error",
-        title: "خطأ",
-        text: "يجب تسجيل الدخول أولاً",
-        confirmButtonColor: calmPalette.primary,
-      });
-      return;
-    }
-
-    const result = await Swal.fire({
-      title: "تأكيد",
-      text: "هل تريد أخذ هذا التصميم؟",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonColor: calmPalette.primary,
-      cancelButtonColor: "#dc3545",
-      confirmButtonText: "نعم، أخذ التصميم",
-      cancelButtonText: "إلغاء",
-    });
-
-    if (!result.isConfirmed) return;
-
-    setAssigningDesignId(designId);
-    try {
-      // استدعاء الـ API لتعيين المصمم للتصميم
-      // الـ API رح يحدث mainDesignerId للتصميم من 0 إلى user.id
-      // يعني التصميم صار معو مصمم معين
-      await designRequestsService.assignDesigner(designId, user.id);
-      
-      // إزالة التصميم من القائمة مباشرة (optimistic update)
-      // لأن بعد ما صار معو mainDesignerId، ما رح يمر من الفلتر في loadDesigns
-      // الفلتر يتحقق: !design.mainDesignerId || design.mainDesignerId === 0
-      // بعد التحديث: mainDesignerId = user.id (مثلاً 5)
-      // !design.mainDesignerId = false (لأنه موجود)
-      // design.mainDesignerId === 0 = false (لأنه 5 مش 0)
-      // لذلك التصميم ما رح يظهر في القائمة عند إعادة التحميل
-      // لذلك نزيله من القائمة فوراً بدون ما ننتظر إعادة تحميل
-      setDesigns((prevDesigns) => {
-        return prevDesigns.filter((design) => design.id !== designId);
-      });
-      
-      // تحديث العدد الإجمالي
-      setTotalCount((prevCount) => Math.max(0, prevCount - 1));
-      
-      // Close view dialog if it's open for this design
-      if (viewingDesign?.id === designId) {
-        setViewDesignDialogOpen(false);
-        setViewingDesign(null);
-      }
-      
-      Swal.fire({
-        icon: "success",
-        title: "تم بنجاح",
-        text: "تم أخذ التصميم بنجاح. يمكنك رؤيته في تبويب 'تصاميمي المأخوذة'",
-        confirmButtonColor: calmPalette.primary,
-        timer: 3000,
-      });
-    } catch (error) {
-      console.error("Error assigning designer:", error);
-      Swal.fire({
-        icon: "error",
-        title: "خطأ",
-        text: error.response?.data?.message || error.message || "فشل في أخذ التصميم",
-        confirmButtonColor: calmPalette.primary,
-      });
-      // Reload on error to ensure data consistency
-      loadDesigns();
-    } finally {
-      setAssigningDesignId(null);
-    }
-  };
-
   const filteredDesigns = getFilteredDesigns();
 
   return (
@@ -242,7 +152,7 @@ const AvailableDesignsTab = () => {
       {/* Header */}
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          التصاميم المتاحة ({filteredDesigns.length})
+          تصاميمي ({filteredDesigns.length})
         </Typography>
         <Button
           variant="outlined"
@@ -256,7 +166,7 @@ const AvailableDesignsTab = () => {
       </Box>
 
       {/* Search Field */}
-      <Box sx={{ mb: 3,width:'450px' }}>
+      <Box sx={{ mb: 3, width: "450px" }}>
         <TextField
           fullWidth
           size="small"
@@ -265,17 +175,9 @@ const AvailableDesignsTab = () => {
           onChange={(e) => setSearchQuery(e.target.value)}
           InputProps={{
             startAdornment: (
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  marginRight: 1,
-                  color: searchQuery ? calmPalette.primary : "text.secondary",
-                  transition: "color 0.3s ease",
-                }}
-              >
+              <InputAdornment position="start">
                 <Search />
-              </Box>
+              </InputAdornment>
             ),
             endAdornment: searchQuery && (
               <IconButton
@@ -294,7 +196,6 @@ const AvailableDesignsTab = () => {
           }}
         />
       </Box>
-
 
       {/* Designs Table */}
       {loading && designs.length === 0 ? (
@@ -321,10 +222,10 @@ const AvailableDesignsTab = () => {
             }}
           />
           <Typography variant="h6" sx={{ color: calmPalette.textPrimary, mb: 1 }}>
-            لا توجد تصاميم متاحة
+            لا توجد تصاميم
           </Typography>
           <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
-            {searchQuery ? "لم يتم العثور على نتائج للبحث" : "لم يتم إرسال أي تصاميم بعد"}
+            {searchQuery ? "لم يتم العثور على نتائج للبحث" : "لم تأخذ أي تصاميم بعد"}
           </Typography>
         </Paper>
       ) : (
@@ -536,30 +437,6 @@ const AvailableDesignsTab = () => {
                             }}
                           >
                             <Visibility fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="أخذ التصميم" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleAssignDesigner(design.id)}
-                            disabled={assigningDesignId === design.id || design.mainDesignerId > 0}
-                            sx={{
-                              color: "#28a745",
-                              backgroundColor: "#28a74515",
-                              border: `1px solid #28a74530`,
-                              "&:hover": {
-                                backgroundColor: "#28a74525",
-                              },
-                              "&:disabled": {
-                                opacity: 0.5,
-                              },
-                            }}
-                          >
-                            {assigningDesignId === design.id ? (
-                              <CircularProgress size={16} />
-                            ) : (
-                              <CheckCircle fontSize="small" />
-                            )}
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -883,5 +760,5 @@ const AvailableDesignsTab = () => {
   );
 };
 
-export default AvailableDesignsTab;
+export default MyDesignsTab;
 

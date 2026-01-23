@@ -27,11 +27,15 @@ import {
   Search,
   Close,
   Image as ImageIcon,
+  Edit,
+  Delete,
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import CreateDesignForm from "./CreateDesignForm";
 import GlassDialog from "../common/GlassDialog";
 import calmPalette from "../../theme/calmPalette";
+import Swal from "sweetalert2";
+import { useForm, Controller } from "react-hook-form";
 
 const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   // State for designs
@@ -43,6 +47,9 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   const [designsPageSize, setDesignsPageSize] = useState(20);
   const [designsTotalCount, setDesignsTotalCount] = useState(0);
   const [designsSearchQuery, setDesignsSearchQuery] = useState("");
+  const [editingDesign, setEditingDesign] = useState(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deletingDesignId, setDeletingDesignId] = useState(null);
 
   // Fetch my designs count
   const fetchMyDesignsCount = async () => {
@@ -108,6 +115,99 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   // Refresh count when form is submitted successfully
   const handleDesignCreated = () => {
     fetchMyDesignsCount();
+    if (openDesignsModal) {
+      loadMyDesigns();
+    }
+  };
+
+  // Handle edit design
+  const handleEditDesign = (design) => {
+    setEditingDesign(design);
+    setEditDialogOpen(true);
+  };
+
+  // Handle delete design
+  const handleDeleteDesign = async (designId) => {
+    const result = await Swal.fire({
+      title: "تأكيد الحذف",
+      text: "هل أنت متأكد من حذف هذا التصميم؟ لا يمكن التراجع عن هذا الإجراء.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc3545",
+      cancelButtonColor: calmPalette.primary,
+      confirmButtonText: "نعم، احذف",
+      cancelButtonText: "إلغاء",
+    });
+
+    if (!result.isConfirmed) return;
+
+    setDeletingDesignId(designId);
+    try {
+      await designRequestsService.deleteDesignRequest(designId);
+      
+      // Remove from list immediately
+      setDesignsList((prev) => prev.filter((d) => d.id !== designId));
+      setDesignsTotalCount((prev) => Math.max(0, prev - 1));
+      fetchMyDesignsCount();
+      
+      Swal.fire({
+        icon: "success",
+        title: "تم الحذف",
+        text: "تم حذف التصميم بنجاح",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+    } catch (error) {
+      console.error("Error deleting design:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: error.response?.data?.message || error.message || "فشل في حذف التصميم",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setDeletingDesignId(null);
+    }
+  };
+
+  // Handle update design
+  const handleUpdateDesign = async (data) => {
+    if (!editingDesign) return;
+
+    try {
+      const updateData = {
+        title: data.title.trim(),
+        description: data.description.trim(),
+        imageKeys: editingDesign.images?.map((img) => img.fileKey) || [],
+        status: editingDesign.status,
+        mainDesignerId: editingDesign.mainDesignerId || 0,
+        clearMainDesignerId: false,
+        note: data.description.trim(),
+      };
+
+      await designRequestsService.updateDesignRequest(editingDesign.id, updateData);
+      
+      Swal.fire({
+        icon: "success",
+        title: "تم التحديث",
+        text: "تم تحديث التصميم بنجاح",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+
+      setEditDialogOpen(false);
+      setEditingDesign(null);
+      loadMyDesigns();
+      fetchMyDesignsCount();
+    } catch (error) {
+      console.error("Error updating design:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: error.response?.data?.message || error.message || "فشل في تحديث التصميم",
+        confirmButtonColor: calmPalette.primary,
+      });
+    }
   };
 
   return (
@@ -289,6 +389,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                       <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>الصور</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>تاريخ الإنشاء</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }} align="center">الإجراءات</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -311,7 +412,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                       if (filteredDesigns.length === 0) {
                         return (
                           <TableRow>
-                            <TableCell colSpan={5} align="center">
+                            <TableCell colSpan={6} align="center">
                               <Box sx={{ padding: 4 }}>
                                 <Typography variant="body1" color="text.secondary">
                                   {designsSearchQuery.trim() ? "لا توجد نتائج للبحث" : "لا توجد تصاميم"}
@@ -429,6 +530,48 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                                   })
                                 : "-"}
                             </TableCell>
+                            <TableCell align="center">
+                              <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+                                <Tooltip title="تعديل">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleEditDesign(design)}
+                                    sx={{
+                                      color: calmPalette.primary,
+                                      backgroundColor: `${calmPalette.primary}10`,
+                                      "&:hover": {
+                                        backgroundColor: `${calmPalette.primary}20`,
+                                      },
+                                    }}
+                                  >
+                                    <Edit fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="حذف">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleDeleteDesign(design.id)}
+                                    disabled={deletingDesignId === design.id}
+                                    sx={{
+                                      color: "#dc3545",
+                                      backgroundColor: "#dc354510",
+                                      "&:hover": {
+                                        backgroundColor: "#dc354520",
+                                      },
+                                      "&:disabled": {
+                                        opacity: 0.5,
+                                      },
+                                    }}
+                                  >
+                                    {deletingDesignId === design.id ? (
+                                      <CircularProgress size={16} />
+                                    ) : (
+                                      <Delete fontSize="small" />
+                                    )}
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </TableCell>
                           </TableRow>
                         );
                       });
@@ -458,7 +601,201 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
           )}
         </Box>
       </GlassDialog>
+
+      {/* Edit Design Dialog */}
+      {editingDesign && (
+        <EditDesignDialog
+          open={editDialogOpen}
+          onClose={() => {
+            setEditDialogOpen(false);
+            setEditingDesign(null);
+          }}
+          design={editingDesign}
+          onUpdate={handleUpdateDesign}
+        />
+      )}
     </>
+  );
+};
+
+// Edit Design Dialog Component
+const EditDesignDialog = ({ open, onClose, design, onUpdate }) => {
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+    reset,
+  } = useForm({
+    defaultValues: {
+      title: design?.title || "",
+      description: design?.description || "",
+    },
+  });
+
+  useEffect(() => {
+    if (design) {
+      reset({
+        title: design.title || "",
+        description: design.description || "",
+      });
+    }
+  }, [design, reset]);
+
+  const onSubmit = (data) => {
+    onUpdate(data);
+  };
+
+  return (
+    <GlassDialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      title="تعديل التصميم"
+      actions={
+        <>
+          <Button onClick={onClose} variant="outlined">
+            إلغاء
+          </Button>
+          <Button onClick={handleSubmit(onSubmit)} variant="contained">
+            حفظ التغييرات
+          </Button>
+        </>
+      }
+    >
+      <Box sx={{ p: 3 }}>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {/* Title */}
+            <Controller
+              name="title"
+              control={control}
+              rules={{ required: "اسم التصميم مطلوب" }}
+              render={({ field }) => (
+                <Box>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      fontWeight: 600,
+                      mb: 1.5,
+                      color: calmPalette.textPrimary,
+                    }}
+                  >
+                    اسم التصميم
+                    <Typography
+                      component="span"
+                      sx={{ color: "error.main", fontSize: "1.2rem", ml: 0.5 }}
+                    >
+                      *
+                    </Typography>
+                  </Typography>
+                  <TextField
+                    {...field}
+                    placeholder="أدخل اسم التصميم"
+                    fullWidth
+                    required
+                    error={!!errors.title}
+                    helperText={errors.title?.message}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        backgroundColor: "rgba(255, 255, 255, 0.95)",
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                </Box>
+              )}
+            />
+
+            {/* Description */}
+            <Controller
+              name="description"
+              control={control}
+              rules={{ required: "الوصف مطلوب" }}
+              render={({ field }) => (
+                <Box>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      fontWeight: 600,
+                      mb: 1.5,
+                      color: calmPalette.textPrimary,
+                    }}
+                  >
+                    الوصف
+                    <Typography
+                      component="span"
+                      sx={{ color: "error.main", fontSize: "1.2rem", ml: 0.5 }}
+                    >
+                      *
+                    </Typography>
+                  </Typography>
+                  <TextField
+                    {...field}
+                    placeholder="أدخل وصف التصميم"
+                    fullWidth
+                    required
+                    multiline
+                    rows={5}
+                    error={!!errors.description}
+                    helperText={errors.description?.message}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        backgroundColor: "rgba(255, 255, 255, 0.95)",
+                        borderRadius: 2,
+                      },
+                    }}
+                  />
+                </Box>
+              )}
+            />
+
+            {/* Images Info */}
+            {design?.images && design.images.length > 0 && (
+              <Box>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    fontWeight: 600,
+                    mb: 1.5,
+                    color: calmPalette.textPrimary,
+                  }}
+                >
+                  الصور ({design.images.length})
+                </Typography>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  {design.images.map((image, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: 1,
+                        overflow: "hidden",
+                        border: `2px solid ${calmPalette.primary}30`,
+                      }}
+                    >
+                      <img
+                        src={image.downloadUrl}
+                        alt={`صورة ${idx + 1}`}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+                <Typography variant="caption" sx={{ color: calmPalette.textSecondary, mt: 1, display: "block" }}>
+                  لا يمكن تعديل الصور حالياً
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </form>
+      </Box>
+    </GlassDialog>
   );
 };
 

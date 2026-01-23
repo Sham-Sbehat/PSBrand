@@ -49,16 +49,6 @@ const OrdersTab = ({
           : employeeOrders.length,
       icon: Assignment,
     },
-    {
-      title: "قيد الانتظار",
-      value: pendingOrders.length,
-      icon: Pending,
-    },
-    {
-      title: "مكتملة",
-      value: completedOrders.length,
-      icon: CheckCircle,
-    },
   ];
 
   return (
