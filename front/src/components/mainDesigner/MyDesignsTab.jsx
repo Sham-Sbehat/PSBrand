@@ -23,6 +23,8 @@ import {
   DialogTitle,
   DialogActions,
   InputAdornment,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import {
   Search,
@@ -43,9 +45,10 @@ import Swal from "sweetalert2";
 const MyDesignsTab = () => {
   const { user } = useApp();
   const [designs, setDesigns] = useState([]);
+  const [allDesigns, setAllDesigns] = useState([]); // Store all designs for counting
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(5);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
@@ -54,9 +57,18 @@ const MyDesignsTab = () => {
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
+  const [statusTab, setStatusTab] = useState(1); // 1-6 = specific status
+  const [statusCounts, setStatusCounts] = useState({
+    1: 0, // في الانتظار
+    2: 0, // قيد التنفيذ
+    3: 0, // قيد المراجعة
+    4: 0, // بحاجة لتعديل
+    5: 0, // جاهز
+    6: 0, // ملغي
+  });
 
-  // Load design requests assigned to current designer with status > 1 (not "في الانتظار")
-  // تحميل التصاميم المعينة للمصمم الحالي والتي حالتها أعلى من 1 (ليست "في الانتظار")
+  // Load design requests assigned to current designer
+  // تحميل التصاميم المعينة للمصمم الحالي
   const loadDesigns = async () => {
     if (!user?.id) return;
     
@@ -68,40 +80,67 @@ const MyDesignsTab = () => {
         mainDesignerId: user.id, // Filter by assigned designer
       };
 
+      // Add status filter
+      params.status = statusTab;
+
       const response = await designRequestsService.getDesignRequests(params);
       
       // Handle response structure
-      let allDesigns = [];
+      let designsArray = [];
       if (response && response.data) {
-        allDesigns = response.data;
+        designsArray = response.data;
         setTotalCount(response.totalCount || 0);
       } else if (Array.isArray(response)) {
-        allDesigns = response;
+        designsArray = response;
         setTotalCount(response.length);
       } else {
-        allDesigns = [];
+        designsArray = [];
         setTotalCount(0);
       }
 
-      // الفلتر: نعرض فقط التصاميم التي حالتها أعلى من 1 (status > 1)
-      // يعني: قيد التنفيذ (2)، مكتمل (3)، ملغي (4)
-      const filteredDesigns = allDesigns.filter(
-        (design) => design.status && design.status > 1
-      );
-      setDesigns(filteredDesigns);
+      // Store all designs for counting
+      setAllDesigns(designsArray);
+      
+      // Load all designs to count statuses (for tabs)
+      const allParams = {
+        page: 1,
+        pageSize: 5, // Large number to get all
+        mainDesignerId: user.id,
+      };
+      const allResponse = await designRequestsService.getDesignRequests(allParams);
+      let allDesignsForCount = [];
+      if (allResponse && allResponse.data) {
+        allDesignsForCount = allResponse.data;
+      } else if (Array.isArray(allResponse)) {
+        allDesignsForCount = allResponse;
+      }
+      
+      // Count statuses
+      const counts = {
+        1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
+      };
+      allDesignsForCount.forEach((design) => {
+        if (design.status && counts[design.status] !== undefined) {
+          counts[design.status]++;
+        }
+      });
+      setStatusCounts(counts);
+
+      setDesigns(designsArray);
     } catch (error) {
       console.error("Error loading design requests:", error);
       setDesigns([]);
+      setAllDesigns([]);
       setTotalCount(0);
     } finally {
       setLoading(false);
     }
   };
 
-  // Load designs when page or pageSize changes
+  // Load designs when page, pageSize, statusTab, or user changes
   useEffect(() => {
     loadDesigns();
-  }, [page, pageSize, user?.id]);
+  }, [page, pageSize, statusTab, user?.id]);
 
   // Filter designs based on search query
   const getFilteredDesigns = () => {
@@ -125,8 +164,10 @@ const MyDesignsTab = () => {
     const statusMap = {
       1: { label: "في الانتظار", color: "warning" },
       2: { label: "قيد التنفيذ", color: "info" },
-      3: { label: "مكتمل", color: "success" },
-      4: { label: "ملغي", color: "error" },
+      3: { label: "قيد المراجعة", color: "info" },
+      4: { label: "بحاجة لتعديل", color: "warning" },
+      5: { label: "جاهز", color: "success" },
+      6: { label: "ملغي", color: "error" },
     };
     return statusMap[status] || { label: "غير محدد", color: "default" };
   };
@@ -243,20 +284,262 @@ const MyDesignsTab = () => {
 
   return (
     <Box>
-      {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          تصاميمي ({filteredDesigns.length})
-        </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={loadDesigns}
-          disabled={loading}
-          size="small"
+      {/* Status Tabs */}
+      <Box
+        sx={{
+          mb: 3,
+          backgroundColor: "#ffffff",
+          borderRadius: 3,
+          border: "1px solid rgba(94, 78, 62, 0.12)",
+          overflow: "hidden",
+          boxShadow: "0 2px 8px rgba(94, 78, 62, 0.08)",
+        }}
+      >
+        <Tabs
+          value={statusTab - 1} // Convert status (1-6) to tab index (0-5)
+          onChange={(e, newValue) => {
+            setStatusTab(newValue + 1); // Convert tab index (0-5) to status (1-6)
+            setPage(0); // Reset to first page when changing status
+          }}
+          TabIndicatorProps={{ style: { display: 'none' } }}
+          variant="fullWidth"
+          sx={{
+            minHeight: 72,
+            backgroundColor: "#fafafa",
+            "& .MuiTabs-flexContainer": {
+              gap: 1,
+              px: 1.5,
+              py: 1,
+            },
+            "& .MuiTab-root": {
+              minHeight: 64,
+              textTransform: "none",
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              color: calmPalette.textSecondary,
+              px: 1.5,
+              py: 1.5,
+              borderRadius: 2,
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              border: "1px solid transparent",
+              flex: 1,
+              "&:hover:not(.Mui-selected)": {
+                backgroundColor: "rgba(255, 255, 255, 0.9)",
+                transform: "translateY(-2px)",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+                borderColor: "rgba(94, 78, 62, 0.15)",
+              },
+            },
+            "& .MuiTabs-indicator": {
+              display: "none",
+            },
+          }}
         >
-          تحديث
-        </Button>
+           <Tab
+            sx={{
+              backgroundColor: statusTab === 1 ? "transparent" : "rgba(255, 255, 255, 0.8)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #f57c00 0%, #ef6c00 100%)",
+                boxShadow: "0 6px 16px rgba(245, 124, 0, 0.4)",
+                border: "none",
+                transform: "translateY(-2px)",
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+                  في الانتظار
+                </Typography>
+                <Chip
+                  label={statusCounts[1]}
+                  size="small"
+                  sx={{
+                    height: 26,
+                    minWidth: 32,
+                    fontSize: "0.8rem",
+                    backgroundColor: statusTab === 1 ? "rgba(255, 255, 255, 0.25)" : "rgba(245, 124, 0, 0.12)",
+                    color: statusTab === 1 ? "#ffffff" : "#f57c00",
+                    fontWeight: 700,
+                    borderRadius: "14px",
+                    border: statusTab === 1 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(245, 124, 0, 0.2)",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 2 ? "transparent" : "rgba(255, 255, 255, 0.8)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #2196f3 0%, #1976d2 100%)",
+                boxShadow: "0 6px 16px rgba(33, 150, 243, 0.4)",
+                border: "none",
+                transform: "translateY(-2px)",
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+                  قيد التنفيذ
+                </Typography>
+                <Chip
+                  label={statusCounts[2]}
+                  size="small"
+                  sx={{
+                    height: 26,
+                    minWidth: 32,
+                    fontSize: "0.8rem",
+                    backgroundColor: statusTab === 2 ? "rgba(255, 255, 255, 0.25)" : "rgba(33, 150, 243, 0.12)",
+                    color: statusTab === 2 ? "#ffffff" : "#2196f3",
+                    fontWeight: 700,
+                    borderRadius: "14px",
+                    border: statusTab === 2 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(33, 150, 243, 0.2)",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 3 ? "transparent" : "rgba(255, 255, 255, 0.8)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)",
+                boxShadow: "0 6px 16px rgba(156, 39, 176, 0.4)",
+                border: "none",
+                transform: "translateY(-2px)",
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+                  قيد المراجعة
+                </Typography>
+                <Chip
+                  label={statusCounts[3]}
+                  size="small"
+                  sx={{
+                    height: 26,
+                    minWidth: 32,
+                    fontSize: "0.8rem",
+                    backgroundColor: statusTab === 3 ? "rgba(255, 255, 255, 0.25)" : "rgba(156, 39, 176, 0.12)",
+                    color: statusTab === 3 ? "#ffffff" : "#9c27b0",
+                    fontWeight: 700,
+                    borderRadius: "14px",
+                    border: statusTab === 3 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(156, 39, 176, 0.2)",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 4 ? "transparent" : "rgba(255, 255, 255, 0.8)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #ff9800 0%, #f57c00 100%)",
+                boxShadow: "0 6px 16px rgba(255, 152, 0, 0.4)",
+                border: "none",
+                transform: "translateY(-2px)",
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+                  بحاجة لتعديل
+                </Typography>
+                <Chip
+                  label={statusCounts[4]}
+                  size="small"
+                  sx={{
+                    height: 26,
+                    minWidth: 32,
+                    fontSize: "0.8rem",
+                    backgroundColor: statusTab === 4 ? "rgba(255, 255, 255, 0.25)" : "rgba(255, 152, 0, 0.12)",
+                    color: statusTab === 4 ? "#ffffff" : "#ff9800",
+                    fontWeight: 700,
+                    borderRadius: "14px",
+                    border: statusTab === 4 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(255, 152, 0, 0.2)",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 5 ? "transparent" : "rgba(255, 255, 255, 0.8)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #4caf50 0%, #43a047 100%)",
+                boxShadow: "0 6px 16px rgba(76, 175, 80, 0.4)",
+                border: "none",
+                transform: "translateY(-2px)",
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+                  جاهز
+                </Typography>
+                <Chip
+                  label={statusCounts[5]}
+                  size="small"
+                  sx={{
+                    height: 26,
+                    minWidth: 32,
+                    fontSize: "0.8rem",
+                    backgroundColor: statusTab === 5 ? "rgba(255, 255, 255, 0.25)" : "rgba(76, 175, 80, 0.12)",
+                    color: statusTab === 5 ? "#ffffff" : "#4caf50",
+                    fontWeight: 700,
+                    borderRadius: "14px",
+                    border: statusTab === 5 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(76, 175, 80, 0.2)",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 6 ? "transparent" : "rgba(255, 255, 255, 0.8)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #f44336 0%, #e53935 100%)",
+                boxShadow: "0 6px 16px rgba(244, 67, 54, 0.4)",
+                border: "none",
+                transform: "translateY(-2px)",
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+                  ملغي
+                </Typography>
+                <Chip
+                  label={statusCounts[6]}
+                  size="small"
+                  sx={{
+                    height: 26,
+                    minWidth: 32,
+                    fontSize: "0.8rem",
+                    backgroundColor: statusTab === 6 ? "rgba(255, 255, 255, 0.25)" : "rgba(244, 67, 54, 0.12)",
+                    color: statusTab === 6 ? "#ffffff" : "#f44336",
+                    fontWeight: 700,
+                    borderRadius: "14px",
+                    border: statusTab === 6 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(244, 67, 54, 0.2)",
+                  }}
+                />
+              </Box>
+            }
+          />
+        </Tabs>
       </Box>
 
       {/* Search Field */}
