@@ -814,14 +814,21 @@ const DesignsFromDesignersTab = ({
         </Tabs>
       </Box>
 
-      {/* Search Field */}
-      <Box sx={{ mb: 3 }}>
+      {/* Search and Filters */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Search Field */}
         <TextField
-          fullWidth
           size="small"
           placeholder="بحث في التصاميم باستخدام الرقم التسلسلي.."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          sx={{
+            flex: 1,
+            minWidth: 300,
+            "& .MuiOutlinedInput-root": {
+              backgroundColor: "rgba(255, 255, 255, 0.9)",
+            },
+          }}
           InputProps={{
             startAdornment: (
               <Box
@@ -846,22 +853,9 @@ const DesignsFromDesignersTab = ({
               </IconButton>
             ),
           }}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              backgroundColor: "rgba(255, 255, 255, 0.9)",
-            },
-          }}
         />
-      </Box>
-
-      {/* Date and Designer Filters */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <FilterList sx={{ color: calmPalette.textSecondary }} />
-          <Typography variant="body2" sx={{ color: calmPalette.textSecondary, fontWeight: 600 }}>
-            فلترة إضافية:
-          </Typography>
-        </Box>
+  
+        {/* Date Filter */}
         <TextField
           type="date"
           label="التاريخ"
@@ -878,6 +872,8 @@ const DesignsFromDesignersTab = ({
             },
           }}
         />
+        
+        {/* Designer Filter */}
         <TextField
           select
           label="اسم المصمم"
