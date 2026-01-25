@@ -32,10 +32,13 @@ import {
   Download,
   Image as ImageIcon,
   Close,
+  CheckCircle,
+  Cancel,
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
 import calmPalette from "../../theme/calmPalette";
+import Swal from "sweetalert2";
 
 const MyDesignsTab = () => {
   const { user } = useApp();
@@ -49,8 +52,10 @@ const MyDesignsTab = () => {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [viewingDesign, setViewingDesign] = useState(null);
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
-  // Load design requests assigned to current designer
+  // Load design requests assigned to current designer with status > 1 (not "في الانتظار")
+  // تحميل التصاميم المعينة للمصمم الحالي والتي حالتها أعلى من 1 (ليست "في الانتظار")
   const loadDesigns = async () => {
     if (!user?.id) return;
     
@@ -65,16 +70,24 @@ const MyDesignsTab = () => {
       const response = await designRequestsService.getDesignRequests(params);
       
       // Handle response structure
+      let allDesigns = [];
       if (response && response.data) {
-        setDesigns(response.data);
+        allDesigns = response.data;
         setTotalCount(response.totalCount || 0);
       } else if (Array.isArray(response)) {
-        setDesigns(response);
+        allDesigns = response;
         setTotalCount(response.length);
       } else {
-        setDesigns([]);
+        allDesigns = [];
         setTotalCount(0);
       }
+
+      // الفلتر: نعرض فقط التصاميم التي حالتها أعلى من 1 (status > 1)
+      // يعني: قيد التنفيذ (2)، مكتمل (3)، ملغي (4)
+      const filteredDesigns = allDesigns.filter(
+        (design) => design.status && design.status > 1
+      );
+      setDesigns(filteredDesigns);
     } catch (error) {
       console.error("Error loading design requests:", error);
       setDesigns([]);
@@ -110,9 +123,9 @@ const MyDesignsTab = () => {
   const getStatusLabel = (status) => {
     const statusMap = {
       1: { label: "في الانتظار", color: "warning" },
-      2: { label: "معتمد", color: "success" },
-      3: { label: "غير معتمد", color: "error" },
-      4: { label: "مرتجع", color: "info" },
+      2: { label: "قيد التنفيذ", color: "info" },
+      3: { label: "مكتمل", color: "success" },
+      4: { label: "ملغي", color: "error" },
     };
     return statusMap[status] || { label: "غير محدد", color: "default" };
   };
@@ -142,6 +155,86 @@ const MyDesignsTab = () => {
       setTimeout(() => {
         document.body.removeChild(link);
       }, 100);
+    }
+  };
+
+  // Handle complete design
+  const handleCompleteDesign = async (designId) => {
+    const result = await Swal.fire({
+      title: "تأكيد",
+      text: "هل تريد إتمام هذا التصميم؟",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: calmPalette.primary,
+      cancelButtonColor: "#dc3545",
+      confirmButtonText: "نعم، إتمام",
+      cancelButtonText: "إلغاء",
+    });
+
+    if (!result.isConfirmed) return;
+
+    setUpdatingStatusId(designId);
+    try {
+      await designRequestsService.setState(designId, 3); // Completed = 3
+      Swal.fire({
+        icon: "success",
+        title: "تم بنجاح",
+        text: "تم إتمام التصميم بنجاح",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+      loadDesigns(); // Refresh the list
+    } catch (error) {
+      console.error("Error completing design:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: error.response?.data?.message || error.message || "فشل في إتمام التصميم",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  // Handle cancel/return design
+  const handleCancelDesign = async (designId) => {
+    const result = await Swal.fire({
+      title: "تأكيد",
+      text: "هل تريد إرجاع هذا التصميم؟ سيتم إرجاعه إلى قائمة التصاميم المتاحة",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc3545",
+      cancelButtonColor: calmPalette.primary,
+      confirmButtonText: "نعم، إرجاع",
+      cancelButtonText: "إلغاء",
+    });
+
+    if (!result.isConfirmed) return;
+
+    setUpdatingStatusId(designId);
+    try {
+      // إرجاع الحالة إلى "في الانتظار" (Pending = 1) فقط
+      await designRequestsService.setState(designId, 1);
+      
+      Swal.fire({
+        icon: "success",
+        title: "تم بنجاح",
+        text: "تم إرجاع التصميم بنجاح. سيظهر في قائمة التصاميم المتاحة",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+      loadDesigns(); // Refresh the list
+    } catch (error) {
+      console.error("Error cancelling design:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: error.response?.data?.message || error.message || "فشل في إرجاع التصميم",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setUpdatingStatusId(null);
     }
   };
 
@@ -422,7 +515,7 @@ const MyDesignsTab = () => {
                       </Typography>
                     </TableCell>
                     <TableCell align="center">
-                      <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+                      <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
                         <Tooltip title="عرض التفاصيل" arrow>
                           <IconButton
                             size="small"
@@ -433,12 +526,66 @@ const MyDesignsTab = () => {
                               border: `1px solid ${calmPalette.primary}30`,
                               "&:hover": {
                                 backgroundColor: `${calmPalette.primary}20`,
+                                transform: "scale(1.05)",
                               },
+                              transition: "all 0.2s ease",
                             }}
                           >
                             <Visibility fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        <>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="success"
+                            startIcon={updatingStatusId === design.id ? (
+                              <CircularProgress size={14} color="inherit" />
+                            ) : (
+                              <CheckCircle fontSize="small" />
+                            )}
+                            onClick={() => handleCompleteDesign(design.id)}
+                            disabled={updatingStatusId === design.id || design.status === 3}
+                            sx={{ 
+                              minWidth: '120px',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            {updatingStatusId === design.id ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <CircularProgress size={14} color="inherit" />
+                                جاري...
+                              </Box>
+                            ) : (
+                              'إتمام'
+                            )}
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            startIcon={updatingStatusId === design.id ? (
+                              <CircularProgress size={14} color="inherit" />
+                            ) : (
+                              <Cancel fontSize="small" />
+                            )}
+                            onClick={() => handleCancelDesign(design.id)}
+                            disabled={updatingStatusId === design.id || design.status === 3}
+                            sx={{ 
+                              minWidth: '120px',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            {updatingStatusId === design.id ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <CircularProgress size={14} color="inherit" />
+                                جاري...
+                              </Box>
+                            ) : (
+                              'إرجاع'
+                            )}
+                          </Button>
+                        </>
                       </Box>
                     </TableCell>
                   </TableRow>

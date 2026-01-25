@@ -52,22 +52,21 @@ const AvailableDesignsTab = () => {
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false);
   const [assigningDesignId, setAssigningDesignId] = useState(null);
 
-  // Load design requests (only unassigned designs - mainDesignerId === 0 or null)
-  // تحميل التصاميم المتاحة (فقط التصاميم غير المعينة - mainDesignerId === 0 أو null)
+  // Load design requests with status = 1 "في الانتظار" (using backend filter)
+  // تحميل التصاميم المتاحة التي حالتها "في الانتظار" (status = 1) باستخدام فلتر الـ backend
   const loadDesigns = async () => {
     setLoading(true);
     try {
       const params = {
         page: page + 1,
         pageSize: pageSize,
-        // لا نرسل mainDesignerId في الـ params لنحصل على كل التصاميم
-        // ثم نفلترها على الـ client side
+        status: 1, // فقط التصاميم التي حالتها "في الانتظار" - استخدام فلتر الـ backend
       };
 
       const response = await designRequestsService.getDesignRequests(params);
       
-      // Handle response structure and filter unassigned designs
-      // معالجة الاستجابة وفلترة التصاميم غير المعينة
+      // Handle response structure
+      // معالجة الاستجابة
       let allDesigns = [];
       if (response && response.data) {
         allDesigns = response.data;
@@ -80,16 +79,9 @@ const AvailableDesignsTab = () => {
         setTotalCount(0);
       }
 
-      // الفلتر: نعرض فقط التصاميم التي mainDesignerId === 0 أو null أو undefined
-      // يعني التصاميم التي ما عندها مصمم معين
-      // عندما يصير للتصميم mainDesignerId (مثلاً 5)، ما رح يمر من هذا الفلتر
-      // لأنه: !design.mainDesignerId = false (لأنه موجود)
-      // و design.mainDesignerId === 0 = false (لأنه 5 مش 0)
-      // لذلك التصميم ما رح يظهر في القائمة
-      const unassignedDesigns = allDesigns.filter(
-        (design) => !design.mainDesignerId || design.mainDesignerId === 0
-      );
-      setDesigns(unassignedDesigns);
+      // نعرض جميع التصاميم التي حالتها "في الانتظار" (status === 1)
+      // الـ API رح يرجعها لنا بعد الفلترة
+      setDesigns(allDesigns);
     } catch (error) {
       console.error("Error loading design requests:", error);
       setDesigns([]);
@@ -125,11 +117,11 @@ const AvailableDesignsTab = () => {
   const getStatusLabel = (status) => {
     const statusMap = {
       1: { label: "في الانتظار", color: "warning" },
-      2: { label: "معتمد", color: "success" },
-      3: { label: "غير معتمد", color: "error" },
-      4: { label: "مرتجع", color: "info" },
+      2: { label: "قيد التنفيذ", color: "info" },
+      3: { label: "مكتمل", color: "success" },
+      4: { label: "ملغي", color: "error" },
     };
-    return statusMap[status] || { label: design.statusName || "غير محدد", color: "default" };
+    return statusMap[status] || { label: "غير محدد", color: "default" };
   };
 
   // Handle image click
@@ -188,18 +180,12 @@ const AvailableDesignsTab = () => {
     setAssigningDesignId(designId);
     try {
       // استدعاء الـ API لتعيين المصمم للتصميم
-      // الـ API رح يحدث mainDesignerId للتصميم من 0 إلى user.id
-      // يعني التصميم صار معو مصمم معين
       await designRequestsService.assignDesigner(designId, user.id);
       
+      // تغيير الحالة إلى "قيد التنفيذ" (InProgress = 2)
+      await designRequestsService.setState(designId, 2);
+      
       // إزالة التصميم من القائمة مباشرة (optimistic update)
-      // لأن بعد ما صار معو mainDesignerId، ما رح يمر من الفلتر في loadDesigns
-      // الفلتر يتحقق: !design.mainDesignerId || design.mainDesignerId === 0
-      // بعد التحديث: mainDesignerId = user.id (مثلاً 5)
-      // !design.mainDesignerId = false (لأنه موجود)
-      // design.mainDesignerId === 0 = false (لأنه 5 مش 0)
-      // لذلك التصميم ما رح يظهر في القائمة عند إعادة التحميل
-      // لذلك نزيله من القائمة فوراً بدون ما ننتظر إعادة تحميل
       setDesigns((prevDesigns) => {
         return prevDesigns.filter((design) => design.id !== designId);
       });
@@ -538,30 +524,31 @@ const AvailableDesignsTab = () => {
                             <Visibility fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="أخذ التصميم" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleAssignDesigner(design.id)}
-                            disabled={assigningDesignId === design.id || design.mainDesignerId > 0}
-                            sx={{
-                              color: "#28a745",
-                              backgroundColor: "#28a74515",
-                              border: `1px solid #28a74530`,
-                              "&:hover": {
-                                backgroundColor: "#28a74525",
-                              },
-                              "&:disabled": {
-                                opacity: 0.5,
-                              },
-                            }}
-                          >
-                            {assigningDesignId === design.id ? (
-                              <CircularProgress size={16} />
-                            ) : (
-                              <CheckCircle fontSize="small" />
-                            )}
-                          </IconButton>
-                        </Tooltip>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="success"
+                          startIcon={assigningDesignId === design.id ? (
+                            <CircularProgress size={14} color="inherit" />
+                          ) : (
+                            <CheckCircle fontSize="small" />
+                          )}
+                          onClick={() => handleAssignDesigner(design.id)}
+                          disabled={assigningDesignId === design.id}
+                          sx={{ 
+                            minWidth: '120px',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          {assigningDesignId === design.id ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <CircularProgress size={14} color="inherit" />
+                              جاري...
+                            </Box>
+                          ) : (
+                            'أخذ التصميم'
+                          )}
+                        </Button>
                       </Box>
                     </TableCell>
                   </TableRow>

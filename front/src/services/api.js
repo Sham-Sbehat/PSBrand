@@ -1343,9 +1343,12 @@ export const designRequestsService = {
   assignDesigner: async (designRequestId, designerId) => {
     console.log("🚀 designRequestsService.assignDesigner called", { designRequestId, designerId });
     try {
-      const response = await api.put(`/DesignRequests/${designRequestId}/AssignDesigner`, {
-        designerId: designerId,
-      });
+      // If designerId is null or undefined, send null explicitly
+      const payload = designerId === null || designerId === undefined 
+        ? { designerId: null }
+        : { designerId: designerId };
+      
+      const response = await api.put(`/DesignRequests/${designRequestId}/AssignDesigner`, payload);
       console.log("✅ Assign designer response:", response.data);
       return response.data;
     } catch (error) {
@@ -1370,6 +1373,18 @@ export const designRequestsService = {
   deleteDesignRequest: async (designRequestId) => {
     try {
       const response = await api.delete(`/DesignRequests/${designRequestId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Set design request state
+  setState: async (designRequestId, status) => {
+    try {
+      const response = await api.put(`/DesignRequests/${designRequestId}/SetState`, {
+        status: status,
+      });
       return response.data;
     } catch (error) {
       throw error;
