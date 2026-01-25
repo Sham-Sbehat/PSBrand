@@ -22,6 +22,9 @@ import {
   InputAdornment,
   Dialog,
   DialogContent,
+  Select,
+  MenuItem,
+  FormControl,
 } from "@mui/material";
 import {
   Search,
@@ -29,6 +32,7 @@ import {
   Image as ImageIcon,
   Edit,
   Delete,
+  RateReview,
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import CreateDesignForm from "./CreateDesignForm";
@@ -51,6 +55,12 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deletingDesignId, setDeletingDesignId] = useState(null);
   const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
+  const [updatingStatusId, setUpdatingStatusId] = useState(null); // Track which design is updating status
+  const [reviewDesignsCount, setReviewDesignsCount] = useState(0); // Count of designs under review
+  const [statusFilter, setStatusFilter] = useState(null); // Filter by status (null = all, 3 = under review)
+  const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false); // Dialog for status change
+  const [pendingStatusChange, setPendingStatusChange] = useState({ designId: null, newStatus: null }); // Pending status change
+  const [statusChangeNote, setStatusChangeNote] = useState(""); // Note for status change
 
   // Fetch my designs count
   const fetchMyDesignsCount = async () => {
@@ -69,16 +79,41 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
     }
   };
 
+  // Fetch designs under review count
+  const fetchReviewDesignsCount = async () => {
+    try {
+      if (user?.id) {
+        const response = await designRequestsService.getDesignRequests({
+          createdBy: user.id,
+          status: 3, // قيد المراجعة
+          page: 1,
+          pageSize: 1,
+        });
+        setReviewDesignsCount(response?.totalCount || 0);
+      }
+    } catch (error) {
+      console.error("Error fetching review designs count:", error);
+      setReviewDesignsCount(0);
+    }
+  };
+
   // Load my designs
-  const loadMyDesigns = async () => {
+  const loadMyDesigns = async (filterStatus = null) => {
     if (!user?.id) return;
     setLoadingDesigns(true);
     try {
-      const response = await designRequestsService.getDesignRequests({
+      const params = {
         createdBy: user.id,
         page: designsPage + 1,
         pageSize: designsPageSize,
-      });
+      };
+      
+      // Add status filter if provided
+      if (filterStatus !== null) {
+        params.status = filterStatus;
+      }
+      
+      const response = await designRequestsService.getDesignRequests(params);
       
       if (response && response.data) {
         setDesignsList(response.data);
@@ -103,21 +138,23 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   useEffect(() => {
     if (user?.id) {
       fetchMyDesignsCount();
+      fetchReviewDesignsCount();
     }
   }, [user?.id]);
 
   // Load designs when page changes in modal
   useEffect(() => {
     if (openDesignsModal && user?.id) {
-      loadMyDesigns();
+      loadMyDesigns(statusFilter);
     }
-  }, [designsPage, designsPageSize, openDesignsModal, user?.id]);
+  }, [designsPage, designsPageSize, openDesignsModal, user?.id, statusFilter]);
 
   // Refresh count when form is submitted successfully
   const handleDesignCreated = () => {
     fetchMyDesignsCount();
+    fetchReviewDesignsCount();
     if (openDesignsModal) {
-      loadMyDesigns();
+      loadMyDesigns(statusFilter);
     }
   };
 
@@ -150,6 +187,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
       setDesignsList((prev) => prev.filter((d) => d.id !== designId));
       setDesignsTotalCount((prev) => Math.max(0, prev - 1));
       fetchMyDesignsCount();
+      fetchReviewDesignsCount();
       
       Swal.fire({
         icon: "success",
@@ -198,8 +236,9 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
 
       setEditDialogOpen(false);
       setEditingDesign(null);
-      loadMyDesigns();
+      loadMyDesigns(statusFilter);
       fetchMyDesignsCount();
+      fetchReviewDesignsCount();
     } catch (error) {
       console.error("Error updating design:", error);
       Swal.fire({
@@ -211,14 +250,73 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
     }
   };
 
+  // Handle status change - open dialog first
+  const handleStatusChange = (designId, newStatus) => {
+    setPendingStatusChange({ designId, newStatus });
+    setStatusChangeNote("");
+    setStatusChangeDialogOpen(true);
+  };
+
+  // Confirm status change with note
+  const handleConfirmStatusChange = async () => {
+    const { designId, newStatus } = pendingStatusChange;
+    if (!designId || !newStatus) return;
+
+    setUpdatingStatusId(designId);
+    try {
+      // Step 1: Update note (even if empty, to clear previous note if needed)
+      await designRequestsService.updateNote(designId, statusChangeNote.trim() || "");
+
+      // Step 2: Update status
+      await designRequestsService.setState(designId, newStatus);
+      
+      // Update local state immediately
+      setDesignsList((prev) =>
+        prev.map((design) =>
+          design.id === designId ? { ...design, status: newStatus, note: statusChangeNote.trim() || design.note } : design
+        )
+      );
+
+      Swal.fire({
+        icon: "success",
+        title: "تم التحديث",
+        text: "تم تغيير حالة التصميم بنجاح",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+
+      // Close dialog
+      setStatusChangeDialogOpen(false);
+      setPendingStatusChange({ designId: null, newStatus: null });
+      setStatusChangeNote("");
+
+      // Reload to get updated data
+      loadMyDesigns(statusFilter);
+      fetchMyDesignsCount();
+      fetchReviewDesignsCount();
+    } catch (error) {
+      console.error("Error updating status:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: error.response?.data?.message || error.message || "فشل في تغيير الحالة",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   return (
     <>
-      {/* Designs Count Card */}
+      {/* Designs Count Cards */}
       <Grid container spacing={3} sx={{ marginBottom: 4 }}>
+        {/* Total Designs Card */}
         <Grid item xs={12} sm={6} md={4}>
           <Card
             onClick={async () => {
-              await loadMyDesigns();
+              setStatusFilter(null);
+              await loadMyDesigns(null);
               setOpenDesignsModal(true);
             }}
             sx={{
@@ -275,6 +373,69 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* Under Review Designs Card */}
+        <Grid item xs={12} sm={6} md={4}>
+          <Card
+            onClick={async () => {
+              setStatusFilter(3);
+              await loadMyDesigns(3);
+              setOpenDesignsModal(true);
+            }}
+            sx={{
+              position: "relative",
+              background: "linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)",
+              color: "#ffffff",
+              borderRadius: 4,
+              boxShadow: "0 8px 24px rgba(156, 39, 176, 0.3)",
+              overflow: "hidden",
+              transition: "transform 0.2s, box-shadow 0.2s",
+              backdropFilter: "blur(6px)",
+              cursor: "pointer",
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0) 55%)",
+                pointerEvents: "none",
+              },
+              "&:hover": {
+                transform: "translateY(-5px)",
+                boxShadow: "0 28px 50px rgba(156, 39, 176, 0.4)",
+              },
+            }}
+          >
+            <CardContent>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Box>
+                  <Typography
+                    variant="h3"
+                    sx={{ fontWeight: 700, color: "#ffffff" }}
+                  >
+                    {reviewDesignsCount}
+                  </Typography>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      marginTop: 1,
+                      color: "rgba(255, 255, 255, 0.9)",
+                    }}
+                  >
+                    قيد المراجعة
+                  </Typography>
+                </Box>
+                <RateReview sx={{ fontSize: 56, color: "#ffffff", opacity: 0.9 }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       {/* Create Design Form */}
@@ -287,14 +448,16 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
           setOpenDesignsModal(false);
           setDesignsSearchQuery("");
           setDesignsPage(0);
+          setStatusFilter(null);
         }}
         maxWidth="xl"
-        title="تصاميمي"
+        title={statusFilter === 3 ? "الطلبات قيد المراجعة" : "تصاميمي"}
         actions={
           <Button onClick={() => {
             setOpenDesignsModal(false);
             setDesignsSearchQuery("");
             setDesignsPage(0);
+            setStatusFilter(null);
           }} variant="contained">
             إغلاق
           </Button>
@@ -424,16 +587,21 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                         );
                       }
 
+                      // Get status label and color function
+                      const getStatusLabel = (status) => {
+                        const statusMap = {
+                          1: { label: "في الانتظار", color: "warning" },
+                          2: { label: "قيد التنفيذ", color: "info" },
+                          3: { label: "قيد المراجعة", color: "info" },
+                          4: { label: "بحاجة لتعديل", color: "warning" },
+                          5: { label: "جاهز", color: "success" },
+                          6: { label: "ملغي", color: "error" },
+                        };
+                        return statusMap[status] || { label: "غير محدد", color: "default" };
+                      };
+
                       return filteredDesigns.map((design) => {
-                        const statusInfo = (() => {
-                          const statusMap = {
-                            1: { label: "في الانتظار", color: "warning" },
-                            2: { label: "معتمد", color: "success" },
-                            3: { label: "غير معتمد", color: "error" },
-                            4: { label: "مرتجع", color: "info" },
-                          };
-                          return statusMap[design.status] || { label: design.statusName || "غير محدد", color: "default" };
-                        })();
+                        const statusInfo = getStatusLabel(design.status);
 
                         return (
                           <TableRow
@@ -460,12 +628,137 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                               </Typography>
                             </TableCell>
                             <TableCell>
-                              <Chip
-                                label={statusInfo.label}
-                                color={statusInfo.color}
-                                size="small"
-                                sx={{ fontWeight: 600 }}
-                              />
+                              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                                {/* Current Status Chip */}
+                                <Chip
+                                  label={statusInfo.label}
+                                  color={statusInfo.color}
+                                  size="small"
+                                  sx={{ 
+                                    fontWeight: 600,
+                                    width: "fit-content",
+                                  }}
+                                />
+                                
+                                {/* Status Change Dropdown */}
+                                <FormControl
+                                  size="small"
+                                  sx={{
+                                    minWidth: 180,
+                                    "& .MuiOutlinedInput-root": {
+                                      backgroundColor: "rgba(255, 255, 255, 0.95)",
+                                      borderRadius: 1.5,
+                                      "&:hover": {
+                                        backgroundColor: "rgba(255, 255, 255, 1)",
+                                      },
+                                    },
+                                  }}
+                                >
+                                  <Select
+                                    value=""
+                                    onChange={(e) => {
+                                      const newStatus = parseInt(e.target.value);
+                                      if (newStatus === 4 || newStatus === 5 || newStatus === 6) {
+                                        handleStatusChange(design.id, newStatus);
+                                      }
+                                    }}
+                                    disabled={updatingStatusId === design.id}
+                                    displayEmpty
+                                    sx={{
+                                      fontSize: "0.8rem",
+                                      height: 36,
+                                      "& .MuiSelect-select": {
+                                        py: 1,
+                                      },
+                                    }}
+                                  >
+                                    <MenuItem value="" disabled>
+                                      <em style={{ fontSize: "0.8rem", color: calmPalette.textSecondary }}>
+                                        تغيير الحالة
+                                      </em>
+                                    </MenuItem>
+                                    <MenuItem 
+                                      value={4} 
+                                      disabled={design.status === 4}
+                                      sx={{
+                                        py: 1.5,
+                                        "&:hover": {
+                                          backgroundColor: "rgba(255, 152, 0, 0.08)",
+                                        },
+                                      }}
+                                    >
+                                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, width: "100%" }}>
+                                        <Chip
+                                          label="بحاجة لتعديل"
+                                          color="warning"
+                                          size="small"
+                                          sx={{ 
+                                            height: 22, 
+                                            fontSize: "0.75rem",
+                                            fontWeight: 600,
+                                          }}
+                                        />
+                                      </Box>
+                                    </MenuItem>
+                                    <MenuItem 
+                                      value={5} 
+                                      disabled={design.status === 5}
+                                      sx={{
+                                        py: 1.5,
+                                        "&:hover": {
+                                          backgroundColor: "rgba(76, 175, 80, 0.08)",
+                                        },
+                                      }}
+                                    >
+                                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, width: "100%" }}>
+                                        <Chip
+                                          label="جاهز"
+                                          color="success"
+                                          size="small"
+                                          sx={{ 
+                                            height: 22, 
+                                            fontSize: "0.75rem",
+                                            fontWeight: 600,
+                                          }}
+                                        />
+                                      </Box>
+                                    </MenuItem>
+                                    <MenuItem 
+                                      value={6} 
+                                      disabled={design.status === 6}
+                                      sx={{
+                                        py: 1.5,
+                                        "&:hover": {
+                                          backgroundColor: "rgba(244, 67, 54, 0.08)",
+                                        },
+                                      }}
+                                    >
+                                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, width: "100%" }}>
+                                        <Chip
+                                          label="ملغي"
+                                          color="error"
+                                          size="small"
+                                          sx={{ 
+                                            height: 22, 
+                                            fontSize: "0.75rem",
+                                            fontWeight: 600,
+                                          }}
+                                        />
+                                      </Box>
+                                    </MenuItem>
+                                  </Select>
+                                </FormControl>
+                                
+                                {/* Loading Indicator */}
+                                {updatingStatusId === design.id && (
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                    <CircularProgress size={14} />
+                                    <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.7rem" }}>
+                                      جاري التحديث...
+                                    </Typography>
+                                  </Box>
+                                )}
+                              </Box>
                             </TableCell>
                             <TableCell>
                               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
@@ -626,6 +919,126 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
           onUpdate={handleUpdateDesign}
         />
       )}
+
+      {/* Status Change Dialog with Note */}
+      <GlassDialog
+        open={statusChangeDialogOpen}
+        onClose={() => {
+          if (updatingStatusId === null) {
+            setStatusChangeDialogOpen(false);
+            setPendingStatusChange({ designId: null, newStatus: null });
+            setStatusChangeNote("");
+          }
+        }}
+        maxWidth="sm"
+        title="تغيير الحالة"
+        actions={
+          <>
+            <Button 
+              onClick={() => {
+                setStatusChangeDialogOpen(false);
+                setPendingStatusChange({ designId: null, newStatus: null });
+                setStatusChangeNote("");
+              }} 
+              variant="outlined"
+              disabled={updatingStatusId !== null}
+            >
+              إلغاء
+            </Button>
+            <Button 
+              onClick={handleConfirmStatusChange} 
+              variant="contained"
+              disabled={updatingStatusId !== null}
+            >
+              {updatingStatusId !== null ? (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <CircularProgress size={16} color="inherit" />
+                  جاري التحديث...
+                </Box>
+              ) : (
+                "تأكيد"
+              )}
+            </Button>
+          </>
+        }
+      >
+        <Box sx={{ p: 3 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {/* Current Status Info */}
+            {pendingStatusChange.newStatus && (
+              <Box>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 600,
+                    mb: 1,
+                    color: calmPalette.textPrimary,
+                  }}
+                >
+                  الحالة الجديدة:
+                </Typography>
+                <Chip
+                  label={
+                    pendingStatusChange.newStatus === 4
+                      ? "بحاجة لتعديل"
+                      : pendingStatusChange.newStatus === 5
+                      ? "جاهز"
+                      : pendingStatusChange.newStatus === 6
+                      ? "ملغي"
+                      : "غير محدد"
+                  }
+                  color={
+                    pendingStatusChange.newStatus === 4
+                      ? "warning"
+                      : pendingStatusChange.newStatus === 5
+                      ? "success"
+                      : pendingStatusChange.newStatus === 6
+                      ? "error"
+                      : "default"
+                  }
+                  size="small"
+                  sx={{ fontWeight: 600 }}
+                />
+              </Box>
+            )}
+
+            {/* Note Input */}
+            <Box>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontWeight: 600,
+                  mb: 1.5,
+                  color: calmPalette.textPrimary,
+                }}
+              >
+                الملاحظة (اختياري)
+              </Typography>
+              <TextField
+                value={statusChangeNote}
+                onChange={(e) => setStatusChangeNote(e.target.value)}
+                placeholder="أدخل ملاحظة لتغيير الحالة (اختياري)..."
+                fullWidth
+                multiline
+                rows={4}
+                disabled={updatingStatusId !== null}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    borderRadius: 2,
+                  },
+                }}
+              />
+              <Typography
+                variant="caption"
+                sx={{ color: calmPalette.textSecondary, mt: 1, display: "block" }}
+              >
+                يمكنك إضافة ملاحظة توضح سبب تغيير الحالة (اختياري)
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      </GlassDialog>
     </>
   );
 };

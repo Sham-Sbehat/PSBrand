@@ -36,6 +36,9 @@ import {
   Close,
   CheckCircle,
   Cancel,
+  CloudUpload,
+  Delete,
+  Send,
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
@@ -58,6 +61,10 @@ const MyDesignsTab = () => {
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
   const [statusTab, setStatusTab] = useState(2); // 2-6 = specific status (no pending status)
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [designForReview, setDesignForReview] = useState(null);
+  const [reviewImages, setReviewImages] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [statusCounts, setStatusCounts] = useState({
     1: 0, // في الانتظار (for counting only, not displayed)
     2: 0, // قيد التنفيذ
@@ -200,7 +207,161 @@ const MyDesignsTab = () => {
     }
   };
 
-  // Handle complete design
+  // Handle send for review - open modal
+  const handleSendForReview = (design) => {
+    setDesignForReview(design);
+    setReviewImages([]);
+    setReviewModalOpen(true);
+  };
+
+  // Handle image selection for review
+  const handleReviewImageSelect = (event) => {
+    const files = Array.from(event.target.files);
+    if (files.length > 0) {
+      setReviewImages((prev) => [...prev, ...files]);
+    }
+    // Reset input
+    event.target.value = "";
+  };
+
+  // Remove image from review list
+  const handleRemoveReviewImage = (index) => {
+    setReviewImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Upload images and send for review
+  const handleUploadImagesAndSendForReview = async () => {
+    if (!designForReview) return;
+
+    if (reviewImages.length === 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "تحذير",
+        text: "يرجى إضافة صور التصميم قبل الإرسال للمراجعة",
+        confirmButtonColor: calmPalette.primary,
+      });
+      return;
+    }
+
+    setUpdatingStatusId(designForReview.id);
+    setUploadingImages(true);
+
+    try {
+      // Step 1: Upload images first (same endpoint as creating new design)
+      console.log("📤 Uploading images...");
+      const uploadResponse = await designRequestsService.uploadImages(reviewImages);
+      console.log("✅ Upload response:", uploadResponse);
+
+      // Extract imageKeys from response
+      // API can return: array of objects, single object, or array of strings
+      let imageKeys = [];
+      if (Array.isArray(uploadResponse)) {
+        // If response is array, extract publicId from each item
+        imageKeys = uploadResponse.map(item => {
+          if (typeof item === 'string') {
+            return item; // Already a string
+          } else if (item && typeof item === 'object') {
+            // Extract publicId, fileKey, or key from object
+            return item.publicId || item.fileKey || item.key || item.url || String(item);
+          }
+          return String(item);
+        });
+      } else if (uploadResponse && typeof uploadResponse === 'object') {
+        // If response is a single object (not array), extract publicId from it
+        // This handles the case when API returns { url, publicId } directly
+        const publicId = uploadResponse.publicId || uploadResponse.fileKey || uploadResponse.key;
+        if (publicId) {
+          imageKeys = [publicId];
+        } else if (uploadResponse.url) {
+          // If no publicId, try to extract from URL
+          imageKeys = [uploadResponse.url];
+        } else {
+          // Fallback: try to find any string value in the object
+          const values = Object.values(uploadResponse).filter(v => typeof v === 'string');
+          imageKeys = values.length > 0 ? values : [];
+        }
+      } else if (uploadResponse?.imageKeys && Array.isArray(uploadResponse.imageKeys)) {
+        imageKeys = uploadResponse.imageKeys.map(item => {
+          if (typeof item === 'string') return item;
+          return item?.publicId || item?.fileKey || item?.key || String(item);
+        });
+      } else if (uploadResponse?.data?.imageKeys && Array.isArray(uploadResponse.data.imageKeys)) {
+        imageKeys = uploadResponse.data.imageKeys.map(item => {
+          if (typeof item === 'string') return item;
+          return item?.publicId || item?.fileKey || item?.key || String(item);
+        });
+      } else if (uploadResponse?.data && Array.isArray(uploadResponse.data)) {
+        imageKeys = uploadResponse.data.map(item => {
+          if (typeof item === 'string') return item;
+          return item?.publicId || item?.fileKey || item?.key || String(item);
+        });
+      } else if (uploadResponse?.files && Array.isArray(uploadResponse.files)) {
+        imageKeys = uploadResponse.files.map(file => file.publicId || file.fileKey || file.key || file.url);
+      }
+
+      // Ensure all keys are strings
+      imageKeys = imageKeys.map(key => String(key)).filter(key => key && key !== 'undefined' && key !== 'null');
+
+      console.log("🔑 Extracted imageKeys (strings):", imageKeys);
+
+      if (!Array.isArray(imageKeys) || imageKeys.length === 0) {
+        console.error("❌ Invalid imageKeys:", imageKeys);
+        throw new Error("فشل في الحصول على مفاتيح الصور من الاستجابة");
+      }
+
+      // Step 2: Get existing design to preserve current data
+      const existingDesign = designs.find(d => d.id === designForReview.id);
+      
+      // Step 3: Update design request with NEW imageKeys only (from upload API)
+      // Use only the new imageKeys returned from upload API, not the old ones
+      const newImageKeys = imageKeys; // Already strings
+      
+      console.log("📤 Updating design with NEW imageKeys only:", newImageKeys);
+      
+      // Update design with designImages (array of strings) - only new images
+      // API expects dto wrapper and designImages as array of strings based on error message
+      await designRequestsService.updateDesignRequest(designForReview.id, {
+        dto: {
+          title: existingDesign?.title || designForReview.title,
+          description: existingDesign?.description || designForReview.description || "",
+          designImages: newImageKeys, // Array of strings (fileKeys) - Only NEW images from upload API
+          status: existingDesign?.status || designForReview.status,
+          mainDesignerId: existingDesign?.mainDesignerId || designForReview.mainDesignerId || 0,
+          note: existingDesign?.note || designForReview.note || "",
+        }
+      });
+      
+      // Step 4: Set status to "قيد المراجعة" (3)
+      await designRequestsService.setState(designForReview.id, 3);
+
+      Swal.fire({
+        icon: "success",
+        title: "تم بنجاح",
+        text: "تم رفع الصور وإرسال التصميم للمراجعة بنجاح",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+
+      // Close modal and refresh
+      setReviewModalOpen(false);
+      setDesignForReview(null);
+      setReviewImages([]);
+      loadDesigns();
+    } catch (error) {
+      console.error("Error uploading images and sending for review:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: error.response?.data?.message || error.message || "فشل في رفع الصور وإرسال التصميم للمراجعة",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setUpdatingStatusId(null);
+      setUploadingImages(false);
+    }
+  };
+
+  // Handle complete design (for status 3 and above)
   const handleCompleteDesign = async (designId) => {
     const result = await Swal.fire({
       title: "تأكيد",
@@ -217,7 +378,7 @@ const MyDesignsTab = () => {
 
     setUpdatingStatusId(designId);
     try {
-      await designRequestsService.setState(designId, 3); // Completed = 3
+      await designRequestsService.setState(designId, 5); // Ready = 5
       Swal.fire({
         icon: "success",
         title: "تم بنجاح",
@@ -798,31 +959,59 @@ const MyDesignsTab = () => {
                           </IconButton>
                         </Tooltip>
                         <>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="success"
-                            startIcon={updatingStatusId === design.id ? (
-                              <CircularProgress size={14} color="inherit" />
-                            ) : (
-                              <CheckCircle fontSize="small" />
-                            )}
-                            onClick={() => handleCompleteDesign(design.id)}
-                            disabled={updatingStatusId === design.id || design.status === 3}
-                            sx={{ 
-                              minWidth: '120px',
-                              fontSize: '0.8rem'
-                            }}
-                          >
-                            {updatingStatusId === design.id ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          {design.status === 2 ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="info"
+                              startIcon={updatingStatusId === design.id ? (
                                 <CircularProgress size={14} color="inherit" />
-                                جاري...
-                              </Box>
-                            ) : (
-                              'إتمام'
-                            )}
-                          </Button>
+                              ) : (
+                                <Send fontSize="small" />
+                              )}
+                              onClick={() => handleSendForReview(design)}
+                              disabled={updatingStatusId === design.id}
+                              sx={{ 
+                                minWidth: '140px',
+                                fontSize: '0.8rem'
+                              }}
+                            >
+                              {updatingStatusId === design.id ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <CircularProgress size={14} color="inherit" />
+                                  جاري...
+                                </Box>
+                              ) : (
+                                'إرسال للمراجعة'
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="success"
+                              startIcon={updatingStatusId === design.id ? (
+                                <CircularProgress size={14} color="inherit" />
+                              ) : (
+                                <CheckCircle fontSize="small" />
+                              )}
+                              onClick={() => handleCompleteDesign(design.id)}
+                              disabled={updatingStatusId === design.id || design.status === 5}
+                              sx={{ 
+                                minWidth: '120px',
+                                fontSize: '0.8rem'
+                              }}
+                            >
+                              {updatingStatusId === design.id ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <CircularProgress size={14} color="inherit" />
+                                  جاري...
+                                </Box>
+                              ) : (
+                                'إتمام'
+                              )}
+                            </Button>
+                          )}
                           <Button
                             size="small"
                             variant="outlined"
@@ -962,10 +1151,11 @@ const MyDesignsTab = () => {
         fullWidth
         PaperProps={{
           sx: {
-            borderRadius: 3,
-            background: "#ffffff",
-            boxShadow: calmPalette.shadow,
-            border: "1px solid rgba(94, 78, 62, 0.15)",
+            borderRadius: 4,
+            background: "linear-gradient(to bottom, #ffffff 0%, #fafafa 100%)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+            border: "1px solid rgba(94, 78, 62, 0.1)",
+            overflow: "hidden",
           },
         }}
       >
@@ -976,146 +1166,513 @@ const MyDesignsTab = () => {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                borderBottom: `1px solid ${calmPalette.primary}20`,
+                background: `linear-gradient(135deg, ${calmPalette.primary}15 0%, ${calmPalette.primary}08 100%)`,
+                borderBottom: `2px solid ${calmPalette.primary}20`,
+                py: 2.5,
+                px: 3,
               }}
             >
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {viewingDesign.title}
-              </Typography>
+              <Box>
+                <Typography 
+                  variant="h5" 
+                  sx={{ 
+                    fontWeight: 700,
+                    color: calmPalette.textPrimary,
+                    mb: 0.5,
+                  }}
+                >
+                  {viewingDesign.title}
+                </Typography>
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: calmPalette.textSecondary,
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  #{viewingDesign.id || "-"}
+                </Typography>
+              </Box>
               <IconButton
                 onClick={() => setViewDesignDialogOpen(false)}
                 size="small"
-                sx={{ color: calmPalette.textSecondary }}
+                sx={{ 
+                  color: calmPalette.textSecondary,
+                  backgroundColor: "rgba(0, 0, 0, 0.04)",
+                  "&:hover": {
+                    backgroundColor: "rgba(0, 0, 0, 0.08)",
+                    transform: "rotate(90deg)",
+                  },
+                  transition: "all 0.3s ease",
+                }}
               >
                 <Close />
               </IconButton>
             </DialogTitle>
-            <DialogContent sx={{ pt: 3 }}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <DialogContent sx={{ pt: 4, px: 3, pb: 2 }}>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
                 {/* Description */}
                 {viewingDesign.description && (
-                  <Box>
+                  <Box
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                      border: `1px solid ${calmPalette.primary}15`,
+                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+                    }}
+                  >
                     <Typography
                       variant="subtitle2"
-                      sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}
+                      sx={{ 
+                        fontWeight: 700, 
+                        mb: 1.5, 
+                        color: calmPalette.textPrimary,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
                     >
-                      الوصف:
+                      <Box
+                        sx={{
+                          width: 4,
+                          height: 20,
+                          borderRadius: 1,
+                          background: `linear-gradient(135deg, ${calmPalette.primary} 0%, ${calmPalette.primaryDark} 100%)`,
+                        }}
+                      />
+                      الوصف
                     </Typography>
-                    <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: calmPalette.textSecondary,
+                        lineHeight: 1.8,
+                        pl: 2,
+                      }}
+                    >
                       {viewingDesign.description}
                     </Typography>
                   </Box>
                 )}
 
-                {/* Images */}
+                {/* Original Images (images) - صور النموذج */}
                 {viewingDesign.images && viewingDesign.images.length > 0 && (
                   <Box>
                     <Typography
                       variant="subtitle2"
-                      sx={{ fontWeight: 600, mb: 2, color: calmPalette.textPrimary }}
+                      sx={{ 
+                        fontWeight: 700, 
+                        mb: 2, 
+                        color: calmPalette.textPrimary,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
                     >
-                      الصور ({viewingDesign.images.length}):
+                      <Box
+                        sx={{
+                          width: 4,
+                          height: 20,
+                          borderRadius: 1,
+                          background: `linear-gradient(135deg, #2196f3 0%, #1976d2 100%)`,
+                        }}
+                      />
+                      صور النموذج
+                      <Chip
+                        label={viewingDesign.images.length}
+                        size="small"
+                        sx={{
+                          height: 22,
+                          fontSize: "0.7rem",
+                          backgroundColor: "rgba(33, 150, 243, 0.1)",
+                          color: "#2196f3",
+                          fontWeight: 700,
+                        }}
+                      />
                     </Typography>
                     <Box
                       sx={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-                        gap: 2,
+                        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                        gap: 2.5,
                       }}
                     >
-                      {viewingDesign.images.map((image, index) => (
-                        <Card
-                          key={index}
-                          sx={{
-                            cursor: "pointer",
-                            transition: "all 0.3s ease",
-                            "&:hover": {
-                              transform: "scale(1.05)",
-                              boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
-                            },
-                          }}
-                          onClick={() => {
-                            setSelectedImage(image);
-                            setImageDialogOpen(true);
-                            setViewDesignDialogOpen(false);
-                          }}
-                        >
-                          <CardMedia
-                            component="img"
-                            image={image.downloadUrl}
-                            alt={`${viewingDesign.title} - ${index + 1}`}
+                      {viewingDesign.images.map((image, index) => {
+                        // Handle both object format {fileKey, downloadUrl} and string format
+                        const imageUrl = image.downloadUrl || image.fileKey || image;
+                        const imageKey = image.fileKey || image;
+                        
+                        return (
+                          <Card
+                            key={index}
                             sx={{
-                              height: 150,
-                              objectFit: "cover",
+                              cursor: "pointer",
+                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                              borderRadius: 2.5,
+                              overflow: "hidden",
+                              border: "2px solid transparent",
+                              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+                              "&:hover": {
+                                transform: "translateY(-4px) scale(1.02)",
+                                boxShadow: "0 8px 24px rgba(33, 150, 243, 0.25)",
+                                borderColor: "#2196f3",
+                              },
                             }}
-                            onError={(e) => {
-                              e.target.style.display = "none";
+                            onClick={() => {
+                              setSelectedImage(typeof image === 'object' ? image : { downloadUrl: imageUrl, fileKey: imageKey });
+                              setImageDialogOpen(true);
+                              setViewDesignDialogOpen(false);
                             }}
-                          />
-                        </Card>
-                      ))}
+                          >
+                            <CardMedia
+                              component="img"
+                              image={imageUrl}
+                              alt={`صورة نموذج ${index + 1}`}
+                              sx={{
+                                height: 180,
+                                objectFit: "cover",
+                              }}
+                              onError={(e) => {
+                                e.target.style.display = "none";
+                              }}
+                            />
+                          </Card>
+                        );
+                      })}
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Design Images (designImages) - صور التصميم */}
+                {viewingDesign.designImages && viewingDesign.designImages.length > 0 && (
+                  <Box>
+                    <Typography
+                      variant="subtitle2"
+                      sx={{ 
+                        fontWeight: 700, 
+                        mb: 2, 
+                        color: calmPalette.textPrimary,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 4,
+                          height: 20,
+                          borderRadius: 1,
+                          background: `linear-gradient(135deg, ${calmPalette.primary} 0%, ${calmPalette.primaryDark} 100%)`,
+                        }}
+                      />
+                      صور التصميم
+                      <Chip
+                        label={viewingDesign.designImages.length}
+                        size="small"
+                        sx={{
+                          height: 22,
+                          fontSize: "0.7rem",
+                          backgroundColor: `${calmPalette.primary}15`,
+                          color: calmPalette.primary,
+                          fontWeight: 700,
+                        }}
+                      />
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                        gap: 2.5,
+                      }}
+                    >
+                      {viewingDesign.designImages.map((image, index) => {
+                        // Handle both object format {fileKey, downloadUrl} and string format
+                        const imageKey = image.fileKey || image;
+                        let imageUrl = image.downloadUrl || image.fileKey || image;
+                        
+                        // Always construct Cloudinary URL from publicId if it's not a full URL
+                        let finalUrl = imageUrl;
+                        if (typeof image === 'string') {
+                          // It's a string (publicId), construct Cloudinary URL
+                          finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+                        } else if (image && typeof image === 'object') {
+                          // It's an object, check if downloadUrl/fileKey is a full URL
+                          if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+                            // It's already a full URL, use it as is
+                            finalUrl = imageUrl;
+                          } else {
+                            // It's a publicId, construct full Cloudinary URL
+                            finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+                          }
+                        }
+                        
+                        return (
+                          <Card
+                            key={index}
+                            sx={{
+                              cursor: "pointer",
+                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                              borderRadius: 2.5,
+                              overflow: "hidden",
+                              border: "2px solid transparent",
+                              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+                              "&:hover": {
+                                transform: "translateY(-4px) scale(1.02)",
+                                boxShadow: `0 8px 24px ${calmPalette.primary}40`,
+                                borderColor: calmPalette.primary,
+                              },
+                            }}
+                            onClick={() => {
+                              // Ensure selectedImage has the correct downloadUrl (full URL)
+                              const imageObj = typeof image === 'object' 
+                                ? { ...image, downloadUrl: finalUrl, fileKey: imageKey }
+                                : { downloadUrl: finalUrl, fileKey: imageKey };
+                              setSelectedImage(imageObj);
+                              setImageDialogOpen(true);
+                              setViewDesignDialogOpen(false);
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: "100%",
+                                height: 180,
+                                position: "relative",
+                                backgroundColor: `${calmPalette.primary}08`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <img
+                                src={finalUrl}
+                                alt={`صورة تصميم ${index + 1}`}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                }}
+                                onError={(e) => {
+                                  console.error(`❌ Failed to load design image ${index + 1}:`, finalUrl, image);
+                                  e.target.style.display = "none";
+                                }}
+                                onLoad={() => {
+                                  console.log(`✅ Successfully loaded design image ${index + 1}:`, finalUrl);
+                                }}
+                              />
+                              <ImageIcon
+                                sx={{
+                                  position: "absolute",
+                                  color: calmPalette.textSecondary,
+                                  fontSize: 40,
+                                  opacity: 0.3,
+                                  display: "none",
+                                }}
+                                className="placeholder-icon"
+                              />
+                            </Box>
+                          </Card>
+                        );
+                      })}
                     </Box>
                   </Box>
                 )}
 
                 {/* Note */}
-                {viewingDesign.note && (
-                  <Box>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}
-                    >
-                      الملاحظات:
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
-                      {viewingDesign.note}
-                    </Typography>
-                  </Box>
-                )}
+                <Box
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 2,
+                    backgroundColor: "rgba(255, 255, 255, 0.8)",
+                    border: `1px solid ${calmPalette.primary}15`,
+                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+                  }}
+                >
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ 
+                      fontWeight: 700, 
+                      mb: 1.5, 
+                      color: calmPalette.textPrimary,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 4,
+                        height: 20,
+                        borderRadius: 1,
+                        background: `linear-gradient(135deg, #ff9800 0%, #f57c00 100%)`,
+                      }}
+                    />
+                    الملاحظات
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: calmPalette.textSecondary,
+                      lineHeight: 1.8,
+                      pl: 2,
+                      fontStyle: viewingDesign.note ? "normal" : "italic",
+                    }}
+                  >
+                    {viewingDesign.note || "لا توجد ملاحظات"}
+                  </Typography>
+                </Box>
 
-                {/* Info */}
+                {/* Status Info */}
+                <Box
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 2,
+                    backgroundColor: "rgba(255, 255, 255, 0.8)",
+                    border: `1px solid ${calmPalette.primary}15`,
+                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+                  }}
+                >
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ 
+                      fontWeight: 700, 
+                      mb: 1.5, 
+                      color: calmPalette.textPrimary,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 4,
+                        height: 20,
+                        borderRadius: 1,
+                        background: `linear-gradient(135deg, ${getStatusLabel(viewingDesign.status).color === 'success' ? '#4caf50' : getStatusLabel(viewingDesign.status).color === 'error' ? '#f44336' : getStatusLabel(viewingDesign.status).color === 'warning' ? '#ff9800' : '#2196f3'} 0%, ${getStatusLabel(viewingDesign.status).color === 'success' ? '#43a047' : getStatusLabel(viewingDesign.status).color === 'error' ? '#e53935' : getStatusLabel(viewingDesign.status).color === 'warning' ? '#f57c00' : '#1976d2'} 100%)`,
+                      }}
+                    />
+                    الحالة
+                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, pl: 2 }}>
+                    <Chip
+                      label={viewingDesign.statusName || getStatusLabel(viewingDesign.status).label}
+                      color={getStatusLabel(viewingDesign.status).color}
+                      size="medium"
+                      sx={{ 
+                        fontWeight: 700,
+                        fontSize: "0.85rem",
+                        height: 32,
+                      }}
+                    />
+                    {viewingDesign.status && (
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: calmPalette.textSecondary,
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        (ID: {viewingDesign.status})
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+
+                {/* Detailed Info Grid */}
                 <Box
                   sx={{
                     display: "grid",
                     gridTemplateColumns: "repeat(2, 1fr)",
-                    gap: 2,
+                    gap: 2.5,
                     pt: 2,
-                    borderTop: `1px solid ${calmPalette.primary}10`,
+                    borderTop: `2px solid ${calmPalette.primary}15`,
                   }}
                 >
-                  <Box>
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      backgroundColor: "rgba(255, 255, 255, 0.6)",
+                      border: `1px solid ${calmPalette.primary}10`,
+                    }}
+                  >
                     <Typography
                       variant="caption"
-                      sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
+                      sx={{ 
+                        color: calmPalette.textSecondary, 
+                        display: "block", 
+                        mb: 1,
+                        fontWeight: 600,
+                        fontSize: "0.75rem",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                      }}
                     >
-                      المنشئ:
+                      المنشئ
                     </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    <Typography variant="body1" sx={{ fontWeight: 700, color: calmPalette.textPrimary, mb: 0.5 }}>
                       {viewingDesign.createdByName || "-"}
                     </Typography>
+                    {viewingDesign.createdBy && (
+                      <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.7rem" }}>
+                        ID: {viewingDesign.createdBy}
+                      </Typography>
+                    )}
                   </Box>
-                  <Box>
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      backgroundColor: "rgba(255, 255, 255, 0.6)",
+                      border: `1px solid ${calmPalette.primary}10`,
+                    }}
+                  >
                     <Typography
                       variant="caption"
-                      sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
+                      sx={{ 
+                        color: calmPalette.textSecondary, 
+                        display: "block", 
+                        mb: 1,
+                        fontWeight: 600,
+                        fontSize: "0.75rem",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                      }}
                     >
-                      الحالة:
+                      المصمم المعين
                     </Typography>
-                    <Chip
-                      label={getStatusLabel(viewingDesign.status).label}
-                      color={getStatusLabel(viewingDesign.status).color}
-                      size="small"
-                      sx={{ fontWeight: 600 }}
-                    />
+                    <Typography variant="body1" sx={{ fontWeight: 700, color: calmPalette.textPrimary, mb: 0.5 }}>
+                      {viewingDesign.mainDesignerName || "-"}
+                    </Typography>
+                    {viewingDesign.mainDesignerId && (
+                      <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.7rem" }}>
+                        ID: {viewingDesign.mainDesignerId}
+                      </Typography>
+                    )}
                   </Box>
-                  <Box>
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      backgroundColor: "rgba(255, 255, 255, 0.6)",
+                      border: `1px solid ${calmPalette.primary}10`,
+                    }}
+                  >
                     <Typography
                       variant="caption"
-                      sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
+                      sx={{ 
+                        color: calmPalette.textSecondary, 
+                        display: "block", 
+                        mb: 1,
+                        fontWeight: 600,
+                        fontSize: "0.75rem",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                      }}
                     >
-                      تاريخ الإنشاء:
+                      تاريخ الإنشاء
                     </Typography>
-                    <Typography variant="body2">
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary }}>
                       {viewingDesign.createdAt
                         ? new Date(viewingDesign.createdAt).toLocaleDateString("ar-SA", {
                             year: "numeric",
@@ -1128,14 +1685,29 @@ const MyDesignsTab = () => {
                     </Typography>
                   </Box>
                   {viewingDesign.updatedAt && (
-                    <Box>
+                    <Box
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        backgroundColor: "rgba(255, 255, 255, 0.6)",
+                        border: `1px solid ${calmPalette.primary}10`,
+                      }}
+                    >
                       <Typography
                         variant="caption"
-                        sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
+                        sx={{ 
+                          color: calmPalette.textSecondary, 
+                          display: "block", 
+                          mb: 1,
+                          fontWeight: 600,
+                          fontSize: "0.75rem",
+                          textTransform: "uppercase",
+                          letterSpacing: 0.5,
+                        }}
                       >
-                        آخر تحديث:
+                        آخر تحديث
                       </Typography>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary }}>
                         {new Date(viewingDesign.updatedAt).toLocaleDateString("ar-SA", {
                           year: "numeric",
                           month: "2-digit",
@@ -1149,15 +1721,30 @@ const MyDesignsTab = () => {
                 </Box>
               </Box>
             </DialogContent>
-            <DialogActions sx={{ borderTop: `1px solid ${calmPalette.primary}10`, p: 2 }}>
+            <DialogActions 
+              sx={{ 
+                borderTop: `2px solid ${calmPalette.primary}15`, 
+                p: 2.5,
+                background: "linear-gradient(to top, #fafafa 0%, #ffffff 100%)",
+              }}
+            >
               <Button
                 onClick={() => setViewDesignDialogOpen(false)}
                 variant="contained"
                 sx={{
                   backgroundColor: calmPalette.primary,
+                  borderRadius: 2,
+                  px: 4,
+                  py: 1,
+                  fontWeight: 700,
+                  textTransform: "none",
+                  boxShadow: `0 4px 12px ${calmPalette.primary}40`,
                   "&:hover": {
                     backgroundColor: calmPalette.primaryDark,
+                    transform: "translateY(-2px)",
+                    boxShadow: `0 6px 16px ${calmPalette.primary}50`,
                   },
+                  transition: "all 0.3s ease",
                 }}
               >
                 إغلاق
@@ -1165,6 +1752,217 @@ const MyDesignsTab = () => {
             </DialogActions>
           </>
         )}
+      </Dialog>
+
+      {/* Review Modal - Upload Images and Send for Review */}
+      <Dialog
+        open={reviewModalOpen}
+        onClose={() => {
+          if (!uploadingImages) {
+            setReviewModalOpen(false);
+            setDesignForReview(null);
+            setReviewImages([]);
+          }
+        }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            backgroundColor: calmPalette.primary,
+            color: "#fff",
+            fontWeight: 700,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Typography variant="h6">إرسال للمراجعة</Typography>
+          <IconButton
+            onClick={() => {
+              if (!uploadingImages) {
+                setReviewModalOpen(false);
+                setDesignForReview(null);
+                setReviewImages([]);
+              }
+            }}
+            disabled={uploadingImages}
+            sx={{ color: "#fff" }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {designForReview && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              {/* Design Info */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                  التصميم:
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700, color: calmPalette.primary }}>
+                  {designForReview.title}
+                </Typography>
+                {designForReview.description && (
+                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mt: 0.5 }}>
+                    {designForReview.description}
+                  </Typography>
+                )}
+              </Box>
+
+              {/* Upload Images Section */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
+                  رفع صور التصميم <span style={{ color: "red" }}>*</span>
+                </Typography>
+                
+                {/* File Input */}
+                <input
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  id="review-image-upload"
+                  multiple
+                  type="file"
+                  onChange={handleReviewImageSelect}
+                  disabled={uploadingImages}
+                />
+                <label htmlFor="review-image-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUpload />}
+                    disabled={uploadingImages}
+                    sx={{
+                      mb: 2,
+                      borderColor: calmPalette.primary,
+                      color: calmPalette.primary,
+                      "&:hover": {
+                        borderColor: calmPalette.primaryDark,
+                        backgroundColor: `${calmPalette.primary}10`,
+                      },
+                    }}
+                  >
+                    اختر الصور
+                  </Button>
+                </label>
+
+                {/* Preview Images */}
+                {reviewImages.length > 0 && (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+                      gap: 2,
+                      mt: 2,
+                    }}
+                  >
+                    {reviewImages.map((file, index) => (
+                      <Card
+                        key={index}
+                        sx={{
+                          position: "relative",
+                          borderRadius: 2,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <CardMedia
+                          component="img"
+                          image={URL.createObjectURL(file)}
+                          alt={`Preview ${index + 1}`}
+                          sx={{
+                            height: 150,
+                            objectFit: "cover",
+                          }}
+                        />
+                        <IconButton
+                          onClick={() => handleRemoveReviewImage(index)}
+                          disabled={uploadingImages}
+                          sx={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            backgroundColor: "rgba(255, 255, 255, 0.9)",
+                            color: "#f44336",
+                            "&:hover": {
+                              backgroundColor: "#fff",
+                            },
+                          }}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            backgroundColor: "rgba(0, 0, 0, 0.6)",
+                            color: "#fff",
+                            p: 0.5,
+                            fontSize: "0.75rem",
+                            textAlign: "center",
+                          }}
+                        >
+                          {file.name}
+                        </Box>
+                      </Card>
+                    ))}
+                  </Box>
+                )}
+
+                {reviewImages.length === 0 && (
+                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mt: 1 }}>
+                    لم يتم اختيار أي صور بعد
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ borderTop: `1px solid ${calmPalette.primary}10`, p: 2 }}>
+          <Button
+            onClick={() => {
+              if (!uploadingImages) {
+                setReviewModalOpen(false);
+                setDesignForReview(null);
+                setReviewImages([]);
+              }
+            }}
+            disabled={uploadingImages}
+            sx={{ color: calmPalette.textSecondary }}
+          >
+            إلغاء
+          </Button>
+          <Button
+            onClick={handleUploadImagesAndSendForReview}
+            disabled={uploadingImages || reviewImages.length === 0}
+            variant="contained"
+            startIcon={
+              uploadingImages ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <Send />
+              )
+            }
+            sx={{
+              backgroundColor: calmPalette.primary,
+              "&:hover": {
+                backgroundColor: calmPalette.primaryDark,
+              },
+              "&:disabled": {
+                backgroundColor: calmPalette.textSecondary,
+              },
+            }}
+          >
+            {uploadingImages ? "جاري الإرسال..." : "إرسال للمراجعة"}
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

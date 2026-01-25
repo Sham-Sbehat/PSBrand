@@ -1390,6 +1390,18 @@ export const designRequestsService = {
       throw error;
     }
   },
+
+  // Update design request note
+  updateNote: async (designRequestId, note) => {
+    try {
+      const response = await api.patch(`/DesignRequests/${designRequestId}/note`, {
+        note: note,
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
 // Shift Time Constants
