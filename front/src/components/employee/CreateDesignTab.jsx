@@ -50,6 +50,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   const [editingDesign, setEditingDesign] = useState(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deletingDesignId, setDeletingDesignId] = useState(null);
+  const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
 
   // Fetch my designs count
   const fetchMyDesignsCount = async () => {
@@ -469,42 +470,53 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                             <TableCell>
                               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                                 {design.images && design.images.length > 0 ? (
-                                  design.images.slice(0, 3).map((image, idx) => (
-                                    <Tooltip key={idx} title="انقر للمعاينة">
-                                      <Box
-                                        onClick={() => {
-                                          setSelectedImage(image.downloadUrl);
-                                          setImageDialogOpen(true);
-                                        }}
-                                        sx={{
-                                          width: 50,
-                                          height: 50,
-                                          borderRadius: 1,
-                                          overflow: "hidden",
-                                          cursor: "pointer",
-                                          border: `2px solid ${calmPalette.primary}30`,
-                                          transition: "all 0.2s",
-                                          "&:hover": {
-                                            transform: "scale(1.1)",
-                                            borderColor: calmPalette.primary,
-                                          },
-                                        }}
-                                      >
-                                        <img
-                                          src={image.downloadUrl}
-                                          alt={`${design.title} - ${idx + 1}`}
-                                          style={{
-                                            width: "100%",
-                                            height: "100%",
-                                            objectFit: "cover",
+                                  design.images.slice(0, 3).map((image, idx) => {
+                                    const imageKey = `${design.id}-${idx}`;
+                                    
+                                    return (
+                                      <Tooltip key={idx} title="انقر للمعاينة">
+                                        <Box
+                                          onClick={() => {
+                                            setSelectedImage(image.downloadUrl);
+                                            setImageDialogOpen(true);
                                           }}
-                                          onError={(e) => {
-                                            e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect fill='%23ddd' width='50' height='50'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='12'%3Eصورة%3C/text%3E%3C/svg%3E";
+                                          sx={{
+                                            width: 50,
+                                            height: 50,
+                                            borderRadius: 1,
+                                            overflow: "hidden",
+                                            cursor: "pointer",
+                                            border: `2px solid ${calmPalette.primary}30`,
+                                            transition: "all 0.2s",
+                                            backgroundColor: `${calmPalette.primary}08`,
+                                            "&:hover": {
+                                              transform: "scale(1.1)",
+                                              borderColor: calmPalette.primary,
+                                            },
                                           }}
-                                        />
-                                      </Box>
-                                    </Tooltip>
-                                  ))
+                                        >
+                                          <Box
+                                            sx={{
+                                              width: "100%",
+                                              height: "100%",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              backgroundColor: `${calmPalette.primary}08`,
+                                            }}
+                                          >
+                                            <ImageIcon
+                                              sx={{
+                                                color: calmPalette.primary,
+                                                fontSize: 20,
+                                                opacity: 0.6,
+                                              }}
+                                            />
+                                          </Box>
+                                        </Box>
+                                      </Tooltip>
+                                    );
+                                  })
                                 ) : (
                                   <Typography variant="body2" color="text.secondary">
                                     لا توجد صور

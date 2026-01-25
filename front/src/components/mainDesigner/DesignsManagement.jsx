@@ -79,6 +79,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [selectedDesignNotes, setSelectedDesignNotes] = useState(null);
+  const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
   const [statusChangeToasts, setStatusChangeToasts] = useState([]); // Array of toasts
   const [uploadingFiles, setUploadingFiles] = useState([]); // Array of { name, type }
   const [uploadProgress, setUploadProgress] = useState({});
@@ -1912,29 +1913,46 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                           overflow: "hidden",
                           border: "1px solid rgba(94, 78, 62, 0.2)",
                           cursor: "pointer",
+                          position: "relative",
+                          backgroundColor: "rgba(94, 78, 62, 0.05)",
                           "&:hover": {
                             opacity: 0.8,
                             transform: "scale(1.05)",
                             transition: "all 0.2s",
                           },
                         }}
-                        onClick={() => handleViewDesign(design)}
+                        onClick={async () => {
+                          // Open image modal directly instead of design details modal
+                          if (design.designImageUrl) {
+                            // If we have the URL directly, use it
+                            setSelectedImage(design.designImageUrl);
+                            setImageDialogOpen(true);
+                          } else if (design.designImageKey) {
+                            // If we have the key, generate download URL
+                            try {
+                              const downloadData = await mainDesignerService.generateDownloadUrl(design.designImageKey);
+                              if (downloadData.downloadUrl) {
+                                setSelectedImage(downloadData.downloadUrl);
+                                setImageDialogOpen(true);
+                              }
+                            } catch (error) {
+                              console.error("Error generating image URL:", error);
+                            }
+                          }
+                        }}
                       >
-                        <img
-                          src={design.designImageUrl}
-                          alt={design.designName}
-                          loading="lazy"
-                          style={{
+                        <Box
+                          sx={{
                             width: "100%",
                             height: "100%",
-                            objectFit: "cover",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: "rgba(94, 78, 62, 0.05)",
                           }}
-                          onError={(e) => {
-                            e.target.style.display = "none";
-                            e.target.parentElement.innerHTML =
-                              '<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f5f5f5;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" fill="#999"/></svg></div>';
-                          }}
-                        />
+                        >
+                          <ImageIcon sx={{ color: "rgba(94, 78, 62, 0.6)", fontSize: 24 }} />
+                        </Box>
                       </Box>
                     ) : (
                       <Box

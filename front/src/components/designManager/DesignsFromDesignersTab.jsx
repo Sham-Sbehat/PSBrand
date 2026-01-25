@@ -88,6 +88,7 @@ const DesignsFromDesignersTab = ({
   const [viewingDesign, setViewingDesign] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
   const [imageViewDialogOpen, setImageViewDialogOpen] = useState(false);
+  const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
 
   // Load users for mapping IDs to names
   const loadUsers = async () => {
@@ -1052,6 +1053,8 @@ const DesignsFromDesignersTab = ({
                           cursor: "pointer",
                           boxShadow: "0 2px 8px rgba(94, 78, 62, 0.15)",
                           transition: "all 0.3s ease",
+                          position: "relative",
+                          backgroundColor: `${calmPalette.primary}08`,
                           "&:hover": {
                             transform: "scale(1.08)",
                             boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
@@ -1065,16 +1068,24 @@ const DesignsFromDesignersTab = ({
                           }
                         }}
                       >
-                        <img
-                          src={design.designImageUrl}
-                          alt={design.designName}
-                          loading="lazy"
-                          style={{
+                        <Box
+                          sx={{
                             width: "100%",
                             height: "100%",
-                            objectFit: "cover",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: `${calmPalette.primary}08`,
                           }}
-                        />
+                        >
+                          <ImageIcon
+                            sx={{
+                              color: calmPalette.primary,
+                              fontSize: 28,
+                              opacity: 0.6,
+                            }}
+                          />
+                        </Box>
                       </Box>
                     ) : (
                       <Box

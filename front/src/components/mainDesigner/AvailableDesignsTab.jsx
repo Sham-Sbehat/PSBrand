@@ -51,6 +51,7 @@ const AvailableDesignsTab = () => {
   const [viewingDesign, setViewingDesign] = useState(null);
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false);
   const [assigningDesignId, setAssigningDesignId] = useState(null);
+  const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
 
   // Load design requests with status = 1 "في الانتظار" (using backend filter)
   // تحميل التصاميم المتاحة التي حالتها "في الانتظار" (status = 1) باستخدام فلتر الـ backend
@@ -381,41 +382,54 @@ const AvailableDesignsTab = () => {
                     <TableCell>
                       {design.images && design.images.length > 0 ? (
                         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                          {design.images.slice(0, 3).map((image, imgIndex) => (
-                            <Box
-                              key={imgIndex}
-                              sx={{
-                                width: 60,
-                                height: 60,
-                                borderRadius: 2,
-                                overflow: "hidden",
-                                border: `2px solid ${calmPalette.primary}20`,
-                                cursor: "pointer",
-                                boxShadow: "0 2px 8px rgba(94, 78, 62, 0.15)",
-                                transition: "all 0.3s ease",
-                                "&:hover": {
-                                  transform: "scale(1.08)",
-                                  boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
-                                  borderColor: calmPalette.primary + "40",
-                                },
-                              }}
-                              onClick={() => handleImageClick(image)}
-                            >
-                              <img
-                                src={image.downloadUrl}
-                                alt={`${design.title} - ${imgIndex + 1}`}
-                                loading="lazy"
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  objectFit: "cover",
+                          {design.images.slice(0, 3).map((image, imgIndex) => {
+                            const imageKey = `${design.id}-${imgIndex}`;
+                            
+                            return (
+                              <Box
+                                key={imgIndex}
+                                sx={{
+                                  width: 60,
+                                  height: 60,
+                                  borderRadius: 2,
+                                  overflow: "hidden",
+                                  border: `2px solid ${calmPalette.primary}20`,
+                                  cursor: "pointer",
+                                  boxShadow: "0 2px 8px rgba(94, 78, 62, 0.15)",
+                                  transition: "all 0.3s ease",
+                                  position: "relative",
+                                  backgroundColor: `${calmPalette.primary}08`,
+                                  "&:hover": {
+                                    transform: "scale(1.08)",
+                                    boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
+                                    borderColor: calmPalette.primary + "40",
+                                  },
                                 }}
-                                onError={(e) => {
-                                  e.target.style.display = "none";
+                                onClick={() => {
+                                  handleImageClick(image);
                                 }}
-                              />
-                            </Box>
-                          ))}
+                              >
+                                <Box
+                                  sx={{
+                                    width: "100%",
+                                    height: "100%",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: `${calmPalette.primary}08`,
+                                  }}
+                                >
+                                  <ImageIcon
+                                    sx={{
+                                      color: calmPalette.primary,
+                                      fontSize: 28,
+                                      opacity: 0.6,
+                                    }}
+                                  />
+                                </Box>
+                              </Box>
+                            );
+                          })}
                           {design.images.length > 3 && (
                             <Box
                               sx={{
@@ -574,7 +588,7 @@ const AvailableDesignsTab = () => {
           setPage(0);
         }}
         labelRowsPerPage="عدد الصفوف في الصفحة:"
-        labelDisplayedRows={({ from, to, count }) =>
+        labelDisplayedRows={({ from, to, count }) => 
           `${from}–${to} من ${count !== -1 ? count : `أكثر من ${to}`}`
         }
         rowsPerPageOptions={[10, 20, 50, 100]}
@@ -591,7 +605,6 @@ const AvailableDesignsTab = () => {
             borderRadius: 3,
             background: "#ffffff",
             boxShadow: calmPalette.shadow,
-            border: "1px solid rgba(94, 78, 62, 0.15)",
           },
         }}
       >
@@ -600,12 +613,10 @@ const AvailableDesignsTab = () => {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            borderBottom: `1px solid ${calmPalette.primary}20`,
+            pb: 1,
           }}
         >
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            عرض الصورة
-          </Typography>
+          <Typography variant="h6">عرض الصورة</Typography>
           <IconButton
             onClick={() => setImageDialogOpen(false)}
             size="small"
@@ -614,40 +625,29 @@ const AvailableDesignsTab = () => {
             <Close />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
+        <DialogContent>
           {selectedImage && (
-            <Box sx={{ textAlign: "center" }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                minHeight: 400,
+              }}
+            >
               <img
-                src={selectedImage.downloadUrl}
+                src={selectedImage.downloadUrl || selectedImage}
                 alt="صورة التصميم"
                 style={{
                   maxWidth: "100%",
                   maxHeight: "70vh",
                   borderRadius: 8,
                 }}
-                onError={(e) => {
-                  e.target.src = "/placeholder.png";
-                }}
               />
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ borderTop: `1px solid ${calmPalette.primary}10` }}>
-          {selectedImage && (
-            <Button
-              startIcon={<Download />}
-              onClick={() => handleDownloadImage(selectedImage)}
-              variant="contained"
-              sx={{
-                backgroundColor: calmPalette.primary,
-                "&:hover": {
-                  backgroundColor: calmPalette.primaryDark,
-                },
-              }}
-            >
-              تحميل الصورة
-            </Button>
-          )}
+        <DialogActions>
           <Button onClick={() => setImageDialogOpen(false)} variant="outlined">
             إغلاق
           </Button>

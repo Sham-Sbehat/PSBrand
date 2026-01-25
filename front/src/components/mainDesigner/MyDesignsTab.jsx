@@ -53,6 +53,7 @@ const MyDesignsTab = () => {
   const [viewingDesign, setViewingDesign] = useState(null);
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
+  const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
 
   // Load design requests assigned to current designer with status > 1 (not "في الانتظار")
   // تحميل التصاميم المعينة للمصمم الحالي والتي حالتها أعلى من 1 (ليست "في الانتظار")
@@ -389,41 +390,54 @@ const MyDesignsTab = () => {
                     <TableCell>
                       {design.images && design.images.length > 0 ? (
                         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                          {design.images.slice(0, 3).map((image, imgIndex) => (
-                            <Box
-                              key={imgIndex}
-                              sx={{
-                                width: 60,
-                                height: 60,
-                                borderRadius: 2,
-                                overflow: "hidden",
-                                border: `2px solid ${calmPalette.primary}20`,
-                                cursor: "pointer",
-                                boxShadow: "0 2px 8px rgba(94, 78, 62, 0.15)",
-                                transition: "all 0.3s ease",
-                                "&:hover": {
-                                  transform: "scale(1.08)",
-                                  boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
-                                  borderColor: calmPalette.primary + "40",
-                                },
-                              }}
-                              onClick={() => handleImageClick(image)}
-                            >
-                              <img
-                                src={image.downloadUrl}
-                                alt={`${design.title} - ${imgIndex + 1}`}
-                                loading="lazy"
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  objectFit: "cover",
+                          {design.images.slice(0, 3).map((image, imgIndex) => {
+                            const imageKey = `${design.id}-${imgIndex}`;
+                            
+                            return (
+                              <Box
+                                key={imgIndex}
+                                sx={{
+                                  width: 60,
+                                  height: 60,
+                                  borderRadius: 2,
+                                  overflow: "hidden",
+                                  border: `2px solid ${calmPalette.primary}20`,
+                                  cursor: "pointer",
+                                  boxShadow: "0 2px 8px rgba(94, 78, 62, 0.15)",
+                                  transition: "all 0.3s ease",
+                                  position: "relative",
+                                  backgroundColor: `${calmPalette.primary}08`,
+                                  "&:hover": {
+                                    transform: "scale(1.08)",
+                                    boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
+                                    borderColor: calmPalette.primary + "40",
+                                  },
                                 }}
-                                onError={(e) => {
-                                  e.target.style.display = "none";
+                                onClick={() => {
+                                  handleImageClick(image);
                                 }}
-                              />
-                            </Box>
-                          ))}
+                              >
+                                <Box
+                                  sx={{
+                                    width: "100%",
+                                    height: "100%",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: `${calmPalette.primary}08`,
+                                  }}
+                                >
+                                  <ImageIcon
+                                    sx={{
+                                      color: calmPalette.primary,
+                                      fontSize: 28,
+                                      opacity: 0.6,
+                                    }}
+                                  />
+                                </Box>
+                              </Box>
+                            );
+                          })}
                           {design.images.length > 3 && (
                             <Box
                               sx={{
