@@ -57,9 +57,9 @@ const MyDesignsTab = () => {
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
-  const [statusTab, setStatusTab] = useState(1); // 1-6 = specific status
+  const [statusTab, setStatusTab] = useState(2); // 2-6 = specific status (no pending status)
   const [statusCounts, setStatusCounts] = useState({
-    1: 0, // في الانتظار
+    1: 0, // في الانتظار (for counting only, not displayed)
     2: 0, // قيد التنفيذ
     3: 0, // قيد المراجعة
     4: 0, // بحاجة لتعديل
@@ -296,9 +296,9 @@ const MyDesignsTab = () => {
         }}
       >
         <Tabs
-          value={statusTab - 1} // Convert status (1-6) to tab index (0-5)
+          value={statusTab - 2} // Convert status (2-6) to tab index (0-4)
           onChange={(e, newValue) => {
-            setStatusTab(newValue + 1); // Convert tab index (0-5) to status (1-6)
+            setStatusTab(newValue + 2); // Convert tab index (0-4) to status (2-6)
             setPage(0); // Reset to first page when changing status
           }}
           TabIndicatorProps={{ style: { display: 'none' } }}
@@ -335,40 +335,6 @@ const MyDesignsTab = () => {
             },
           }}
         >
-           <Tab
-            sx={{
-              backgroundColor: statusTab === 1 ? "transparent" : "rgba(255, 255, 255, 0.8)",
-              "&.Mui-selected": {
-                color: "#ffffff",
-                fontWeight: 700,
-                background: "linear-gradient(135deg, #f57c00 0%, #ef6c00 100%)",
-                boxShadow: "0 6px 16px rgba(245, 124, 0, 0.4)",
-                border: "none",
-                transform: "translateY(-2px)",
-              },
-            }}
-            label={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
-                  في الانتظار
-                </Typography>
-                <Chip
-                  label={statusCounts[1]}
-                  size="small"
-                  sx={{
-                    height: 26,
-                    minWidth: 32,
-                    fontSize: "0.8rem",
-                    backgroundColor: statusTab === 1 ? "rgba(255, 255, 255, 0.25)" : "rgba(245, 124, 0, 0.12)",
-                    color: statusTab === 1 ? "#ffffff" : "#f57c00",
-                    fontWeight: 700,
-                    borderRadius: "14px",
-                    border: statusTab === 1 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(245, 124, 0, 0.2)",
-                  }}
-                />
-              </Box>
-            }
-          />
           <Tab
             sx={{
               backgroundColor: statusTab === 2 ? "transparent" : "rgba(255, 255, 255, 0.8)",
