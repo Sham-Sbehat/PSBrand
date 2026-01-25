@@ -37,6 +37,7 @@ import { useApp } from "../../context/AppContext";
 import Swal from "sweetalert2";
 import calmPalette from "../../theme/calmPalette";
 import { CheckCircle } from "@mui/icons-material";
+import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 
 const AvailableDesignsTab = () => {
   const { user } = useApp();
@@ -655,217 +656,17 @@ const AvailableDesignsTab = () => {
       </Dialog>
 
       {/* View Design Dialog */}
-      <Dialog
+      <DesignRequestDetailsDialog
         open={viewDesignDialogOpen}
         onClose={() => setViewDesignDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            background: "#ffffff",
-            boxShadow: calmPalette.shadow,
-            border: "1px solid rgba(94, 78, 62, 0.15)",
-          },
+        design={viewingDesign}
+        onImageClick={(image) => {
+          setSelectedImage(image);
+          setImageDialogOpen(true);
+          setViewDesignDialogOpen(false);
         }}
-      >
-        {viewingDesign && (
-          <>
-            <DialogTitle
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                borderBottom: `1px solid ${calmPalette.primary}20`,
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {viewingDesign.title}
-              </Typography>
-              <IconButton
-                onClick={() => setViewDesignDialogOpen(false)}
-                size="small"
-                sx={{ color: calmPalette.textSecondary }}
-              >
-                <Close />
-              </IconButton>
-            </DialogTitle>
-            <DialogContent sx={{ pt: 3 }}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                {/* Description */}
-                {viewingDesign.description && (
-                  <Box>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}
-                    >
-                      الوصف:
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
-                      {viewingDesign.description}
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Images */}
-                {viewingDesign.images && viewingDesign.images.length > 0 && (
-                  <Box>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ fontWeight: 600, mb: 2, color: calmPalette.textPrimary }}
-                    >
-                      الصور ({viewingDesign.images.length}):
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-                        gap: 2,
-                      }}
-                    >
-                      {viewingDesign.images.map((image, index) => (
-                        <Card
-                          key={index}
-                          sx={{
-                            cursor: "pointer",
-                            transition: "all 0.3s ease",
-                            "&:hover": {
-                              transform: "scale(1.05)",
-                              boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
-                            },
-                          }}
-                          onClick={() => {
-                            setSelectedImage(image);
-                            setImageDialogOpen(true);
-                            setViewDesignDialogOpen(false);
-                          }}
-                        >
-                          <CardMedia
-                            component="img"
-                            image={image.downloadUrl}
-                            alt={`${viewingDesign.title} - ${index + 1}`}
-                            sx={{
-                              height: 150,
-                              objectFit: "cover",
-                            }}
-                            onError={(e) => {
-                              e.target.style.display = "none";
-                            }}
-                          />
-                        </Card>
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-
-                {/* Note */}
-                {viewingDesign.note && (
-                  <Box>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}
-                    >
-                      الملاحظات:
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
-                      {viewingDesign.note}
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Info */}
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, 1fr)",
-                    gap: 2,
-                    pt: 2,
-                    borderTop: `1px solid ${calmPalette.primary}10`,
-                  }}
-                >
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
-                    >
-                      المنشئ:
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {viewingDesign.createdByName || "-"}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
-                    >
-                      الحالة:
-                    </Typography>
-                    <Chip
-                      label={getStatusLabel(viewingDesign.status).label}
-                      color={getStatusLabel(viewingDesign.status).color}
-                      size="small"
-                      sx={{ fontWeight: 600 }}
-                    />
-                  </Box>
-                  <Box>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
-                    >
-                      تاريخ الإنشاء:
-                    </Typography>
-                    <Typography variant="body2">
-                      {viewingDesign.createdAt
-                        ? new Date(viewingDesign.createdAt).toLocaleDateString("ar-SA", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "-"}
-                    </Typography>
-                  </Box>
-                  {viewingDesign.updatedAt && (
-                    <Box>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
-                      >
-                        آخر تحديث:
-                      </Typography>
-                      <Typography variant="body2">
-                        {new Date(viewingDesign.updatedAt).toLocaleDateString("ar-SA", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-              </Box>
-            </DialogContent>
-            <DialogActions sx={{ borderTop: `1px solid ${calmPalette.primary}10`, p: 2 }}>
-              <Button
-                onClick={() => setViewDesignDialogOpen(false)}
-                variant="contained"
-                sx={{
-                  backgroundColor: calmPalette.primary,
-                  "&:hover": {
-                    backgroundColor: calmPalette.primaryDark,
-                  },
-                }}
-              >
-                إغلاق
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
+        getStatusLabel={getStatusLabel}
+      />
     </Box>
   );
 };

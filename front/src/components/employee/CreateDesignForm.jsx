@@ -38,6 +38,7 @@ const CreateDesignForm = ({ onSuccess }) => {
   } = useForm({
     defaultValues: {
       designName: "",
+      description: "",
       notes: "",
     },
   });
@@ -215,7 +216,7 @@ const CreateDesignForm = ({ onSuccess }) => {
         return;
       }
 
-      if (!data.notes || data.notes.trim() === '') {
+      if (!data.description || data.description.trim() === '') {
         Swal.fire({
           icon: "error",
           title: "خطأ",
@@ -230,11 +231,11 @@ const CreateDesignForm = ({ onSuccess }) => {
       // API expects fields directly (not wrapped in dto) with lowercase field names
       const designRequestPayload = {
         title: String(data.designName.trim()), // API expects "title" (lowercase) and it's required
-        description: String(data.notes.trim()), // API expects "description" (lowercase) and it's required
+        description: String(data.description.trim()), // API expects "description" (lowercase) and it's required
         imageKeys: imageKeys, // Array of image keys (strings) from upload
         status: 1, // Default status
         mainDesignerId: 0, // Can be 0 or null, depending on API requirements
-        note: String(data.notes.trim() || ''), // Additional notes field
+        note: String(data.notes?.trim() || ''), // Additional notes field (optional)
       };
 
       await designRequestsService.createDesignRequest(designRequestPayload);
@@ -602,40 +603,99 @@ const CreateDesignForm = ({ onSuccess }) => {
                 )}
               </Box>
 
-              {/* Notes / Description */}
-              <Box>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    fontWeight: 600,
-                    mb: 1.5,
-                    color: calmPalette.textPrimary,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                  }}
-                >
-                  <Note sx={{ fontSize: 20, color: calmPalette.primary }} />
-                  الوصف / الملاحظات
-                  <Typography
-                    component="span"
-                    sx={{ color: "error.main", fontSize: "1.2rem" }}
-                  >
-                    *
-                  </Typography>
-                </Typography>
-                <Controller
-                  name="notes"
-                  control={control}
-                  rules={{ required: "الوصف مطلوب" }}
-                  render={({ field }) => (
+              {/* Description */}
+              <Controller
+                name="description"
+                control={control}
+                rules={{ required: "الوصف مطلوب" }}
+                render={({ field }) => (
+                  <Box>
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        fontWeight: 600,
+                        mb: 1.5,
+                        color: calmPalette.textPrimary,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
+                    >
+                      <Note sx={{ fontSize: 20, color: calmPalette.primary }} />
+                      الوصف
+                      <Typography
+                        component="span"
+                        sx={{ color: "error.main", fontSize: "1.2rem" }}
+                      >
+                        *
+                      </Typography>
+                    </Typography>
                     <TextField
                       {...field}
-                      placeholder="أدخل وصف التصميم أو الملاحظات..."
+                      placeholder="أدخل وصف التصميم..."
                       fullWidth
                       required
                       multiline
-                      rows={5}
+                      rows={4}
+                      error={!!errors.description}
+                      helperText={errors.description?.message}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          backgroundColor: "rgba(255, 255, 255, 0.95)",
+                          borderRadius: 2,
+                          transition: "all 0.3s ease",
+                          "&:hover": {
+                            backgroundColor: "rgba(255, 255, 255, 1)",
+                            boxShadow: `0 2px 8px ${calmPalette.primary}20`,
+                          },
+                          "&.Mui-focused": {
+                            backgroundColor: "rgba(255, 255, 255, 1)",
+                            boxShadow: `0 4px 12px ${calmPalette.primary}30`,
+                          },
+                          "& fieldset": {
+                            borderColor: `${calmPalette.primary}30`,
+                            borderWidth: 2,
+                          },
+                          "&:hover fieldset": {
+                            borderColor: `${calmPalette.primary}50`,
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderColor: calmPalette.primary,
+                            borderWidth: 2,
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
+                )}
+              />
+
+              {/* Notes */}
+              <Controller
+                name="notes"
+                control={control}
+                render={({ field }) => (
+                  <Box>
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        fontWeight: 600,
+                        mb: 1.5,
+                        color: calmPalette.textPrimary,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
+                    >
+                      <Note sx={{ fontSize: 20, color: calmPalette.primary }} />
+                      الملاحظات
+                    </Typography>
+                    <TextField
+                      {...field}
+                      placeholder="أدخل الملاحظات (اختياري)..."
+                      fullWidth
+                      multiline
+                      rows={3}
                       error={!!errors.notes}
                       helperText={errors.notes?.message}
                       sx={{
@@ -665,9 +725,9 @@ const CreateDesignForm = ({ onSuccess }) => {
                         },
                       }}
                     />
-                  )}
-                />
-              </Box>
+                  </Box>
+                )}
+              />
 
               {/* Submit Button */}
               <Box

@@ -51,6 +51,7 @@ import { mainDesignerService, employeesService } from "../../services/api";
 import { USER_ROLES } from "../../constants";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
+import DesignDetailsDialog from "../common/DesignDetailsDialog";
 
 const DesignsFromDesignersTab = ({ 
   onShowNotification, // Callback to show notifications
@@ -251,6 +252,17 @@ const DesignsFromDesignersTab = ({
     }
     
     return `ID: ${designerId}`;
+  };
+
+  // Get status label and color
+  const getStatusLabel = (status) => {
+    const statusMap = {
+      1: { label: "في الانتظار", color: "warning" },
+      2: { label: "معتمد", color: "success" },
+      3: { label: "غير معتمد", color: "error" },
+      4: { label: "مرتجع", color: "info" },
+    };
+    return statusMap[status] || { label: "غير محدد", color: "default" };
   };
 
   // Extract fileKey from URL
@@ -1941,117 +1953,44 @@ const DesignsFromDesignersTab = ({
       </Dialog>
 
       {/* View Design Dialog */}
-      <Dialog
+      <DesignDetailsDialog
         open={Boolean(viewingDesign)}
         onClose={() => {
           setViewingDesign(null);
           setImageUrl(null);
         }}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            background: "#ffffff",
-            boxShadow: calmPalette.shadow,
-            border: "1px solid rgba(94, 78, 62, 0.15)",
-          },
+        design={viewingDesign}
+        imageUrl={imageUrl}
+        onViewImage={(imageUrl) => {
+          if (setSelectedImage && setImageDialogOpen) {
+            setSelectedImage(imageUrl);
+            setImageDialogOpen(true);
+          }
         }}
-      >
-        {viewingDesign && (
-          <>
-            <DialogTitle 
-              sx={{ 
-                fontWeight: 700,
-                pb: 1.5,
-                pt: 2,
-                px: 2.5,
-                background: "#ffffff",
-                borderBottom: `1px solid ${calmPalette.primary}20`,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {viewingDesign.serialNumber || viewingDesign.designName || "عرض التصميم"}
-              </Typography>
-              <IconButton
-                onClick={() => {
-                  setViewingDesign(null);
-                  setImageUrl(null);
-                }}
-                size="small"
-                sx={{
-                  color: calmPalette.textSecondary,
-                }}
-              >
-                <Close />
-              </IconButton>
-            </DialogTitle>
-            <DialogContent sx={{ pt: 2, px: 2.5, pb: 2, backgroundColor: "#ffffff" }}>
-              {imageUrl && (
-                <Box sx={{ textAlign: "center", mb: 2 }}>
-                  <img
-                    src={imageUrl}
-                    alt="صورة التصميم"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "70vh",
-                      borderRadius: 8,
-                    }}
-                    onError={(e) => {
-                      e.target.src = "/placeholder.png";
-                    }}
-                  />
-                </Box>
-              )}
-              {viewingDesign.notes && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                    الملاحظات:
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {viewingDesign.notes}
-                  </Typography>
-                </Box>
-              )}
-            </DialogContent>
-            <DialogActions sx={{ 
-              px: 3, 
-              py: 2, 
-              borderTop: `1px solid ${calmPalette.primary}20`, 
-              backgroundColor: "#ffffff",
-            }}>
-              <Button 
-                onClick={() => {
-                  setViewingDesign(null);
-                  setImageUrl(null);
-                }}
-                variant="outlined"
-                size="small"
-                sx={{
-                  color: calmPalette.textPrimary,
-                  borderColor: calmPalette.primary + "30",
-                  backgroundColor: "#ffffff",
-                  px: 2.5,
-                  py: 0.75,
-                  borderRadius: 1.5,
-                  fontWeight: 500,
-                  textTransform: "none",
-                  fontSize: "0.875rem",
-                  "&:hover": {
-                    borderColor: calmPalette.primary,
-                    backgroundColor: calmPalette.primary + "08",
-                  },
-                }}
-              >
-                إغلاق
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
+        onDownloadImage={async (fileKey, fileName) => {
+          try {
+            if (fileKey) {
+              await handleDownloadFile(fileKey, fileName);
+            } else {
+              Swal.fire({
+                icon: "error",
+                title: "خطأ",
+                text: "لا يمكن العثور على مفتاح الصورة",
+                confirmButtonColor: calmPalette.primary,
+              });
+            }
+          } catch (error) {
+            Swal.fire({
+              icon: "error",
+              title: "خطأ",
+              text: error.message || "فشل في تحميل الصورة",
+              confirmButtonColor: calmPalette.primary,
+            });
+          }
+        }}
+        onDownloadFile={handleDownloadFile}
+        extractFileKeyFromUrl={extractFileKeyFromUrl}
+      />
     </Box>
   );
 };

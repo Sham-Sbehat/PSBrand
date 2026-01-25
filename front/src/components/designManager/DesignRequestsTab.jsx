@@ -33,7 +33,7 @@ import {
 import { designRequestsService, employeesService } from "../../services/api";
 import { USER_ROLES } from "../../constants";
 import calmPalette from "../../theme/calmPalette";
-import GlassDialog from "../common/GlassDialog";
+import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 
 const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
   const [designs, setDesigns] = useState([]);
@@ -633,180 +633,18 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
       />
 
       {/* View Design Dialog */}
-      {viewingDesign && (
-        <GlassDialog
-          open={viewDesignDialogOpen}
-          onClose={() => {
-            setViewDesignDialogOpen(false);
-            setViewingDesign(null);
-          }}
-          maxWidth="md"
-          title={viewingDesign.title}
-          actions={
-            <Button
-              onClick={() => {
-                setViewDesignDialogOpen(false);
-                setViewingDesign(null);
-              }}
-              variant="contained"
-            >
-              إغلاق
-            </Button>
-          }
-        >
-          <Box sx={{ p: 3 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              {/* Description */}
-              {viewingDesign.description && (
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}
-                  >
-                    الوصف:
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
-                    {viewingDesign.description}
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Images */}
-              {viewingDesign.images && viewingDesign.images.length > 0 && (
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ fontWeight: 600, mb: 2, color: calmPalette.textPrimary }}
-                  >
-                    الصور ({viewingDesign.images.length}):
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-                      gap: 2,
-                    }}
-                  >
-                    {viewingDesign.images.map((image, index) => (
-                      <Box
-                        key={index}
-                        onClick={() => handleImageClick(image)}
-                        sx={{
-                          cursor: "pointer",
-                          borderRadius: 2,
-                          overflow: "hidden",
-                          border: `2px solid ${calmPalette.primary}20`,
-                          transition: "all 0.3s ease",
-                          "&:hover": {
-                            transform: "scale(1.05)",
-                            boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
-                            borderColor: calmPalette.primary,
-                          },
-                        }}
-                      >
-                        <img
-                          src={image.downloadUrl}
-                          alt={`${viewingDesign.title} - ${index + 1}`}
-                          style={{
-                            width: "100%",
-                            height: 150,
-                            objectFit: "cover",
-                          }}
-                          onError={(e) => {
-                            e.target.style.display = "none";
-                          }}
-                        />
-                      </Box>
-                    ))}
-                  </Box>
-                </Box>
-              )}
-
-              {/* Note */}
-              {viewingDesign.note && (
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}
-                  >
-                    الملاحظات:
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
-                    {viewingDesign.note}
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Info */}
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: 2,
-                  pt: 2,
-                  borderTop: `1px solid ${calmPalette.primary}10`,
-                }}
-              >
-                <Box>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
-                  >
-                    المنشئ:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {viewingDesign.createdByName || "-"}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
-                  >
-                    المصمم المعين:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {viewingDesign.mainDesignerName || "غير معين"}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
-                  >
-                    الحالة:
-                  </Typography>
-                  <Chip
-                    label={getStatusLabel(viewingDesign.status).label}
-                    color={getStatusLabel(viewingDesign.status).color}
-                    size="small"
-                    sx={{ fontWeight: 600 }}
-                  />
-                </Box>
-                <Box>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: calmPalette.textSecondary, display: "block", mb: 0.5 }}
-                  >
-                    تاريخ الإنشاء:
-                  </Typography>
-                  <Typography variant="body2">
-                    {viewingDesign.createdAt
-                      ? new Date(viewingDesign.createdAt).toLocaleDateString("ar-SA", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "-"}
-                  </Typography>
-                </Box>
-              </Box>
-            </Box>
-          </Box>
-        </GlassDialog>
-      )}
+      <DesignRequestDetailsDialog
+        open={viewDesignDialogOpen}
+        onClose={() => {
+          setViewDesignDialogOpen(false);
+          setViewingDesign(null);
+        }}
+        design={viewingDesign}
+        onImageClick={(image) => {
+          handleImageClick(image);
+        }}
+        getStatusLabel={getStatusLabel}
+      />
     </Box>
   );
 };
