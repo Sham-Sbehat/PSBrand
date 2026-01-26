@@ -42,6 +42,7 @@ import {
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
+import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 
@@ -78,7 +79,7 @@ const MyDesignsTab = () => {
   // تحميل التصاميم المعينة للمصمم الحالي
   const loadDesigns = async () => {
     if (!user?.id) return;
-    
+
     setLoading(true);
     try {
       const params = {
@@ -91,47 +92,38 @@ const MyDesignsTab = () => {
       params.status = statusTab;
 
       const response = await designRequestsService.getDesignRequests(params);
-      
+
       // Handle response structure
       let designsArray = [];
+      let totalCountValue = 0;
+      
       if (response && response.data) {
-        designsArray = response.data;
-        setTotalCount(response.totalCount || 0);
+        // Response has data property (paginated response)
+        designsArray = Array.isArray(response.data) ? response.data : [];
+        // Use totalCount from response, not data.length
+        totalCountValue = response.totalCount !== undefined ? response.totalCount : (Array.isArray(response.data) ? response.data.length : 0);
       } else if (Array.isArray(response)) {
+        // Response is directly an array
         designsArray = response;
-        setTotalCount(response.length);
+        totalCountValue = response.length;
       } else {
         designsArray = [];
-        setTotalCount(0);
+        totalCountValue = 0;
       }
+
+      setTotalCount(totalCountValue);
 
       // Store all designs for counting
       setAllDesigns(designsArray);
-      
-      // Load all designs to count statuses (for tabs)
-      const allParams = {
-        page: 1,
-        pageSize: 5, // Large number to get all
-        mainDesignerId: user.id,
-      };
-      const allResponse = await designRequestsService.getDesignRequests(allParams);
-      let allDesignsForCount = [];
-      if (allResponse && allResponse.data) {
-        allDesignsForCount = allResponse.data;
-      } else if (Array.isArray(allResponse)) {
-        allDesignsForCount = allResponse;
-      }
-      
-      // Count statuses
-      const counts = {
-        1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0,
-      };
-      allDesignsForCount.forEach((design) => {
-        if (design.status && counts[design.status] !== undefined) {
-          counts[design.status]++;
-        }
+
+      // Update statusCounts: use totalCount from current API response for the active status only
+      // Only update the count for the status we just loaded
+      setStatusCounts((prevCounts) => {
+        const updatedCounts = { ...prevCounts };
+        // Update current status tab with totalCount from API
+        updatedCounts[statusTab] = totalCountValue;
+        return updatedCounts;
       });
-      setStatusCounts(counts);
 
       setDesigns(designsArray);
     } catch (error) {
@@ -311,26 +303,16 @@ const MyDesignsTab = () => {
 
       // Step 2: Get existing design to preserve current data
       const existingDesign = designs.find(d => d.id === designForReview.id);
-      
+
       // Step 3: Update design request with NEW imageKeys only (from upload API)
       // Use only the new imageKeys returned from upload API, not the old ones
       const newImageKeys = imageKeys; // Already strings
-      
+
       console.log("📤 Updating design with NEW imageKeys only:", newImageKeys);
-      
-      // Update design with designImages (array of strings) - only new images
-      // API expects dto wrapper and designImages as array of strings based on error message
-      await designRequestsService.updateDesignRequest(designForReview.id, {
-        dto: {
-          title: existingDesign?.title || designForReview.title,
-          description: existingDesign?.description || designForReview.description || "",
-          designImages: newImageKeys, // Array of strings (fileKeys) - Only NEW images from upload API
-          status: existingDesign?.status || designForReview.status,
-          mainDesignerId: existingDesign?.mainDesignerId || designForReview.mainDesignerId || 0,
-          note: existingDesign?.note || designForReview.note || "",
-        }
-      });
-      
+
+      // Step 3: Update design images using the dedicated endpoint
+      await designRequestsService.setDesignImages(designForReview.id, newImageKeys);
+
       // Step 4: Set status to "قيد المراجعة" (3)
       await designRequestsService.setState(designForReview.id, 3);
 
@@ -419,7 +401,7 @@ const MyDesignsTab = () => {
     try {
       // إرجاع الحالة إلى "في الانتظار" (Pending = 1) فقط
       await designRequestsService.setState(designId, 1);
-      
+
       Swal.fire({
         icon: "success",
         title: "تم بنجاح",
@@ -802,7 +784,7 @@ const MyDesignsTab = () => {
                         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                           {design.images.slice(0, 3).map((image, imgIndex) => {
                             const imageKey = `${design.id}-${imgIndex}`;
-                            
+
                             return (
                               <Box
                                 key={imgIndex}
@@ -931,10 +913,10 @@ const MyDesignsTab = () => {
                       <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
                         {design.createdAt
                           ? new Date(design.createdAt).toLocaleDateString("ar-SA", {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                            })
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                          })
                           : "-"}
                       </Typography>
                     </TableCell>
@@ -959,7 +941,7 @@ const MyDesignsTab = () => {
                           </IconButton>
                         </Tooltip>
                         <>
-                          {design.status === 2 ? (
+                          {(design.status === 2 || design.status === 4) ? (
                             <Button
                               size="small"
                               variant="outlined"
@@ -971,7 +953,7 @@ const MyDesignsTab = () => {
                               )}
                               onClick={() => handleSendForReview(design)}
                               disabled={updatingStatusId === design.id}
-                              sx={{ 
+                              sx={{
                                 minWidth: '140px',
                                 fontSize: '0.8rem'
                               }}
@@ -986,18 +968,47 @@ const MyDesignsTab = () => {
                               )}
                             </Button>
                           ) : (
+                            design.status !== 3 && design.status !== 5 && design.status !== 6 && (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="success"
+                                startIcon={updatingStatusId === design.id ? (
+                                  <CircularProgress size={14} color="inherit" />
+                                ) : (
+                                  <CheckCircle fontSize="small" />
+                                )}
+                                onClick={() => handleCompleteDesign(design.id)}
+                                disabled={updatingStatusId === design.id || design.status === 5}
+                                sx={{
+                                  minWidth: '120px',
+                                  fontSize: '0.8rem'
+                                }}
+                              >
+                                {updatingStatusId === design.id ? (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <CircularProgress size={14} color="inherit" />
+                                    جاري...
+                                  </Box>
+                                ) : (
+                                  'إتمام'
+                                )}
+                              </Button>
+                            )
+                          )}
+                          {design.status !== 3 && design.status !== 5 && design.status !== 6 && (
                             <Button
                               size="small"
                               variant="outlined"
-                              color="success"
+                              color="error"
                               startIcon={updatingStatusId === design.id ? (
                                 <CircularProgress size={14} color="inherit" />
                               ) : (
-                                <CheckCircle fontSize="small" />
+                                <Cancel fontSize="small" />
                               )}
-                              onClick={() => handleCompleteDesign(design.id)}
-                              disabled={updatingStatusId === design.id || design.status === 5}
-                              sx={{ 
+                              onClick={() => handleCancelDesign(design.id)}
+                              disabled={updatingStatusId === design.id || design.status === 3}
+                              sx={{
                                 minWidth: '120px',
                                 fontSize: '0.8rem'
                               }}
@@ -1008,35 +1019,10 @@ const MyDesignsTab = () => {
                                   جاري...
                                 </Box>
                               ) : (
-                                'إتمام'
+                                'إرجاع'
                               )}
                             </Button>
                           )}
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            startIcon={updatingStatusId === design.id ? (
-                              <CircularProgress size={14} color="inherit" />
-                            ) : (
-                              <Cancel fontSize="small" />
-                            )}
-                            onClick={() => handleCancelDesign(design.id)}
-                            disabled={updatingStatusId === design.id || design.status === 3}
-                            sx={{ 
-                              minWidth: '120px',
-                              fontSize: '0.8rem'
-                            }}
-                          >
-                            {updatingStatusId === design.id ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <CircularProgress size={14} color="inherit" />
-                                جاري...
-                              </Box>
-                            ) : (
-                              'إرجاع'
-                            )}
-                          </Button>
                         </>
                       </Box>
                     </TableCell>
@@ -1144,615 +1130,21 @@ const MyDesignsTab = () => {
       </Dialog>
 
       {/* View Design Dialog */}
-      <Dialog
+      <DesignRequestDetailsDialog
         open={viewDesignDialogOpen}
-        onClose={() => setViewDesignDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 4,
-            background: "linear-gradient(to bottom, #ffffff 0%, #fafafa 100%)",
-            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
-            border: "1px solid rgba(94, 78, 62, 0.1)",
-            overflow: "hidden",
-          },
+        onClose={() => {
+          setViewDesignDialogOpen(false);
+          setViewingDesign(null);
         }}
-      >
-        {viewingDesign && (
-          <>
-            <DialogTitle
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: `linear-gradient(135deg, ${calmPalette.primary}15 0%, ${calmPalette.primary}08 100%)`,
-                borderBottom: `2px solid ${calmPalette.primary}20`,
-                py: 2.5,
-                px: 3,
-              }}
-            >
-              <Box>
-                <Typography 
-                  variant="h5" 
-                  sx={{ 
-                    fontWeight: 700,
-                    color: calmPalette.textPrimary,
-                    mb: 0.5,
-                  }}
-                >
-                  {viewingDesign.title}
-                </Typography>
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: calmPalette.textSecondary,
-                    fontSize: "0.75rem",
-                  }}
-                >
-                  #{viewingDesign.id || "-"}
-                </Typography>
-              </Box>
-              <IconButton
-                onClick={() => setViewDesignDialogOpen(false)}
-                size="small"
-                sx={{ 
-                  color: calmPalette.textSecondary,
-                  backgroundColor: "rgba(0, 0, 0, 0.04)",
-                  "&:hover": {
-                    backgroundColor: "rgba(0, 0, 0, 0.08)",
-                    transform: "rotate(90deg)",
-                  },
-                  transition: "all 0.3s ease",
-                }}
-              >
-                <Close />
-              </IconButton>
-            </DialogTitle>
-            <DialogContent sx={{ pt: 4, px: 3, pb: 2 }}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 3.5 }}>
-                {/* Description */}
-                {viewingDesign.description && (
-                  <Box
-                    sx={{
-                      p: 2.5,
-                      borderRadius: 2,
-                      backgroundColor: "rgba(255, 255, 255, 0.8)",
-                      border: `1px solid ${calmPalette.primary}15`,
-                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
-                    }}
-                  >
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ 
-                        fontWeight: 700, 
-                        mb: 1.5, 
-                        color: calmPalette.textPrimary,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 4,
-                          height: 20,
-                          borderRadius: 1,
-                          background: `linear-gradient(135deg, ${calmPalette.primary} 0%, ${calmPalette.primaryDark} 100%)`,
-                        }}
-                      />
-                      الوصف
-                    </Typography>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
-                        color: calmPalette.textSecondary,
-                        lineHeight: 1.8,
-                        pl: 2,
-                      }}
-                    >
-                      {viewingDesign.description}
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Original Images (images) - صور النموذج */}
-                {viewingDesign.images && viewingDesign.images.length > 0 && (
-                  <Box>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ 
-                        fontWeight: 700, 
-                        mb: 2, 
-                        color: calmPalette.textPrimary,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 4,
-                          height: 20,
-                          borderRadius: 1,
-                          background: `linear-gradient(135deg, #2196f3 0%, #1976d2 100%)`,
-                        }}
-                      />
-                      صور النموذج
-                      <Chip
-                        label={viewingDesign.images.length}
-                        size="small"
-                        sx={{
-                          height: 22,
-                          fontSize: "0.7rem",
-                          backgroundColor: "rgba(33, 150, 243, 0.1)",
-                          color: "#2196f3",
-                          fontWeight: 700,
-                        }}
-                      />
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                        gap: 2.5,
-                      }}
-                    >
-                      {viewingDesign.images.map((image, index) => {
-                        // Handle both object format {fileKey, downloadUrl} and string format
-                        const imageUrl = image.downloadUrl || image.fileKey || image;
-                        const imageKey = image.fileKey || image;
-                        
-                        return (
-                          <Card
-                            key={index}
-                            sx={{
-                              cursor: "pointer",
-                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                              borderRadius: 2.5,
-                              overflow: "hidden",
-                              border: "2px solid transparent",
-                              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
-                              "&:hover": {
-                                transform: "translateY(-4px) scale(1.02)",
-                                boxShadow: "0 8px 24px rgba(33, 150, 243, 0.25)",
-                                borderColor: "#2196f3",
-                              },
-                            }}
-                            onClick={() => {
-                              setSelectedImage(typeof image === 'object' ? image : { downloadUrl: imageUrl, fileKey: imageKey });
-                              setImageDialogOpen(true);
-                              setViewDesignDialogOpen(false);
-                            }}
-                          >
-                            <CardMedia
-                              component="img"
-                              image={imageUrl}
-                              alt={`صورة نموذج ${index + 1}`}
-                              sx={{
-                                height: 180,
-                                objectFit: "cover",
-                              }}
-                              onError={(e) => {
-                                e.target.style.display = "none";
-                              }}
-                            />
-                          </Card>
-                        );
-                      })}
-                    </Box>
-                  </Box>
-                )}
-
-                {/* Design Images (designImages) - صور التصميم */}
-                {viewingDesign.designImages && viewingDesign.designImages.length > 0 && (
-                  <Box>
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ 
-                        fontWeight: 700, 
-                        mb: 2, 
-                        color: calmPalette.textPrimary,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 4,
-                          height: 20,
-                          borderRadius: 1,
-                          background: `linear-gradient(135deg, ${calmPalette.primary} 0%, ${calmPalette.primaryDark} 100%)`,
-                        }}
-                      />
-                      صور التصميم
-                      <Chip
-                        label={viewingDesign.designImages.length}
-                        size="small"
-                        sx={{
-                          height: 22,
-                          fontSize: "0.7rem",
-                          backgroundColor: `${calmPalette.primary}15`,
-                          color: calmPalette.primary,
-                          fontWeight: 700,
-                        }}
-                      />
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                        gap: 2.5,
-                      }}
-                    >
-                      {viewingDesign.designImages.map((image, index) => {
-                        // Handle both object format {fileKey, downloadUrl} and string format
-                        const imageKey = image.fileKey || image;
-                        let imageUrl = image.downloadUrl || image.fileKey || image;
-                        
-                        // Always construct Cloudinary URL from publicId if it's not a full URL
-                        let finalUrl = imageUrl;
-                        if (typeof image === 'string') {
-                          // It's a string (publicId), construct Cloudinary URL
-                          finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
-                        } else if (image && typeof image === 'object') {
-                          // It's an object, check if downloadUrl/fileKey is a full URL
-                          if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
-                            // It's already a full URL, use it as is
-                            finalUrl = imageUrl;
-                          } else {
-                            // It's a publicId, construct full Cloudinary URL
-                            finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
-                          }
-                        }
-                        
-                        return (
-                          <Card
-                            key={index}
-                            sx={{
-                              cursor: "pointer",
-                              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                              borderRadius: 2.5,
-                              overflow: "hidden",
-                              border: "2px solid transparent",
-                              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
-                              "&:hover": {
-                                transform: "translateY(-4px) scale(1.02)",
-                                boxShadow: `0 8px 24px ${calmPalette.primary}40`,
-                                borderColor: calmPalette.primary,
-                              },
-                            }}
-                            onClick={() => {
-                              // Ensure selectedImage has the correct downloadUrl (full URL)
-                              const imageObj = typeof image === 'object' 
-                                ? { ...image, downloadUrl: finalUrl, fileKey: imageKey }
-                                : { downloadUrl: finalUrl, fileKey: imageKey };
-                              setSelectedImage(imageObj);
-                              setImageDialogOpen(true);
-                              setViewDesignDialogOpen(false);
-                            }}
-                          >
-                            <Box
-                              sx={{
-                                width: "100%",
-                                height: 180,
-                                position: "relative",
-                                backgroundColor: `${calmPalette.primary}08`,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <img
-                                src={finalUrl}
-                                alt={`صورة تصميم ${index + 1}`}
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  objectFit: "cover",
-                                }}
-                                onError={(e) => {
-                                  console.error(`❌ Failed to load design image ${index + 1}:`, finalUrl, image);
-                                  e.target.style.display = "none";
-                                }}
-                                onLoad={() => {
-                                  console.log(`✅ Successfully loaded design image ${index + 1}:`, finalUrl);
-                                }}
-                              />
-                              <ImageIcon
-                                sx={{
-                                  position: "absolute",
-                                  color: calmPalette.textSecondary,
-                                  fontSize: 40,
-                                  opacity: 0.3,
-                                  display: "none",
-                                }}
-                                className="placeholder-icon"
-                              />
-                            </Box>
-                          </Card>
-                        );
-                      })}
-                    </Box>
-                  </Box>
-                )}
-
-                {/* Note */}
-                <Box
-                  sx={{
-                    p: 2.5,
-                    borderRadius: 2,
-                    backgroundColor: "rgba(255, 255, 255, 0.8)",
-                    border: `1px solid ${calmPalette.primary}15`,
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
-                  }}
-                >
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ 
-                      fontWeight: 700, 
-                      mb: 1.5, 
-                      color: calmPalette.textPrimary,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 4,
-                        height: 20,
-                        borderRadius: 1,
-                        background: `linear-gradient(135deg, #ff9800 0%, #f57c00 100%)`,
-                      }}
-                    />
-                    الملاحظات
-                  </Typography>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      color: calmPalette.textSecondary,
-                      lineHeight: 1.8,
-                      pl: 2,
-                      fontStyle: viewingDesign.note ? "normal" : "italic",
-                    }}
-                  >
-                    {viewingDesign.note || "لا توجد ملاحظات"}
-                  </Typography>
-                </Box>
-
-                {/* Status Info */}
-                <Box
-                  sx={{
-                    p: 2.5,
-                    borderRadius: 2,
-                    backgroundColor: "rgba(255, 255, 255, 0.8)",
-                    border: `1px solid ${calmPalette.primary}15`,
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
-                  }}
-                >
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ 
-                      fontWeight: 700, 
-                      mb: 1.5, 
-                      color: calmPalette.textPrimary,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 4,
-                        height: 20,
-                        borderRadius: 1,
-                        background: `linear-gradient(135deg, ${getStatusLabel(viewingDesign.status).color === 'success' ? '#4caf50' : getStatusLabel(viewingDesign.status).color === 'error' ? '#f44336' : getStatusLabel(viewingDesign.status).color === 'warning' ? '#ff9800' : '#2196f3'} 0%, ${getStatusLabel(viewingDesign.status).color === 'success' ? '#43a047' : getStatusLabel(viewingDesign.status).color === 'error' ? '#e53935' : getStatusLabel(viewingDesign.status).color === 'warning' ? '#f57c00' : '#1976d2'} 100%)`,
-                      }}
-                    />
-                    الحالة
-                  </Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, pl: 2 }}>
-                    <Chip
-                      label={viewingDesign.statusName || getStatusLabel(viewingDesign.status).label}
-                      color={getStatusLabel(viewingDesign.status).color}
-                      size="medium"
-                      sx={{ 
-                        fontWeight: 700,
-                        fontSize: "0.85rem",
-                        height: 32,
-                      }}
-                    />
-                    {viewingDesign.status && (
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: calmPalette.textSecondary,
-                          fontSize: "0.75rem",
-                        }}
-                      >
-                        (ID: {viewingDesign.status})
-                      </Typography>
-                    )}
-                  </Box>
-                </Box>
-
-                {/* Detailed Info Grid */}
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, 1fr)",
-                    gap: 2.5,
-                    pt: 2,
-                    borderTop: `2px solid ${calmPalette.primary}15`,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      backgroundColor: "rgba(255, 255, 255, 0.6)",
-                      border: `1px solid ${calmPalette.primary}10`,
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{ 
-                        color: calmPalette.textSecondary, 
-                        display: "block", 
-                        mb: 1,
-                        fontWeight: 600,
-                        fontSize: "0.75rem",
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      المنشئ
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 700, color: calmPalette.textPrimary, mb: 0.5 }}>
-                      {viewingDesign.createdByName || "-"}
-                    </Typography>
-                    {viewingDesign.createdBy && (
-                      <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.7rem" }}>
-                        ID: {viewingDesign.createdBy}
-                      </Typography>
-                    )}
-                  </Box>
-                  <Box
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      backgroundColor: "rgba(255, 255, 255, 0.6)",
-                      border: `1px solid ${calmPalette.primary}10`,
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{ 
-                        color: calmPalette.textSecondary, 
-                        display: "block", 
-                        mb: 1,
-                        fontWeight: 600,
-                        fontSize: "0.75rem",
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      المصمم المعين
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 700, color: calmPalette.textPrimary, mb: 0.5 }}>
-                      {viewingDesign.mainDesignerName || "-"}
-                    </Typography>
-                    {viewingDesign.mainDesignerId && (
-                      <Typography variant="caption" sx={{ color: calmPalette.textSecondary, fontSize: "0.7rem" }}>
-                        ID: {viewingDesign.mainDesignerId}
-                      </Typography>
-                    )}
-                  </Box>
-                  <Box
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      backgroundColor: "rgba(255, 255, 255, 0.6)",
-                      border: `1px solid ${calmPalette.primary}10`,
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      sx={{ 
-                        color: calmPalette.textSecondary, 
-                        display: "block", 
-                        mb: 1,
-                        fontWeight: 600,
-                        fontSize: "0.75rem",
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      تاريخ الإنشاء
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary }}>
-                      {viewingDesign.createdAt
-                        ? new Date(viewingDesign.createdAt).toLocaleDateString("ar-SA", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "-"}
-                    </Typography>
-                  </Box>
-                  {viewingDesign.updatedAt && (
-                    <Box
-                      sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        backgroundColor: "rgba(255, 255, 255, 0.6)",
-                        border: `1px solid ${calmPalette.primary}10`,
-                      }}
-                    >
-                      <Typography
-                        variant="caption"
-                        sx={{ 
-                          color: calmPalette.textSecondary, 
-                          display: "block", 
-                          mb: 1,
-                          fontWeight: 600,
-                          fontSize: "0.75rem",
-                          textTransform: "uppercase",
-                          letterSpacing: 0.5,
-                        }}
-                      >
-                        آخر تحديث
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary }}>
-                        {new Date(viewingDesign.updatedAt).toLocaleDateString("ar-SA", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-              </Box>
-            </DialogContent>
-            <DialogActions 
-              sx={{ 
-                borderTop: `2px solid ${calmPalette.primary}15`, 
-                p: 2.5,
-                background: "linear-gradient(to top, #fafafa 0%, #ffffff 100%)",
-              }}
-            >
-              <Button
-                onClick={() => setViewDesignDialogOpen(false)}
-                variant="contained"
-                sx={{
-                  backgroundColor: calmPalette.primary,
-                  borderRadius: 2,
-                  px: 4,
-                  py: 1,
-                  fontWeight: 700,
-                  textTransform: "none",
-                  boxShadow: `0 4px 12px ${calmPalette.primary}40`,
-                  "&:hover": {
-                    backgroundColor: calmPalette.primaryDark,
-                    transform: "translateY(-2px)",
-                    boxShadow: `0 6px 16px ${calmPalette.primary}50`,
-                  },
-                  transition: "all 0.3s ease",
-                }}
-              >
-                إغلاق
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
+        design={viewingDesign}
+        getStatusLabel={getStatusLabel}
+        onImageClick={(image) => {
+          const imageUrl = image.downloadUrl || image.fileKey || image;
+          const imageKey = image.fileKey || image;
+          setSelectedImage(typeof image === 'object' ? image : { downloadUrl: imageUrl, fileKey: imageKey });
+          setImageDialogOpen(true);
+        }}
+      />
 
       {/* Review Modal - Upload Images and Send for Review */}
       <Dialog
@@ -1821,7 +1213,7 @@ const MyDesignsTab = () => {
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
                   رفع صور التصميم <span style={{ color: "red" }}>*</span>
                 </Typography>
-                
+
                 {/* File Input */}
                 <input
                   accept="image/*"

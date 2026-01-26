@@ -93,14 +93,14 @@ const DesignRequestDetailsDialog = ({
             </Box>
           )}
 
-          {/* Images (for design requests) */}
+          {/* Images (for design requests) - صور النموذج */}
           {design.images && design.images.length > 0 && (
             <Box>
               <Typography
                 variant="subtitle2"
                 sx={{ fontWeight: 600, mb: 2, color: calmPalette.textPrimary }}
               >
-                الصور ({design.images.length}):
+                صور النموذج ({design.images.length}):
               </Typography>
               <Box
                 sx={{
@@ -109,33 +109,105 @@ const DesignRequestDetailsDialog = ({
                   gap: 2,
                 }}
               >
-                {design.images.map((image, index) => (
-                  <Card
-                    key={index}
-                    sx={{
-                      cursor: "pointer",
-                      transition: "all 0.3s ease",
-                      "&:hover": {
-                        transform: "scale(1.05)",
-                        boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
-                      },
-                    }}
-                    onClick={() => handleImageClick(image)}
-                  >
-                    <CardMedia
-                      component="img"
-                      image={image.downloadUrl}
-                      alt={`${displayTitle} - ${index + 1}`}
+                {design.images.map((image, index) => {
+                  const imageUrl = image.downloadUrl || image.fileKey || image;
+                  return (
+                    <Card
+                      key={index}
                       sx={{
-                        height: 150,
-                        objectFit: "cover",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          transform: "scale(1.05)",
+                          boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
+                        },
                       }}
-                      onError={(e) => {
-                        e.target.style.display = "none";
+                      onClick={() => handleImageClick(image)}
+                    >
+                      <CardMedia
+                        component="img"
+                        image={imageUrl}
+                        alt={`${displayTitle} - ${index + 1}`}
+                        sx={{
+                          height: 150,
+                          objectFit: "cover",
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                        }}
+                      />
+                    </Card>
+                  );
+                })}
+              </Box>
+            </Box>
+          )}
+
+          {/* Design Images (designImages) - صور التصميم */}
+          {design.designImages && design.designImages.length > 0 && (
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontWeight: 600, mb: 2, color: calmPalette.textPrimary }}
+              >
+                صور التصميم ({design.designImages.length}):
+              </Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+                  gap: 2,
+                }}
+              >
+                {design.designImages.map((image, index) => {
+                  // Handle both object format {fileKey, downloadUrl} and string format
+                  const imageKey = image.fileKey || image;
+                  let imageUrl = image.downloadUrl || image.fileKey || image;
+
+                  // Construct Cloudinary URL from publicId if it's not a full URL
+                  let finalUrl = imageUrl;
+                  if (typeof image === 'string') {
+                    // It's a string (publicId), construct Cloudinary URL
+                    finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+                  } else if (image && typeof image === 'object') {
+                    // It's an object, check if downloadUrl/fileKey is a full URL
+                    if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+                      // It's already a full URL, use it as is
+                      finalUrl = imageUrl;
+                    } else {
+                      // It's a publicId, construct full Cloudinary URL
+                      finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+                    }
+                  }
+
+                  return (
+                    <Card
+                      key={index}
+                      sx={{
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          transform: "scale(1.05)",
+                          boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
+                        },
                       }}
-                    />
-                  </Card>
-                ))}
+                      onClick={() => handleImageClick(image)}
+                    >
+                      <CardMedia
+                        component="img"
+                        image={finalUrl}
+                        alt={`صورة تصميم ${index + 1}`}
+                        sx={{
+                          height: 150,
+                          objectFit: "cover",
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                        }}
+                      />
+                    </Card>
+                  );
+                })}
               </Box>
             </Box>
           )}

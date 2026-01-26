@@ -33,10 +33,12 @@ import {
   Edit,
   Delete,
   RateReview,
+  Visibility,
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import CreateDesignForm from "./CreateDesignForm";
 import GlassDialog from "../common/GlassDialog";
+import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 import { useForm, Controller } from "react-hook-form";
@@ -61,6 +63,8 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false); // Dialog for status change
   const [pendingStatusChange, setPendingStatusChange] = useState({ designId: null, newStatus: null }); // Pending status change
   const [statusChangeNote, setStatusChangeNote] = useState(""); // Note for status change
+  const [viewingDesign, setViewingDesign] = useState(null); // Design to view in modal
+  const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false); // View design dialog state
 
   // Fetch my designs count
   const fetchMyDesignsCount = async () => {
@@ -162,6 +166,25 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   const handleEditDesign = (design) => {
     setEditingDesign(design);
     setEditDialogOpen(true);
+  };
+
+  // Handle view design
+  const handleViewDesign = (design) => {
+    setViewingDesign(design);
+    setViewDesignDialogOpen(true);
+  };
+
+  // Get status label function
+  const getStatusLabel = (status) => {
+    const statusMap = {
+      1: { label: "في الانتظار", color: "warning" },
+      2: { label: "قيد التنفيذ", color: "info" },
+      3: { label: "قيد المراجعة", color: "info" },
+      4: { label: "بحاجة لتعديل", color: "warning" },
+      5: { label: "جاهز", color: "success" },
+      6: { label: "ملغي", color: "error" },
+    };
+    return statusMap[status] || { label: "غير محدد", color: "default" };
   };
 
   // Handle delete design
@@ -837,6 +860,21 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                             </TableCell>
                             <TableCell align="center">
                               <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+                                <Tooltip title="عرض">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleViewDesign(design)}
+                                    sx={{
+                                      color: calmPalette.primary,
+                                      backgroundColor: `${calmPalette.primary}10`,
+                                      "&:hover": {
+                                        backgroundColor: `${calmPalette.primary}20`,
+                                      },
+                                    }}
+                                  >
+                                    <Visibility fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
                                 <Tooltip title="تعديل">
                                   <IconButton
                                     size="small"
@@ -1039,6 +1077,21 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
           </Box>
         </Box>
       </GlassDialog>
+
+      {/* View Design Dialog */}
+      <DesignRequestDetailsDialog
+        open={viewDesignDialogOpen}
+        onClose={() => {
+          setViewDesignDialogOpen(false);
+          setViewingDesign(null);
+        }}
+        design={viewingDesign}
+        getStatusLabel={getStatusLabel}
+        onImageClick={(image) => {
+          setSelectedImage(image.downloadUrl || image);
+          setImageDialogOpen(true);
+        }}
+      />
     </>
   );
 };

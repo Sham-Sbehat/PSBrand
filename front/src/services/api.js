@@ -1402,6 +1402,22 @@ export const designRequestsService = {
       throw error;
     }
   },
+
+  // Set design images for a design request
+  setDesignImages: async (designRequestId, imageKeys) => {
+    console.log("🚀 designRequestsService.setDesignImages called", { designRequestId, imageKeys });
+    try {
+      const response = await api.patch(`/DesignRequests/${designRequestId}/designImages`, {
+        imageKeys: imageKeys,
+      });
+      console.log("✅ Set design images response:", response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Set design images error:", error);
+      console.error("❌ Error response:", error.response?.data);
+      throw error;
+    }
+  },
 };
 
 // Shift Time Constants
