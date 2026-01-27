@@ -110,7 +110,33 @@ const DesignRequestDetailsDialog = ({
                 }}
               >
                 {design.images.map((image, index) => {
-                  const imageUrl = image.downloadUrl || image.fileKey || image;
+                  const imageKey = image.fileKey || image;
+                  let imageUrl = image.downloadUrl || image.fileKey || image;
+                  
+                  // Construct Cloudinary URL from publicId if it's not a full URL
+                  let finalUrl = imageUrl;
+                  if (typeof image === 'string') {
+                    // It's a string (publicId), construct Cloudinary URL
+                    finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+                    if (!finalUrl.includes('.') && !finalUrl.endsWith('/')) {
+                      finalUrl += '.png';
+                    }
+                  } else if (image && typeof image === 'object') {
+                    if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+                      finalUrl = imageUrl;
+                    } else {
+                      finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+                      if (!finalUrl.includes('.') && !finalUrl.endsWith('/')) {
+                        finalUrl += '.png';
+                      }
+                    }
+                  }
+
+                  // Create image object with correct downloadUrl for onClick
+                  const imageForClick = typeof image === 'object' 
+                    ? { ...image, downloadUrl: finalUrl, fileKey: imageKey }
+                    : { downloadUrl: finalUrl, fileKey: imageKey };
+
                   return (
                     <Card
                       key={index}
@@ -122,11 +148,11 @@ const DesignRequestDetailsDialog = ({
                           boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
                         },
                       }}
-                      onClick={() => handleImageClick(image)}
+                      onClick={() => handleImageClick(imageForClick)}
                     >
                       <CardMedia
                         component="img"
-                        image={imageUrl}
+                        image={finalUrl}
                         alt={`${displayTitle} - ${index + 1}`}
                         sx={{
                           height: 150,
@@ -169,6 +195,10 @@ const DesignRequestDetailsDialog = ({
                   if (typeof image === 'string') {
                     // It's a string (publicId), construct Cloudinary URL
                     finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+                    // Add .png extension if missing
+                    if (!finalUrl.includes('.') && !finalUrl.endsWith('/')) {
+                      finalUrl += '.png';
+                    }
                   } else if (image && typeof image === 'object') {
                     // It's an object, check if downloadUrl/fileKey is a full URL
                     if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
@@ -177,8 +207,17 @@ const DesignRequestDetailsDialog = ({
                     } else {
                       // It's a publicId, construct full Cloudinary URL
                       finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+                      // Add .png extension if missing
+                      if (!finalUrl.includes('.') && !finalUrl.endsWith('/')) {
+                        finalUrl += '.png';
+                      }
                     }
                   }
+
+                  // Create image object with correct downloadUrl for onClick
+                  const imageForClick = typeof image === 'object' 
+                    ? { ...image, downloadUrl: finalUrl, fileKey: imageKey }
+                    : { downloadUrl: finalUrl, fileKey: imageKey };
 
                   return (
                     <Card
@@ -191,7 +230,7 @@ const DesignRequestDetailsDialog = ({
                           boxShadow: "0 4px 12px rgba(94, 78, 62, 0.25)",
                         },
                       }}
-                      onClick={() => handleImageClick(image)}
+                      onClick={() => handleImageClick(imageForClick)}
                     >
                       <CardMedia
                         component="img"

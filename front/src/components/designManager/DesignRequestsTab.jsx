@@ -29,7 +29,9 @@ import {
   Visibility,
   Image as ImageIcon,
   FilterList,
+  Undo,
 } from "@mui/icons-material";
+import Swal from "sweetalert2";
 import { designRequestsService, employeesService } from "../../services/api";
 import { USER_ROLES } from "../../constants";
 import calmPalette from "../../theme/calmPalette";
@@ -52,6 +54,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
   const [creators, setCreators] = useState([]);
   const [loadingCreators, setLoadingCreators] = useState(false);
   const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
   // Load design requests with filters
   const loadDesigns = async () => {
@@ -187,9 +190,11 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
   const getStatusLabel = (status) => {
     const statusMap = {
       1: { label: "في الانتظار", color: "warning" },
-      2: { label: "معتمد", color: "success" },
-      3: { label: "غير معتمد", color: "error" },
-      4: { label: "مرتجع", color: "info" },
+      2: { label: "قيد التنفيذ", color: "info" },
+      3: { label: "قيد المراجعة", color: "primary" },
+      4: { label: "بحاجة لتعديل", color: "warning" },
+      5: { label: "جاهز", color: "success" },
+      6: { label: "ملغي", color: "error" },
     };
     return statusMap[status] || { label: "غير محدد", color: "default" };
   };
@@ -202,8 +207,92 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
 
   // Handle image click
   const handleImageClick = (image) => {
-    setSelectedImage(image.downloadUrl);
+    // Handle both object format {fileKey, downloadUrl} and string format
+    let finalUrl;
+    
+    if (!image) {
+      console.error("No image provided to handleImageClick");
+      return;
+    }
+
+    if (typeof image === 'string') {
+      // It's a string (publicId), construct Cloudinary URL
+      finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${image}`;
+      if (!finalUrl.includes('.') && !finalUrl.endsWith('/')) {
+        finalUrl += '.png';
+      }
+    } else if (image && typeof image === 'object') {
+      // It's an object, check if downloadUrl is a full URL
+      const imageUrl = image.downloadUrl || image.fileKey || image.url;
+      if (imageUrl && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+        // It's already a full URL, use it as is
+        finalUrl = imageUrl;
+      } else {
+        // It's a publicId, construct full Cloudinary URL
+        const imageKey = image.fileKey || imageUrl || image;
+        finalUrl = `https://res.cloudinary.com/dz5dobxsr/image/upload/${imageKey}`;
+        // Add .png extension if missing
+        if (!finalUrl.includes('.') && !finalUrl.endsWith('/')) {
+          finalUrl += '.png';
+        }
+      }
+    } else {
+      console.error("Invalid image format:", image);
+      return;
+    }
+
+    console.log("Opening image:", finalUrl);
+    setSelectedImage(finalUrl);
     setImageDialogOpen(true);
+  };
+
+  // Handle return to pending
+  const handleReturnToPending = async (designId) => {
+    const result = await Swal.fire({
+      icon: "question",
+      title: "تأكيد إرجاع التصميم",
+      text: "هل أنت متأكد من إرجاع هذا التصميم إلى قائمة الانتظار؟",
+      showCancelButton: true,
+      confirmButtonText: "نعم، أرجع",
+      cancelButtonText: "إلغاء",
+      confirmButtonColor: calmPalette.primary,
+      cancelButtonColor: "#d32f2f",
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
+    setUpdatingStatusId(designId);
+    try {
+      await designRequestsService.setState(designId, 1);
+      
+      // Update local state
+      setDesigns((prevDesigns) =>
+        prevDesigns.map((d) =>
+          d.id === designId ? { ...d, status: 1, statusName: "في الانتظار" } : d
+        )
+      );
+
+      Swal.fire({
+        icon: "success",
+        title: "تم بنجاح",
+        text: "تم إرجاع التصميم إلى قائمة الانتظار",
+        confirmButtonColor: calmPalette.primary,
+      });
+
+      // Reload designs to get fresh data
+      await loadDesigns();
+    } catch (error) {
+      console.error("Error returning design to pending:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: `حدث خطأ أثناء إرجاع التصميم: ${error.response?.data?.message || error.message || "خطأ غير معروف"}`,
+        confirmButtonColor: "#d32f2f",
+      });
+    } finally {
+      setUpdatingStatusId(null);
+    }
   };
 
   const filteredDesigns = getFilteredDesigns();
@@ -276,9 +365,11 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
           >
             <MenuItem value="all">الكل</MenuItem>
             <MenuItem value="1">في الانتظار</MenuItem>
-            <MenuItem value="2">معتمد</MenuItem>
-            <MenuItem value="3">غير معتمد</MenuItem>
-            <MenuItem value="4">مرتجع</MenuItem>
+            <MenuItem value="2">قيد التنفيذ</MenuItem>
+            <MenuItem value="3">قيد المراجعة</MenuItem>
+            <MenuItem value="4">بحاجة لتعديل</MenuItem>
+            <MenuItem value="5">جاهز</MenuItem>
+            <MenuItem value="6">ملغي</MenuItem>
           </Select>
         </FormControl>
 
@@ -584,7 +675,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
                       </Typography>
                     </TableCell>
                     <TableCell align="center">
-                      <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+                      <Box sx={{ display: "flex", gap: 1, justifyContent: "center", alignItems: "center" }}>
                         <Tooltip title="عرض التفاصيل" arrow>
                           <IconButton
                             size="small"
@@ -601,6 +692,33 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
                             <Visibility fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        {design.status !== 1 && (
+                          <Tooltip title="إرجاع التصميم للانتظار" arrow>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<Undo />}
+                              onClick={() => handleReturnToPending(design.id)}
+                              disabled={updatingStatusId === design.id}
+                              sx={{
+                                fontSize: "0.75rem",
+                                textTransform: "none",
+                                color: "#ff9800",
+                                borderColor: "#ff9800",
+                                "&:hover": {
+                                  backgroundColor: "#ff980010",
+                                  borderColor: "#f57c00",
+                                },
+                                "&.Mui-disabled": {
+                                  borderColor: "#ff980050",
+                                  color: "#ff980050",
+                                },
+                              }}
+                            >
+                              إرجاع للطلبات الواردة 
+                            </Button>
+                          </Tooltip>
+                        )}
                       </Box>
                     </TableCell>
                   </TableRow>

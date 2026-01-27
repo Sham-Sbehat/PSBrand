@@ -2766,38 +2766,64 @@ const PackagerDashboard = () => {
               const numericStatus = typeof selectedOrder.status === 'number' 
                 ? selectedOrder.status 
                 : parseInt(selectedOrder.status, 10);
+              const isInPackaging = numericStatus === ORDER_STATUS.IN_PACKAGING;
               const isSentToDelivery = selectedOrder.isSentToDeliveryCompany === true;
               const canSendToDelivery = numericStatus === ORDER_STATUS.COMPLETED && 
                                        numericStatus !== ORDER_STATUS.SENT_TO_DELIVERY_COMPANY &&
                                        !isSentToDelivery;
               
-              return canSendToDelivery ? (
-                <Tooltip 
-                  title="إرسال الطلب لشركة التوصيل"
-                  arrow 
-                  placement="top"
-                >
-                  <span>
+              return (
+                <>
+                  {isInPackaging && (
                     <Button
                       variant="contained"
-                      color="primary"
-                      startIcon={<LocalShipping />}
+                      color="success"
+                      startIcon={<CheckCircle />}
                       onClick={() => {
-                        handleShippingClick(selectedOrder);
+                        handleStatusUpdate(selectedOrder.id, selectedOrder.status);
                         handleCloseDialog();
                       }}
+                      disabled={updatingOrderId === selectedOrder.id}
                       sx={{
                         backgroundColor: '#2e7d32',
                         '&:hover': {
                           backgroundColor: '#1b5e20',
                         },
+                        minWidth: 120,
                       }}
                     >
-                      إرسال لشركة التوصيل
+                      {updatingOrderId === selectedOrder.id ? 'جاري...' : 'إكمال'}
                     </Button>
-                  </span>
-                </Tooltip>
-              ) : null;
+                  )}
+                  {canSendToDelivery && (
+                    <Tooltip 
+                      title="إرسال الطلب لشركة التوصيل"
+                      arrow 
+                      placement="top"
+                    >
+                      <span>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          startIcon={<LocalShipping />}
+                          onClick={() => {
+                            handleShippingClick(selectedOrder);
+                            handleCloseDialog();
+                          }}
+                          sx={{
+                            backgroundColor: '#2e7d32',
+                            '&:hover': {
+                              backgroundColor: '#1b5e20',
+                            },
+                          }}
+                        >
+                          إرسال لشركة التوصيل
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  )}
+                </>
+              );
             })()}
             {selectedOrder && (
               <Button
