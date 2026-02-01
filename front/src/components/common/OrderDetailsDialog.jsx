@@ -22,26 +22,8 @@ import {
   CameraAlt,
 } from "@mui/icons-material";
 import GlassDialog from "./GlassDialog";
+import InfoItem from "./InfoItem";
 import calmPalette from "../../theme/calmPalette";
-
-// Helper component for info items
-const InfoItem = ({ label, value }) => (
-  <Box
-    sx={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 0.5,
-      py: 0.5,
-    }}
-  >
-    <Typography variant="caption" color="text.secondary">
-      {label}
-    </Typography>
-    <Box sx={{ typography: "body1", fontWeight: 600, color: "text.primary" }}>
-      {value ?? "-"}
-    </Box>
-  </Box>
-);
 
 const OrderDetailsDialog = ({
   open,

@@ -249,6 +249,31 @@ export const openWhatsApp = (phoneNumber) => {
 };
 
 /**
+ * تحويل مسار الصورة/الملف إلى URL كامل
+ * @param {string} url - مسار الصورة (نسبي أو مطلق)
+ * @returns {string} الرابط الكامل
+ */
+export const getFullUrl = (url) => {
+  if (!url || typeof url !== "string") return url;
+  const trimmed = String(url).trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("data:")) {
+    return trimmed;
+  }
+  const normalizedPath = trimmed.replace(/\\/g, "/");
+  const API_BASE_URL = typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL
+    ? import.meta.env.VITE_API_BASE_URL
+    : "https://psbrand-backend-production.up.railway.app/api";
+  let baseDomain;
+  try {
+    baseDomain = new URL(API_BASE_URL).origin;
+  } catch {
+    baseDomain = API_BASE_URL.replace(/\/api.*$/i, "");
+  }
+  return normalizedPath.startsWith("/") ? `${baseDomain}${normalizedPath}` : `${baseDomain}/${normalizedPath}`;
+};
+
+/**
  * Local storage helpers
  */
 export const storage = {

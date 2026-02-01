@@ -495,15 +495,27 @@ export const employeesService = {
   convertRoleToNumber,
   convertRoleToString,
 
-  // API calls
+  // API calls - cache employees for 10 min (changes rarely)
   getAllEmployees: async () => {
+    const cacheKey = CACHE_KEYS.EMPLOYEES;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get("/Users/GetUsers");
-    return response.data;
+    const data = response.data;
+    setCache(cacheKey, data, 10 * 60 * 1000); // 10 min
+    return data;
   },
 
   getUsersByRole: async (role) => {
+    const cacheKey = `${CACHE_KEYS.EMPLOYEES}_role_${role}`;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get(`/Users/role/${role}`);
-    return response.data;
+    const data = response.data;
+    setCache(cacheKey, data, 10 * 60 * 1000); // 10 min
+    return data;
   },
 
   getEmployeeById: async (id) => {
@@ -522,6 +534,7 @@ export const employeesService = {
     };
 
     const response = await api.post("/Users/CreateUser", apiData);
+    clearCache(CACHE_KEYS.EMPLOYEES);
     return response.data;
   },
 
@@ -553,6 +566,7 @@ export const employeesService = {
     }
 
     const response = await api.put(`/Users/UpdateUser${id}`, apiData);
+    clearCache(CACHE_KEYS.EMPLOYEES);
     return response.data;
   },
 
@@ -560,11 +574,13 @@ export const employeesService = {
     const response = await api.put(`/Users/ToggleUserActiveStatus/${id}`, {
       isActive: isActive,
     });
+    clearCache(CACHE_KEYS.EMPLOYEES);
     return response.data;
   },
 
   deleteEmployee: async (id) => {
     const response = await api.delete(`/Users/DeleteUser/${id}`);
+    clearCache(CACHE_KEYS.EMPLOYEES);
     return response.data;
   },
 };
@@ -573,12 +589,19 @@ export const employeesService = {
 export const clientsService = {
   createClient: async (clientData) => {
     const response = await api.post("/Client/CreateClient", clientData);
+    clearCache(CACHE_KEYS.CLIENTS);
     return response.data;
   },
 
   getAllClients: async () => {
+    const cacheKey = CACHE_KEYS.CLIENTS;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get("/Client/GetClients");
-    return response.data;
+    const data = response.data;
+    setCache(cacheKey, data, 5 * 60 * 1000); // 5 min
+    return data;
   },
 
   getClientById: async (id) => {
@@ -594,12 +617,14 @@ export const clientsService = {
   updateClient: async (id, clientData) => {
     // Correct endpoint format: /Client/UpdateClient{id} (without / before id)
     const response = await api.put(`/Client/UpdateClient${id}`, clientData);
+    clearCache(CACHE_KEYS.CLIENTS);
     return response.data;
   },
 
   deleteClient: async (id) => {
     // Correct endpoint format: /Client/DeleteClient{id} (without / before id)
     const response = await api.delete(`/Client/DeleteClient${id}`);
+    clearCache(CACHE_KEYS.CLIENTS);
     // 204 No Content has no response body
     return { success: true, status: response.status };
   },
@@ -758,8 +783,14 @@ export const fabricTypesService = {
 // Delivery Service
 export const deliveryService = {
   getDeliveryRegions: async () => {
+    const cacheKey = 'delivery_regions';
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get('/Delivery/GetDeliveryRegions');
-    return response.data;
+    const data = response.data;
+    setCache(cacheKey, data, 24 * 60 * 60 * 1000); // 24h - regions rarely change
+    return data;
   },
   getDeliveryFee: async (regionName) => {
     const response = await api.get(`/Delivery/GetDeliveryFee/${encodeURIComponent(regionName)}`);

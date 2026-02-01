@@ -524,6 +524,7 @@ const CreateDesignForm = ({ onSuccess }) => {
                             component="img"
                             image={img.previewUrl || img.url}
                             alt={img.name || `صورة ${index + 1}`}
+                            loading="lazy"
                             sx={{
                               width: "100%",
                               height: "100%",

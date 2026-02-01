@@ -1,7 +1,7 @@
+import { useState, useEffect } from 'react';
+
 /**
- * Debounce utility function
- * Delays function execution until after a specified time has passed
- * Useful for search inputs and API calls
+ * Debounce utility - delays execution for search/API calls
  */
 
 /**

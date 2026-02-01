@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
 import {
-  Container,
   Box,
   Typography,
-  AppBar,
-  Toolbar,
   Button,
   IconButton,
   Paper,
@@ -30,7 +27,6 @@ import {
   Popover,
 } from "@mui/material";
 import {
-  Logout,
   Assignment,
   CheckCircle,
   Close,
@@ -77,7 +73,9 @@ import {
   FABRIC_TYPE_LABELS,
   COLOR_LABELS,
 } from "../constants";
-import { openWhatsApp } from "../utils";
+import { openWhatsApp, getFullUrl } from "../utils";
+import { useCitiesAndAreas } from "../hooks/useCitiesAndAreas";
+import DashboardLayout from "../components/common/DashboardLayout";
 import OrderForm from "../components/employee/OrderForm";
 import DepositOrderForm from "../components/employee/DepositOrderForm";
 import CreateDesignTab from "../components/employee/CreateDesignTab";
@@ -87,31 +85,8 @@ import GlassDialog from "../components/common/GlassDialog";
 import OrderDetailsDialog from "../components/common/OrderDetailsDialog";
 import NotificationsBell from "../components/common/NotificationsBell";
 import WelcomePage from "../components/common/WelcomePage";
+import InfoItem from "../components/common/InfoItem";
 import calmPalette from "../theme/calmPalette";
-
-// Helper function to build full image/file URL
-const getFullUrl = (url) => {
-  if (!url || typeof url !== "string") return url;
-
-  if (
-    url.startsWith("http://") ||
-    url.startsWith("https://") ||
-    url.startsWith("data:")
-  ) {
-    return url;
-  }
-
-  const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL ||
-    "https://psbrand-backend-production.up.railway.app/api";
-  const baseDomain = API_BASE_URL.replace("/api", "");
-
-  if (url.startsWith("/")) {
-    return `${baseDomain}${url}`;
-  }
-
-  return `${baseDomain}/${url}`;
-};
 
 const getMockupImages = (design) => {
   if (!design) return [];
@@ -203,24 +178,6 @@ const formatCurrency = (value) => {
 
 // getFabricLabel, getSizeLabel, and getColorLabel are now defined inside component to access API data
 
-const InfoItem = ({ label, value }) => (
-  <Box
-    sx={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 0.5,
-      py: 0.5,
-    }}
-  >
-    <Typography variant="caption" color="text.secondary">
-      {label}
-    </Typography>
-    <Box sx={{ typography: "body1", fontWeight: 600, color: "text.primary" }}>
-      {value ?? "-"}
-    </Box>
-  </Box>
-);
-
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
   const { user, logout, orders } = useApp();
@@ -244,8 +201,7 @@ const EmployeeDashboard = () => {
   const [orderNotes, setOrderNotes] = useState("");
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
-  const [cities, setCities] = useState([]);
-  const [areas, setAreas] = useState([]);
+  const { cities, areas } = useCitiesAndAreas();
   const [cancelLoadingId, setCancelLoadingId] = useState(null);
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
@@ -623,44 +579,6 @@ const EmployeeDashboard = () => {
     loadColors();
     loadSizes();
     loadFabricTypes();
-  }, []);
-
-  // Load cities and areas for modification display
-  useEffect(() => {
-    const loadCitiesAndAreas = async () => {
-      try {
-        const citiesData = await shipmentsService.getCities();
-        const citiesArray = Array.isArray(citiesData) ? citiesData : [];
-        setCities(citiesArray);
-        
-        // Load areas for all cities
-        const allAreas = [];
-        for (const city of citiesArray) {
-          if (city && (city.id || city.Id)) {
-            try {
-              const cityId = city.id || city.Id;
-              const areasData = await shipmentsService.getAreas(cityId);
-              const areasArray = Array.isArray(areasData) ? areasData : [];
-              areasArray.forEach((area) => {
-                if (area) {
-                  allAreas.push({ 
-                    ...area, 
-                    id: area.id || area.Id || area.areaId,
-                    name: area.name || area.Name || area.areaName,
-                    cityId: cityId,
-                  });
-                }
-              });
-            } catch (error) {
-              // Silent fail for individual cities
-            }
-          }
-        }
-        setAreas(allAreas);
-      } catch (error) {
-      }
-    };
-    loadCitiesAndAreas();
   }, []);
 
   // Helper function to get field display value
@@ -1085,26 +1003,33 @@ const EmployeeDashboard = () => {
     };
   }, [user]);
 
-  // Load delivery statuses for all orders - try to fetch for all orders
-  // API will return error/empty if no shipment exists, which is fine
+  // Load delivery statuses - throttle: max 5 طلبات متزامنة لتقليل الحمل على السيرفر
   useEffect(() => {
     if (!ordersList || ordersList.length === 0) return;
-    
-    // Try to fetch delivery status for all orders
-    // We check if already loaded/loading to avoid duplicate requests
-    ordersList.forEach((order) => {
-      // Check synchronously if already loaded or loading
+
+    const toFetch = ordersList.filter((order) => {
       const isLoaded = deliveryStatuses[order.id] !== undefined;
       const isLoading = loadingDeliveryStatuses[order.id] === true;
-      
-      // Only fetch if not already checked AND order is sent to delivery company
-      if (!isLoaded && !isLoading && order.isSentToDeliveryCompany) {
-        // Only fetch for orders sent to delivery company
-        fetchDeliveryStatus(order.id, order).catch(() => {
-          // Silently fail - this order just doesn't have a shipment
-        });
-      }
+      return !isLoaded && !isLoading && order.isSentToDeliveryCompany;
     });
+
+    const BATCH_SIZE = 5;
+    const DELAY_MS = 150;
+
+    const runBatches = async () => {
+      for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
+        const batch = toFetch.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map((order) =>
+            fetchDeliveryStatus(order.id, order).catch(() => {})
+          )
+        );
+        if (i + BATCH_SIZE < toFetch.length) {
+          await new Promise((r) => setTimeout(r, DELAY_MS));
+        }
+      }
+    };
+    runBatches();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordersList]);
 
@@ -1994,333 +1919,41 @@ const EmployeeDashboard = () => {
   ];
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        backgroundImage: calmPalette.background,
-        paddingBottom: 6,
-      }}
-    >
-      <AppBar
-        position="static"
-        elevation={0}
-        sx={{
-          background: calmPalette.appBar,
-          boxShadow: "0 12px 30px rgba(34, 26, 21, 0.25)",
-          backdropFilter: "blur(10px)",
-        }}
-      >
-        <Toolbar sx={{ minHeight: { xs: 56, sm: 72 }, px: { xs: 1.5, sm: 2 } }}>
-          <Typography
-            variant="h5"
-            sx={{
-              flexGrow: 1,
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-              fontSize: { xs: "1rem", sm: "1.25rem" },
-            }}
-          >
-            {isMobile ? "PSBrand" : "PSBrand - لوحة الموظف"}
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 2 } }}>
-            <NotificationsBell onNewNotification={newNotificationReceived} />
-            {/* Messages Icon */}
-            <Tooltip title="رسائل الإدمن">
-              <Box sx={{ position: "relative" }}>
-                <IconButton
-                  size={isMobile ? "small" : "medium"}
-                  onClick={(e) => {
-                    if (messagesAnchorEl) {
-                      setMessagesAnchorEl(null);
-                    } else {
-                      setMessagesAnchorEl(e.currentTarget);
-                    }
-                    setShowMessageNotification(false); // Hide notification when opening
-                  }}
-                  sx={{
-                    color: "#f6f1eb",
-                    border: "1px solid rgba(255,255,255,0.25)",
-                    borderRadius: 2,
-                    position: "relative",
-                    backgroundColor: messagesAnchorEl ? "rgba(255, 255, 255, 0.15)" : "transparent",
-                    "&:hover": {
-                      backgroundColor: "rgba(255, 255, 255, 0.1)",
-                    },
-                  }}
-                >
-                  <MessageIcon fontSize={isMobile ? "small" : "medium"} />
-                </IconButton>
-                {/* Notification Badge */}
-                {unreadMessagesCount > 0 && (
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      top: -4,
-                      right: -4,
-                      width: 14,
-                      height: 14,
-                      borderRadius: "50%",
-                      bgcolor: "#ff1744",
-                      border: "2px solid #5E4E3E",
-                      animation: showMessageNotification ? "pulse 1.5s infinite" : "none",
-                      boxShadow: showMessageNotification ? "0 0 8px rgba(255, 23, 68, 0.6)" : "none",
-                      "@keyframes pulse": {
-                        "0%, 100%": {
-                          transform: "scale(1)",
-                          opacity: 1,
-                        },
-                        "50%": {
-                          transform: "scale(1.4)",
-                          opacity: 0.9,
-                        },
-                      },
-                    }}
-                  />
-                )}
-              </Box>
-            </Tooltip>
-            <Avatar
-              sx={{
-                width: { xs: 32, sm: 40 },
-                height: { xs: 32, sm: 40 },
-                bgcolor: "rgba(255, 255, 255, 0.22)",
-                color: "#ffffff",
-                backdropFilter: "blur(6px)",
-                fontSize: { xs: "0.875rem", sm: "1.25rem" },
-              }}
-            >
-              {user?.name?.charAt(0) || "م"}
-            </Avatar>
-            {!isMobile && (
-              <Typography
-                variant="body1"
-                sx={{ fontWeight: 500, color: "#f6f1eb" }}
-              >
-                {user?.name || "موظف"}
-              </Typography>
-            )}
-            <IconButton
-              size={isMobile ? "small" : "medium"}
-              color="inherit"
-              onClick={handleLogout}
-              sx={{
-                color: "#f6f1eb",
-                border: "1px solid rgba(255,255,255,0.25)",
-                borderRadius: 2,
-              }}
-            >
-              <Logout fontSize={isMobile ? "small" : "medium"} />
-            </IconButton>
-          </Box>
-        </Toolbar>
-      </AppBar>
-
-      {/* Public Messages Banner - Messages sent to all users */}
-      {publicMessages.length > 0 && (
-        <Box
-          sx={{
-            position: "sticky",
-            top: 0,
-            zIndex: 1000,
-            background: calmPalette.surface,
-            py: 1.5,
-            width: "100%",
-            overflow: "hidden",
-            borderBottom: "2px solid rgba(94, 78, 62, 0.2)",
-            boxShadow: calmPalette.shadow,
-            backdropFilter: "blur(8px)",
-          }}
-        >
+    <DashboardLayout
+      title={isMobile ? "PSBrand" : "PSBrand - لوحة الموظف"}
+      user={user}
+      onLogout={handleLogout}
+      publicMessages={publicMessages}
+      onHideMessage={handleHideMessage}
+      messagesAnchorEl={messagesAnchorEl}
+      setMessagesAnchorEl={setMessagesAnchorEl}
+      isMobile={isMobile}
+      notificationsBell={<NotificationsBell onNewNotification={newNotificationReceived} />}
+      messagesIconExtra={
+        unreadMessagesCount > 0 && (
           <Box
             sx={{
-              display: "flex",
-              alignItems: "center",
-              position: "relative",
-              width: "100%",
-              overflow: "hidden",
+              position: "absolute",
+              top: -4,
+              right: -4,
+              width: 14,
+              height: 14,
+              borderRadius: "50%",
+              bgcolor: "#ff1744",
+              border: "2px solid #5E4E3E",
+              animation: showMessageNotification ? "pulse 1.5s infinite" : "none",
+              boxShadow: showMessageNotification ? "0 0 8px rgba(255, 23, 68, 0.6)" : "none",
+              "@keyframes pulse": {
+                "0%, 100%": { transform: "scale(1)", opacity: 1 },
+                "50%": { transform: "scale(1.4)", opacity: 0.9 },
+              },
             }}
-          >
-            {/* Announcement Label - Fixed on left */}
-            <Box
-              sx={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                bottom: 0,
-                display: "flex",
-                alignItems: "center",
-                px: { xs: 1.5, sm: 2.5 },
-                background: "linear-gradient(135deg, rgba(97, 79, 65, 0.95) 0%, rgba(73, 59, 48, 0.95) 100%)",
-                color: calmPalette.statCards[0].highlight,
-                fontWeight: 700,
-                fontSize: { xs: "0.7rem", sm: "0.8rem" },
-                letterSpacing: "0.1em",
-                whiteSpace: "nowrap",
-                zIndex: 2,
-                borderRight: "2px solid rgba(94, 78, 62, 0.3)",
-                boxShadow: "2px 0 8px rgba(0, 0, 0, 0.15)",
-                minWidth: { xs: 80, sm: 110 },
-              }}
-            >
-              <Typography
-                sx={{
-                  color: calmPalette.statCards[0].highlight,
-                  fontWeight: 700,
-                  fontSize: "0.8rem",
-                  letterSpacing: "0.1em",
-                }}
-              >
-                📢 إعلان عام
-              </Typography>
-            </Box>
-
-            {/* Scrolling Messages */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: { xs: 2, sm: 3 },
-                marginLeft: { xs: 90, sm: 130 },
-                marginRight: { xs: 40, sm: 50 },
-                animation: "scroll 40s linear infinite",
-                "@keyframes scroll": {
-                  "0%": {
-                    transform: "translateX(100%)",
-                  },
-                  "100%": {
-                    transform: "translateX(-100%)",
-                  },
-                },
-              }}
-            >
-              {/* Messages */}
-              {publicMessages.map((message, index) => (
-                <Box
-                  key={`${message.id}-${index}`}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1.5,
-                    flexShrink: 0,
-                    minWidth: "fit-content",
-                    px: 2,
-                  }}
-                >
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: calmPalette.textPrimary,
-                      fontWeight: 700,
-                      fontSize: "0.9rem",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {message.title || "إعلان عام"}:
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: calmPalette.textSecondary,
-                      fontWeight: 500,
-                      fontSize: "0.875rem",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {message.content}
-                  </Typography>
-                  <Box
-                    component="span"
-                    sx={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: "50%",
-                      background: calmPalette.textMuted,
-                      display: "inline-block",
-                      mx: 1.5,
-                    }}
-                  />
-                </Box>
-              ))}
-              {/* Duplicate for seamless loop */}
-              {publicMessages.map((message, index) => (
-                <Box
-                  key={`${message.id}-dup-${index}`}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1.5,
-                    flexShrink: 0,
-                    minWidth: "fit-content",
-                    px: 2,
-                  }}
-                >
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: calmPalette.textPrimary,
-                      fontWeight: 700,
-                      fontSize: "0.9rem",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {message.title || "إعلان عام"}:
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: calmPalette.textSecondary,
-                      fontWeight: 500,
-                      fontSize: "0.875rem",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {message.content}
-                  </Typography>
-                  <Box
-                    component="span"
-                    sx={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: "50%",
-                      background: calmPalette.textMuted,
-                      display: "inline-block",
-                      mx: 1.5,
-                    }}
-                  />
-                </Box>
-              ))}
-            </Box>
-
-            {/* Close button - Fixed on right */}
-            {publicMessages.length > 0 && (
-              <IconButton
-                size="small"
-                onClick={() => handleHideMessage(publicMessages[0].id)}
-                sx={{
-                  position: "absolute",
-                  right: 8,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: calmPalette.textMuted,
-                  width: 28,
-                  height: 28,
-                  zIndex: 2,
-                  transition: "all 0.2s ease",
-                  "&:hover": {
-                    backgroundColor: "rgba(94, 78, 62, 0.1)",
-                    color: calmPalette.textPrimary,
-                    transform: "translateY(-50%) rotate(90deg)",
-                  },
-                }}
-              >
-                <Close sx={{ fontSize: 16 }} />
-              </IconButton>
-            )}
-          </Box>
-        </Box>
-      )}
-
-      <Container maxWidth="lg" sx={{ paddingY: { xs: 2, sm: 5 }, px: { xs: 1.5, sm: 3 } }}>
+          />
+        )
+      }
+      onMessagesIconClick={() => setShowMessageNotification(false)}
+      containerMaxWidth="lg"
+    >
         <Paper
           elevation={0}
           sx={{
@@ -2458,7 +2091,6 @@ const EmployeeDashboard = () => {
             />
           )}
         </Paper>
-      </Container>
 
       {/* Orders Modal */}
       <GlassDialog
@@ -5166,7 +4798,7 @@ const EmployeeDashboard = () => {
           </Typography>
         </Alert>
       </Snackbar>
-    </Box>
+    </DashboardLayout>
   );
 };
 

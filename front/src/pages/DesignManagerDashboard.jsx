@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  Container,
   Box,
   Typography,
-  AppBar,
-  Toolbar,
   IconButton,
   Avatar,
   Grid,
@@ -30,7 +27,6 @@ import {
   ListItemText,
 } from "@mui/material";
 import {
-  Logout,
   Close,
   Note,
   Schedule,
@@ -54,7 +50,7 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
-import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService, messagesService, mainDesignerService, employeesService } from "../services/api";
+import { ordersService, orderStatusService, colorsService, sizesService, fabricTypesService, messagesService, mainDesignerService, employeesService } from "../services/api";
 import { Image as ImageIcon, PictureAsPdf } from "@mui/icons-material";
 import { subscribeToOrderUpdates, subscribeToMessages, subscribeToDesigns } from "../services/realtime";
 import MessagesTab from "../components/common/MessagesTab";
@@ -65,6 +61,9 @@ import EmployeeAttendanceCalendar from "../components/admin/EmployeeAttendanceCa
 import WelcomePage from "../components/common/WelcomePage";
 import calmPalette from "../theme/calmPalette";
 import Swal from "sweetalert2";
+import { useCitiesAndAreas } from "../hooks/useCitiesAndAreas";
+import DashboardLayout from "../components/common/DashboardLayout";
+import { getFullUrl } from "../utils";
 import OrdersTab from "../components/designManager/OrdersTab";
 import DesignsFromDesignersTab from "../components/designManager/DesignsFromDesignersTab";
 import DesignRequestsTab from "../components/designManager/DesignRequestsTab";
@@ -128,8 +127,7 @@ const DesignManagerDashboard = () => {
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchQueryInPrinting, setSearchQueryInPrinting] = useState('');
-  const [cities, setCities] = useState([]);
-  const [areas, setAreas] = useState([]);
+  const { cities, areas } = useCitiesAndAreas();
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [imageCache, setImageCache] = useState({}); // Cache: { 'orderId-designId': imageUrl }
   const activeImageLoads = useRef(new Set()); // Track active image loads to prevent duplicates
@@ -142,40 +140,6 @@ const DesignManagerDashboard = () => {
   const [loadingSizes, setLoadingSizes] = useState(false);
   const [fabricTypes, setFabricTypes] = useState([]);
   const [loadingFabricTypes, setLoadingFabricTypes] = useState(false);
-
-  const getFullUrl = (inputUrl) => {
-    if (!inputUrl || typeof inputUrl !== "string") return inputUrl;
-
-    const trimmed = inputUrl.trim();
-    if (!trimmed) return trimmed;
-
-    if (
-      trimmed.startsWith("http://") ||
-      trimmed.startsWith("https://") ||
-      trimmed.startsWith("data:")
-    ) {
-      return trimmed;
-    }
-
-    const normalizedPath = trimmed.replace(/\\/g, "/");
-    const API_BASE_URL =
-      import.meta.env.VITE_API_BASE_URL ||
-      "https://psbrand-backend-production.up.railway.app/api";
-
-    let baseDomain;
-    try {
-      baseDomain = new URL(API_BASE_URL).origin;
-    } catch {
-      baseDomain = API_BASE_URL.replace(/\/api.*$/i, "");
-    }
-
-    if (normalizedPath.startsWith("/")) {
-      return `${baseDomain}${normalizedPath}`;
-    }
-
-    return `${baseDomain}/${normalizedPath}`;
-  };
-
 
   // Fetch pending printing orders (Status 1: PENDING_PRINTING) - Tab 0
   const fetchPendingPrintingOrders = async (showLoading = false) => {
@@ -1892,45 +1856,6 @@ const DesignManagerDashboard = () => {
   const discountNotes =
     typeof selectedOrder?.discountNotes === "string" ? selectedOrder.discountNotes.trim() : "";
 
-  // Load cities and areas for modification display
-  useEffect(() => {
-    const loadCitiesAndAreas = async () => {
-      try {
-        const citiesData = await shipmentsService.getCities();
-        const citiesArray = Array.isArray(citiesData) ? citiesData : [];
-        setCities(citiesArray);
-        
-        // Load areas for all cities
-        const allAreas = [];
-        for (const city of citiesArray) {
-          if (city && (city.id || city.Id)) {
-            try {
-              const cityId = city.id || city.Id;
-              const areasData = await shipmentsService.getAreas(cityId);
-              const areasArray = Array.isArray(areasData) ? areasData : [];
-              areasArray.forEach(area => {
-                if (area) {
-                  allAreas.push({ 
-                    ...area, 
-                    id: area.id || area.Id,
-                    name: area.name || area.Name,
-                    cityId: cityId 
-                  });
-                }
-              });
-            } catch (error) {
-              console.error(`Error loading areas for city ${city.id || city.Id}:`, error);
-            }
-          }
-        }
-        setAreas(allAreas);
-      } catch (error) {
-        console.error('Error loading cities:', error);
-      }
-    };
-    loadCitiesAndAreas();
-  }, []);
-
   // Helper function to get field display value
   const getFieldDisplayValue = (fieldName, value) => {
     if (value === '' || value === null || value === undefined) {
@@ -2012,323 +1937,38 @@ const DesignManagerDashboard = () => {
   // Note: getFilteredOrders, paginatedRows, and related functions are now handled by OrdersTab component
 
     return (
-      <Box
-        sx={{
-          minHeight: "100vh",
-          backgroundImage: calmPalette.background,
-          paddingBottom: 6,
-        }}
-      >
-        <AppBar
-          position="static"
-          elevation={0}
-          sx={{
-            background: calmPalette.appBar,
-            boxShadow: "0 12px 30px rgba(34, 26, 21, 0.25)",
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          <Toolbar sx={{ minHeight: 72 }}>
-            <Typography
-              variant="h5"
-              sx={{
-                flexGrow: 1,
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                color: "#f6f1eb",
-              }}
-            >
-              PSBrand - لوحة مدير التصميم
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              {/* Messages Icon */}
-              <Tooltip title="رسائل الإدمن">
-                <Box sx={{ position: "relative" }}>
-                  <IconButton
-                    onClick={(e) => {
-                      if (messagesAnchorEl) {
-                        setMessagesAnchorEl(null);
-                      } else {
-                        setMessagesAnchorEl(e.currentTarget);
-                      }
-                      setShowMessageNotification(false);
-                    }}
-                    sx={{
-                      color: "#f6f1eb",
-                      border: "1px solid rgba(255,255,255,0.25)",
-                      borderRadius: 2,
-                      position: "relative",
-                      backgroundColor: messagesAnchorEl ? "rgba(255, 255, 255, 0.15)" : "transparent",
-                      "&:hover": {
-                        backgroundColor: "rgba(255, 255, 255, 0.1)",
-                      },
-                    }}
-                  >
-                    <MessageIcon />
-                  </IconButton>
-                  {/* Notification Badge */}
-                  {unreadMessagesCount > 0 && (
-                    <Box
-                      sx={{
-                        position: "absolute",
-                        top: -4,
-                        right: -4,
-                        width: 14,
-                        height: 14,
-                        borderRadius: "50%",
-                        bgcolor: "#ff1744",
-                        border: "2px solid #5E4E3E",
-                        animation: showMessageNotification ? "pulse 1.5s infinite" : "none",
-                        boxShadow: showMessageNotification ? "0 0 8px rgba(255, 23, 68, 0.6)" : "none",
-                        "@keyframes pulse": {
-                          "0%, 100%": {
-                            transform: "scale(1)",
-                            opacity: 1,
-                          },
-                          "50%": {
-                            transform: "scale(1.4)",
-                            opacity: 0.9,
-                          },
-                        },
-                      }}
-                    />
-                  )}
-                </Box>
-              </Tooltip>
-              
-              <Avatar
-                sx={{
-                  bgcolor: "rgba(255, 255, 255, 0.22)",
-                  color: "#ffffff",
-                  backdropFilter: "blur(6px)",
-                }}
-              >
-                {user?.name?.charAt(0) || "م"}
-              </Avatar>
-              <Typography variant="body1" sx={{ fontWeight: 500, color: "#f6f1eb" }}>
-                {user?.name || "مدير التصميم"}
-              </Typography>
-              <IconButton
-                color="inherit"
-                onClick={handleLogout}
-                sx={{
-                  color: "#f6f1eb",
-                  border: "1px solid rgba(255,255,255,0.25)",
-                  borderRadius: 2,
-                }}
-              >
-                <Logout />
-              </IconButton>
-            </Box>
-          </Toolbar>
-        </AppBar>
-
-        {/* Public Messages Banner - Messages sent to all users */}
-        {publicMessages.length > 0 && (
-          <Box
-            sx={{
-              position: "sticky",
-              top: 0,
-              zIndex: 1000,
-              background: calmPalette.surface,
-              py: 1.5,
-              width: "100%",
-              overflow: "hidden",
-              borderBottom: "2px solid rgba(94, 78, 62, 0.2)",
-              boxShadow: calmPalette.shadow,
-              backdropFilter: "blur(8px)",
-            }}
-          >
+      <DashboardLayout
+        title="PSBrand - لوحة مدير التصميم"
+        user={user}
+        onLogout={handleLogout}
+        publicMessages={publicMessages}
+        onHideMessage={handleHideMessage}
+        messagesAnchorEl={messagesAnchorEl}
+        setMessagesAnchorEl={setMessagesAnchorEl}
+        messagesIconExtra={
+          unreadMessagesCount > 0 && (
             <Box
               sx={{
-                display: "flex",
-                alignItems: "center",
-                position: "relative",
-                width: "100%",
-                overflow: "hidden",
+                position: "absolute",
+                top: -4,
+                right: -4,
+                width: 14,
+                height: 14,
+                borderRadius: "50%",
+                bgcolor: "#ff1744",
+                border: "2px solid #5E4E3E",
+                animation: showMessageNotification ? "pulse 1.5s infinite" : "none",
+                boxShadow: showMessageNotification ? "0 0 8px rgba(255, 23, 68, 0.6)" : "none",
+                "@keyframes pulse": {
+                  "0%, 100%": { transform: "scale(1)", opacity: 1 },
+                  "50%": { transform: "scale(1.4)", opacity: 0.9 },
+                },
               }}
-            >
-              {/* Announcement Label - Fixed on left */}
-              <Box
-                sx={{
-                  position: "absolute",
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  px: 2.5,
-                  background: "linear-gradient(135deg, rgba(97, 79, 65, 0.95) 0%, rgba(73, 59, 48, 0.95) 100%)",
-                  color: calmPalette.statCards[0].highlight,
-                  fontWeight: 700,
-                  fontSize: "0.8rem",
-                  letterSpacing: "0.1em",
-                  whiteSpace: "nowrap",
-                  zIndex: 2,
-                  borderRight: "2px solid rgba(94, 78, 62, 0.3)",
-                  boxShadow: "2px 0 8px rgba(0, 0, 0, 0.15)",
-                }}
-              >
-                <Typography
-                  sx={{
-                    color: calmPalette.statCards[0].highlight,
-                    fontWeight: 700,
-                    fontSize: "0.8rem",
-                    letterSpacing: "0.1em",
-                  }}
-                >
-                  📢 إعلان عام
-                </Typography>
-              </Box>
-
-              {/* Scrolling Messages */}
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 3,
-                  marginLeft: "130px",
-                  marginRight: "50px",
-                  animation: "scroll 40s linear infinite",
-                  "@keyframes scroll": {
-                    "0%": {
-                      transform: "translateX(100%)",
-                    },
-                    "100%": {
-                      transform: "translateX(-100%)",
-                    },
-                  },
-                }}
-              >
-                {/* Messages */}
-                {publicMessages.map((message, index) => (
-                  <Box
-                    key={`${message.id}-${index}`}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1.5,
-                      flexShrink: 0,
-                      minWidth: "fit-content",
-                      px: 2,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: calmPalette.textPrimary,
-                        fontWeight: 700,
-                        fontSize: "0.9rem",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {message.title || "إعلان عام"}:
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: calmPalette.textSecondary,
-                        fontWeight: 500,
-                        fontSize: "0.875rem",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {message.content}
-                    </Typography>
-                    <Box
-                      component="span"
-                      sx={{
-                        width: 4,
-                        height: 4,
-                        borderRadius: "50%",
-                        background: calmPalette.textMuted,
-                        display: "inline-block",
-                        mx: 1.5,
-                      }}
-                    />
-                  </Box>
-                ))}
-                {/* Duplicate for seamless loop */}
-                {publicMessages.map((message, index) => (
-                  <Box
-                    key={`${message.id}-dup-${index}`}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1.5,
-                      flexShrink: 0,
-                      minWidth: "fit-content",
-                      px: 2,
-                    }}
-                  >
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: calmPalette.textPrimary,
-                        fontWeight: 700,
-                        fontSize: "0.9rem",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {message.title || "إعلان عام"}:
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: calmPalette.textSecondary,
-                        fontWeight: 500,
-                        fontSize: "0.875rem",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {message.content}
-                    </Typography>
-                    <Box
-                      component="span"
-                      sx={{
-                        width: 4,
-                        height: 4,
-                        borderRadius: "50%",
-                        background: calmPalette.textMuted,
-                        display: "inline-block",
-                        mx: 1.5,
-                      }}
-                    />
-                  </Box>
-                ))}
-              </Box>
-
-              {/* Close button - Fixed on right */}
-              {publicMessages.length > 0 && (
-                <IconButton
-                  size="small"
-                  onClick={() => handleHideMessage(publicMessages[0].id)}
-                  sx={{
-                    position: "absolute",
-                    right: 8,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: calmPalette.textMuted,
-                    width: 28,
-                    height: 28,
-                    zIndex: 2,
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      backgroundColor: "rgba(94, 78, 62, 0.1)",
-                      color: calmPalette.textPrimary,
-                      transform: "translateY(-50%) rotate(90deg)",
-                    },
-                  }}
-                >
-                  <Close sx={{ fontSize: 16 }} />
-                </IconButton>
-              )}
-            </Box>
-          </Box>
-        )}
-
-        <Container maxWidth="xl" sx={{ paddingY: 5 }}>
-
+            />
+          )
+        }
+        onMessagesIconClick={() => setShowMessageNotification(false)}
+      >
           <Paper
             elevation={0}
             sx={{
@@ -2539,7 +2179,6 @@ const DesignManagerDashboard = () => {
             </>
           )}
         </Paper>
-      </Container>
 
       {/* Details Dialog */}
       <OrderDetailsDialog
@@ -3839,11 +3478,8 @@ const DesignManagerDashboard = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </DashboardLayout>
   );
 };
 
 export default DesignManagerDashboard;
-
-
-``
