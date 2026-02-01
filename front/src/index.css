@@ -27,6 +27,7 @@ code {
 /* تحسين الأداء للرسوم المتحركة */
 * {
   -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -46,6 +47,17 @@ code {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* تحسين اللمس للشاشات الصغيرة */
+@media (max-width: 600px) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .MuiIconButton-root {
+    padding: 10px;
+  }
 }
 
 /* SweetAlert2 z-index override to appear above modals */

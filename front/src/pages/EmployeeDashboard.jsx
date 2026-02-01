@@ -51,6 +51,8 @@ import {
   Refresh,
   Add,
 } from "@mui/icons-material";
+import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import {
@@ -222,6 +224,8 @@ const InfoItem = ({ label, value }) => (
 const EmployeeDashboard = () => {
   const navigate = useNavigate();
   const { user, logout, orders } = useApp();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
@@ -2006,23 +2010,25 @@ const EmployeeDashboard = () => {
           backdropFilter: "blur(10px)",
         }}
       >
-        <Toolbar sx={{ minHeight: 72 }}>
+        <Toolbar sx={{ minHeight: { xs: 56, sm: 72 }, px: { xs: 1.5, sm: 2 } }}>
           <Typography
             variant="h5"
             sx={{
               flexGrow: 1,
               fontWeight: 700,
               letterSpacing: "0.04em",
+              fontSize: { xs: "1rem", sm: "1.25rem" },
             }}
           >
-            PSBrand - لوحة الموظف
+            {isMobile ? "PSBrand" : "PSBrand - لوحة الموظف"}
           </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 2 } }}>
             <NotificationsBell onNewNotification={newNotificationReceived} />
             {/* Messages Icon */}
             <Tooltip title="رسائل الإدمن">
               <Box sx={{ position: "relative" }}>
                 <IconButton
+                  size={isMobile ? "small" : "medium"}
                   onClick={(e) => {
                     if (messagesAnchorEl) {
                       setMessagesAnchorEl(null);
@@ -2042,7 +2048,7 @@ const EmployeeDashboard = () => {
                     },
                   }}
                 >
-                  <MessageIcon />
+                  <MessageIcon fontSize={isMobile ? "small" : "medium"} />
                 </IconButton>
                 {/* Notification Badge */}
                 {unreadMessagesCount > 0 && (
@@ -2075,20 +2081,26 @@ const EmployeeDashboard = () => {
             </Tooltip>
             <Avatar
               sx={{
+                width: { xs: 32, sm: 40 },
+                height: { xs: 32, sm: 40 },
                 bgcolor: "rgba(255, 255, 255, 0.22)",
                 color: "#ffffff",
                 backdropFilter: "blur(6px)",
+                fontSize: { xs: "0.875rem", sm: "1.25rem" },
               }}
             >
               {user?.name?.charAt(0) || "م"}
             </Avatar>
-            <Typography
-              variant="body1"
-              sx={{ fontWeight: 500, color: "#f6f1eb" }}
-            >
-              {user?.name || "موظف"}
-            </Typography>
+            {!isMobile && (
+              <Typography
+                variant="body1"
+                sx={{ fontWeight: 500, color: "#f6f1eb" }}
+              >
+                {user?.name || "موظف"}
+              </Typography>
+            )}
             <IconButton
+              size={isMobile ? "small" : "medium"}
               color="inherit"
               onClick={handleLogout}
               sx={{
@@ -2097,7 +2109,7 @@ const EmployeeDashboard = () => {
                 borderRadius: 2,
               }}
             >
-              <Logout />
+              <Logout fontSize={isMobile ? "small" : "medium"} />
             </IconButton>
           </Box>
         </Toolbar>
@@ -2137,16 +2149,17 @@ const EmployeeDashboard = () => {
                 bottom: 0,
                 display: "flex",
                 alignItems: "center",
-                px: 2.5,
+                px: { xs: 1.5, sm: 2.5 },
                 background: "linear-gradient(135deg, rgba(97, 79, 65, 0.95) 0%, rgba(73, 59, 48, 0.95) 100%)",
                 color: calmPalette.statCards[0].highlight,
                 fontWeight: 700,
-                fontSize: "0.8rem",
+                fontSize: { xs: "0.7rem", sm: "0.8rem" },
                 letterSpacing: "0.1em",
                 whiteSpace: "nowrap",
                 zIndex: 2,
                 borderRight: "2px solid rgba(94, 78, 62, 0.3)",
                 boxShadow: "2px 0 8px rgba(0, 0, 0, 0.15)",
+                minWidth: { xs: 80, sm: 110 },
               }}
             >
               <Typography
@@ -2166,9 +2179,9 @@ const EmployeeDashboard = () => {
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 3,
-                marginLeft: "130px",
-                marginRight: "50px",
+                gap: { xs: 2, sm: 3 },
+                marginLeft: { xs: 90, sm: 130 },
+                marginRight: { xs: 40, sm: 50 },
                 animation: "scroll 40s linear infinite",
                 "@keyframes scroll": {
                   "0%": {
@@ -2307,11 +2320,11 @@ const EmployeeDashboard = () => {
         </Box>
       )}
 
-      <Container maxWidth="lg" sx={{ paddingY: 5 }}>
+      <Container maxWidth="lg" sx={{ paddingY: { xs: 2, sm: 5 }, px: { xs: 1.5, sm: 3 } }}>
         <Paper
           elevation={0}
           sx={{
-            padding: 4,
+            padding: { xs: 2, sm: 4 },
             borderRadius: 3,
             background: calmPalette.surface,
             boxShadow: calmPalette.shadow,
@@ -2320,16 +2333,24 @@ const EmployeeDashboard = () => {
           }}
         >
           {/* Tabs */}
-          <Box sx={{ marginBottom: 3 }}>
+          <Box sx={{ marginBottom: 3, overflow: "hidden" }}>
             <Tabs
               value={currentTab}
               onChange={(e, newValue) => setCurrentTab(newValue)}
-              variant="fullWidth"
+              variant={isMobile ? "scrollable" : "fullWidth"}
+              scrollButtons={isMobile ? "auto" : false}
+              allowScrollButtonsMobile
               sx={{
                 backgroundColor: calmPalette.surface,
                 borderRadius: 3,
                 boxShadow: calmPalette.shadow,
                 backdropFilter: "blur(8px)",
+                minHeight: { xs: 48, sm: 64 },
+                "& .MuiTab-root": {
+                  minHeight: { xs: 48, sm: 64 },
+                  py: { xs: 1, sm: 1.5 },
+                  px: { xs: 1.5, sm: 2 },
+                },
               }}
               TabIndicatorProps={{
                 sx: {
@@ -2342,12 +2363,12 @@ const EmployeeDashboard = () => {
               }}
             >
               <Tab
-                label="الرئيسية"
-                icon={<MessageIcon />}
+                label={isMobile ? "الرئيسية" : "الرئيسية"}
+                icon={<MessageIcon fontSize={isMobile ? "small" : "medium"} />}
                 iconPosition="start"
                 sx={{
                   fontWeight: 600,
-                  fontSize: "1rem",
+                  fontSize: { xs: "0.8rem", sm: "1rem" },
                   color: calmPalette.textMuted,
                   "&.Mui-selected": {
                     color: "#f7f2ea",
@@ -2356,11 +2377,11 @@ const EmployeeDashboard = () => {
               />
               <Tab
                 label="الطلبات"
-                icon={<Assignment />}
+                icon={<Assignment fontSize={isMobile ? "small" : "medium"} />}
                 iconPosition="start"
                 sx={{
                   fontWeight: 600,
-                  fontSize: "1rem",
+                  fontSize: { xs: "0.8rem", sm: "1rem" },
                   color: calmPalette.textMuted,
                   "&.Mui-selected": {
                     color: "#f7f2ea",
@@ -2368,12 +2389,12 @@ const EmployeeDashboard = () => {
                 }}
               />
               <Tab
-                label="طلبات العربون"
-                icon={<AttachMoney />}
+                label={isMobile ? "عربون" : "طلبات العربون"}
+                icon={<AttachMoney fontSize={isMobile ? "small" : "medium"} />}
                 iconPosition="start"
                 sx={{
                   fontWeight: 600,
-                  fontSize: "1rem",
+                  fontSize: { xs: "0.8rem", sm: "1rem" },
                   color: calmPalette.textMuted,
                   "&.Mui-selected": {
                     color: "#f7f2ea",
@@ -2381,12 +2402,12 @@ const EmployeeDashboard = () => {
                 }}
               />
               <Tab
-                label="إنشاء تصميم جديد"
-                icon={<Add />}
+                label={isMobile ? "تصميم جديد" : "إنشاء تصميم جديد"}
+                icon={<Add fontSize={isMobile ? "small" : "medium"} />}
                 iconPosition="start"
                 sx={{
                   fontWeight: 600,
-                  fontSize: "1rem",
+                  fontSize: { xs: "0.8rem", sm: "1rem" },
                   color: calmPalette.textMuted,
                   "&.Mui-selected": {
                     color: "#f7f2ea",
@@ -2444,6 +2465,7 @@ const EmployeeDashboard = () => {
         open={openOrdersModal}
         onClose={handleCloseOrdersModal}
         maxWidth="xl"
+        fullScreen={isMobile}
         title="اجمالي الطلبات"
         actions={
           <Button onClick={handleCloseOrdersModal} variant="contained">
@@ -2495,10 +2517,10 @@ const EmployeeDashboard = () => {
                 >
                   <Box
                     sx={{
-                      width: "30%",
-                minWidth: 400,
-              }}
-            >
+                      width: { xs: "100%", sm: "30%" },
+                      minWidth: { xs: "100%", sm: 400 },
+                    }}
+                  >
               <TextField
                 fullWidth
                 size="medium"
@@ -2660,15 +2682,18 @@ const EmployeeDashboard = () => {
                 borderRadius: 3,
                 border: "1px solid rgba(94, 78, 62, 0.18)",
                 backgroundColor: "rgba(255,255,255,0.4)",
+                overflowX: "auto",
+                maxWidth: "100%",
               }}
             >
-              <Table>
+              <Table sx={{ minWidth: 600 }}>
                 <TableHead
                   sx={{
                     backgroundColor: "rgba(94, 78, 62, 0.08)",
                         "& th": {
                           fontWeight: 700,
                           color: calmPalette.textPrimary,
+                          whiteSpace: "nowrap",
                         },
                   }}
                 >
@@ -3350,15 +3375,18 @@ const EmployeeDashboard = () => {
                     borderRadius: 3,
                     border: "1px solid rgba(94, 78, 62, 0.18)",
                     backgroundColor: "rgba(255,255,255,0.4)",
+                    overflowX: "auto",
+                    maxWidth: "100%",
                   }}
                 >
-                  <Table>
+                  <Table sx={{ minWidth: 600 }}>
                     <TableHead
                       sx={{
                         backgroundColor: "rgba(94, 78, 62, 0.08)",
                         "& th": {
                           fontWeight: 700,
                           color: calmPalette.textPrimary,
+                          whiteSpace: "nowrap",
                         },
                       }}
                     >
@@ -4239,6 +4267,7 @@ const EmployeeDashboard = () => {
         open={openEditDialog}
         onClose={handleCloseEditOrder}
         maxWidth="xl"
+        fullScreen={isMobile}
         title="تعديل الطلب"
         contentSx={{ padding: 0 }}
         actions={null}
@@ -4259,6 +4288,7 @@ const EmployeeDashboard = () => {
         open={openDeliveryStatusDialog}
         onClose={handleCloseDeliveryStatusDialog}
         maxWidth="md"
+        fullScreen={isMobile}
         title="حالة التوصيل من شركة التوصيل"
         subtitle={
           orderForDeliveryStatus?.orderNumber
@@ -4529,6 +4559,7 @@ const EmployeeDashboard = () => {
         open={openDepositOrderDialog}
         onClose={() => setOpenDepositOrderDialog(false)}
         maxWidth="md"
+        fullScreen={isMobile}
         title="إنشاء طلب عربون جديد"
       >
         <DepositOrderForm
@@ -4553,12 +4584,13 @@ const EmployeeDashboard = () => {
           setDepositOrdersSearchQuery("");
         }}
         maxWidth="lg"
+        fullScreen={isMobile}
         title="طلبات العربون"
       >
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
           {/* Header with count and search */}
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, mb: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: "1rem", sm: "1.25rem" } }}>
               إجمالي طلبات العربون: {depositOrders.length}
             </Typography>
             <TextField
@@ -4573,7 +4605,7 @@ const EmployeeDashboard = () => {
                   </InputAdornment>
                 ),
               }}
-              sx={{ width: 400 }}
+              sx={{ width: { xs: "100%", sm: 400 } }}
             />
           </Box>
 
@@ -4588,17 +4620,17 @@ const EmployeeDashboard = () => {
               </Typography>
             </Box>
           ) : (
-            <TableContainer component={Paper} elevation={0}>
-              <Table>
+            <TableContainer component={Paper} elevation={0} sx={{ overflowX: "auto", maxWidth: "100%" }}>
+              <Table sx={{ minWidth: 600 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الرقم</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الإجمالي</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>حالة شركة التوصيل</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>التاريخ</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>رقم الطلب</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>اسم العميل</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>الرقم</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>الإجمالي</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>الحالة</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>حالة شركة التوصيل</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>التاريخ</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="center">الإجراءات</TableCell>
                   </TableRow>
                 </TableHead>
@@ -4851,6 +4883,7 @@ const EmployeeDashboard = () => {
       {/* Edit Deposit Order Dialog */}
       <GlassDialog
         open={openEditDepositOrderDialog}
+        fullScreen={isMobile}
         onClose={() => {
           setOpenEditDepositOrderDialog(false);
           setDepositOrderToEdit(null);

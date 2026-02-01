@@ -53,7 +53,7 @@ const OrdersTab = ({
 
   return (
     <>
-      <Grid container spacing={3} sx={{ marginBottom: 4 }}>
+      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ marginBottom: { xs: 3, sm: 4 } }}>
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           const cardStyle =
@@ -123,12 +123,12 @@ const OrdersTab = ({
       </Grid>
       <Box
         sx={{
-          marginBottom: 4,
+          marginBottom: { xs: 3, sm: 4 },
           background: calmPalette.surface,
           borderRadius: 4,
           boxShadow: calmPalette.shadow,
           backdropFilter: "blur(8px)",
-          padding: 3,
+          padding: { xs: 2, sm: 3 },
         }}
       >
         <OrderForm

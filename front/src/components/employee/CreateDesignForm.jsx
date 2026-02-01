@@ -295,9 +295,9 @@ const CreateDesignForm = ({ onSuccess }) => {
       sx={{
         maxWidth: 1200,
         mx: "auto",
-        p: 3,
-        mt: 3,
-        mb: 4,
+        p: { xs: 1.5, sm: 3 },
+        mt: { xs: 1, sm: 3 },
+        mb: { xs: 2, sm: 4 },
       }}
     >
       <Fade in timeout={600}>
@@ -321,16 +321,16 @@ const CreateDesignForm = ({ onSuccess }) => {
             sx={{
               display: "flex",
               alignItems: "center",
-              gap: 2,
-              mb: 4,
+              gap: { xs: 1.5, sm: 2 },
+              mb: { xs: 2, sm: 4 },
               pb: 2,
               borderBottom: `2px solid ${calmPalette.primary}20`,
             }}
           >
             <Box
               sx={{
-                width: 56,
-                height: 56,
+                width: { xs: 44, sm: 56 },
+                height: { xs: 44, sm: 56 },
                 borderRadius: 3,
                 background: `linear-gradient(135deg, ${calmPalette.primary} 0%, ${calmPalette.primary}dd 100%)`,
                 display: "flex",
@@ -339,7 +339,7 @@ const CreateDesignForm = ({ onSuccess }) => {
                 boxShadow: `0 4px 12px ${calmPalette.primary}40`,
               }}
             >
-              <Create sx={{ fontSize: 28, color: "#fff" }} />
+              <Create sx={{ fontSize: { xs: 22, sm: 28 }, color: "#fff" }} />
             </Box>
             <Box>
               <Typography
@@ -347,6 +347,7 @@ const CreateDesignForm = ({ onSuccess }) => {
                 sx={{
                   fontWeight: 700,
                   color: calmPalette.textPrimary,
+                  fontSize: { xs: "1.25rem", sm: "1.5rem" },
                 }}
               >
                 إنشاء تصميم جديد
@@ -733,6 +734,7 @@ const CreateDesignForm = ({ onSuccess }) => {
               <Box
                 sx={{
                   display: "flex",
+                  flexDirection: { xs: "column-reverse", sm: "row" },
                   gap: 2,
                   justifyContent: "flex-end",
                   mt: 3,
@@ -746,7 +748,8 @@ const CreateDesignForm = ({ onSuccess }) => {
                   onClick={handleReset}
                   disabled={creatingDesign}
                   sx={{
-                    px: 4,
+                    width: { xs: "100%", sm: "auto" },
+                    px: { xs: 2, sm: 4 },
                     py: 1.5,
                     borderRadius: 2,
                     borderColor: calmPalette.primary,
@@ -778,7 +781,8 @@ const CreateDesignForm = ({ onSuccess }) => {
                     )
                   }
                   sx={{
-                    px: 4,
+                    width: { xs: "100%", sm: "auto" },
+                    px: { xs: 2, sm: 4 },
                     py: 1.5,
                     borderRadius: 2,
                     background: `linear-gradient(135deg, ${calmPalette.primary} 0%, ${calmPalette.primary}dd 100%)`,

@@ -20,6 +20,7 @@ const GlassDialog = ({
   actions,
   maxWidth = "md",
   fullWidth = true,
+  fullScreen,
   contentSx = {},
   titleSx = {},
   actionsSx = {},
@@ -28,13 +29,14 @@ const GlassDialog = ({
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth={maxWidth}
-      fullWidth={fullWidth}
+      maxWidth={fullScreen ? false : maxWidth}
+      fullWidth={fullScreen || fullWidth}
+      fullScreen={fullScreen}
       PaperProps={{
         sx: {
           background: calmPalette.surface,
           backdropFilter: "blur(16px)",
-          borderRadius: 3,
+          borderRadius: fullScreen ? 0 : 3,
           boxShadow: calmPalette.shadow,
           border: "1px solid rgba(94, 78, 62, 0.18)",
           overflow: "hidden",
@@ -51,7 +53,8 @@ const GlassDialog = ({
             background: "linear-gradient(135deg, rgba(96, 78, 62, 0.75), rgba(73, 59, 48, 0.85))",
             color: "#f7f2ea",
             paddingY: 2,
-            paddingX: 3,
+            paddingX: { xs: 2, sm: 3 },
+            "& .MuiTypography-h6": { fontSize: { xs: "1rem", sm: "1.25rem" } },
             ...titleSx,
           }}
         >
@@ -89,8 +92,8 @@ const GlassDialog = ({
 
       <DialogContent
         sx={{
-          paddingX: 3,
-          paddingY: 3,
+          paddingX: { xs: 2, sm: 3 },
+          paddingY: { xs: 2, sm: 3 },
           background: "linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(232, 220, 205, 0.35) 100%)",
           ...contentSx,
         }}

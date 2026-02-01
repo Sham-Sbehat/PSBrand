@@ -20,7 +20,7 @@ const DepositOrdersTab = ({
   return (
     <>
       {/* Stats Card for Deposit Orders */}
-      <Grid container spacing={3} sx={{ marginBottom: 4 }}>
+      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ marginBottom: { xs: 3, sm: 4 } }}>
         <Grid item xs={12} sm={4}>
           <Card
             onClick={async () => {
@@ -86,12 +86,12 @@ const DepositOrdersTab = ({
       {/* Deposit Order Form */}
       <Box
         sx={{
-          marginBottom: 4,
+          marginBottom: { xs: 3, sm: 4 },
           background: calmPalette.surface,
           borderRadius: 4,
           boxShadow: calmPalette.shadow,
           backdropFilter: "blur(8px)",
-          padding: 3,
+          padding: { xs: 2, sm: 3 },
         }}
       >
         <DepositOrderForm

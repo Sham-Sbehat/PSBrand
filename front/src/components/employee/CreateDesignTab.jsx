@@ -35,6 +35,8 @@ import {
   RateReview,
   Visibility,
 } from "@mui/icons-material";
+import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { designRequestsService } from "../../services/api";
 import CreateDesignForm from "./CreateDesignForm";
 import GlassDialog from "../common/GlassDialog";
@@ -44,6 +46,8 @@ import Swal from "sweetalert2";
 import { useForm, Controller } from "react-hook-form";
 
 const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   // State for designs
   const [openDesignsModal, setOpenDesignsModal] = useState(false);
   const [designsList, setDesignsList] = useState([]);
@@ -333,7 +337,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   return (
     <>
       {/* Designs Count Cards */}
-      <Grid container spacing={3} sx={{ marginBottom: 4 }}>
+      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ marginBottom: { xs: 3, sm: 4 } }}>
         {/* Total Designs Card */}
         <Grid item xs={12} sm={6} md={4}>
           <Card
@@ -474,6 +478,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
           setStatusFilter(null);
         }}
         maxWidth="xl"
+        fullScreen={isMobile}
         title={statusFilter === 3 ? "الطلبات قيد المراجعة" : "تصاميمي"}
         actions={
           <Button onClick={() => {
@@ -488,7 +493,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
       >
         <Box sx={{ p: 3 }}>
           {/* Search Field */}
-          <Box sx={{ mb: 3, width: "450px" }}>
+          <Box sx={{ mb: 3, width: { xs: "100%", sm: 450 } }}>
             <TextField
               fullWidth
               size="small"
@@ -560,15 +565,18 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                   borderRadius: 3,
                   border: `1px solid ${calmPalette.primary}15`,
                   boxShadow: "0 4px 20px rgba(94, 78, 62, 0.08)",
-                  overflow: "hidden",
+                  overflow: "auto",
+                  overflowX: "auto",
+                  maxWidth: "100%",
                   mb: 2,
                 }}
               >
-                <Table>
+                <Table sx={{ minWidth: 500 }}>
                   <TableHead>
                     <TableRow
                       sx={{
                         background: `linear-gradient(135deg, ${calmPalette.primary}12 0%, ${calmPalette.primary}08 100%)`,
+                        "& th": { whiteSpace: "nowrap" },
                       }}
                     >
                       <TableCell sx={{ fontWeight: 700 }}>العنوان</TableCell>
@@ -667,7 +675,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                                 <FormControl
                                   size="small"
                                   sx={{
-                                    minWidth: 180,
+                                    minWidth: { xs: 140, sm: 180 },
                                     "& .MuiOutlinedInput-root": {
                                       backgroundColor: "rgba(255, 255, 255, 0.95)",
                                       borderRadius: 1.5,
