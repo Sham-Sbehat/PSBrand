@@ -67,6 +67,7 @@ import { getFullUrl } from "../utils";
 import OrdersTab from "../components/designManager/OrdersTab";
 import DesignsFromDesignersTab from "../components/designManager/DesignsFromDesignersTab";
 import DesignRequestsTab from "../components/designManager/DesignRequestsTab";
+import ImagePreviewDialog from "../components/common/ImagePreviewDialog";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
@@ -115,7 +116,6 @@ const DesignManagerDashboard = () => {
   const [usersMap, setUsersMap] = useState({}); // { userId: userName }
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null); // Can be string or array
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [viewingDesign, setViewingDesign] = useState(null);
   const [imageUrl, setImageUrl] = useState(null);
@@ -1217,7 +1217,6 @@ const DesignManagerDashboard = () => {
       
       if (imageToShow) {
         setSelectedImage(getFullUrl(imageToShow));
-        setCurrentImageIndex(0);
         setImageDialogOpen(true);
       } else {
         alert('الصورة غير متوفرة');
@@ -1230,7 +1229,6 @@ const DesignManagerDashboard = () => {
       return;
     }
       setSelectedImage(getFullUrl(imageUrl));
-    setCurrentImageIndex(0);
     setImageDialogOpen(true);
   };
 
@@ -1437,7 +1435,6 @@ const DesignManagerDashboard = () => {
   const handleCloseImageDialog = () => {
     setImageDialogOpen(false);
     setSelectedImage(null);
-    setCurrentImageIndex(0);
   };
 
   const handleNotesClick = (order) => {
@@ -2129,7 +2126,6 @@ const DesignManagerDashboard = () => {
                   imageCache={imageCache}
                   loadingImage={loadingImage}
                   setSelectedImage={setSelectedImage}
-                  setCurrentImageIndex={setCurrentImageIndex}
                   setImageDialogOpen={setImageDialogOpen}
                   orderStatus={ORDER_STATUS.PENDING_PRINTING}
                   actionButtonText="بدء الطباعة"
@@ -2151,7 +2147,6 @@ const DesignManagerDashboard = () => {
                   imageCache={imageCache}
                   loadingImage={loadingImage}
                   setSelectedImage={setSelectedImage}
-                  setCurrentImageIndex={setCurrentImageIndex}
                   setImageDialogOpen={setImageDialogOpen}
                   orderStatus={ORDER_STATUS.IN_PRINTING}
                   actionButtonText="إرسال للتحضير"
@@ -2337,142 +2332,11 @@ const DesignManagerDashboard = () => {
         }
       />
 
-      {/* Image Dialog */}
-      <Dialog
+      <ImagePreviewDialog
         open={imageDialogOpen}
         onClose={handleCloseImageDialog}
-        maxWidth="lg"
-        fullWidth
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">
-            {Array.isArray(selectedImage) 
-              ? `معاينة الصور (${currentImageIndex + 1} / ${selectedImage.length})`
-              : 'معاينة الصورة'}
-          </Typography>
-          <IconButton onClick={handleCloseImageDialog}>
-            <Close />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent sx={{ padding: 2 }}>
-          {(() => {
-            // Handle both single image (string) and multiple images (array)
-            const images = Array.isArray(selectedImage) ? selectedImage : (selectedImage ? [selectedImage] : []);
-            const currentImage = images[currentImageIndex];
-            
-            if (!currentImage || currentImage === 'image_data_excluded') {
-              return (
-                <Box sx={{ 
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '400px',
-                  color: 'text.secondary'
-                }}>
-                  <Typography variant="h6" sx={{ mb: 2 }}>الصورة غير متوفرة</Typography>
-                  <Typography variant="body2">لم يتم تضمين بيانات الصورة في قائمة الطلبات لتقليل حجم البيانات</Typography>
-                </Box>
-              );
-            }
-            
-            return (
-              <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-                {images.length > 1 && (
-                  <>
-                    <IconButton
-                      onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)}
-                      sx={{
-                        position: 'absolute',
-                        left: 16,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        bgcolor: 'rgba(0, 0, 0, 0.5)',
-                        color: 'white',
-                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
-                        zIndex: 1
-                      }}
-                    >
-                      <ArrowBack />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => setCurrentImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)}
-                      sx={{
-                        position: 'absolute',
-                        right: 16,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        bgcolor: 'rgba(0, 0, 0, 0.5)',
-                        color: 'white',
-                        '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
-                        zIndex: 1
-                      }}
-                    >
-                      <ArrowForward />
-                    </IconButton>
-                  </>
-                )}
-                <img 
-                  src={currentImage} 
-                  alt={`معاينة الصورة ${currentImageIndex + 1}`}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    if (e.target.nextSibling) {
-                      e.target.nextSibling.style.display = 'flex';
-                    }
-                  }}
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '70vh', 
-                    objectFit: 'contain',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Box sx={{ 
-                  display: 'none',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '400px',
-                  color: 'text.secondary'
-                }}>
-                  <Typography variant="h6" sx={{ mb: 2 }}>لا يمكن عرض الصورة</Typography>
-                  <Typography variant="body2">الصورة غير متوفرة في قائمة الطلبات</Typography>
-                </Box>
-                {images.length > 1 && (
-                  <Box sx={{ 
-                    position: 'absolute', 
-                    bottom: 16, 
-                    left: '50%', 
-                    transform: 'translateX(-50%)',
-                    display: 'flex',
-                    gap: 1,
-                    bgcolor: 'rgba(0, 0, 0, 0.5)',
-                    borderRadius: 2,
-                    padding: '4px 8px'
-                  }}>
-                    {images.map((_, idx) => (
-                      <Box
-                        key={idx}
-                        onClick={() => setCurrentImageIndex(idx)}
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          bgcolor: idx === currentImageIndex ? 'white' : 'rgba(255, 255, 255, 0.5)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.8)' }
-                        }}
-                      />
-                    ))}
-                  </Box>
-                )}
-              </Box>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+        image={selectedImage}
+      />
 
       {/* View Design Dialog - Same as Main Designer */}
       <Dialog

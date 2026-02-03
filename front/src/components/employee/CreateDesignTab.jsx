@@ -650,9 +650,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                                 variant="body2"
                                 sx={{
                                   maxWidth: 300,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
+                                  whiteSpace: "pre-line",
                                 }}
                               >
                                 {design.description || "-"}

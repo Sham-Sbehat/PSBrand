@@ -28,7 +28,19 @@ import { useApp } from "../../context/AppContext";
 import calmPalette from "../../theme/calmPalette";
 
 const MessagesTab = ({ onNewMessage }) => {
-  const { user } = useApp();
+  const { user, employees } = useApp();
+
+  const getSenderName = (message) => {
+    if (message?.createdByUserName) return message.createdByUserName;
+    if (message?.createdByName) return message.createdByName;
+    if (message?.senderName) return message.senderName;
+    const creatorId = message?.createdBy ?? message?.createdByUserId;
+    if (creatorId != null) {
+      const emp = (employees || []).find((e) => e.id === creatorId || e.Id === creatorId);
+      if (emp?.name || emp?.Name) return emp.name || emp.Name;
+    }
+    return "الإدارة";
+  };
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState(0);
@@ -229,12 +241,12 @@ const MessagesTab = ({ onNewMessage }) => {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {message.title || "رسالة من الإدمن"}
+                  {message.title || "رسالة بدون عنوان"}
                 </Typography>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap" }}>
                   <Chip
                     icon={<AdminPanelSettings sx={{ fontSize: 12 }} />}
-                    label="من الإدارة"
+                    label={getSenderName(message)}
                     size="small"
                     sx={{
                       height: 20,

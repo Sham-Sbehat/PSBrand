@@ -87,7 +87,7 @@ const DesignRequestDetailsDialog = ({
               >
                 الوصف:
               </Typography>
-              <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+              <Typography variant="body2" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-line" }}>
                 {design.description}
               </Typography>
             </Box>
@@ -286,7 +286,7 @@ const DesignRequestDetailsDialog = ({
               >
                 الملاحظات:
               </Typography>
-              <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+              <Typography variant="body2" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-line" }}>
                 {design.note}
               </Typography>
             </Box>
@@ -301,7 +301,7 @@ const DesignRequestDetailsDialog = ({
               >
                 الملاحظات:
               </Typography>
-              <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>
+              <Typography variant="body2" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-line" }}>
                 {design.notes}
               </Typography>
             </Box>

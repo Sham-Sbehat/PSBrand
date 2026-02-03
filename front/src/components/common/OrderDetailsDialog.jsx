@@ -255,7 +255,7 @@ const OrderDetailsDialog = ({
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
                 ملاحظات التخفيض
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
                 {discountNotes}
               </Typography>
             </Box>
@@ -353,7 +353,7 @@ const OrderDetailsDialog = ({
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                 ملاحظات الطلب
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-line" }}>
                 {orderNotes}
               </Typography>
             </Box>

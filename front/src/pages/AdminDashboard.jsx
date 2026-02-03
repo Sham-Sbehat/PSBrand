@@ -37,6 +37,7 @@ import {
   Build,
   Inventory,
   Send as SendIcon,
+  FilterList,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
@@ -50,6 +51,8 @@ import ManagementDashboard from "../components/admin/ManagementDashboard";
 import WelcomeDashboard from "../components/admin/WelcomeDashboard";
 import NotificationsBell from "../components/common/NotificationsBell";
 import SendMessageDialog from "../components/admin/SendMessageDialog";
+import DesignRequestsTab from "../components/designManager/DesignRequestsTab";
+import ImagePreviewDialog from "../components/common/ImagePreviewDialog";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
 
@@ -67,6 +70,8 @@ const AdminDashboard = () => {
   const [sendMessageDialogOpen, setSendMessageDialogOpen] = useState(false);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [orderIdToOpen, setOrderIdToOpen] = useState(null); // للطلب الذي يجب فتحه من الإشعار
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
   
   // Get today's date in YYYY-MM-DD format
   const getTodayDate = () => {
@@ -669,6 +674,34 @@ const AdminDashboard = () => {
               }}
             />
             <Tab
+              label="طلبات التصاميم"
+              icon={<FilterList />}
+              iconPosition="start"
+              sx={{
+                fontWeight: 600,
+                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
+                color: "#7A9A8B",
+                minHeight: { xs: 40, sm: 48 },
+                padding: { xs: '6px 12px', sm: '8px 16px' },
+                textTransform: "none",
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  color: "#6B8E7F",
+                  backgroundColor: "rgba(107, 142, 127, 0.05)",
+                },
+                "&.Mui-selected": {
+                  color: "#5A7A6B",
+                  fontWeight: 700,
+                },
+                '& .MuiTab-iconWrapper': {
+                  marginRight: { xs: 0.5, sm: 0.75 },
+                  '& svg': {
+                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
+                  }
+                }
+              }}
+            />
+            <Tab
               label="الإدارة"
               icon={<Settings />}
               iconPosition="start"
@@ -825,9 +858,21 @@ const AdminDashboard = () => {
               <OrdersList dateFilter={dailyOrdersDate} />
             </Box>
           )}
-          {currentTab === 6 && <ManagementDashboard />}
+          {currentTab === 6 && (
+            <DesignRequestsTab
+              setSelectedImage={setSelectedImage}
+              setImageDialogOpen={setImageDialogOpen}
+            />
+          )}
+          {currentTab === 7 && <ManagementDashboard />}
         </Box>
       </Container>
+
+      <ImagePreviewDialog
+        open={imageDialogOpen}
+        onClose={() => setImageDialogOpen(false)}
+        image={selectedImage}
+      />
 
       {/* Send Message Dialog */}
       <SendMessageDialog

@@ -46,6 +46,7 @@ import {
   Message as MessageIcon,
   Refresh,
   Add,
+  Send as SendIcon,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -84,6 +85,7 @@ import DepositOrdersTab from "../components/employee/DepositOrdersTab";
 import GlassDialog from "../components/common/GlassDialog";
 import OrderDetailsDialog from "../components/common/OrderDetailsDialog";
 import NotificationsBell from "../components/common/NotificationsBell";
+import SendMessageDialog from "../components/admin/SendMessageDialog";
 import WelcomePage from "../components/common/WelcomePage";
 import InfoItem from "../components/common/InfoItem";
 import calmPalette from "../theme/calmPalette";
@@ -257,6 +259,7 @@ const EmployeeDashboard = () => {
   const [orderToShip, setOrderToShip] = useState(null);
   const [shippingNotes, setShippingNotes] = useState("");
   const [shippingLoading, setShippingLoading] = useState(false);
+  const [sendMessageDialogOpen, setSendMessageDialogOpen] = useState(false);
 
   const selectedOrderDesigns = selectedOrder?.orderDesigns || [];
   const totalOrderQuantity = selectedOrderDesigns.reduce((sum, design) => {
@@ -1929,6 +1932,23 @@ const EmployeeDashboard = () => {
       setMessagesAnchorEl={setMessagesAnchorEl}
       isMobile={isMobile}
       notificationsBell={<NotificationsBell onNewNotification={newNotificationReceived} />}
+      appBarExtra={
+        user?.role === USER_ROLES.DESIGNER ? (
+          <Tooltip title="إرسال رسالة للمصممين">
+            <IconButton
+              onClick={() => setSendMessageDialogOpen(true)}
+              sx={{
+                color: "#f6f1eb",
+                border: "1px solid rgba(255,255,255,0.25)",
+                borderRadius: 2,
+                "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.1)" },
+              }}
+            >
+              <SendIcon fontSize={isMobile ? "small" : "medium"} />
+            </IconButton>
+          </Tooltip>
+        ) : null
+      }
       messagesIconExtra={
         unreadMessagesCount > 0 && (
           <Box
@@ -4798,6 +4818,12 @@ const EmployeeDashboard = () => {
           </Typography>
         </Alert>
       </Snackbar>
+
+      <SendMessageDialog
+        open={sendMessageDialogOpen}
+        onClose={() => setSendMessageDialogOpen(false)}
+        onMessageSent={() => {}}
+      />
     </DashboardLayout>
   );
 };

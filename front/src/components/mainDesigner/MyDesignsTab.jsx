@@ -75,6 +75,38 @@ const MyDesignsTab = () => {
     6: 0, // ملغي
   });
 
+  // Load counts for all statuses (2-6) so tab badges show correct numbers
+  const loadStatusCounts = async () => {
+    if (!user?.id) return;
+    const statuses = [2, 3, 4, 5, 6];
+    try {
+      const results = await Promise.all(
+        statuses.map((status) =>
+          designRequestsService.getDesignRequests({
+            page: 1,
+            pageSize: 1,
+            mainDesignerId: user.id,
+            status,
+          })
+        )
+      );
+      setStatusCounts((prev) => {
+        const next = { ...prev };
+        results.forEach((response, index) => {
+          const status = statuses[index];
+          let total = 0;
+          if (response && typeof response.totalCount === "number") total = response.totalCount;
+          else if (response?.data && Array.isArray(response.data)) total = response.totalCount ?? response.data.length;
+          else if (Array.isArray(response)) total = response.length;
+          next[status] = total;
+        });
+        return next;
+      });
+    } catch (err) {
+      console.error("Error loading status counts:", err);
+    }
+  };
+
   // Load design requests assigned to current designer
   // تحميل التصاميم المعينة للمصمم الحالي
   const loadDesigns = async () => {
@@ -135,6 +167,11 @@ const MyDesignsTab = () => {
       setLoading(false);
     }
   };
+
+  // Load status counts for all tabs on mount (so badges show correct numbers)
+  useEffect(() => {
+    loadStatusCounts();
+  }, [user?.id]);
 
   // Load designs when page, pageSize, statusTab, or user changes
   useEffect(() => {
@@ -329,6 +366,7 @@ const MyDesignsTab = () => {
       setDesignForReview(null);
       setReviewImages([]);
       loadDesigns();
+      loadStatusCounts();
     } catch (error) {
       console.error("Error uploading images and sending for review:", error);
       Swal.fire({
@@ -368,7 +406,8 @@ const MyDesignsTab = () => {
         confirmButtonColor: calmPalette.primary,
         timer: 2000,
       });
-      loadDesigns(); // Refresh the list
+      loadDesigns();
+      loadStatusCounts();
     } catch (error) {
       console.error("Error completing design:", error);
       Swal.fire({
@@ -409,7 +448,8 @@ const MyDesignsTab = () => {
         confirmButtonColor: calmPalette.primary,
         timer: 2000,
       });
-      loadDesigns(); // Refresh the list
+      loadDesigns();
+      loadStatusCounts();
     } catch (error) {
       console.error("Error cancelling design:", error);
       Swal.fire({
@@ -887,9 +927,7 @@ const MyDesignsTab = () => {
                         sx={{
                           color: calmPalette.textSecondary,
                           maxWidth: 300,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          whiteSpace: "pre-line",
                         }}
                         title={design.description}
                       >
@@ -1202,7 +1240,7 @@ const MyDesignsTab = () => {
                   {designForReview.title}
                 </Typography>
                 {designForReview.description && (
-                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mt: 0.5, whiteSpace: "pre-line" }}>
                     {designForReview.description}
                   </Typography>
                 )}

@@ -21,6 +21,7 @@ import {
 import { Send, Close, CalendarToday } from "@mui/icons-material";
 import { messagesService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
+import { USER_ROLES } from "../../constants";
 import GlassDialog from "../common/GlassDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
@@ -95,7 +96,7 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
     try {
       const messageData = {
         userId: recipientType === "all" ? null : parseInt(selectedEmployeeId), // null للكل، وليس 0
-        title: title.trim() || "رسالة من الإدمن",
+        title: title.trim() || (user?.role === USER_ROLES.DESIGNER ? "رسالة من البائع" : "رسالة من الإدمن"),
         content: content.trim(),
         isActive: isActive,
         expiresAt: hasExpiryDate && expiresAt ? new Date(expiresAt).toISOString() : null, // Convert to ISO string
@@ -126,8 +127,8 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
           title: "تم الإرسال بنجاح",
           text:
             recipientType === "all"
-              ? "تم إرسال الرسالة لجميع الموظفين"
-              : `تم إرسال الرسالة للموظف المحدد`,
+              ? (user?.role === USER_ROLES.DESIGNER ? "تم إرسال الرسالة لجميع المصممين" : "تم إرسال الرسالة لجميع الموظفين")
+              : (user?.role === USER_ROLES.DESIGNER ? "تم إرسال الرسالة للمصمم المحدد" : "تم إرسال الرسالة للموظف المحدد"),
           confirmButtonColor: calmPalette.primary,
           timer: 2000,
         });
@@ -201,14 +202,23 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
     return colorMap[role] || "default";
   };
 
-  // Filter out admin from employees list
-  const availableEmployees = employees.filter((emp) => emp.role !== 1);
+  // When sender is seller (بائع), only main designers (المصممين) can be recipients
+  const isSeller = user?.role === USER_ROLES.DESIGNER;
+  const availableEmployees = isSeller
+    ? (employees || []).filter((emp) => emp.role === USER_ROLES.MAIN_DESIGNER)
+    : (employees || []).filter((emp) => emp.role !== USER_ROLES.ADMIN);
+
+  const dialogTitle = editingMessage
+    ? "تعديل الرسالة"
+    : isSeller
+      ? "إرسال رسالة للمصممين"
+      : "إرسال رسالة/إشعار";
 
   return (
     <GlassDialog
       open={open}
       onClose={onClose}
-      title={editingMessage ? "تعديل الرسالة" : "إرسال رسالة/إشعار"}
+      title={dialogTitle}
       maxWidth="md"
       fullWidth
       actions={
@@ -271,12 +281,12 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
             <FormControlLabel
               value="all"
               control={<Radio sx={{ color: calmPalette.primary }} />}
-              label="جميع الموظفين"
+              label={isSeller ? "جميع المصممين" : "جميع الموظفين"}
             />
             <FormControlLabel
               value="specific"
               control={<Radio sx={{ color: calmPalette.primary }} />}
-              label="موظف محدد"
+              label={isSeller ? "مصمم محدد" : "موظف محدد"}
             />
           </RadioGroup>
         </FormControl>
@@ -284,11 +294,11 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
         {/* Employee Selection (if specific) */}
         {recipientType === "specific" && (
           <FormControl fullWidth>
-            <InputLabel>اختر الموظف</InputLabel>
+            <InputLabel>{isSeller ? "اختر المصمم" : "اختر الموظف"}</InputLabel>
             <Select
               value={selectedEmployeeId}
               onChange={(e) => setSelectedEmployeeId(e.target.value)}
-              label="اختر الموظف"
+              label={isSeller ? "اختر المصمم" : "اختر الموظف"}
               sx={{
                 "& .MuiOutlinedInput-notchedOutline": {
                   borderColor: "rgba(94, 78, 62, 0.2)",
@@ -473,8 +483,8 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
           <Typography variant="body2" sx={{ color: calmPalette.textPrimary }}>
             <strong>ملاحظة:</strong> سيتم إرسال الرسالة{" "}
             {recipientType === "all"
-              ? "لجميع الموظفين"
-              : `للموظف المحدد`}{" "}
+              ? (user?.role === USER_ROLES.DESIGNER ? "لجميع المصممين" : "لجميع الموظفين")
+              : (user?.role === USER_ROLES.DESIGNER ? "للمصمم المحدد" : "للموظف المحدد")}{" "}
             وستظهر لهم فوراً في نظام المراسلة.
           </Typography>
         </Box>

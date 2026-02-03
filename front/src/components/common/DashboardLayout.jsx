@@ -33,6 +33,7 @@ const DashboardLayout = ({
   children,
   isMobile = false,
   notificationsBell,
+  appBarExtra,
   onMessagesIconClick,
   containerMaxWidth = "xl",
   containerSx = {},
@@ -55,6 +56,7 @@ const DashboardLayout = ({
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.5, sm: 2 } }}>
             {notificationsBell}
+            {appBarExtra}
             <Tooltip title="رسائل الإدمن">
               <Box sx={{ position: "relative" }}>
                 <IconButton

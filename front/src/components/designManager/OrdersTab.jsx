@@ -42,7 +42,7 @@ const OrdersTab = ({
   imageCache,
   loadingImage,
   setSelectedImage,
-  setCurrentImageIndex,
+  setCurrentImageIndex, // optional: parent may use ImagePreviewDialog which manages index internally
   setImageDialogOpen,
   orderStatus, // ORDER_STATUS.PENDING_PRINTING or ORDER_STATUS.IN_PRINTING
   actionButtonText, // "بدء الطباعة" or "إرسال للتحضير"
@@ -418,7 +418,7 @@ const OrdersTab = ({
                                       onClick={() => {
                                         if (displayImage && displayImage !== 'image_data_excluded') {
                                           setSelectedImage(displayImage);
-                                          setCurrentImageIndex(0);
+                                          if (setCurrentImageIndex) setCurrentImageIndex(0);
                                           setImageDialogOpen(true);
                                         }
                                       }}

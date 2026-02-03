@@ -171,16 +171,6 @@ const CreateDesignForm = ({ onSuccess }) => {
 
   // Handle design submission
   const onSubmitDesign = async (data) => {
-    if (designImages.length === 0) {
-      Swal.fire({
-        icon: "error",
-        title: "خطأ",
-        text: "يرجى رفع صورة واحدة على الأقل",
-        confirmButtonColor: calmPalette.primary,
-      });
-      return;
-    }
-
     setCreatingDesign(true);
     try {
       // Extract imageKeys from uploaded images - ensure they are strings
@@ -199,10 +189,6 @@ const CreateDesignForm = ({ onSuccess }) => {
         .filter((key) => key && key.trim() !== ''); // Filter out empty strings
 
       console.log("🔑 Final imageKeys to send:", imageKeys);
-
-      if (imageKeys.length === 0) {
-        throw new Error("فشل في الحصول على مفاتيح الصور");
-      }
 
       // Validate required fields before sending
       if (!data.designName || data.designName.trim() === '') {
@@ -232,7 +218,7 @@ const CreateDesignForm = ({ onSuccess }) => {
       const designRequestPayload = {
         title: String(data.designName.trim()), // API expects "title" (lowercase) and it's required
         description: String(data.description.trim()), // API expects "description" (lowercase) and it's required
-        imageKeys: imageKeys, // Array of image keys (strings) from upload
+        imageKeys: imageKeys.length > 0 ? imageKeys : [], // صور اختيارية
         status: 1, // Default status
         mainDesignerId: 0, // Can be 0 or null, depending on API requirements
         note: String(data.notes?.trim() || ''), // Additional notes field (optional)
@@ -437,11 +423,8 @@ const CreateDesignForm = ({ onSuccess }) => {
                 >
                   <ImageIcon sx={{ fontSize: 20, color: calmPalette.primary }} />
                   صور التصميم
-                  <Typography
-                    component="span"
-                    sx={{ color: "error.main", fontSize: "1.2rem" }}
-                  >
-                    *
+                  <Typography component="span" sx={{ color: "text.secondary", fontSize: "0.9rem" }}>
+                    (اختياري)
                   </Typography>
                 </Typography>
                 <input
@@ -773,7 +756,7 @@ const CreateDesignForm = ({ onSuccess }) => {
                 <Button
                   type="submit"
                   variant="contained"
-                  disabled={creatingDesign || designImages.length === 0}
+                  disabled={creatingDesign}
                   startIcon={
                     creatingDesign ? (
                       <CircularProgress size={20} color="inherit" />

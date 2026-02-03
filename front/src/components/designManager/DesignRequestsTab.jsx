@@ -634,9 +634,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
                         sx={{
                           color: calmPalette.textSecondary,
                           maxWidth: 300,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          whiteSpace: "pre-line",
                         }}
                         title={design.description}
                       >
