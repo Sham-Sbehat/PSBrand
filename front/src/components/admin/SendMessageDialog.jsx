@@ -19,7 +19,7 @@ import {
   FormGroup,
 } from "@mui/material";
 import { Send, Close, CalendarToday } from "@mui/icons-material";
-import { messagesService } from "../../services/api";
+import { messagesService, employeesService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
 import { USER_ROLES } from "../../constants";
 import GlassDialog from "../common/GlassDialog";
@@ -36,6 +36,27 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
   const [hasExpiryDate, setHasExpiryDate] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [designersList, setDesignersList] = useState([]); // للمصممين عند فتح النافذة كبائع
+  const [loadingDesigners, setLoadingDesigners] = useState(false);
+
+  // عند فتح النافذة كبائع، جلب قائمة المصممين من الـ API
+  useEffect(() => {
+    if (!open || user?.role !== USER_ROLES.DESIGNER) return;
+    let cancelled = false;
+    setLoadingDesigners(true);
+    employeesService
+      .getUsersByRole(USER_ROLES.MAIN_DESIGNER)
+      .then((data) => {
+        if (!cancelled) setDesignersList(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setDesignersList([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDesigners(false);
+      });
+    return () => { cancelled = true; };
+  }, [open, user?.role]);
 
   // Initialize form when editingMessage changes
   useEffect(() => {
@@ -202,11 +223,21 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
     return colorMap[role] || "default";
   };
 
-  // When sender is seller (بائع), only main designers (المصممين) can be recipients
+  // When sender is seller (بائع), only main designers (المصممين) - نستخدم القائمة المُحمّلة من API
   const isSeller = user?.role === USER_ROLES.DESIGNER;
+  const isMainDesigner = (emp) => {
+    const r = emp.role ?? emp.Role;
+    return r === USER_ROLES.MAIN_DESIGNER || r === 6 ||
+      (typeof r === "string" && (r === "MAIN_DESIGNER" || r.toLowerCase() === "maindesigner"));
+  };
   const availableEmployees = isSeller
-    ? (employees || []).filter((emp) => emp.role === USER_ROLES.MAIN_DESIGNER)
-    : (employees || []).filter((emp) => emp.role !== USER_ROLES.ADMIN);
+    ? designersList.length > 0
+      ? designersList
+      : (employees || []).filter(isMainDesigner)
+    : (employees || []).filter((emp) => {
+        const r = emp.role ?? emp.Role;
+        return r !== USER_ROLES.ADMIN && r !== 1 && r !== "ADMIN" && r !== "admin";
+      });
 
   const dialogTitle = editingMessage
     ? "تعديل الرسالة"
@@ -311,21 +342,41 @@ const SendMessageDialog = ({ open, onClose, onMessageSent, editingMessage = null
                 },
               }}
             >
-              {availableEmployees.map((employee) => (
-                <MenuItem key={employee.id} value={employee.id}>
+              {loadingDesigners && isSeller && (
+                <MenuItem value="" disabled>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Typography>{employee.name}</Typography>
-                    {employee.role && (
-                      <Chip
-                        label={getRoleLabel(employee.role)}
-                        size="small"
-                        color={getRoleColor(employee.role)}
-                        sx={{ height: 20, fontSize: "0.65rem" }}
-                      />
-                    )}
+                    <CircularProgress size={16} />
+                    <Typography variant="body2" color="text.secondary">جاري تحميل المصممين...</Typography>
                   </Box>
                 </MenuItem>
-              ))}
+              )}
+              {!loadingDesigners && availableEmployees.length === 0 && (
+                <MenuItem value="" disabled>
+                  <Typography variant="body2" color="text.secondary">
+                    {isSeller ? "لا يوجد مصممين مسجلين" : "لا يوجد موظفين"}
+                  </Typography>
+                </MenuItem>
+              )}
+              {availableEmployees.map((employee) => {
+                const empId = employee.id ?? employee.Id;
+                const empName = employee.name ?? employee.Name ?? "—";
+                const empRole = employee.role ?? employee.Role;
+                return (
+                  <MenuItem key={empId} value={empId}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography>{empName}</Typography>
+                      {empRole != null && (
+                        <Chip
+                          label={getRoleLabel(empRole)}
+                          size="small"
+                          color={getRoleColor(empRole)}
+                          sx={{ height: 20, fontSize: "0.65rem" }}
+                        />
+                      )}
+                    </Box>
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
         )}
