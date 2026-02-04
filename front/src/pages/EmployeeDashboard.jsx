@@ -62,7 +62,7 @@ import {
   depositOrdersService,
   messagesService,
 } from "../services/api";
-import { subscribeToOrderUpdates, subscribeToMessages } from "../services/realtime";
+import { subscribeToOrderUpdates, subscribeToMessages, subscribeToDesigns } from "../services/realtime";
 import MessagesTab from "../components/common/MessagesTab";
 import Swal from "sweetalert2";
 import {
@@ -220,6 +220,7 @@ const EmployeeDashboard = () => {
   const [editLoading, setEditLoading] = useState(false);
   const [openDeliveryStatusDialog, setOpenDeliveryStatusDialog] =
     useState(false);
+  const [designRequestsRefreshKey, setDesignRequestsRefreshKey] = useState(0);
   const [deliveryStatusData, setDeliveryStatusData] = useState(null);
   const [deliveryStatusLoading, setDeliveryStatusLoading] = useState(false);
   const [orderForDeliveryStatus, setOrderForDeliveryStatus] = useState(null);
@@ -903,8 +904,9 @@ const EmployeeDashboard = () => {
     fetchDesignerOrdersCount();
     fetchDepositOrdersCount();
 
-    // Subscribe to SignalR updates for real-time delivery status updates
+    // Subscribe to SignalR updates for real-time delivery status + design requests (طلبات التصميم)
     let unsubscribe;
+    let unsubscribeDesigns;
     (async () => {
       try {
         unsubscribe = await subscribeToOrderUpdates({
@@ -999,10 +1001,19 @@ const EmployeeDashboard = () => {
         });
       } catch (err) {
       }
+      try {
+        unsubscribeDesigns = await subscribeToDesigns({
+          onDesignRequestsListChanged: () => setDesignRequestsRefreshKey((k) => k + 1),
+          onDesignRequestUpdated: () => setDesignRequestsRefreshKey((k) => k + 1),
+        });
+      } catch (err) {
+        console.warn("Design requests SignalR (البائع):", err?.message || err);
+      }
     })();
 
     return () => {
       if (typeof unsubscribe === "function") unsubscribe();
+      if (typeof unsubscribeDesigns === "function") unsubscribeDesigns();
     };
   }, [user]);
 
@@ -2108,6 +2119,7 @@ const EmployeeDashboard = () => {
               user={user}
               setSelectedImage={setSelectedImage}
               setImageDialogOpen={setImageDialogOpen}
+              designRequestsRefreshKey={designRequestsRefreshKey}
             />
           )}
         </Paper>

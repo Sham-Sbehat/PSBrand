@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -34,6 +34,7 @@ import {
   Delete,
   RateReview,
   Visibility,
+  CloudUpload,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -45,7 +46,7 @@ import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 import { useForm, Controller } from "react-hook-form";
 
-const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
+const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designRequestsRefreshKey = 0 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   // State for designs
@@ -67,6 +68,9 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false); // Dialog for status change
   const [pendingStatusChange, setPendingStatusChange] = useState({ designId: null, newStatus: null }); // Pending status change
   const [statusChangeNote, setStatusChangeNote] = useState(""); // Note for status change
+  const [statusChangeImages, setStatusChangeImages] = useState([]); // Optional images when returning to "بحاجة لتعديل" (array of File)
+  const [statusChangeImagePreviews, setStatusChangeImagePreviews] = useState([]); // Preview URLs for display
+  const [uploadingStatusChangeImages, setUploadingStatusChangeImages] = useState(false);
   const [viewingDesign, setViewingDesign] = useState(null); // Design to view in modal
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false); // View design dialog state
 
@@ -156,6 +160,18 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
       loadMyDesigns(statusFilter);
     }
   }, [designsPage, designsPageSize, openDesignsModal, user?.id, statusFilter]);
+
+  // Real-time: لما يوصل حدث SignalR نزيد الرقم 1 فوراً ثم نصحّيه من الـ API
+  const prevRefreshKeyRef = useRef(0);
+  useEffect(() => {
+    if (designRequestsRefreshKey <= 0) return;
+    const keyIncreased = designRequestsRefreshKey > prevRefreshKeyRef.current;
+    prevRefreshKeyRef.current = designRequestsRefreshKey;
+    if (keyIncreased) setReviewDesignsCount((prev) => prev + 1);
+    fetchMyDesignsCount();
+    fetchReviewDesignsCount();
+    if (openDesignsModal) loadMyDesigns(statusFilter);
+  }, [designRequestsRefreshKey]);
 
   // Refresh count when form is submitted successfully
   const handleDesignCreated = () => {
@@ -281,22 +297,43 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
   const handleStatusChange = (designId, newStatus) => {
     setPendingStatusChange({ designId, newStatus });
     setStatusChangeNote("");
+    setStatusChangeImages([]);
+    setStatusChangeImagePreviews([]);
     setStatusChangeDialogOpen(true);
   };
 
-  // Confirm status change with note
+  // Clear preview URLs when status change images are cleared
+  const clearStatusChangeImagePreviews = () => {
+    statusChangeImagePreviews.forEach((url) => {
+      if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+    });
+    setStatusChangeImagePreviews([]);
+  };
+
+  // Confirm status change with note and optional images (when returning to "بحاجة لتعديل")
   const handleConfirmStatusChange = async () => {
     const { designId, newStatus } = pendingStatusChange;
     if (!designId || !newStatus) return;
 
     setUpdatingStatusId(designId);
     try {
-      // Step 1: Update note (even if empty, to clear previous note if needed)
-      await designRequestsService.updateNote(designId, statusChangeNote.trim() || "");
+      let imageKeys = [];
+      if (newStatus === 4 && statusChangeImages.length > 0) {
+        setUploadingStatusChangeImages(true);
+        try {
+          const uploadResponse = await designRequestsService.uploadImages(statusChangeImages);
+          const list = Array.isArray(uploadResponse) ? uploadResponse : uploadResponse?.data || [];
+          imageKeys = list.map((item) => item.url || item.Url).filter(Boolean);
+        } finally {
+          setUploadingStatusChangeImages(false);
+        }
+      }
 
-      // Step 2: Update status
-      await designRequestsService.setState(designId, newStatus);
-      
+      await designRequestsService.setState(designId, newStatus, {
+        note: statusChangeNote.trim() || undefined,
+        ...(imageKeys.length > 0 && { imageKeys }),
+      });
+
       // Update local state immediately
       setDesignsList((prev) =>
         prev.map((design) =>
@@ -312,10 +349,12 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
         timer: 2000,
       });
 
-      // Close dialog
+      // Close dialog and clear
       setStatusChangeDialogOpen(false);
       setPendingStatusChange({ designId: null, newStatus: null });
       setStatusChangeNote("");
+      setStatusChangeImages([]);
+      clearStatusChangeImagePreviews();
 
       // Reload to get updated data
       loadMyDesigns(statusFilter);
@@ -972,6 +1011,8 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
             setStatusChangeDialogOpen(false);
             setPendingStatusChange({ designId: null, newStatus: null });
             setStatusChangeNote("");
+            setStatusChangeImages([]);
+            clearStatusChangeImagePreviews();
           }
         }}
         maxWidth="sm"
@@ -983,6 +1024,8 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                 setStatusChangeDialogOpen(false);
                 setPendingStatusChange({ designId: null, newStatus: null });
                 setStatusChangeNote("");
+                setStatusChangeImages([]);
+                clearStatusChangeImagePreviews();
               }} 
               variant="outlined"
               disabled={updatingStatusId !== null}
@@ -1043,6 +1086,102 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen }) => {
                   size="small"
                   sx={{ fontWeight: 600 }}
                 />
+              </Box>
+            )}
+
+            {/* Optional image when returning to "بحاجة لتعديل" */}
+            {pendingStatusChange.newStatus === 4 && (
+              <Box>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    fontWeight: 600,
+                    mb: 1.5,
+                    color: calmPalette.textPrimary,
+                  }}
+                >
+                  صورة توضيحية (اختياري)
+                </Typography>
+                <input
+                  accept="image/*,.pdf"
+                  type="file"
+                  multiple
+                  id="status-change-image-upload"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const files = e.target.files ? Array.from(e.target.files) : [];
+                    if (files.length === 0) return;
+                    setStatusChangeImages((prev) => [...prev, ...files]);
+                    setStatusChangeImagePreviews((prev) => [
+                      ...prev,
+                      ...files.map((f) => URL.createObjectURL(f)),
+                    ]);
+                    e.target.value = "";
+                  }}
+                />
+                <label htmlFor="status-change-image-upload">
+                  <Button
+                    component="span"
+                    variant="outlined"
+                    startIcon={uploadingStatusChangeImages ? <CircularProgress size={18} /> : <CloudUpload />}
+                    disabled={updatingStatusId !== null || uploadingStatusChangeImages}
+                    size="small"
+                    sx={{ textTransform: "none" }}
+                  >
+                    رفع صورة
+                  </Button>
+                </label>
+                {statusChangeImagePreviews.length > 0 && (
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1.5 }}>
+                    {statusChangeImagePreviews.map((preview, idx) => (
+                      <Box
+                        key={idx}
+                        sx={{
+                          position: "relative",
+                          width: 72,
+                          height: 72,
+                          borderRadius: 1,
+                          overflow: "hidden",
+                          border: `1px solid ${calmPalette.primary}30`,
+                        }}
+                      >
+                        <img
+                          src={preview}
+                          alt={`معاينة ${idx + 1}`}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            setStatusChangeImages((p) => p.filter((_, i) => i !== idx));
+                            setStatusChangeImagePreviews((p) => {
+                              const next = p.filter((_, i) => i !== idx);
+                              if (preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+                              return next;
+                            });
+                          }}
+                          sx={{
+                            position: "absolute",
+                            top: 0,
+                            right: 0,
+                            bgcolor: "rgba(0,0,0,0.5)",
+                            color: "#fff",
+                            "&:hover": { bgcolor: "rgba(0,0,0,0.7)" },
+                          }}
+                        >
+                          <Close fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+                <Typography variant="caption" sx={{ color: calmPalette.textSecondary, mt: 1, display: "block" }}>
+                  يمكنك إرفاق صورة توضح التعديل المطلوب (اختياري)
+                </Typography>
               </Box>
             )}
 

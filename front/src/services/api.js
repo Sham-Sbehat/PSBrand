@@ -1410,12 +1410,13 @@ export const designRequestsService = {
     }
   },
 
-  // Set design request state
-  setState: async (designRequestId, status) => {
+  // Set design request state (optional: imageKeys, note - e.g. when seller returns to "بحاجة لتعديل")
+  setState: async (designRequestId, status, options = {}) => {
     try {
-      const response = await api.put(`/DesignRequests/${designRequestId}/SetState`, {
-        status: status,
-      });
+      const body = { status };
+      if (options.imageKeys != null && options.imageKeys.length > 0) body.imageKeys = options.imageKeys;
+      if (options.note !== undefined && options.note !== null) body.note = options.note;
+      const response = await api.put(`/DesignRequests/${designRequestId}/SetState`, body);
       return response.data;
     } catch (error) {
       throw error;
