@@ -61,11 +61,15 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
-  const [statusTab, setStatusTab] = useState(2); // 2-6 = specific status (no pending status)
+  const [statusTab, setStatusTab] = useState(2); // 2,3,4,5,7,6 = specific status (no pending)
+  const STATUS_TAB_VALUES = [2, 3, 4, 5, 7, 6]; // قيد التنفيذ، قيد المراجعة، بحاجة لتعديل، جاهز، تم رفع التصميم، ملغي
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [designForReview, setDesignForReview] = useState(null);
   const [reviewImages, setReviewImages] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [designUploadedModalOpen, setDesignUploadedModalOpen] = useState(false);
+  const [designForUpload, setDesignForUpload] = useState(null);
+  const [uploadedDesignImages, setUploadedDesignImages] = useState([]);
   const [statusCounts, setStatusCounts] = useState({
     1: 0, // في الانتظار (for counting only, not displayed)
     2: 0, // قيد التنفيذ
@@ -73,12 +77,13 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
     4: 0, // بحاجة لتعديل
     5: 0, // جاهز
     6: 0, // ملغي
+    7: 0, // تم رفع التصميم
   });
 
-  // Load counts for all statuses (2-6) so tab badges show correct numbers
+  // Load counts for all statuses (2-7 + 6) so tab badges show correct numbers
   const loadStatusCounts = async () => {
     if (!user?.id) return;
-    const statuses = [2, 3, 4, 5, 6];
+    const statuses = [2, 3, 4, 5, 7, 6];
     try {
       const results = await Promise.all(
         statuses.map((status) =>
@@ -212,6 +217,7 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
       4: { label: "بحاجة لتعديل", color: "warning" },
       5: { label: "جاهز", color: "success" },
       6: { label: "ملغي", color: "error" },
+      7: { label: "تم رفع التصميم", color: "success" },
     };
     return statusMap[status] || { label: "غير محدد", color: "default" };
   };
@@ -389,6 +395,72 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
     }
   };
 
+  // فتح مودال "تم رفع التصميم" (الحالة 7) - مثل مودال إرسال للمراجعة
+  const handleOpenDesignUploadedModal = (design) => {
+    setDesignForUpload(design);
+    setUploadedDesignImages([]);
+    setDesignUploadedModalOpen(true);
+  };
+
+  const handleUploadedDesignImageSelect = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length) setUploadedDesignImages((prev) => [...prev, ...files]);
+    event.target.value = "";
+  };
+
+  const handleRemoveUploadedDesignImage = (index) => {
+    setUploadedDesignImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleConfirmDesignUploaded = async () => {
+    if (!designForUpload) return;
+    setUpdatingStatusId(designForUpload.id);
+    setUploadingImages(true);
+    try {
+      if (uploadedDesignImages.length > 0) {
+        const uploadResponse = await designRequestsService.uploadImages(uploadedDesignImages);
+        let imageKeys = [];
+        if (Array.isArray(uploadResponse)) {
+          imageKeys = uploadResponse.map((item) =>
+            typeof item === "string" ? item : item?.publicId || item?.fileKey || item?.key || item?.url || String(item)
+          );
+        } else if (uploadResponse?.publicId) {
+          imageKeys = [uploadResponse.publicId];
+        } else if (uploadResponse?.url) {
+          imageKeys = [uploadResponse.url];
+        } else if (uploadResponse?.data && Array.isArray(uploadResponse.data)) {
+          imageKeys = uploadResponse.data.map((item) => item?.publicId || item?.fileKey || item?.url);
+        }
+        imageKeys = imageKeys.map(String).filter(Boolean);
+        if (imageKeys.length) await designRequestsService.setDesignImages(designForUpload.id, imageKeys);
+      }
+      await designRequestsService.setState(designForUpload.id, 7);
+      Swal.fire({
+        icon: "success",
+        title: "تم بنجاح",
+        text: "تم تحديث الحالة إلى «تم رفع التصميم»",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+      setDesignUploadedModalOpen(false);
+      setDesignForUpload(null);
+      setUploadedDesignImages([]);
+      loadDesigns();
+      loadStatusCounts();
+    } catch (error) {
+      console.error("Error setting design uploaded:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: error.response?.data?.message || error.message || "فشل في تحديث الحالة",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setUpdatingStatusId(null);
+      setUploadingImages(false);
+    }
+  };
+
   // Handle complete design (for status 3 and above)
   const handleCompleteDesign = async (designId) => {
     const result = await Swal.fire({
@@ -487,10 +559,10 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
         }}
       >
         <Tabs
-          value={statusTab - 2} // Convert status (2-6) to tab index (0-4)
+          value={STATUS_TAB_VALUES.indexOf(statusTab) >= 0 ? STATUS_TAB_VALUES.indexOf(statusTab) : 0}
           onChange={(e, newValue) => {
-            setStatusTab(newValue + 2); // Convert tab index (0-4) to status (2-6)
-            setPage(0); // Reset to first page when changing status
+            setStatusTab(STATUS_TAB_VALUES[newValue] ?? 2);
+            setPage(0);
           }}
           TabIndicatorProps={{ style: { display: 'none' } }}
           variant="fullWidth"
@@ -657,6 +729,40 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
                     fontWeight: 700,
                     borderRadius: "14px",
                     border: statusTab === 5 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(76, 175, 80, 0.2)",
+                  }}
+                />
+              </Box>
+            }
+          />
+          <Tab
+            sx={{
+              backgroundColor: statusTab === 7 ? "transparent" : "rgba(255, 255, 255, 0.8)",
+              "&.Mui-selected": {
+                color: "#ffffff",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #00897b 0%, #00695c 100%)",
+                boxShadow: "0 6px 16px rgba(0, 137, 123, 0.4)",
+                border: "none",
+                transform: "translateY(-2px)",
+              },
+            }}
+            label={
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+                  تم رفع التصميم
+                </Typography>
+                <Chip
+                  label={statusCounts[7]}
+                  size="small"
+                  sx={{
+                    height: 26,
+                    minWidth: 32,
+                    fontSize: "0.8rem",
+                    backgroundColor: statusTab === 7 ? "rgba(255, 255, 255, 0.25)" : "rgba(0, 137, 123, 0.12)",
+                    color: statusTab === 7 ? "#ffffff" : "#00897b",
+                    fontWeight: 700,
+                    borderRadius: "14px",
+                    border: statusTab === 7 ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(0, 137, 123, 0.2)",
                   }}
                 />
               </Box>
@@ -1014,7 +1120,7 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
                               )}
                             </Button>
                           ) : (
-                            design.status !== 3 && design.status !== 5 && design.status !== 6 && (
+                            design.status !== 3 && design.status !== 5 && design.status !== 6 && design.status !== 7 && (
                               <Button
                                 size="small"
                                 variant="outlined"
@@ -1042,7 +1148,7 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
                               </Button>
                             )
                           )}
-                          {design.status !== 3 && design.status !== 5 && design.status !== 6 && (
+                          {design.status !== 3 && design.status !== 5 && design.status !== 6 && design.status !== 7 && (
                             <Button
                               size="small"
                               variant="outlined"
@@ -1399,6 +1505,165 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
             }}
           >
             {uploadingImages ? "جاري الإرسال..." : "إرسال للمراجعة"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* مودال تم رفع التصميم (الحالة 7) - اختياري: رفع صور ثم تأكيد */}
+      <Dialog
+        open={designUploadedModalOpen}
+        onClose={() => {
+          if (!uploadingImages) {
+            setDesignUploadedModalOpen(false);
+            setDesignForUpload(null);
+            setUploadedDesignImages([]);
+          }
+        }}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            backgroundColor: "#00897b",
+            color: "#fff",
+            fontWeight: 700,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Typography variant="h6">تم رفع التصميم</Typography>
+          <IconButton
+            onClick={() => {
+              if (!uploadingImages) {
+                setDesignUploadedModalOpen(false);
+                setDesignForUpload(null);
+                setUploadedDesignImages([]);
+              }
+            }}
+            disabled={uploadingImages}
+            sx={{ color: "#fff" }}
+          >
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {designForUpload && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                  التصميم:
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700, color: calmPalette.primary }}>
+                  {designForUpload.title}
+                </Typography>
+                {designForUpload.description && (
+                  <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mt: 0.5, whiteSpace: "pre-line" }}>
+                    {designForUpload.description}
+                  </Typography>
+                )}
+              </Box>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
+                  رفع صور التصميم النهائي (اختياري)
+                </Typography>
+                <input
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  id="design-uploaded-image-upload"
+                  multiple
+                  type="file"
+                  onChange={handleUploadedDesignImageSelect}
+                  disabled={uploadingImages}
+                />
+                <label htmlFor="design-uploaded-image-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUpload />}
+                    disabled={uploadingImages}
+                    sx={{
+                      mb: 2,
+                      borderColor: "#00897b",
+                      color: "#00897b",
+                      "&:hover": { borderColor: "#00695c", backgroundColor: "rgba(0, 137, 123, 0.08)" },
+                    }}
+                  >
+                    اختر الصور
+                  </Button>
+                </label>
+                {uploadedDesignImages.length > 0 && (
+                  <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 2, mt: 2 }}>
+                    {uploadedDesignImages.map((file, index) => (
+                      <Card key={index} sx={{ position: "relative", borderRadius: 2, overflow: "hidden" }}>
+                        <CardMedia
+                          component="img"
+                          image={URL.createObjectURL(file)}
+                          alt={`Preview ${index + 1}`}
+                          sx={{ height: 150, objectFit: "cover" }}
+                        />
+                        <IconButton
+                          onClick={() => handleRemoveUploadedDesignImage(index)}
+                          disabled={uploadingImages}
+                          sx={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            backgroundColor: "rgba(255, 255, 255, 0.9)",
+                            color: "#f44336",
+                            "&:hover": { backgroundColor: "#fff" },
+                          }}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Card>
+                    ))}
+                  </Box>
+                )}
+                <Typography variant="body2" sx={{ color: calmPalette.textSecondary, mt: 1 }}>
+                  يمكنك رفع صور التصميم النهائي أو تأكيد الحالة مباشرة.
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ borderTop: "1px solid rgba(0,0,0,0.08)", p: 2 }}>
+          <Button
+            onClick={() => {
+              if (!uploadingImages) {
+                setDesignUploadedModalOpen(false);
+                setDesignForUpload(null);
+                setUploadedDesignImages([]);
+              }
+            }}
+            disabled={uploadingImages}
+            sx={{ color: calmPalette.textSecondary }}
+          >
+            إلغاء
+          </Button>
+          <Button
+            onClick={handleConfirmDesignUploaded}
+            disabled={uploadingImages}
+            variant="contained"
+            startIcon={
+              uploadingImages ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <CheckCircle />
+              )
+            }
+            sx={{
+              backgroundColor: "#00897b",
+              "&:hover": { backgroundColor: "#00695c" },
+            }}
+          >
+            {uploadingImages ? "جاري التحديث..." : "تأكيد — تم رفع التصميم"}
           </Button>
         </DialogActions>
       </Dialog>

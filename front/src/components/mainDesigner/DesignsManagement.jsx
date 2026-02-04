@@ -48,12 +48,21 @@ import {
   AttachFile,
   Note,
 } from "@mui/icons-material";
-import { mainDesignerService } from "../../services/api";
+import { mainDesignerService, designRequestsService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
 import { subscribeToDesigns } from "../../services/realtime";
 import Swal from "sweetalert2";
 import calmPalette from "../../theme/calmPalette";
 import { USER_ROLES } from "../../constants";
+
+const hasDesignNote = (d) => {
+  const n = d?.note ?? d?.notes;
+  if (n == null) return false;
+  if (typeof n === "string") return !!n.trim();
+  if (Array.isArray(n)) return n.length > 0;
+  if (typeof n === "object" && n !== null && "text" in n) return !!(n.text && String(n.text).trim());
+  return true;
+};
 
 const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   const { user } = useApp();
@@ -98,6 +107,9 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
   const [dateFilter, setDateFilter] = useState(""); // Date string or empty
   const [sortField, setSortField] = useState(null); // null, "serialNumber", "date", "status"
   const [sortDirection, setSortDirection] = useState("asc"); // "asc", "desc"
+  // عند showFormInTab: ربط طلب تصميم (جاهز) لتحويله إلى "تم رفع التصميم" (7) عند الإنشاء
+  const [readyDesignRequests, setReadyDesignRequests] = useState([]);
+  const [linkedDesignRequestId, setLinkedDesignRequestId] = useState("");
 
   // Load status counts when component mounts or when filters change
   useEffect(() => {
@@ -124,6 +136,27 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showFormInTab, designsPage, designsPageSize, statusTab]);
+
+  // تحميل طلبات التصميم الجاهزة (لربطها بـ "تم رفع التصميم") عند فتح تاب إضافة تصميم جديد
+  useEffect(() => {
+    if (!showFormInTab || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await designRequestsService.getDesignRequests({
+          mainDesignerId: user.id,
+          status: 5,
+          page: 1,
+          pageSize: 100,
+        });
+        const list = res?.data ?? (Array.isArray(res) ? res : []);
+        if (!cancelled) setReadyDesignRequests(Array.isArray(list) ? list : []);
+      } catch (e) {
+        if (!cancelled) setReadyDesignRequests([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showFormInTab, user?.id]);
 
   // Subscribe to real-time design updates
   useEffect(() => {
@@ -202,6 +235,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                 }
                 
                 // Add new toast to array (don't replace existing ones)
+                const noteStr = (designData.note && (typeof designData.note === "object" ? designData.note.text : designData.note)) || designData.notes || "";
                 const newToast = {
                   id: Date.now() + Math.random(), // Unique ID
                   open: true,
@@ -210,7 +244,7 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                   serialNumber: designData.serialNumber || "غير محدد",
                   previousStatus: previousLabel,
                   newStatus: `${icon} ${newLabel}`,
-                  notes: designData.notes || ""
+                  notes: typeof noteStr === "string" ? noteStr : String(noteStr)
                 };
                 setStatusChangeToasts(prev => [...prev, newToast]);
               }
@@ -874,14 +908,24 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
         });
       } else {
         await mainDesignerService.createDesign(designPayload);
+        if (showFormInTab && linkedDesignRequestId) {
+          try {
+            await designRequestsService.setState(Number(linkedDesignRequestId), 7);
+          } catch (err) {
+            console.warn("تم إنشاء التصميم لكن فشل تحديث حالة طلب التصميم:", err);
+          }
+        }
         Swal.fire({
           icon: "success",
           title: "تم الإنشاء بنجاح",
-          text: "تم إنشاء التصميم بنجاح",
+          text: showFormInTab && linkedDesignRequestId
+            ? "تم إنشاء التصميم وتحديث حالة طلب التصميم إلى «تم رفع التصميم»"
+            : "تم إنشاء التصميم بنجاح",
           confirmButtonColor: calmPalette.primary,
           timer: 2000,
         });
       }
+      if (showFormInTab) setLinkedDesignRequestId("");
       handleCloseDialog();
       loadDesigns();
     } catch (error) {
@@ -1089,6 +1133,42 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
             />
         </Box>
       </Paper>
+
+      {/* ربط بطلب تصميم (تم رفع التصميم) - يظهر فقط في تاب إضافة تصميم جديد */}
+      {showFormInTab && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2,
+            backgroundColor: "rgba(0, 137, 123, 0.06)",
+            borderRadius: 2,
+            border: "1px solid rgba(0, 137, 123, 0.2)",
+          }}
+        >
+          <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 600, color: calmPalette.textPrimary, fontSize: "0.95rem" }}>
+               تم رفع التصميم
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1.5, color: calmPalette.textSecondary }}>
+            اختر طلب تصميم بحالة «جاهز» لتحويله إلى «تم رفع التصميم» عند إنشاء التصميم.
+          </Typography>
+          <FormControl size="small" fullWidth sx={{ minWidth: 200 }}>
+            <InputLabel>طلب التصميم (اختياري)</InputLabel>
+            <Select
+              value={linkedDesignRequestId}
+              onChange={(e) => setLinkedDesignRequestId(e.target.value)}
+              label="طلب التصميم (اختياري)"
+              sx={{ backgroundColor: "rgba(255, 255, 255, 0.9)" }}
+            >
+              <MenuItem value="">لا ربط</MenuItem>
+              {readyDesignRequests.map((req) => (
+                <MenuItem key={req.id} value={String(req.id)}>
+                  {req.title || `طلب #${req.id}`} {req.createdByName ? ` — ${req.createdByName}` : ""}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Paper>
+      )}
 
             {/* Image Upload */}
       <Paper
@@ -2105,21 +2185,18 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                           </IconButton>
                         </span>
                       </Tooltip>
-                       <Tooltip title={design.notes && design.notes.trim() ? "عرض الملاحظات" : "لا توجد ملاحظات"}>
+                       <Tooltip title={hasDesignNote(design) ? "عرض الملاحظات" : "لا توجد ملاحظات"}>
                          <IconButton
                            size="small"
-                           disabled={!design.notes || !design.notes.trim()}
+                           disabled={!hasDesignNote(design)}
                            onClick={() => {
-                             if (design.notes && design.notes.trim()) {
-                               setSelectedDesignNotes(design);
-                               setNotesDialogOpen(true);
-                             }
+                             if (hasDesignNote(design)) { setSelectedDesignNotes(design); setNotesDialogOpen(true); }
                            }}
                            sx={{ 
-                             color: design.notes && design.notes.trim() ? "#8b4513" : "#9e9e9e",
-                             backgroundColor: design.notes && design.notes.trim() ? "rgba(139, 69, 19, 0.15)" : "transparent",
+                             color: hasDesignNote(design) ? "#8b4513" : "#9e9e9e",
+                             backgroundColor: hasDesignNote(design) ? "rgba(139, 69, 19, 0.15)" : "transparent",
                              "&:hover": {
-                               backgroundColor: design.notes && design.notes.trim() ? "rgba(139, 69, 19, 0.25)" : "rgba(0, 0, 0, 0.04)",
+                               backgroundColor: hasDesignNote(design) ? "rgba(139, 69, 19, 0.25)" : "rgba(0, 0, 0, 0.04)",
                              },
                              "&.Mui-disabled": {
                                backgroundColor: "transparent",
@@ -2678,13 +2755,30 @@ const DesignsManagement = ({ showFormInTab = false, onDesignAdded }) => {
                 >
                   <Typography
                     variant="body1"
+                    component="div"
                     sx={{
                       color: calmPalette.textPrimary,
                       whiteSpace: "pre-wrap",
                       lineHeight: 1.8,
                     }}
                   >
-                    {selectedDesignNotes.notes}
+                    {(() => {
+                      const val = selectedDesignNotes.note ?? selectedDesignNotes.notes;
+                      if (val == null) return "";
+                      if (typeof val === "string") return val;
+                      if (Array.isArray(val)) return val.map((n, i) => (
+                        <Box key={i} sx={{ mb: 1.5 }}>
+                          {typeof n === "object" && n !== null && "text" in n ? n.text : String(n)}
+                          {typeof n === "object" && n !== null && (n.addedByName || n.addedAt) && (
+                            <Typography variant="caption" display="block" sx={{ color: calmPalette.textSecondary, mt: 0.5 }}>
+                              {[n.addedByName, n.addedAt ? new Date(n.addedAt).toLocaleString("ar-SA") : null].filter(Boolean).join(" — ")}
+                            </Typography>
+                          )}
+                        </Box>
+                      ));
+                      if (typeof val === "object" && val !== null && "text" in val) return <><Box>{val.text}</Box>{val.addedByName || val.addedAt ? <Typography variant="caption" display="block" sx={{ color: calmPalette.textSecondary, mt: 0.5 }}>{[val.addedByName, val.addedAt ? new Date(val.addedAt).toLocaleString("ar-SA") : null].filter(Boolean).join(" — ")}</Typography> : null}</>;
+                      return String(val);
+                    })()}
                   </Typography>
                 </Paper>
               </Box>

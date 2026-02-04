@@ -3295,13 +3295,30 @@ const DesignManagerDashboard = () => {
                 >
                   <Typography
                     variant="body1"
+                    component="div"
                     sx={{
                       color: calmPalette.textPrimary,
                       whiteSpace: "pre-wrap",
                       lineHeight: 1.8,
                     }}
                   >
-                    {selectedDesignForNotes.notes}
+                    {(() => {
+                      const val = selectedDesignForNotes.note ?? selectedDesignForNotes.notes;
+                      if (val == null) return "";
+                      if (typeof val === "string") return val;
+                      if (Array.isArray(val)) return val.map((n, i) => (
+                        <Box key={i} sx={{ mb: 1.5 }}>
+                          {typeof n === "object" && n !== null && "text" in n ? n.text : String(n)}
+                          {typeof n === "object" && n !== null && (n.addedByName || n.addedAt) && (
+                            <Typography variant="caption" display="block" sx={{ color: "text.secondary", mt: 0.5 }}>
+                              {[n.addedByName, n.addedAt ? new Date(n.addedAt).toLocaleString("ar-SA") : null].filter(Boolean).join(" — ")}
+                            </Typography>
+                          )}
+                        </Box>
+                      ));
+                      if (typeof val === "object" && val !== null && "text" in val) return <><Box>{val.text}</Box>{(val.addedByName || val.addedAt) && <Typography variant="caption" display="block" sx={{ color: "text.secondary", mt: 0.5 }}>{[val.addedByName, val.addedAt ? new Date(val.addedAt).toLocaleString("ar-SA") : null].filter(Boolean).join(" — ")}</Typography>}</>;
+                      return String(val);
+                    })()}
                   </Typography>
                 </Paper>
               </Box>

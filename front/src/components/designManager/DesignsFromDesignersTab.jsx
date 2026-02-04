@@ -53,6 +53,15 @@ import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 import DesignDetailsDialog from "../common/DesignDetailsDialog";
 
+const hasDesignNote = (d) => {
+  const n = d?.note ?? d?.notes;
+  if (n == null) return false;
+  if (typeof n === "string") return !!n.trim();
+  if (Array.isArray(n)) return n.length > 0;
+  if (typeof n === "object" && n !== null && "text" in n) return !!(n.text && String(n.text).trim());
+  return true;
+};
+
 const DesignsFromDesignersTab = ({ 
   onShowNotification, // Callback to show notifications
   setSelectedImage, // For image dialog
@@ -1292,30 +1301,30 @@ const DesignsFromDesignersTab = ({
                           <Visibility fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title={design.notes && design.notes.trim() ? "عرض الملاحظات" : "لا توجد ملاحظات"} arrow>
+                      <Tooltip title={hasDesignNote(design) ? "عرض الملاحظات" : "لا توجد ملاحظات"} arrow>
                         <IconButton
                           size="medium"
-                          disabled={!design.notes || !design.notes.trim()}
+                          disabled={!hasDesignNote(design)}
                           onClick={() => {
-                            if (design.notes && design.notes.trim()) {
+                            if (hasDesignNote(design)) {
                               setSelectedDesignForNotes(design);
                               setDesignNotesDialogOpen(true);
                             }
                           }}
                           sx={{ 
-                            color: design.notes && design.notes.trim() ? "#8b4513" : "#9e9e9e",
-                            backgroundColor: design.notes && design.notes.trim() ? "rgba(139, 69, 19, 0.15)" : "transparent",
-                            border: design.notes && design.notes.trim() ? "1px solid rgba(139, 69, 19, 0.3)" : "1px solid transparent",
+                            color: hasDesignNote(design) ? "#8b4513" : "#9e9e9e",
+                            backgroundColor: hasDesignNote(design) ? "rgba(139, 69, 19, 0.15)" : "transparent",
+                            border: hasDesignNote(design) ? "1px solid rgba(139, 69, 19, 0.3)" : "1px solid transparent",
                             width: 40,
                             height: 40,
                             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                             "&:hover": {
-                              backgroundColor: design.notes && design.notes.trim() ? "rgba(139, 69, 19, 0.25)" : "rgba(0, 0, 0, 0.04)",
-                              transform: design.notes && design.notes.trim() ? "scale(1.1) translateY(-2px)" : "none",
-                              boxShadow: design.notes && design.notes.trim() ? "0 4px 12px rgba(139, 69, 19, 0.3)" : "none",
+                              backgroundColor: hasDesignNote(design) ? "rgba(139, 69, 19, 0.25)" : "rgba(0, 0, 0, 0.04)",
+                              transform: hasDesignNote(design) ? "scale(1.1) translateY(-2px)" : "none",
+                              boxShadow: hasDesignNote(design) ? "0 4px 12px rgba(139, 69, 19, 0.3)" : "none",
                             },
                             "&:active": {
-                              transform: design.notes && design.notes.trim() ? "scale(1.05)" : "none",
+                              transform: hasDesignNote(design) ? "scale(1.05)" : "none",
                             },
                             "&.Mui-disabled": {
                               backgroundColor: "transparent",
@@ -1916,13 +1925,30 @@ const DesignsFromDesignersTab = ({
                 >
                   <Typography
                     variant="body1"
+                    component="div"
                     sx={{
                       color: calmPalette.textPrimary,
                       whiteSpace: "pre-wrap",
                       lineHeight: 1.8,
                     }}
                   >
-                    {selectedDesignForNotes.notes}
+                    {(() => {
+                      const val = selectedDesignForNotes.note ?? selectedDesignForNotes.notes;
+                      if (val == null) return "";
+                      if (typeof val === "string") return val;
+                      if (Array.isArray(val)) return val.map((n, i) => (
+                        <Box key={i} sx={{ mb: 1.5 }}>
+                          {typeof n === "object" && n !== null && "text" in n ? n.text : String(n)}
+                          {typeof n === "object" && n !== null && (n.addedByName || n.addedAt) && (
+                            <Typography variant="caption" display="block" sx={{ color: "text.secondary", mt: 0.5 }}>
+                              {[n.addedByName, n.addedAt ? new Date(n.addedAt).toLocaleString("ar-SA") : null].filter(Boolean).join(" — ")}
+                            </Typography>
+                          )}
+                        </Box>
+                      ));
+                      if (typeof val === "object" && val !== null && "text" in val) return <><Box>{val.text}</Box>{(val.addedByName || val.addedAt) && <Typography variant="caption" display="block" sx={{ color: "text.secondary", mt: 0.5 }}>{[val.addedByName, val.addedAt ? new Date(val.addedAt).toLocaleString("ar-SA") : null].filter(Boolean).join(" — ")}</Typography>}</>;
+                      return String(val);
+                    })()}
                   </Typography>
                 </Paper>
               </Box>

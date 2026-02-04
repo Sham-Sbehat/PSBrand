@@ -277,8 +277,8 @@ const DesignRequestDetailsDialog = ({
             </Box>
           )}
 
-          {/* Note (for design requests) */}
-          {design.note && (
+          {/* Note / Notes: API قد يرجع note (كائن { text, addedByName, addedAt }) أو notes (نص/مصفوفة) */}
+          {(design.note || design.notes) && (
             <Box>
               <Typography
                 variant="subtitle2"
@@ -286,23 +286,35 @@ const DesignRequestDetailsDialog = ({
               >
                 الملاحظات:
               </Typography>
-              <Typography variant="body2" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-line" }}>
-                {design.note}
-              </Typography>
-            </Box>
-          )}
-
-          {/* Notes (for designs from designers) */}
-          {design.notes && (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}
-              >
-                الملاحظات:
-              </Typography>
-              <Typography variant="body2" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-line" }}>
-                {design.notes}
+              <Typography variant="body2" component="div" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-wrap" }}>
+                {(() => {
+                  const v = design.note ?? design.notes;
+                  if (v == null) return null;
+                  if (typeof v === "string") return v;
+                  if (Array.isArray(v)) return v.map((n, i) => (
+                    <Box key={i} sx={{ mb: 1 }}>
+                      {typeof n === "object" && n !== null && "text" in n ? n.text : String(n)}
+                      {typeof n === "object" && n !== null && (n.addedByName || n.addedAt) && (
+                        <Typography component="span" variant="caption" display="block" sx={{ color: calmPalette.textSecondary, opacity: 0.9 }}>
+                          {[n.addedByName, n.addedAt ? new Date(n.addedAt).toLocaleString("ar-SA") : null].filter(Boolean).join(" — ")}
+                        </Typography>
+                      )}
+                    </Box>
+                  ));
+                  if (typeof v === "object" && v !== null && "text" in v) {
+                    return (
+                      <Box>
+                        {v.text}
+                        {(v.addedByName || v.addedAt) && (
+                          <Typography variant="caption" display="block" sx={{ color: calmPalette.textSecondary, mt: 0.5 }}>
+                            {[v.addedByName, v.addedAt ? new Date(v.addedAt).toLocaleString("ar-SA") : null].filter(Boolean).join(" — ")}
+                          </Typography>
+                        )}
+                      </Box>
+                    );
+                  }
+                  return String(v);
+                })()}
               </Typography>
             </Box>
           )}

@@ -203,6 +203,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
       4: { label: "بحاجة لتعديل", color: "warning" },
       5: { label: "جاهز", color: "success" },
       6: { label: "ملغي", color: "error" },
+      7: { label: "تم رفع التصميم", color: "success" },
     };
     return statusMap[status] || { label: "غير محدد", color: "default" };
   };
@@ -666,6 +667,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
                           4: { label: "بحاجة لتعديل", color: "warning" },
                           5: { label: "جاهز", color: "success" },
                           6: { label: "ملغي", color: "error" },
+                          7: { label: "تم رفع التصميم", color: "success" },
                         };
                         return statusMap[status] || { label: "غير محدد", color: "default" };
                       };

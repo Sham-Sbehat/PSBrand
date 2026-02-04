@@ -202,6 +202,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
       4: { label: "بحاجة لتعديل", color: "warning" },
       5: { label: "جاهز", color: "success" },
       6: { label: "ملغي", color: "error" },
+      7: { label: "تم رفع التصميم", color: "success" },
     };
     return statusMap[status] || { label: "غير محدد", color: "default" };
   };
@@ -415,6 +416,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
             <MenuItem value="3">قيد المراجعة</MenuItem>
             <MenuItem value="4">بحاجة لتعديل</MenuItem>
             <MenuItem value="5">جاهز</MenuItem>
+            <MenuItem value="7">تم رفع التصميم</MenuItem>
             <MenuItem value="6">ملغي</MenuItem>
           </Select>
         </FormControl>
