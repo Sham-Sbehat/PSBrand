@@ -39,6 +39,7 @@ import {
   CloudUpload,
   Delete,
   Send,
+  NoteAdd,
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
@@ -70,6 +71,10 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
   const [designUploadedModalOpen, setDesignUploadedModalOpen] = useState(false);
   const [designForUpload, setDesignForUpload] = useState(null);
   const [uploadedDesignImages, setUploadedDesignImages] = useState([]);
+  const [noteToSellerOpen, setNoteToSellerOpen] = useState(false);
+  const [designForNote, setDesignForNote] = useState(null);
+  const [noteToSellerText, setNoteToSellerText] = useState("");
+  const [savingNoteId, setSavingNoteId] = useState(null);
   const [statusCounts, setStatusCounts] = useState({
     1: 0, // في الانتظار (for counting only, not displayed)
     2: 0, // قيد التنفيذ
@@ -395,7 +400,86 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
     }
   };
 
-  // فتح مودال "تم رفع التصميم" (الحالة 7) - مثل مودال إرسال للمراجعة
+  // ملاحظة للبائع (بدون تغيير الحالة) — PATCH /api/DesignRequests/{id}/note
+  const handleOpenNoteToSeller = (design) => {
+    setDesignForNote(design);
+    const initial = design?.note != null
+      ? (typeof design.note === "object" && design.note !== null && "text" in design.note ? design.note.text : String(design.note))
+      : (typeof design?.notes === "string" ? design.notes : "");
+    setNoteToSellerText(initial || "");
+    setNoteToSellerOpen(true);
+  };
+
+  const handleSaveNoteToSeller = async () => {
+    if (!designForNote?.id) return;
+    setSavingNoteId(designForNote.id);
+    try {
+      await designRequestsService.updateNote(designForNote.id, noteToSellerText.trim() || "");
+      Swal.fire({
+        icon: "success",
+        title: "تم الحفظ",
+        text: "تم إرسال الملاحظة للبائع",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+      setNoteToSellerOpen(false);
+      setDesignForNote(null);
+      setNoteToSellerText("");
+      loadDesigns();
+      loadStatusCounts();
+    } catch (err) {
+      console.error("Error saving note to seller:", err);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: err.response?.data?.message || err.message || "فشل في حفظ الملاحظة",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setSavingNoteId(null);
+    }
+  };
+
+  // تغيير الحالة إلى «تم رفع التصميم» (7) بتأكيد فقط — بدون مودال
+  const handleSetDesignUploaded = async (design) => {
+    const result = await Swal.fire({
+      icon: "question",
+      title: "تأكيد",
+      text: `تحديث حالة «${design.title || "طلب التصميم"}» إلى «تم رفع التصميم»؟`,
+      showCancelButton: true,
+      confirmButtonText: "نعم، تأكيد",
+      cancelButtonText: "إلغاء",
+      confirmButtonColor: "#00897b",
+      cancelButtonColor: calmPalette.textSecondary,
+      reverseButtons: true,
+    });
+    if (!result.isConfirmed) return;
+    setUpdatingStatusId(design.id);
+    try {
+      await designRequestsService.setState(design.id, 7);
+      Swal.fire({
+        icon: "success",
+        title: "تم",
+        text: "تم تحديث الحالة إلى «تم رفع التصميم»",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+      loadDesigns();
+      loadStatusCounts();
+    } catch (err) {
+      console.error("Error setting design uploaded:", err);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: err.response?.data?.message || err.message || "فشل في تحديث الحالة",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  // فتح مودال "تم رفع التصميم" (الحالة 7) — استخدم فقط إن احتجت رفع صور مع الحالة
   const handleOpenDesignUploadedModal = (design) => {
     setDesignForUpload(design);
     setUploadedDesignImages([]);
@@ -1092,6 +1176,24 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
                             <Visibility fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title="ملاحظة للبائع" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenNoteToSeller(design)}
+                            sx={{
+                              color: "#5e35b1",
+                              backgroundColor: "rgba(94, 53, 177, 0.1)",
+                              border: "1px solid rgba(94, 53, 177, 0.3)",
+                              "&:hover": {
+                                backgroundColor: "rgba(94, 53, 177, 0.2)",
+                                transform: "scale(1.05)",
+                              },
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            <NoteAdd fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <>
                           {(design.status === 2 || design.status === 4) ? (
                             <Button
@@ -1117,6 +1219,36 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
                                 </Box>
                               ) : (
                                 'إرسال للمراجعة'
+                              )}
+                            </Button>
+                          ) : design.status === 5 ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              sx={{
+                                minWidth: "140px",
+                                fontSize: "0.8rem",
+                                borderColor: "#00897b",
+                                color: "#00897b",
+                                "&:hover": { borderColor: "#00695c", backgroundColor: "rgba(0, 137, 123, 0.08)" },
+                              }}
+                              startIcon={
+                                updatingStatusId === design.id ? (
+                                  <CircularProgress size={14} color="inherit" />
+                                ) : (
+                                  <CloudUpload fontSize="small" />
+                                )
+                              }
+                              onClick={() => handleSetDesignUploaded(design)}
+                              disabled={updatingStatusId === design.id}
+                            >
+                              {updatingStatusId === design.id ? (
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                  <CircularProgress size={14} color="inherit" />
+                                  جاري...
+                                </Box>
+                              ) : (
+                                "تم رفع التصميم"
                               )}
                             </Button>
                           ) : (
@@ -1664,6 +1796,63 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
             }}
           >
             {uploadingImages ? "جاري التحديث..." : "تأكيد — تم رفع التصميم"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* مودال ملاحظة للبائع — بدون تغيير الحالة */}
+      <Dialog
+        open={noteToSellerOpen}
+        onClose={() => {
+          if (!savingNoteId) {
+            setNoteToSellerOpen(false);
+            setDesignForNote(null);
+            setNoteToSellerText("");
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ borderBottom: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="h6">ملاحظة للبائع</Typography>
+          <IconButton size="small" onClick={() => !savingNoteId && setNoteToSellerOpen(false)} disabled={!!savingNoteId}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {designForNote && (
+            <>
+              <Typography variant="body2" sx={{ mb: 1.5, color: "text.secondary" }}>
+                طلب: {designForNote.title || `#${designForNote.id}`}
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                minRows={3}
+                maxRows={8}
+                label="الملاحظة للبائع"
+                placeholder="اكتب ملاحظة للبائع (اختياري)..."
+                value={noteToSellerText}
+                onChange={(e) => setNoteToSellerText(e.target.value)}
+                disabled={!!savingNoteId}
+                sx={{ "& .MuiOutlinedInput-root": { backgroundColor: "rgba(255,255,255,0.9)" } }}
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ borderTop: "1px solid", borderColor: "divider", p: 2 }}>
+          <Button onClick={() => !savingNoteId && setNoteToSellerOpen(false)} disabled={!!savingNoteId} sx={{ color: "text.secondary" }}>
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveNoteToSeller}
+            disabled={!!savingNoteId}
+            startIcon={savingNoteId ? <CircularProgress size={16} color="inherit" /> : <NoteAdd />}
+            sx={{ backgroundColor: "#5e35b1", "&:hover": { backgroundColor: "#4527a0" } }}
+          >
+            {savingNoteId ? "جاري الحفظ..." : "حفظ الملاحظة"}
           </Button>
         </DialogActions>
       </Dialog>
