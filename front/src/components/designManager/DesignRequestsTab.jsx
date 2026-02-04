@@ -30,6 +30,7 @@ import {
   Image as ImageIcon,
   FilterList,
   Undo,
+  Delete,
 } from "@mui/icons-material";
 import Swal from "sweetalert2";
 import { designRequestsService, employeesService } from "../../services/api";
@@ -55,6 +56,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
   const [loadingCreators, setLoadingCreators] = useState(false);
   const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Load design requests with filters
   const loadDesigns = async () => {
@@ -297,6 +299,45 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
       });
     } finally {
       setUpdatingStatusId(null);
+    }
+  };
+
+  // حذف طلب التصميم
+  const handleDeleteDesignRequest = async (design) => {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "تأكيد الحذف",
+      text: `هل أنت متأكد من حذف طلب التصميم "${design.title || "بدون عنوان"}"؟ لا يمكن التراجع عن هذا الإجراء.`,
+      showCancelButton: true,
+      confirmButtonText: "نعم، احذف",
+      cancelButtonText: "إلغاء",
+      confirmButtonColor: "#d32f2f",
+      cancelButtonColor: calmPalette.primary,
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
+    setDeletingId(design.id);
+    try {
+      await designRequestsService.deleteDesignRequest(design.id);
+      Swal.fire({
+        icon: "success",
+        title: "تم الحذف",
+        text: "تم حذف طلب التصميم بنجاح",
+        confirmButtonColor: calmPalette.primary,
+      });
+      await loadDesigns();
+    } catch (error) {
+      console.error("Error deleting design request:", error);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: error.response?.data?.message || error.message || "حدث خطأ أثناء الحذف",
+        confirmButtonColor: "#d32f2f",
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -722,6 +763,27 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
                             </Button>
                           </Tooltip>
                         )}
+                        <Tooltip title="حذف طلب التصميم" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteDesignRequest(design)}
+                            disabled={deletingId === design.id}
+                            sx={{
+                              color: "#d32f2f",
+                              backgroundColor: "#d32f2f10",
+                              border: "1px solid #d32f2f30",
+                              "&:hover": {
+                                backgroundColor: "#d32f2f20",
+                              },
+                              "&.Mui-disabled": {
+                                borderColor: "#d32f2f50",
+                                color: "#d32f2f50",
+                              },
+                            }}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     </TableCell>
                   </TableRow>

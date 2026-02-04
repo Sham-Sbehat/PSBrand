@@ -39,7 +39,7 @@ import calmPalette from "../../theme/calmPalette";
 import { CheckCircle } from "@mui/icons-material";
 import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 
-const AvailableDesignsTab = () => {
+const AvailableDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
   const { user } = useApp();
   const [designs, setDesigns] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -97,6 +97,11 @@ const AvailableDesignsTab = () => {
   useEffect(() => {
     loadDesigns();
   }, [page, pageSize]);
+
+  // Real-time: تحديث القائمة عند وصول إشعار SignalR من لوحة المصمم
+  useEffect(() => {
+    if (designRequestsRefreshKey > 0) loadDesigns();
+  }, [designRequestsRefreshKey]);
 
   // Filter designs based on search query
   const getFilteredDesigns = () => {

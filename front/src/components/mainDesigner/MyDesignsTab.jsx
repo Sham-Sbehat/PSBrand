@@ -46,7 +46,7 @@ import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 
-const MyDesignsTab = () => {
+const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
   const { user } = useApp();
   const [designs, setDesigns] = useState([]);
   const [allDesigns, setAllDesigns] = useState([]); // Store all designs for counting
@@ -177,6 +177,14 @@ const MyDesignsTab = () => {
   useEffect(() => {
     loadDesigns();
   }, [page, pageSize, statusTab, user?.id]);
+
+  // Real-time: تحديث القائمة والعدادات عند وصول إشعار SignalR من لوحة المصمم
+  useEffect(() => {
+    if (designRequestsRefreshKey > 0) {
+      loadDesigns();
+      loadStatusCounts();
+    }
+  }, [designRequestsRefreshKey]);
 
   // Filter designs based on search query
   const getFilteredDesigns = () => {

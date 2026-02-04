@@ -23,7 +23,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { messagesService, mainDesignerService } from "../services/api";
-import { subscribeToMessages } from "../services/realtime";
+import { subscribeToMessages, subscribeToDesigns } from "../services/realtime";
 import MessagesTab from "../components/common/MessagesTab";
 import WelcomePage from "../components/common/WelcomePage";
 import DashboardLayout from "../components/common/DashboardLayout";
@@ -43,7 +43,10 @@ const MainDesignerDashboard = () => {
   const [newMessageData, setNewMessageData] = useState(null);
   const [publicMessages, setPublicMessages] = useState([]);
   const [hiddenMessageIds, setHiddenMessageIds] = useState([]);
+  const [designRequestsRefreshKey, setDesignRequestsRefreshKey] = useState(0);
   const unsubscribeRef = useRef(null);
+  const unsubscribeDesignsRef = useRef(null);
+  const effectCancelledRef = useRef(false);
 
   // Load public messages (for all employees)
   const loadPublicMessages = async () => {
@@ -115,6 +118,8 @@ const MainDesignerDashboard = () => {
   useEffect(() => {
     if (!user?.id) return;
 
+    effectCancelledRef.current = false;
+
     const setupRealtime = async () => {
       try {
         const unsubscribe = await subscribeToMessages({
@@ -136,18 +141,34 @@ const MainDesignerDashboard = () => {
             loadMessagesCount();
           },
         });
-        unsubscribeRef.current = unsubscribe;
+        if (!effectCancelledRef.current) unsubscribeRef.current = unsubscribe;
+        else if (typeof unsubscribe === "function") unsubscribe();
       } catch (error) {
         console.error("Error setting up real-time messages:", error);
+      }
+      try {
+        const unsubDesigns = await subscribeToDesigns({
+          onDesignRequestsListChanged: () => setDesignRequestsRefreshKey((k) => k + 1),
+          onDesignRequestUpdated: () => setDesignRequestsRefreshKey((k) => k + 1),
+        });
+        if (!effectCancelledRef.current) unsubscribeDesignsRef.current = unsubDesigns;
+        else if (typeof unsubDesigns === "function") unsubDesigns();
+      } catch (err) {
+        console.warn("Design requests SignalR (المصمم):", err);
       }
     };
 
     setupRealtime();
 
     return () => {
+      effectCancelledRef.current = true;
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null;
+      }
+      if (unsubscribeDesignsRef.current) {
+        unsubscribeDesignsRef.current();
+        unsubscribeDesignsRef.current = null;
       }
     };
   }, [user?.id]);
@@ -333,12 +354,12 @@ const MainDesignerDashboard = () => {
 
           {/* Available Designs from Sellers */}
           {currentTab === 1 && (
-            <AvailableDesignsTab />
+            <AvailableDesignsTab designRequestsRefreshKey={designRequestsRefreshKey} />
           )}
 
           {/* My Assigned Designs */}
           {currentTab === 2 && (
-            <MyDesignsTab />
+            <MyDesignsTab designRequestsRefreshKey={designRequestsRefreshKey} />
           )}
 
           {/* Add Design Form */}
