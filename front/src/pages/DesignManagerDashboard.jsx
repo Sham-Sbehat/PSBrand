@@ -90,6 +90,13 @@ const DesignManagerDashboard = () => {
   const [designsPageSize, setDesignsPageSize] = useState(5);
   const [designsTotalCount, setDesignsTotalCount] = useState(0);
   const [designsTotalPages, setDesignsTotalPages] = useState(0);
+  // Real-time: يحدّث قائمة طلبات التصميم عند أي تغيير من SignalR
+  const [designRequestsRefreshKey, setDesignRequestsRefreshKey] = useState(0);
+  const currentTabRef = useRef(currentTab);
+  const unsubscribeOrdersRef = useRef(null);
+  const unsubscribeDesignsRef = useRef(null);
+  const effectCancelledRef = useRef(false);
+  currentTabRef.current = currentTab;
   // Total counts for each status (for tab badges)
   const [statusCounts, setStatusCounts] = useState({
     1: 0, // في الانتظار
@@ -759,72 +766,48 @@ const DesignManagerDashboard = () => {
   }, [currentTab, designsPage, designsPageSize, statusTab, dateFilter, designerFilter, searchTerm]);
 
   useEffect(() => {
-    fetchOrders(true); // Show loading on initial fetch only
+    effectCancelledRef.current = false;
+    fetchOrders(true);
 
-    // Subscribe to SignalR updates for real-time order updates
-    let unsubscribeOrders;
     (async () => {
       try {
-        unsubscribeOrders = await subscribeToOrderUpdates({
-          onOrderCreated: () => {
-            fetchOrders(false);
-          },
-          onOrderStatusChanged: (orderData) => {
-            // Always refresh from server when status changes to get latest data
-            fetchOrders(false).catch(err => {
-              console.error('Error refreshing orders after status change:', err);
-            });
-          },
+        const unsub = await subscribeToOrderUpdates({
+          onOrderCreated: () => fetchOrders(false),
+          onOrderStatusChanged: () => fetchOrders(false).catch(() => {}),
         });
+        if (!effectCancelledRef.current) unsubscribeOrdersRef.current = unsub;
+        else if (typeof unsub === 'function') unsub();
       } catch (err) {
         console.error('Failed to connect to order updates hub:', err);
       }
     })();
 
-    // Subscribe to SignalR updates for real-time design updates
-    let unsubscribeDesigns;
     (async () => {
       try {
-        console.log("🔌 Subscribing to DesignsHub...");
-        unsubscribeDesigns = await subscribeToDesigns({
-          onDesignCreated: (designData) => {
-            console.log("✅ onDesignCreated callback called", designData, "currentTab:", currentTab);
-            // Reload designs when a new design is created
-            if (currentTab === 4) {
-              console.log("🎨 Design created, reloading designs...", designData);
-              loadDesigns();
-            } else {
-              console.log("⚠️ Design created but not on designs tab (currentTab:", currentTab, ")");
-            }
-          },
-          onDesignUpdated: (designData) => {
-            console.log("✅ onDesignUpdated callback called", designData, "currentTab:", currentTab);
-            // Reload designs when a design is updated
-            if (currentTab === 4) {
-              console.log("🎨 Design updated, reloading designs...", designData);
-              loadDesigns();
-            }
-          },
-          onDesignStatusChanged: (designData) => {
-            console.log("✅ onDesignStatusChanged callback called", designData, "currentTab:", currentTab);
-            // Reload designs when design status changes
-            if (currentTab === 4) {
-              console.log("🎨 Design status changed, reloading designs...", designData);
-              loadDesigns();
-            }
-          },
+        const unsub = await subscribeToDesigns({
+          onDesignCreated: () => { if (currentTabRef.current === 4) loadDesigns(); },
+          onDesignUpdated: () => { if (currentTabRef.current === 4) loadDesigns(); },
+          onDesignStatusChanged: () => { if (currentTabRef.current === 4) loadDesigns(); },
+          onDesignRequestsListChanged: () => setDesignRequestsRefreshKey((k) => k + 1),
+          onDesignRequestUpdated: () => setDesignRequestsRefreshKey((k) => k + 1),
         });
-        console.log("✅ DesignsHub subscription successful");
+        if (!effectCancelledRef.current) unsubscribeDesignsRef.current = unsub;
+        else if (typeof unsub === 'function') unsub();
       } catch (err) {
-        console.error('❌ Failed to connect to designs hub:', err);
+        console.error('Failed to connect to designs hub:', err);
       }
     })();
 
     return () => {
-      if (typeof unsubscribeOrders === 'function') unsubscribeOrders();
-      if (typeof unsubscribeDesigns === 'function') unsubscribeDesigns();
+      effectCancelledRef.current = true;
+      const o = unsubscribeOrdersRef.current;
+      const d = unsubscribeDesignsRef.current;
+      unsubscribeOrdersRef.current = null;
+      unsubscribeDesignsRef.current = null;
+      if (typeof o === 'function') o();
+      if (typeof d === 'function') d();
     };
-  }, [currentTab]);
+  }, []);
 
   // Play message sound
   const playMessageSound = () => {
@@ -2169,6 +2152,7 @@ const DesignManagerDashboard = () => {
                 <DesignRequestsTab
                   setSelectedImage={setSelectedImage}
                   setImageDialogOpen={setImageDialogOpen}
+                  designRequestsRefreshKey={designRequestsRefreshKey}
                 />
               )}
             </>

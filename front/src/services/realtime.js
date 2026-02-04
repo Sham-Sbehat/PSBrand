@@ -554,8 +554,14 @@ export const subscribeToMessages = async ({ onNewMessage, onMessageUpdated, onMe
   throw new Error("All SignalR MessagesHub connection attempts failed.");
 };
 
-// Subscribe to Designs Hub for real-time design updates
-export const subscribeToDesigns = async ({ onDesignCreated, onDesignUpdated, onDesignStatusChanged } = {}) => {
+// Subscribe to Designs Hub for real-time design updates + design requests (DesignRequests API)
+export const subscribeToDesigns = async ({
+  onDesignCreated,
+  onDesignUpdated,
+  onDesignStatusChanged,
+  onDesignRequestsListChanged,
+  onDesignRequestUpdated,
+} = {}) => {
   const primaryBase = getApiBase();
   const DESIGNS_HUB_PATH = "/designUpdatesHub";
   const candidates = [
@@ -563,36 +569,48 @@ export const subscribeToDesigns = async ({ onDesignCreated, onDesignUpdated, onD
     `${primaryBase.replace(/^https:\/\//, 'http://')}${DESIGNS_HUB_PATH}`,
   ];
 
-  // Add common local dev fallbacks if base is localhost
-  if (/^https?:\/\/localhost/.test(primaryBase)) {
+  // Add common local dev fallbacks if base is localhost or 127.0.0.1
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)/.test(primaryBase)) {
     candidates.push(
       `https://localhost:44345${DESIGNS_HUB_PATH}`,
       `https://localhost:7036${DESIGNS_HUB_PATH}`,
-      `http://localhost:5219${DESIGNS_HUB_PATH}`
+      `http://localhost:5219${DESIGNS_HUB_PATH}`,
+      `http://127.0.0.1:5219${DESIGNS_HUB_PATH}`,
+      `http://127.0.0.1:7036${DESIGNS_HUB_PATH}`
     );
   }
 
-  // Helper function to register design event handlers
+  // Helper function to register design + design-requests event handlers
   const registerDesignHandlers = (connection) => {
     if (onDesignCreated) {
       connection.on("DesignCreated", (designData) => {
-        console.log("🔔 SignalR DesignsHub: DesignCreated event received", designData);
         onDesignCreated(designData);
       });
     }
     if (onDesignUpdated) {
       connection.on("DesignUpdated", (designData) => {
-        console.log("🔔 SignalR DesignsHub: DesignUpdated event received", designData);
         onDesignUpdated(designData);
       });
     }
     if (onDesignStatusChanged) {
       connection.on("DesignStatusChanged", (designData) => {
-        console.log("🔔 SignalR DesignsHub: DesignStatusChanged event received", designData);
         onDesignStatusChanged(designData);
       });
     }
-    
+    // DesignRequests API real-time (قائمة طلبات التصميم GET /api/DesignRequests)
+    if (onDesignRequestsListChanged) {
+      connection.on("DesignRequestsListChanged", () => {
+        if (typeof console !== "undefined" && console.info) console.info("🔄 SignalR DesignRequestsListChanged");
+        onDesignRequestsListChanged();
+      });
+    }
+    if (onDesignRequestUpdated) {
+      connection.on("DesignRequestUpdated", (designRequest) => {
+        if (typeof console !== "undefined" && console.info) console.info("🔄 SignalR DesignRequestUpdated", designRequest?.id);
+        onDesignRequestUpdated(designRequest);
+      });
+    }
+
     connection.onclose((error) => {
       if (error) {
         console.error("SignalR DesignsHub - Connection closed with error:", error);

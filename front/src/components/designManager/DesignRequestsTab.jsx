@@ -37,7 +37,7 @@ import { USER_ROLES } from "../../constants";
 import calmPalette from "../../theme/calmPalette";
 import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 
-const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
+const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequestsRefreshKey = 0 }) => {
   const [designs, setDesigns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
@@ -166,6 +166,11 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen }) => {
   useEffect(() => {
     loadDesigns();
   }, [page, pageSize, statusFilter, designerFilter, createdByFilter]);
+
+  // Real-time: عند وصول إشعار من الـ Dashboard (SignalR) نحدّث القائمة
+  useEffect(() => {
+    if (designRequestsRefreshKey > 0) loadDesigns();
+  }, [designRequestsRefreshKey]);
 
   // Filter designs based on search query
   const getFilteredDesigns = () => {

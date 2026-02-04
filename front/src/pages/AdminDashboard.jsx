@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Container,
   Box,
@@ -42,7 +42,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { ordersService, clientsService, depositOrdersService, notificationsService } from "../services/api";
-import { subscribeToOrderUpdates } from "../services/realtime";
+import { subscribeToOrderUpdates, subscribeToDesigns } from "../services/realtime";
 import OrdersList from "../components/admin/OrdersList";
 import DepositOrdersList from "../components/admin/DepositOrdersList";
 import EmployeeManagement from "../components/admin/EmployeeManagement";
@@ -83,9 +83,14 @@ const AdminDashboard = () => {
   };
   
   const [dailyOrdersDate, setDailyOrdersDate] = useState(getTodayDate());
+  const [designRequestsRefreshKey, setDesignRequestsRefreshKey] = useState(0);
+  const unsubscribeOrdersRef = useRef(null);
+  const unsubscribeDesignsRef = useRef(null);
+  const effectCancelledRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
+    effectCancelledRef.current = false;
 
     const fetchOrders = async () => {
       try {
@@ -153,35 +158,46 @@ const AdminDashboard = () => {
 
     fetchDepositOrdersCount();
 
-    let unsubscribe;
     (async () => {
       try {
-        unsubscribe = await subscribeToOrderUpdates({
+        const unsub = await subscribeToOrderUpdates({
           onOrderCreated: () => fetchOrders(),
           onOrderStatusChanged: () => fetchOrders(),
           onNewNotification: (notification) => {
-            console.log("📬 New notification received:", notification);
             setNewNotificationReceived(notification);
-            // Reset after a moment to allow re-triggering
             setTimeout(() => setNewNotificationReceived(null), 100);
           },
           onNewMessage: (message) => {
-            console.log("💬 New message received:", message);
             setNewMessageReceived(message);
-            // Reset after a moment to allow re-triggering
             setTimeout(() => setNewMessageReceived(null), 100);
           },
         });
+        if (!effectCancelledRef.current) unsubscribeOrdersRef.current = unsub;
+        else if (typeof unsub === "function") unsub();
       } catch (err) {
         console.error("Failed to subscribe to order updates:", err);
+      }
+      try {
+        const unsubDesigns = await subscribeToDesigns({
+          onDesignRequestsListChanged: () => setDesignRequestsRefreshKey((k) => k + 1),
+          onDesignRequestUpdated: () => setDesignRequestsRefreshKey((k) => k + 1),
+        });
+        if (!effectCancelledRef.current) unsubscribeDesignsRef.current = unsubDesigns;
+        else if (typeof unsubDesigns === "function") unsubDesigns();
+      } catch (err) {
+        console.warn("Design requests SignalR:", err);
       }
     })();
 
     return () => {
       isMounted = false;
-      if (typeof unsubscribe === "function") {
-        unsubscribe();
-      }
+      effectCancelledRef.current = true;
+      const o = unsubscribeOrdersRef.current;
+      const d = unsubscribeDesignsRef.current;
+      unsubscribeOrdersRef.current = null;
+      unsubscribeDesignsRef.current = null;
+      if (typeof o === "function") o();
+      if (typeof d === "function") d();
     };
   }, [user?.id]);
 
@@ -862,6 +878,7 @@ const AdminDashboard = () => {
             <DesignRequestsTab
               setSelectedImage={setSelectedImage}
               setImageDialogOpen={setImageDialogOpen}
+              designRequestsRefreshKey={designRequestsRefreshKey}
             />
           )}
           {currentTab === 7 && <ManagementDashboard />}
