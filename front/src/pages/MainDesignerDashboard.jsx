@@ -23,10 +23,11 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import { messagesService, mainDesignerService } from "../services/api";
-import { subscribeToMessages, subscribeToDesigns } from "../services/realtime";
+import { subscribeToMessages, subscribeToDesigns, subscribeToOrderUpdates } from "../services/realtime";
 import MessagesTab from "../components/common/MessagesTab";
 import WelcomePage from "../components/common/WelcomePage";
 import DashboardLayout from "../components/common/DashboardLayout";
+import NotificationsBell from "../components/common/NotificationsBell";
 import DesignsManagement from "../components/mainDesigner/DesignsManagement";
 import AvailableDesignsTab from "../components/mainDesigner/AvailableDesignsTab";
 import MyDesignsTab from "../components/mainDesigner/MyDesignsTab";
@@ -44,8 +45,10 @@ const MainDesignerDashboard = () => {
   const [publicMessages, setPublicMessages] = useState([]);
   const [hiddenMessageIds, setHiddenMessageIds] = useState([]);
   const [designRequestsRefreshKey, setDesignRequestsRefreshKey] = useState(0);
+  const [newNotificationReceived, setNewNotificationReceived] = useState(null);
   const unsubscribeRef = useRef(null);
   const unsubscribeDesignsRef = useRef(null);
+  const unsubscribeOrderUpdatesRef = useRef(null);
   const effectCancelledRef = useRef(false);
 
   // Load public messages (for all employees)
@@ -156,6 +159,18 @@ const MainDesignerDashboard = () => {
       } catch (err) {
         console.warn("Design requests SignalR (المصمم):", err);
       }
+      try {
+        const unsubOrderUpdates = await subscribeToOrderUpdates({
+          onNewNotification: (notification) => {
+            setNewNotificationReceived(notification);
+            setTimeout(() => setNewNotificationReceived(null), 100);
+          },
+        });
+        if (!effectCancelledRef.current) unsubscribeOrderUpdatesRef.current = unsubOrderUpdates;
+        else if (typeof unsubOrderUpdates === "function") unsubOrderUpdates();
+      } catch (err) {
+        console.warn("Order updates SignalR (المصمم - للإشعارات):", err?.message || err);
+      }
     };
 
     setupRealtime();
@@ -169,6 +184,10 @@ const MainDesignerDashboard = () => {
       if (unsubscribeDesignsRef.current) {
         unsubscribeDesignsRef.current();
         unsubscribeDesignsRef.current = null;
+      }
+      if (unsubscribeOrderUpdatesRef.current) {
+        unsubscribeOrderUpdatesRef.current();
+        unsubscribeOrderUpdatesRef.current = null;
       }
     };
   }, [user?.id]);
@@ -197,6 +216,7 @@ const MainDesignerDashboard = () => {
       onHideMessage={handleHideMessage}
       messagesAnchorEl={messagesAnchorEl}
       setMessagesAnchorEl={setMessagesAnchorEl}
+      notificationsBell={<NotificationsBell onNewNotification={newNotificationReceived} />}
       messagesIconExtra={
         unreadMessagesCount > 0 && (
           <Box

@@ -39,13 +39,14 @@ import {
   CloudUpload,
   Delete,
   Send,
-  NoteAdd,
+  Message,
 } from "@mui/icons-material";
 import { designRequestsService } from "../../services/api";
 import { useApp } from "../../context/AppContext";
 import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
+import { parseNoteConversation, formatNoteConversationEntry } from "../../utils";
 
 const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
   const { user } = useApp();
@@ -117,35 +118,28 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
     }
   };
 
-  // Load design requests assigned to current designer
-  // تحميل التصاميم المعينة للمصمم الحالي
+  // Load design requests assigned to current designer — يُرجع القائمة لاستخدامها في التحديث الريال تايم
   const loadDesigns = async () => {
-    if (!user?.id) return;
+    if (!user?.id) return [];
 
     setLoading(true);
     try {
       const params = {
         page: page + 1,
         pageSize: pageSize,
-        mainDesignerId: user.id, // Filter by assigned designer
+        mainDesignerId: user.id,
       };
-
-      // Add status filter
       params.status = statusTab;
 
       const response = await designRequestsService.getDesignRequests(params);
 
-      // Handle response structure
       let designsArray = [];
       let totalCountValue = 0;
-      
+
       if (response && response.data) {
-        // Response has data property (paginated response)
         designsArray = Array.isArray(response.data) ? response.data : [];
-        // Use totalCount from response, not data.length
         totalCountValue = response.totalCount !== undefined ? response.totalCount : (Array.isArray(response.data) ? response.data.length : 0);
       } else if (Array.isArray(response)) {
-        // Response is directly an array
         designsArray = response;
         totalCountValue = response.length;
       } else {
@@ -154,25 +148,20 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
       }
 
       setTotalCount(totalCountValue);
-
-      // Store all designs for counting
       setAllDesigns(designsArray);
-
-      // Update statusCounts: use totalCount from current API response for the active status only
-      // Only update the count for the status we just loaded
       setStatusCounts((prevCounts) => {
         const updatedCounts = { ...prevCounts };
-        // Update current status tab with totalCount from API
         updatedCounts[statusTab] = totalCountValue;
         return updatedCounts;
       });
-
       setDesigns(designsArray);
+      return designsArray;
     } catch (error) {
       console.error("Error loading design requests:", error);
       setDesigns([]);
       setAllDesigns([]);
       setTotalCount(0);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -188,12 +177,17 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
     loadDesigns();
   }, [page, pageSize, statusTab, user?.id]);
 
-  // Real-time: تحديث القائمة والعدادات عند وصول إشعار SignalR من لوحة المصمم
+  // Real-time: عند وصول إشعار SignalR (DesignRequestUpdated / DesignRequestsListChanged) نحدّث القائمة والعدادات
+  // لو نافذة الملاحظة مفتوحة نحدّث designForNote من القائمة الجديدة
   useEffect(() => {
-    if (designRequestsRefreshKey > 0) {
-      loadDesigns();
-      loadStatusCounts();
-    }
+    if (designRequestsRefreshKey <= 0) return;
+    loadStatusCounts();
+    loadDesigns().then((list) => {
+      if (list && list.length && noteToSellerOpen && designForNote) {
+        const updated = list.find((d) => d.id === designForNote.id);
+        if (updated) setDesignForNote(updated);
+      }
+    });
   }, [designRequestsRefreshKey]);
 
   // Filter designs based on search query
@@ -403,18 +397,22 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
   // ملاحظة للبائع (بدون تغيير الحالة) — PATCH /api/DesignRequests/{id}/note
   const handleOpenNoteToSeller = (design) => {
     setDesignForNote(design);
-    const initial = design?.note != null
-      ? (typeof design.note === "object" && design.note !== null && "text" in design.note ? design.note.text : String(design.note))
-      : (typeof design?.notes === "string" ? design.notes : "");
-    setNoteToSellerText(initial || "");
+    setNoteToSellerText(""); // حقل الإضافة فقط — الموجود يعرض للقراءة
     setNoteToSellerOpen(true);
   };
 
   const handleSaveNoteToSeller = async () => {
     if (!designForNote?.id) return;
+    const existingNote = designForNote?.note != null
+      ? (typeof designForNote.note === "object" && designForNote.note !== null && "text" in designForNote.note ? designForNote.note.text : String(designForNote.note))
+      : (typeof designForNote?.notes === "string" ? designForNote.notes : "");
+    const newPart = noteToSellerText.trim();
+    if (!newPart) return;
+    const newEntry = formatNoteConversationEntry("المصمم", newPart);
+    const updatedNote = existingNote ? `${existingNote}\n\n${newEntry}` : newEntry;
     setSavingNoteId(designForNote.id);
     try {
-      await designRequestsService.updateNote(designForNote.id, noteToSellerText.trim() || "");
+      await designRequestsService.updateNote(designForNote.id, updatedNote);
       Swal.fire({
         icon: "success",
         title: "تم الحفظ",
@@ -1191,7 +1189,7 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
                               transition: "all 0.2s ease",
                             }}
                           >
-                            <NoteAdd fontSize="small" />
+                            <Message fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <>
@@ -1826,18 +1824,88 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
               <Typography variant="body2" sx={{ mb: 1.5, color: "text.secondary" }}>
                 طلب: {designForNote.title || `#${designForNote.id}`}
               </Typography>
-              <TextField
-                fullWidth
-                multiline
-                minRows={3}
-                maxRows={8}
-                label="الملاحظة للبائع"
-                placeholder="اكتب ملاحظة للبائع (اختياري)..."
-                value={noteToSellerText}
-                onChange={(e) => setNoteToSellerText(e.target.value)}
-                disabled={!!savingNoteId}
-                sx={{ "& .MuiOutlinedInput-root": { backgroundColor: "rgba(255,255,255,0.9)" } }}
-              />
+              {(() => {
+                const existingVal = designForNote?.note != null
+                  ? (typeof designForNote.note === "object" && designForNote.note !== null && "text" in designForNote.note ? designForNote.note.text : String(designForNote.note))
+                  : (typeof designForNote?.notes === "string" ? designForNote.notes : "");
+                const entries = parseNoteConversation(existingVal);
+                return (
+                  <>
+                    {entries.length > 0 ? (
+                      <Box
+                        sx={{
+                          mb: 2,
+                          p: 1.5,
+                          borderRadius: 2,
+                          bgcolor: "grey.50",
+                          border: "1px solid",
+                          borderColor: "divider",
+                          maxHeight: 280,
+                          overflowY: "auto",
+                        }}
+                      >
+                        <Typography variant="caption" sx={{ display: "block", mb: 1, color: "text.secondary", fontWeight: 600 }}>
+                          المحادثة (للقراءة فقط)
+                        </Typography>
+                        {entries.map((entry, idx) => {
+                          const fromDesigner = entry.role === "المصمم";
+                          const isLegacy = entry.role === "ملاحظة";
+                          return (
+                            <Box
+                              key={idx}
+                              sx={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: fromDesigner ? "flex-start" : "flex-end",
+                                mb: 1.5,
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  fontWeight: 700,
+                                  color: fromDesigner ? "#5e35b1" : isLegacy ? "text.secondary" : "#00897b",
+                                  mb: 0.25,
+                                }}
+                              >
+                                {entry.senderName}
+                                {entry.datetime ? ` · ${entry.datetime}` : ""}
+                              </Typography>
+                              <Box
+                                sx={{
+                                  px: 1.5,
+                                  py: 1,
+                                  borderRadius: 2,
+                                  maxWidth: "90%",
+                                  bgcolor: fromDesigner ? "rgba(94, 53, 177, 0.12)" : isLegacy ? "grey.200" : "rgba(0, 137, 123, 0.12)",
+                                  border: "1px solid",
+                                  borderColor: fromDesigner ? "rgba(94, 53, 177, 0.3)" : isLegacy ? "divider" : "rgba(0, 137, 123, 0.3)",
+                                }}
+                              >
+                                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                                  {entry.text}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    ) : null}
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={3}
+                      maxRows={8}
+                      label="أضف ملاحظة جديدة للبائع"
+                      placeholder="اكتب ملاحظتك الإضافية هنا..."
+                      value={noteToSellerText}
+                      onChange={(e) => setNoteToSellerText(e.target.value)}
+                      disabled={!!savingNoteId}
+                      sx={{ "& .MuiOutlinedInput-root": { backgroundColor: "rgba(255,255,255,0.9)" } }}
+                    />
+                  </>
+                );
+              })()}
             </>
           )}
         </DialogContent>
@@ -1848,8 +1916,8 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
           <Button
             variant="contained"
             onClick={handleSaveNoteToSeller}
-            disabled={!!savingNoteId}
-            startIcon={savingNoteId ? <CircularProgress size={16} color="inherit" /> : <NoteAdd />}
+            disabled={!!savingNoteId || !noteToSellerText.trim()}
+            startIcon={savingNoteId ? <CircularProgress size={16} color="inherit" /> : <Message />}
             sx={{ backgroundColor: "#5e35b1", "&:hover": { backgroundColor: "#4527a0" } }}
           >
             {savingNoteId ? "جاري الحفظ..." : "حفظ الملاحظة"}

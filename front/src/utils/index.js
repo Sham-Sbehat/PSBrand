@@ -274,6 +274,47 @@ export const getFullUrl = (url) => {
 };
 
 /**
+ * Parse note string (ملاحظة للبائع/للمصمم) into conversation entries.
+ * Format: [datetime] المصمم: text or [datetime] البائع: text. Entries separated by \n\n.
+ * يُرجع role لتفريق الجهة: المصمم جهة، البائع جهة (ثابت في الواجهتين).
+ * @param {string} noteString - Raw note text
+ * @returns {Array<{ datetime?: string, role: 'المصمم'|'البائع'|'ملاحظة', senderName: string, text: string }>}
+ */
+export const parseNoteConversation = (noteString) => {
+  if (!noteString || typeof noteString !== "string") return [];
+  const trimmed = noteString.trim();
+  if (!trimmed) return [];
+  const blocks = trimmed.split(/\n\n+/);
+  const roleRegex = /^\[([^\]]+)\]\s*(المصمم|البائع):\s*([\s\S]*)$/;
+  const anyNameRegex = /^\[([^\]]+)\]\s*(.+?):\s*([\s\S]*)$/;
+  return blocks.map((block) => {
+    let m = block.match(roleRegex);
+    if (m) return { datetime: m[1], role: m[2], senderName: m[2], text: m[3].trim() };
+    m = block.match(anyNameRegex);
+    if (m) return { datetime: m[1], role: "ملاحظة", senderName: m[2].trim(), text: m[3].trim() };
+    return { role: "ملاحظة", senderName: "ملاحظة", text: block.trim() };
+  }).filter((e) => e.text);
+};
+
+/**
+ * بناء سطر محادثة للحفظ — دائماً بدور واضح عشان الجهة ثابتة (المصمم جهة، البائع جهة).
+ * @param {string} role - 'المصمم' or 'البائع'
+ * @param {string} text - Message text
+ * @returns {string}
+ */
+export const formatNoteConversationEntry = (role, text) => {
+  const dateTime = new Date().toLocaleString("ar-SA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    calendar: "gregory",
+  });
+  return `[${dateTime}] ${role}: ${text}`;
+};
+
+/**
  * Local storage helpers
  */
 export const storage = {

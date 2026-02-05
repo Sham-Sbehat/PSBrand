@@ -21,7 +21,9 @@ import {
   Grid,
   InputAdornment,
   Dialog,
+  DialogTitle,
   DialogContent,
+  DialogActions,
   Select,
   MenuItem,
   FormControl,
@@ -35,6 +37,7 @@ import {
   RateReview,
   Visibility,
   CloudUpload,
+  Message,
 } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -45,6 +48,7 @@ import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 import { useForm, Controller } from "react-hook-form";
+import { parseNoteConversation, formatNoteConversationEntry } from "../../utils";
 
 const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designRequestsRefreshKey = 0 }) => {
   const theme = useTheme();
@@ -73,6 +77,11 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
   const [uploadingStatusChangeImages, setUploadingStatusChangeImages] = useState(false);
   const [viewingDesign, setViewingDesign] = useState(null); // Design to view in modal
   const [viewDesignDialogOpen, setViewDesignDialogOpen] = useState(false); // View design dialog state
+  // ملاحظة للمصمم (نفس سلوك تصاميمي عند المصمم الرئيسي)
+  const [noteToDesignerOpen, setNoteToDesignerOpen] = useState(false);
+  const [designForNote, setDesignForNote] = useState(null);
+  const [noteToDesignerText, setNoteToDesignerText] = useState("");
+  const [savingNoteId, setSavingNoteId] = useState(null);
 
   // Fetch my designs count
   const fetchMyDesignsCount = async () => {
@@ -109,9 +118,9 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
     }
   };
 
-  // Load my designs
+  // Load my designs — يُرجع القائمة لاستخدامها في التحديث الريال تايم
   const loadMyDesigns = async (filterStatus = null) => {
-    if (!user?.id) return;
+    if (!user?.id) return [];
     setLoadingDesigns(true);
     try {
       const params = {
@@ -119,28 +128,28 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
         page: designsPage + 1,
         pageSize: designsPageSize,
       };
-      
-      // Add status filter if provided
-      if (filterStatus !== null) {
-        params.status = filterStatus;
-      }
-      
+      if (filterStatus !== null) params.status = filterStatus;
+
       const response = await designRequestsService.getDesignRequests(params);
-      
+      let list = [];
       if (response && response.data) {
-        setDesignsList(response.data);
+        list = Array.isArray(response.data) ? response.data : [];
+        setDesignsList(list);
         setDesignsTotalCount(response.totalCount || 0);
       } else if (Array.isArray(response)) {
-        setDesignsList(response);
+        list = response;
+        setDesignsList(list);
         setDesignsTotalCount(response.length);
       } else {
         setDesignsList([]);
         setDesignsTotalCount(0);
       }
+      return list;
     } catch (error) {
       console.error("Error loading designs:", error);
       setDesignsList([]);
       setDesignsTotalCount(0);
+      return [];
     } finally {
       setLoadingDesigns(false);
     }
@@ -161,7 +170,8 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
     }
   }, [designsPage, designsPageSize, openDesignsModal, user?.id, statusFilter]);
 
-  // Real-time: لما يوصل حدث SignalR نزيد الرقم 1 فوراً ثم نصحّيه من الـ API
+  // Real-time: عند وصول حدث SignalR (DesignRequestUpdated / DesignRequestsListChanged) نحدّث القائمة والعدادات
+  // لو نافذة الملاحظة مفتوحة نحدّث designForNote من القائمة الجديدة عشان الطرف الثاني يشوف التحديث فوراً
   const prevRefreshKeyRef = useRef(0);
   useEffect(() => {
     if (designRequestsRefreshKey <= 0) return;
@@ -170,7 +180,14 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
     if (keyIncreased) setReviewDesignsCount((prev) => prev + 1);
     fetchMyDesignsCount();
     fetchReviewDesignsCount();
-    if (openDesignsModal) loadMyDesigns(statusFilter);
+    if (openDesignsModal) {
+      loadMyDesigns(statusFilter).then((list) => {
+        if (list && list.length && noteToDesignerOpen && designForNote) {
+          const updated = list.find((d) => d.id === designForNote.id);
+          if (updated) setDesignForNote(updated);
+        }
+      });
+    }
   }, [designRequestsRefreshKey]);
 
   // Refresh count when form is submitted successfully
@@ -192,6 +209,51 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
   const handleViewDesign = (design) => {
     setViewingDesign(design);
     setViewDesignDialogOpen(true);
+  };
+
+  // ملاحظة للمصمم — نفس سلوك المصمم الرئيسي: الموجود للقراءة فقط، الإضافة فقط
+  const handleOpenNoteToDesigner = (design) => {
+    setDesignForNote(design);
+    setNoteToDesignerText("");
+    setNoteToDesignerOpen(true);
+  };
+
+  const handleSaveNoteToDesigner = async () => {
+    if (!designForNote?.id) return;
+    const existingNote = designForNote?.note != null
+      ? (typeof designForNote.note === "object" && designForNote.note !== null && "text" in designForNote.note ? designForNote.note.text : String(designForNote.note))
+      : (typeof designForNote?.notes === "string" ? designForNote.notes : "");
+    const newPart = noteToDesignerText.trim();
+    if (!newPart) return;
+    const newEntry = formatNoteConversationEntry("البائع", newPart);
+    const updatedNote = existingNote ? `${existingNote}\n\n${newEntry}` : newEntry;
+    setSavingNoteId(designForNote.id);
+    try {
+      await designRequestsService.updateNote(designForNote.id, updatedNote);
+      Swal.fire({
+        icon: "success",
+        title: "تم الحفظ",
+        text: "تم إرسال الملاحظة للمصمم",
+        confirmButtonColor: calmPalette.primary,
+        timer: 2000,
+      });
+      setNoteToDesignerOpen(false);
+      setDesignForNote(null);
+      setNoteToDesignerText("");
+      loadMyDesigns(statusFilter);
+      fetchMyDesignsCount();
+      fetchReviewDesignsCount();
+    } catch (err) {
+      console.error("Error saving note to designer:", err);
+      Swal.fire({
+        icon: "error",
+        title: "خطأ",
+        text: err.response?.data?.message || err.message || "فشل في حفظ الملاحظة",
+        confirmButtonColor: calmPalette.primary,
+      });
+    } finally {
+      setSavingNoteId(null);
+    }
   };
 
   // Get status label function
@@ -907,6 +969,24 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
                             </TableCell>
                             <TableCell align="center">
                               <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+                                <Tooltip title="ملاحظة للمصمم" arrow>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleOpenNoteToDesigner(design)}
+                                    sx={{
+                                      color: "#5e35b1",
+                                      backgroundColor: "rgba(94, 53, 177, 0.1)",
+                                      border: "1px solid rgba(94, 53, 177, 0.3)",
+                                      "&:hover": {
+                                        backgroundColor: "rgba(94, 53, 177, 0.2)",
+                                        transform: "scale(1.05)",
+                                      },
+                                      transition: "all 0.2s ease",
+                                    }}
+                                  >
+                                    <Message fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
                                 <Tooltip title="عرض">
                                   <IconButton
                                     size="small"
@@ -991,6 +1071,133 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
           )}
         </Box>
       </GlassDialog>
+
+      {/* مودال ملاحظة للمصمم — الموجود للقراءة فقط، إضافة فقط */}
+      <Dialog
+        open={noteToDesignerOpen}
+        onClose={() => {
+          if (!savingNoteId) {
+            setNoteToDesignerOpen(false);
+            setDesignForNote(null);
+            setNoteToDesignerText("");
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ borderBottom: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="h6">ملاحظة للمصمم</Typography>
+          <IconButton size="small" onClick={() => !savingNoteId && setNoteToDesignerOpen(false)} disabled={!!savingNoteId}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {designForNote && (
+            <>
+              <Typography variant="body2" sx={{ mb: 1.5, color: "text.secondary" }}>
+                طلب: {designForNote.title || `#${designForNote.id}`}
+              </Typography>
+              {(() => {
+                const existingVal = designForNote?.note != null
+                  ? (typeof designForNote.note === "object" && designForNote.note !== null && "text" in designForNote.note ? designForNote.note.text : String(designForNote.note))
+                  : (typeof designForNote?.notes === "string" ? designForNote.notes : "");
+                const entries = parseNoteConversation(existingVal);
+                return (
+                  <>
+                    {entries.length > 0 ? (
+                      <Box
+                        sx={{
+                          mb: 2,
+                          p: 1.5,
+                          borderRadius: 2,
+                          bgcolor: "grey.50",
+                          border: "1px solid",
+                          borderColor: "divider",
+                          maxHeight: 280,
+                          overflowY: "auto",
+                        }}
+                      >
+                        <Typography variant="caption" sx={{ display: "block", mb: 1, color: "text.secondary", fontWeight: 600 }}>
+                          المحادثة (للقراءة فقط)
+                        </Typography>
+                        {entries.map((entry, idx) => {
+                          const fromDesigner = entry.role === "المصمم";
+                          const isLegacy = entry.role === "ملاحظة";
+                          return (
+                            <Box
+                              key={idx}
+                              sx={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: fromDesigner ? "flex-start" : "flex-end",
+                                mb: 1.5,
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  fontWeight: 700,
+                                  color: fromDesigner ? "#5e35b1" : isLegacy ? "text.secondary" : "#00897b",
+                                  mb: 0.25,
+                                }}
+                              >
+                                {entry.senderName}
+                                {entry.datetime ? ` · ${entry.datetime}` : ""}
+                              </Typography>
+                              <Box
+                                sx={{
+                                  px: 1.5,
+                                  py: 1,
+                                  borderRadius: 2,
+                                  maxWidth: "90%",
+                                  bgcolor: fromDesigner ? "rgba(94, 53, 177, 0.12)" : isLegacy ? "grey.200" : "rgba(0, 137, 123, 0.12)",
+                                  border: "1px solid",
+                                  borderColor: fromDesigner ? "rgba(94, 53, 177, 0.3)" : isLegacy ? "divider" : "rgba(0, 137, 123, 0.3)",
+                                }}
+                              >
+                                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                                  {entry.text}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    ) : null}
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={3}
+                      maxRows={8}
+                      label="أضف ملاحظة جديدة للمصمم"
+                      placeholder="اكتب ملاحظتك الإضافية هنا..."
+                      value={noteToDesignerText}
+                      onChange={(e) => setNoteToDesignerText(e.target.value)}
+                      disabled={!!savingNoteId}
+                      sx={{ "& .MuiOutlinedInput-root": { backgroundColor: "rgba(255,255,255,0.9)" } }}
+                    />
+                  </>
+                );
+              })()}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ borderTop: "1px solid", borderColor: "divider", p: 2 }}>
+          <Button onClick={() => !savingNoteId && setNoteToDesignerOpen(false)} disabled={!!savingNoteId} sx={{ color: "text.secondary" }}>
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveNoteToDesigner}
+            disabled={!!savingNoteId || !noteToDesignerText.trim()}
+            startIcon={savingNoteId ? <CircularProgress size={16} color="inherit" /> : <Message />}
+            sx={{ backgroundColor: "#5e35b1", "&:hover": { backgroundColor: "#4527a0" } }}
+          >
+            {savingNoteId ? "جاري الحفظ..." : "حفظ الملاحظة"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Edit Design Dialog */}
       {editingDesign && (
