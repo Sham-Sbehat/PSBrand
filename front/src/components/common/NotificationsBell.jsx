@@ -7,7 +7,7 @@ import GlassDialog from "./GlassDialog";
 import calmPalette from "../../theme/calmPalette";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "../../constants";
 
-const NotificationsBell = ({ onNewNotification, onNotificationClick }) => {
+const NotificationsBell = ({ onNewNotification, notificationRefreshKey, onNotificationClick }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -53,13 +53,19 @@ const NotificationsBell = ({ onNewNotification, onNotificationClick }) => {
     loadNotifications();
   }, []);
 
-  // Handle new notification from SignalR
+  // Handle new notification from SignalR (من OrderUpdatesHub أو DesignUpdatesHub)
   useEffect(() => {
     if (onNewNotification) {
-      // Reload notifications when new one arrives
       loadNotifications(false);
     }
   }, [onNewNotification]);
+
+  // تحديث القائمة والعداد فوراً عند وصول إشعار (حتى بدون فتح الأيقونة)
+  useEffect(() => {
+    if (notificationRefreshKey != null && notificationRefreshKey > 0) {
+      loadNotifications(false);
+    }
+  }, [notificationRefreshKey]);
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);

@@ -50,7 +50,7 @@ import Swal from "sweetalert2";
 import { useForm, Controller } from "react-hook-form";
 import { parseNoteConversation, formatNoteConversationEntry } from "../../utils";
 
-const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designRequestsRefreshKey = 0 }) => {
+const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designRequestsRefreshKey = 0, designRequestIdToOpen, onDesignRequestOpened }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   // State for designs
@@ -169,6 +169,37 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
       loadMyDesigns(statusFilter);
     }
   }, [designsPage, designsPageSize, openDesignsModal, user?.id, statusFilter]);
+
+  // التمرير لموقع طلب التصميم في الجدول عند النقر على الإشعار (بدون فتح مودال التفاصيل)
+  const designRowRefs = useRef({});
+  useEffect(() => {
+    if (!designRequestIdToOpen || !onDesignRequestOpened) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const design = await designRequestsService.getDesignRequestById(designRequestIdToOpen);
+        if (!cancelled && design) {
+          setStatusFilter(design.status ?? null);
+          setOpenDesignsModal(true);
+        }
+      } catch (e) {
+        console.error("Error opening design request from notification:", e);
+        if (!cancelled) onDesignRequestOpened();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [designRequestIdToOpen, onDesignRequestOpened]);
+
+  useEffect(() => {
+    if (!designRequestIdToOpen || !onDesignRequestOpened || !openDesignsModal || loadingDesigns || designsList.length === 0) return;
+    const hasRow = designsList.some((d) => d.id === designRequestIdToOpen);
+    if (!hasRow) return;
+    const el = designRowRefs.current[designRequestIdToOpen];
+    if (el) {
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    onDesignRequestOpened();
+  }, [designRequestIdToOpen, onDesignRequestOpened, openDesignsModal, loadingDesigns, designsList]);
 
   // Real-time: عند وصول حدث SignalR (DesignRequestUpdated / DesignRequestsListChanged) نحدّث القائمة والعدادات
   // لو نافذة الملاحظة مفتوحة نحدّث designForNote من القائمة الجديدة عشان الطرف الثاني يشوف التحديث فوراً
@@ -736,15 +767,17 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
 
                       return filteredDesigns.map((design) => {
                         const statusInfo = getStatusLabel(design.status);
-
+                        const isDesignToScroll = designRequestIdToOpen === design.id;
                         return (
                           <TableRow
                             key={design.id}
+                            ref={(el) => { if (el && isDesignToScroll) designRowRefs.current[design.id] = el; }}
                             hover
                             sx={{
                               "&:nth-of-type(even)": {
                                 backgroundColor: "rgba(255,255,255,0.3)",
                               },
+                              ...(isDesignToScroll ? { backgroundColor: "rgba(25, 118, 210, 0.12)" } : {}),
                             }}
                           >
                             <TableCell>{design.title || "-"}</TableCell>

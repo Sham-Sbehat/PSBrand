@@ -46,6 +46,8 @@ const MainDesignerDashboard = () => {
   const [hiddenMessageIds, setHiddenMessageIds] = useState([]);
   const [designRequestsRefreshKey, setDesignRequestsRefreshKey] = useState(0);
   const [newNotificationReceived, setNewNotificationReceived] = useState(null);
+  const [notificationRefreshKey, setNotificationRefreshKey] = useState(0);
+  const [designRequestIdToOpen, setDesignRequestIdToOpen] = useState(null);
   const unsubscribeRef = useRef(null);
   const unsubscribeDesignsRef = useRef(null);
   const unsubscribeOrderUpdatesRef = useRef(null);
@@ -153,6 +155,11 @@ const MainDesignerDashboard = () => {
         const unsubDesigns = await subscribeToDesigns({
           onDesignRequestsListChanged: () => setDesignRequestsRefreshKey((k) => k + 1),
           onDesignRequestUpdated: () => setDesignRequestsRefreshKey((k) => k + 1),
+          onNewNotification: (notification) => {
+            setNewNotificationReceived(notification);
+            setNotificationRefreshKey((k) => k + 1);
+            setTimeout(() => setNewNotificationReceived(null), 100);
+          },
         });
         if (!effectCancelledRef.current) unsubscribeDesignsRef.current = unsubDesigns;
         else if (typeof unsubDesigns === "function") unsubDesigns();
@@ -163,6 +170,7 @@ const MainDesignerDashboard = () => {
         const unsubOrderUpdates = await subscribeToOrderUpdates({
           onNewNotification: (notification) => {
             setNewNotificationReceived(notification);
+            setNotificationRefreshKey((k) => k + 1);
             setTimeout(() => setNewNotificationReceived(null), 100);
           },
         });
@@ -207,6 +215,15 @@ const MainDesignerDashboard = () => {
     navigate("/");
   };
 
+  // الانتقال لطلب التصميم عند النقر على إشعار طلب تصميم
+  const handleNotificationClick = (relatedEntityId, relatedEntityType) => {
+    if (!relatedEntityId || !user?.id) return;
+    if (relatedEntityType === "DesignRequest") {
+      setDesignRequestIdToOpen(relatedEntityId);
+      setCurrentTab(2); // تبويب تصاميمي
+    }
+  };
+
   return (
     <DashboardLayout
       title="PSBrand - لوحة المصمم"
@@ -216,7 +233,7 @@ const MainDesignerDashboard = () => {
       onHideMessage={handleHideMessage}
       messagesAnchorEl={messagesAnchorEl}
       setMessagesAnchorEl={setMessagesAnchorEl}
-      notificationsBell={<NotificationsBell onNewNotification={newNotificationReceived} />}
+      notificationsBell={<NotificationsBell onNewNotification={newNotificationReceived} notificationRefreshKey={notificationRefreshKey} onNotificationClick={handleNotificationClick} />}
       messagesIconExtra={
         unreadMessagesCount > 0 && (
           <Box
@@ -379,7 +396,11 @@ const MainDesignerDashboard = () => {
 
           {/* My Assigned Designs */}
           {currentTab === 2 && (
-            <MyDesignsTab designRequestsRefreshKey={designRequestsRefreshKey} />
+            <MyDesignsTab
+              designRequestsRefreshKey={designRequestsRefreshKey}
+              designRequestIdToOpen={designRequestIdToOpen}
+              onDesignRequestOpened={() => setDesignRequestIdToOpen(null)}
+            />
           )}
 
           {/* Add Design Form */}

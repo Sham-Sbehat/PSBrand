@@ -1345,6 +1345,12 @@ export const designRequestsService = {
     }
   },
 
+  // Get single design request by id
+  getDesignRequestById: async (id) => {
+    const response = await api.get(`/DesignRequests/${id}`);
+    return response.data;
+  },
+
   // Get design requests with pagination and filters
   getDesignRequests: async (params = {}) => {
     const queryParams = {

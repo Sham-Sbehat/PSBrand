@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -61,6 +61,7 @@ import {
   fabricTypesService,
   depositOrdersService,
   messagesService,
+  notificationsService,
 } from "../services/api";
 import { subscribeToOrderUpdates, subscribeToMessages, subscribeToDesigns } from "../services/realtime";
 import MessagesTab from "../components/common/MessagesTab";
@@ -195,6 +196,9 @@ const EmployeeDashboard = () => {
   const [hiddenMessageIds, setHiddenMessageIds] = useState([]); // IDs of messages hidden by user
   const [showForm, setShowForm] = useState(true);
   const [openOrdersModal, setOpenOrdersModal] = useState(false);
+  const [orderIdToOpen, setOrderIdToOpen] = useState(null);
+  const orderRowRefs = useRef({});
+  const [designRequestIdToOpen, setDesignRequestIdToOpen] = useState(null);
   const [openDetailsModal, setOpenDetailsModal] = useState(false);
   const [ordersList, setOrdersList] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -227,6 +231,7 @@ const EmployeeDashboard = () => {
   const [deliveryStatuses, setDeliveryStatuses] = useState({}); // { orderId: statusData }
   const [loadingDeliveryStatuses, setLoadingDeliveryStatuses] = useState({}); // { orderId: true }
   const [newNotificationReceived, setNewNotificationReceived] = useState(null);
+  const [notificationRefreshKey, setNotificationRefreshKey] = useState(0);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -996,6 +1001,7 @@ const EmployeeDashboard = () => {
           },
           onNewNotification: (notification) => {
             setNewNotificationReceived(notification);
+            setNotificationRefreshKey((k) => k + 1);
             setTimeout(() => setNewNotificationReceived(null), 100);
           },
         });
@@ -1005,6 +1011,11 @@ const EmployeeDashboard = () => {
         unsubscribeDesigns = await subscribeToDesigns({
           onDesignRequestsListChanged: () => setDesignRequestsRefreshKey((k) => k + 1),
           onDesignRequestUpdated: () => setDesignRequestsRefreshKey((k) => k + 1),
+          onNewNotification: (notification) => {
+            setNewNotificationReceived(notification);
+            setNotificationRefreshKey((k) => k + 1);
+            setTimeout(() => setNewNotificationReceived(null), 100);
+          },
         });
       } catch (err) {
         console.warn("Design requests SignalR (البائع):", err?.message || err);
@@ -1564,6 +1575,16 @@ const EmployeeDashboard = () => {
     }
   };
 
+  // عند فتح الطلب من الإشعار: التمرير لموقع الطلب في الجدول دون فتح المودال
+  useEffect(() => {
+    if (!orderIdToOpen || loading || ordersList.length === 0) return;
+    const el = orderRowRefs.current[orderIdToOpen];
+    if (el) {
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    setOrderIdToOpen(null);
+  }, [orderIdToOpen, loading, ordersList]);
+
   const handleOpenEditOrder = async (order) => {
     setEditLoading(true);
     try {
@@ -1673,12 +1694,53 @@ const EmployeeDashboard = () => {
 
   const handleCloseOrdersModal = () => {
     setOpenOrdersModal(false);
+    setOrderIdToOpen(null);
     setOrdersList([]);
     setConfirmedDeliveryOrders([]);
     setConfirmedDeliveryCount(0);
     setSearchQuery("");
     setDeliveryCompanyFilter("all");
     setOrdersModalTab(0);
+  };
+
+  // الانتقال للطلب أو طلب التصميم عند النقر على الإشعار (حسب relatedEntityType)
+  const handleNotificationClick = async (relatedEntityId, relatedEntityType) => {
+    if (!relatedEntityId || !user?.id) return;
+    // إشعار طلب تصميم → تبويب "إنشاء تصميم جديد" وفتح طلب التصميم
+    if (relatedEntityType === "DesignRequest") {
+      setDesignRequestIdToOpen(relatedEntityId);
+      setCurrentTab(3);
+      return;
+    }
+    // إشعار طلب عادي (Order/Shipment) → تبويب الطلبات وفتح الطلب (للمصمم فقط)
+    if (user?.role !== USER_ROLES.DESIGNER) return;
+    try {
+      let order = null;
+      try {
+        const res = await notificationsService.getOrderDetails(relatedEntityId);
+        order = res?.order || res;
+      } catch {
+        try {
+          order = await ordersService.getOrderById(relatedEntityId);
+        } catch {
+          order = null;
+        }
+      }
+      if (!order?.id) return;
+      const orderDate = order.orderDate || order.createdAt;
+      const date = orderDate ? new Date(orderDate) : new Date();
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      const dateString = `${y}-${m}-${d}`;
+      setCurrentTab(1);
+      setOrderIdToOpen(order.id);
+      setSelectedDate(dateString);
+      await loadOrdersByDate(dateString);
+      setOpenOrdersModal(true);
+    } catch (err) {
+      console.error("Notification click:", err);
+    }
   };
 
   // Load confirmed delivery orders
@@ -1942,7 +2004,7 @@ const EmployeeDashboard = () => {
       messagesAnchorEl={messagesAnchorEl}
       setMessagesAnchorEl={setMessagesAnchorEl}
       isMobile={isMobile}
-      notificationsBell={<NotificationsBell onNewNotification={newNotificationReceived} />}
+      notificationsBell={<NotificationsBell onNewNotification={newNotificationReceived} notificationRefreshKey={notificationRefreshKey} onNotificationClick={handleNotificationClick} />}
       appBarExtra={
         user?.role === USER_ROLES.DESIGNER ? (
           <Tooltip title="إرسال رسالة للمصممين">
@@ -2120,6 +2182,8 @@ const EmployeeDashboard = () => {
               setSelectedImage={setSelectedImage}
               setImageDialogOpen={setImageDialogOpen}
               designRequestsRefreshKey={designRequestsRefreshKey}
+              designRequestIdToOpen={designRequestIdToOpen}
+              onDesignRequestOpened={() => setDesignRequestIdToOpen(null)}
             />
           )}
         </Paper>
@@ -2473,14 +2537,17 @@ const EmployeeDashboard = () => {
                     
                         return sortedOrders.map((order) => {
                       const status = getStatusLabel(order.status);
+                      const isOrderToScroll = orderIdToOpen === order.id;
                       return (
                         <TableRow
                           key={order.id}
+                          ref={(el) => { if (el && isOrderToScroll) orderRowRefs.current[order.id] = el; }}
                           hover
                           sx={{
                                 "&:nth-of-type(even)": {
                                   backgroundColor: "rgba(255,255,255,0.3)",
                                 },
+                                ...(isOrderToScroll ? { backgroundColor: "rgba(25, 118, 210, 0.12)" } : {}),
                           }}
                         >
                               <TableCell>

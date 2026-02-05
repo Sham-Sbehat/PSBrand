@@ -555,12 +555,14 @@ export const subscribeToMessages = async ({ onNewMessage, onMessageUpdated, onMe
 };
 
 // Subscribe to Designs Hub for real-time design updates + design requests (DesignRequests API)
+// إشعارات طلبات التصميم (مثل ملاحظة جديدة) تُرسل من الباكند عبر هذا الـ Hub
 export const subscribeToDesigns = async ({
   onDesignCreated,
   onDesignUpdated,
   onDesignStatusChanged,
   onDesignRequestsListChanged,
   onDesignRequestUpdated,
+  onNewNotification,
 } = {}) => {
   const primaryBase = getApiBase();
   const DESIGNS_HUB_PATH = "/designUpdatesHub";
@@ -608,6 +610,12 @@ export const subscribeToDesigns = async ({
       connection.on("DesignRequestUpdated", (designRequest) => {
         if (typeof console !== "undefined" && console.info) console.info("🔄 SignalR DesignRequestUpdated", designRequest?.id);
         onDesignRequestUpdated(designRequest);
+      });
+    }
+    // إشعارات مثل "ملاحظة جديدة على طلب التصميم" تُرسل من DesignRequestsController عبر هذا الـ Hub
+    if (onNewNotification) {
+      connection.on("NewNotification", (notification) => {
+        onNewNotification(notification);
       });
     }
 

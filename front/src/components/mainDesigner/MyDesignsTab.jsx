@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -48,7 +48,7 @@ import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 import { parseNoteConversation, formatNoteConversationEntry } from "../../utils";
 
-const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
+const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onDesignRequestOpened }) => {
   const { user } = useApp();
   const [designs, setDesigns] = useState([]);
   const [allDesigns, setAllDesigns] = useState([]); // Store all designs for counting
@@ -85,6 +85,36 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
     6: 0, // ملغي
     7: 0, // تم رفع التصميم
   });
+
+  // التمرير لموقع طلب التصميم في الجدول عند النقر على الإشعار (بدون فتح المودال)
+  const designRowRefs = useRef({});
+  useEffect(() => {
+    if (!designRequestIdToOpen || !onDesignRequestOpened) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const design = await designRequestsService.getDesignRequestById(designRequestIdToOpen);
+        if (!cancelled && design != null && design.status != null) {
+          setStatusTab(design.status);
+        }
+      } catch (e) {
+        console.error("Error opening design request from notification:", e);
+        if (!cancelled) onDesignRequestOpened();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [designRequestIdToOpen, onDesignRequestOpened]);
+
+  useEffect(() => {
+    if (!designRequestIdToOpen || !onDesignRequestOpened || loading || designs.length === 0) return;
+    const hasRow = designs.some((d) => d.id === designRequestIdToOpen);
+    if (!hasRow) return;
+    const el = designRowRefs.current[designRequestIdToOpen];
+    if (el) {
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    onDesignRequestOpened();
+  }, [designRequestIdToOpen, onDesignRequestOpened, loading, designs]);
 
   // Load counts for all statuses (2-7 + 6) so tab badges show correct numbers
   const loadStatusCounts = async () => {
@@ -995,12 +1025,15 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0 }) => {
             <TableBody>
               {filteredDesigns.map((design, index) => {
                 const status = getStatusLabel(design.status);
+                const isDesignToScroll = designRequestIdToOpen === design.id;
                 return (
                   <TableRow
                     key={design.id}
+                    ref={(el) => { if (el && isDesignToScroll) designRowRefs.current[design.id] = el; }}
                     sx={{
-                      backgroundColor:
-                        index % 2 === 0
+                      backgroundColor: isDesignToScroll
+                        ? "rgba(25, 118, 210, 0.12)"
+                        : index % 2 === 0
                           ? "rgba(255, 255, 255, 0.5)"
                           : "rgba(250, 248, 245, 0.3)",
                       transition: "all 0.2s ease",

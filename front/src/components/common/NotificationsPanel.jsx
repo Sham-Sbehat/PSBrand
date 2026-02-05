@@ -131,7 +131,7 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrder
           <ListItem
             onClick={() => {
               if (notification.relatedEntityId && onNotificationClick) {
-                onNotificationClick(notification.relatedEntityId);
+                onNotificationClick(notification.relatedEntityId, notification.relatedEntityType);
               }
             }}
             sx={{
