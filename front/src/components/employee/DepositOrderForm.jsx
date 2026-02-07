@@ -124,6 +124,34 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
     }
   };
 
+  const getEmptyFormValues = () => ({
+    clientId: "",
+    country: "",
+    province: "",
+    district: "",
+    designerId: user?.id || 0,
+    totalAmount: 0,
+    deliveryFee: 0,
+    notes: "",
+    shippingNotes: "",
+    clientAddress: "",
+    clientRoadFnCityId: null,
+    clientRoadFnAreaId: null,
+    clientPhone2: "",
+    createdAt: new Date().toISOString(),
+  });
+
+  const handleCancel = () => {
+    reset(getEmptyFormValues());
+    setSelectedRegion("");
+    setSelectedCityId(null);
+    setAreas([]);
+    setError(null);
+    setSuccess(null);
+    setRegionError("");
+    if (onCancel) onCancel();
+  };
+
   // Set initial values if editing
   useEffect(() => {
     if (initialDepositOrder) {
@@ -916,7 +944,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
             <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end", mt: 15 }}>
               <Button
                 variant="outlined"
-                onClick={onCancel}
+                onClick={handleCancel}
                 disabled={loading}
                 startIcon={<Cancel />}
                 sx={{ minWidth: 120 }}

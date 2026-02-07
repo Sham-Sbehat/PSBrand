@@ -130,6 +130,9 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrder
         <Box key={notification.id}>
           <ListItem
             onClick={() => {
+              if (!notification.isRead && onMarkAsRead) {
+                onMarkAsRead(notification.id);
+              }
               if (notification.relatedEntityId && onNotificationClick) {
                 onNotificationClick(notification.relatedEntityId, notification.relatedEntityType);
               }
@@ -258,7 +261,11 @@ const NotificationsPanel = ({ notifications, onMarkAsRead, onDelete, onViewOrder
                         <Tooltip title="عرض تفاصيل الطلب">
                           <IconButton
                             size="small"
-                            onClick={() => onViewOrderDetails && onViewOrderDetails(notification.relatedEntityId)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!notification.isRead && onMarkAsRead) onMarkAsRead(notification.id);
+                              if (onViewOrderDetails) onViewOrderDetails(notification.relatedEntityId);
+                            }}
                             sx={{
                               color: calmPalette.textMuted,
                               "&:hover": { color: "#1976d2" },

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Tabs,
@@ -20,14 +20,20 @@ import ClientsManagement from './ClientsManagement';
 import MessagesManagement from './MessagesManagement';
 import calmPalette from '../../theme/calmPalette';
 
-const ManagementDashboard = () => {
+const ManagementDashboard = ({ initialSubTab = null }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [currentTab, setCurrentTab] = useState(0);
+  const [currentTab, setCurrentTab] = useState(initialSubTab ?? 0);
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
   };
+
+  useEffect(() => {
+    if (initialSubTab != null) {
+      setCurrentTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   return (
     <Box>

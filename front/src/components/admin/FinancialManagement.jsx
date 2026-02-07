@@ -108,6 +108,8 @@ const FinancialManagement = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [filterByCategory, setFilterByCategory] = useState('');
   const [filterBySource, setFilterBySource] = useState('');
+  const [sourcesForFilter, setSourcesForFilter] = useState([]); // مصادر الفلتر بناءً على الفئة المختارة
+  const [loadingSourcesForFilter, setLoadingSourcesForFilter] = useState(false);
   const [transactionToDelete, setTransactionToDelete] = useState(null);
   const [openDeleteTransactionDialog, setOpenDeleteTransactionDialog] = useState(false);
   const [deletingTransaction, setDeletingTransaction] = useState(false);
@@ -122,44 +124,27 @@ const FinancialManagement = () => {
     setLoadingTransactions(true);
     try {
       let response;
-      
-      // Priority: category filter > source filter > month filter
-      if (categoryId) {
-        // Filter by category using ByMonth endpoint with categoryId
-        if (month && month !== 'all' && month !== null) {
-          response = await transactionsService.getTransactionsByMonth(year, month, categoryId);
-        } else {
-          // Fetch all transactions for this category using getAllTransactions and filter client-side
-          const allTransactionsResponse = await transactionsService.getAllTransactions();
-          const allTransactions = Array.isArray(allTransactionsResponse) 
-            ? allTransactionsResponse 
-            : (allTransactionsResponse?.transactions || []);
-          // Filter by category
-          const filtered = allTransactions.filter(t => t.categoryId === categoryId);
-          response = { transactions: filtered };
-        }
-      } else if (sourceId) {
-        // Filter by source using ByMonth endpoint with sourceId
-        if (month && month !== 'all' && month !== null) {
-          response = await transactionsService.getTransactionsByMonth(year, month, null, sourceId);
-        } else {
-          // Fetch all transactions for this source using getAllTransactions and filter client-side
-          const allTransactionsResponse = await transactionsService.getAllTransactions();
-          const allTransactions = Array.isArray(allTransactionsResponse) 
-            ? allTransactionsResponse 
-            : (allTransactionsResponse?.transactions || []);
-          // Filter by source
-          const filtered = allTransactions.filter(t => t.sourceId === sourceId);
-          response = { transactions: filtered };
-        }
-      } else if (month && month !== 'all' && month !== null) {
-        // Fetch transactions for specific month
+      const hasMonth = month && month !== 'all' && month !== null;
+
+      if (hasMonth && (categoryId || sourceId)) {
+        // فلتر الشهر + الفئة و/أو المصدر: نمرر الاثنين للـ API
+        response = await transactionsService.getTransactionsByMonth(year, month, categoryId, sourceId);
+      } else if (categoryId || sourceId) {
+        // بدون شهر: جلب الكل ثم فلترة حسب الفئة و/أو المصدر
+        const allTransactionsResponse = await transactionsService.getAllTransactions();
+        const allTransactions = Array.isArray(allTransactionsResponse)
+          ? allTransactionsResponse
+          : (allTransactionsResponse?.transactions || []);
+        let filtered = allTransactions;
+        if (categoryId) filtered = filtered.filter((t) => t.categoryId === categoryId);
+        if (sourceId) filtered = filtered.filter((t) => t.sourceId === sourceId);
+        response = { transactions: filtered };
+      } else if (hasMonth) {
         response = await transactionsService.getTransactionsByMonth(year, month);
       } else {
-        // Fetch all transactions using getAllTransactions API
         response = await transactionsService.getAllTransactions();
       }
-      
+
       // API returns an object with transactions array, or a direct array
       const transactionsData = response?.transactions || response;
       setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
@@ -270,6 +255,30 @@ const FinancialManagement = () => {
     fetchCategories();
     fetchSources();
   }, []);
+
+  // عند تغيير الفئة: جلب المصادر الخاصة بهذه الفئة لعرضها في فلتر المصدر
+  useEffect(() => {
+    if (!filterByCategory || filterByCategory === '') {
+      setSourcesForFilter(sources);
+      setFilterBySource('');
+      return;
+    }
+    const categoryId = parseInt(filterByCategory, 10);
+    if (Number.isNaN(categoryId)) {
+      setSourcesForFilter(sources);
+      return;
+    }
+    setLoadingSourcesForFilter(true);
+    setFilterBySource('');
+    expenseSourcesService
+      .getSourcesByCategory(categoryId)
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.sources || []);
+        setSourcesForFilter(list);
+      })
+      .catch(() => setSourcesForFilter([]))
+      .finally(() => setLoadingSourcesForFilter(false));
+  }, [filterByCategory, sources]);
 
   const handleCategoryTypeTabChange = (event, newValue) => {
     setCategoryTypeTab(newValue);
@@ -1244,7 +1253,7 @@ const FinancialManagement = () => {
                   <Table>
                     <TableHead>
                       <TableRow sx={{ 
-                        backgroundColor: calmPalette.statCards[0].background,
+                        backgroundColor: '#2c3e50',
                         '& .MuiTableCell-head': {
                           color: '#fff',
                           fontWeight: 700,
@@ -1501,7 +1510,7 @@ const FinancialManagement = () => {
                   <Table>
                     <TableHead>
                       <TableRow sx={{ 
-                        backgroundColor: calmPalette.statCards[0].background,
+                        backgroundColor: '#2c3e50',
                         '& .MuiTableCell-head': {
                           color: '#fff',
                           fontWeight: 700,
@@ -1769,10 +1778,16 @@ const FinancialManagement = () => {
                   </FormControl>
                 )}
                 <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }} fullWidth={isMobile}>
-                  <InputLabel>الفئة</InputLabel>
+                  <InputLabel shrink>الفئة</InputLabel>
                   <Select
                     value={filterByCategory}
                     label="الفئة"
+                    displayEmpty
+                    renderValue={(v) => {
+                      if (v === '' || v === undefined) return 'الكل';
+                      const cat = [...incomeCategories, ...expenseCategories].find((c) => String(c.id) === String(v));
+                      return cat?.name ?? 'الكل';
+                    }}
                     onChange={(e) => {
                       setFilterByCategory(e.target.value);
                       setFilterBySource(''); // Clear source filter when category is selected
@@ -1788,19 +1803,22 @@ const FinancialManagement = () => {
                   </Select>
                 </FormControl>
                 <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }} fullWidth={isMobile}>
-                  <InputLabel>المصدر</InputLabel>
+                  <InputLabel shrink>المصدر</InputLabel>
                   <Select
                     value={filterBySource}
                     label="المصدر"
-                    onChange={(e) => {
-                      setFilterBySource(e.target.value);
-                      setFilterByCategory(''); // Clear category filter when source is selected
+                    displayEmpty
+                    renderValue={(v) => {
+                      if (v === '' || v === undefined) return 'الكل';
+                      const src = sourcesForFilter.find((s) => String(s.id) === String(v));
+                      return src?.name ?? 'الكل';
                     }}
-                    disabled={!!filterByCategory}
+                    onChange={(e) => setFilterBySource(e.target.value)}
+                    disabled={loadingSourcesForFilter}
                     sx={{ backgroundColor: '#fff' }}
                   >
                     <MenuItem value="">الكل</MenuItem>
-                    {sources.map((source) => (
+                    {sourcesForFilter.map((source) => (
                       <MenuItem key={source.id} value={source.id}>
                         {source.name}
                       </MenuItem>
@@ -1822,7 +1840,7 @@ const FinancialManagement = () => {
                 <Table sx={{ minWidth: { xs: 800, sm: 'auto' } }}>
                   <TableHead>
                     <TableRow sx={{ 
-                      backgroundColor: calmPalette.statCards[0].background,
+                      backgroundColor: '#2c3e50',
                       '& .MuiTableCell-head': {
                         color: '#fff',
                         fontWeight: 700,

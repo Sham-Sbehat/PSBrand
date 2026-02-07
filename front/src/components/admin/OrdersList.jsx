@@ -102,8 +102,12 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
   const [statusFilter, setStatusFilter] = useState("all");
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("all");
   const [designerFilter, setDesignerFilter] = useState(designerFilterProp ? String(designerFilterProp) : "all");
+  const [designersWithSummary, setDesignersWithSummary] = useState([]);
+  const [loadingDesignersSummary, setLoadingDesignersSummary] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState(dateFilterProp || ""); // Date filter for filtering orders by date
+  const [dateFromFilter, setDateFromFilter] = useState("");
+  const [dateToFilter, setDateToFilter] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -262,12 +266,17 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         let cacheKey = CACHE_KEYS.ORDERS;
         
         const currentDateFilter = dateFilterProp || dateFilter;
-        if (currentDateFilter) {
-          // Convert date string (YYYY-MM-DD) to ISO date-time string
-          // Create date in UTC to avoid timezone conversion issues
-          // dateFilter format is "YYYY-MM-DD"
+        const useDateRange = !!(dateFromFilter || dateToFilter);
+        if (useDateRange) {
+          const from = dateFromFilter || dateToFilter;
+          const to = dateToFilter || dateFromFilter;
+          const [yFrom, mFrom, dFrom] = from.split('-').map(Number);
+          const [yTo, mTo, dTo] = to.split('-').map(Number);
+          params.dateFrom = new Date(Date.UTC(yFrom, mFrom - 1, dFrom, 0, 0, 0, 0)).toISOString();
+          params.dateTo = new Date(Date.UTC(yTo, mTo - 1, dTo, 23, 59, 59, 999)).toISOString();
+          cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${from}_${to}`;
+        } else if (currentDateFilter) {
           const [year, month, day] = currentDateFilter.split('-').map(Number);
-          // Create date in UTC at start of day (00:00:00 UTC)
           const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
           params.date = dateObj.toISOString();
           cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${currentDateFilter}`;
@@ -352,8 +361,29 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         setTotalSumWithoutDelivery(null);
         return [];
       }
-    }, [dateFilterProp, dateFilter, designerFilter]);
+    }, [dateFilterProp, dateFilter, dateFromFilter, dateToFilter, designerFilter]);
     
+  // Fetch designers with orders summary (مرتبين حسب عدد الطلبات) للقائمة المنسدلة
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingDesignersSummary(true);
+    ordersService
+      .getDesignersWithOrdersSummary()
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        const sorted = [...list].sort((a, b) => (b.ordersCount ?? 0) - (a.ordersCount ?? 0));
+        setDesignersWithSummary(sorted);
+      })
+      .catch(() => {
+        if (!cancelled) setDesignersWithSummary([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDesignersSummary(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   // Fetch all orders from API + subscribe to realtime updates
   // Load colors, sizes, and fabric types on component mount
   useEffect(() => {
@@ -378,9 +408,8 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           onOrderCreated: (newOrder) => {
             // ✅ تحديث محلي بدل refresh كامل - يوفر API call و bandwidth
             // لكن إذا كان هناك date filter، يجب إعادة جلب البيانات للحصول على totalSum المحدث
-            const currentDateFilter = dateFilterProp || dateFilter;
-            if (currentDateFilter) {
-              // إعادة جلب البيانات للحصول على totalSum المحدث
+            const hasDateFilter = !!(dateFilterProp || dateFilter || dateFromFilter || dateToFilter);
+            if (hasDateFilter) {
               fetchOrders();
               return;
             }
@@ -450,8 +479,8 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               });
             } else {
               // Fallback: refresh كامل فقط إذا لم تكن البيانات كاملة
-              const currentDateFilter = dateFilterProp || dateFilter;
-              if (currentDateFilter) {
+              const hasDateFilter = !!(dateFilterProp || dateFilter || dateFromFilter || dateToFilter);
+              if (hasDateFilter) {
                 fetchOrders();
               }
             }
@@ -601,7 +630,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [dateFilterProp, fetchOrders]); // Re-fetch orders when date filter prop changes
+  }, [dateFilterProp, dateFromFilter, dateToFilter, fetchOrders]);
 
   // Don't auto-fetch delivery statuses - user can click to load manually
   // This prevents 404 errors for orders without shipments
@@ -1862,6 +1891,16 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           return orderDesignerId === parseInt(designerFilter);
         });
 
+  // عدد الطلبات الملبغة (مكتملة) للبائع المختار
+  const deliveredCountForSelectedDesigner =
+    designerFilter !== "all" && designerFilter
+      ? designerFilteredOrders.filter((order) => {
+          const s = order.status;
+          const numericStatus = typeof s === "number" ? s : parseInt(s, 10);
+          return numericStatus === ORDER_STATUS.COMPLETED;
+        }).length
+      : null;
+
   // Filter by delivery status
   const deliveryStatusFilteredOrders =
     deliveryStatusFilter === "all"
@@ -1984,7 +2023,15 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           جميع الطلبات ({sortedOrders.length})
         </Typography>
-          {(dateFilterProp || dateFilter) && (totalSum !== null || totalSumWithoutDelivery !== null) && (
+          {designerFilter !== "all" && (() => {
+            const selected = designersWithSummary.find((d) => String(d.designerId) === designerFilter);
+            return selected && (selected.totalAmountWithoutDelivery != null) ? (
+              <Typography variant="body2" sx={{ color: "text.secondary", marginTop: 0.5 }}>
+                المجموع بدون التوصيل ({selected.designerName ?? "البائع"}): <strong>{(selected.totalAmountWithoutDelivery ?? 0).toLocaleString("ar-EG")} ₪</strong>
+              </Typography>
+            ) : null;
+          })()}
+          {(dateFilterProp || dateFilter || dateFromFilter || dateToFilter) && (totalSum !== null || totalSumWithoutDelivery !== null) && (
             <Box sx={{ display: "flex", gap: 2, marginTop: 1, flexWrap: "wrap" }}>
               {totalSum !== null && (
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -2048,18 +2095,30 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             value={designerFilter}
             onChange={(e) => {
               setDesignerFilter(e.target.value);
-              setPage(0); // Reset to first page when filtering
+              setPage(0);
             }}
-            sx={{ minWidth: 150 }}
+            label="البائع"
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 180 }}
+            disabled={loadingDesignersSummary}
+            SelectProps={{
+              renderValue: (v) => (v === "all" ? "جميع البائعين" : (designersWithSummary.find((d) => String(d.designerId) === v)?.designerName ?? v)),
+            }}
           >
-            <MenuItem value="all">جميع المصممين</MenuItem>
-            {employees
-              .filter(emp => emp.role === USER_ROLES.DESIGNER || emp.role === USER_ROLES.MAIN_DESIGNER)
-              .map((designer) => (
-                <MenuItem key={designer.id} value={String(designer.id)}>
-                  {designer.name}
-                </MenuItem>
-              ))}
+            <MenuItem value="all">جميع البائعين</MenuItem>
+            {designersWithSummary.length > 0
+              ? designersWithSummary.map((d) => (
+                  <MenuItem key={d.designerId} value={String(d.designerId)}>
+                    {d.designerName ?? `بائع ${d.designerId}`} ({d.ordersCount ?? 0} طلب — {(d.totalAmountWithoutDelivery ?? 0).toLocaleString("ar-EG")} ₪)
+                  </MenuItem>
+                ))
+              : employees
+                  .filter((emp) => emp.role === USER_ROLES.DESIGNER || emp.role === USER_ROLES.MAIN_DESIGNER)
+                  .map((designer) => (
+                    <MenuItem key={designer.id} value={String(designer.id)}>
+                      {designer.name}
+                    </MenuItem>
+                  ))}
           </TextField>
           <TextField
             select
@@ -2096,6 +2155,42 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             <MenuItem value="22">رواجع يوم الخميس</MenuItem>
             <MenuItem value="23">طرود مرتجعه مغلقه</MenuItem>
           </TextField>
+          <TextField
+            size="small"
+            type="date"
+            label="من تاريخ"
+            value={dateFromFilter}
+            onChange={(e) => {
+              setDateFromFilter(e.target.value);
+              setPage(0);
+            }}
+            onClick={(e) => {
+              const input = e.currentTarget.querySelector('input[type="date"]');
+              if (input?.showPicker) input.showPicker();
+              else input?.focus();
+            }}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 150, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
+            inputProps={{ style: { cursor: 'pointer' } }}
+          />
+          <TextField
+            size="small"
+            type="date"
+            label="إلى تاريخ"
+            value={dateToFilter}
+            onChange={(e) => {
+              setDateToFilter(e.target.value);
+              setPage(0);
+            }}
+            onClick={(e) => {
+              const input = e.currentTarget.querySelector('input[type="date"]');
+              if (input?.showPicker) input.showPicker();
+              else input?.focus();
+            }}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 150, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
+            inputProps={{ style: { cursor: 'pointer' } }}
+          />
         </Box>
       </Box>
 

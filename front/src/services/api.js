@@ -149,7 +149,7 @@ export const ordersService = {
     let keepFetching = true;
     let totalSum = null;
     let totalSumWithoutDelivery = null;
-    const hasDateFilter = !!params.date;
+    const hasDateFilter = !!(params.date || params.dateFrom || params.dateTo);
 
     while (keepFetching) {
       const response = await retryRequest(async () => {
@@ -217,6 +217,11 @@ export const ordersService = {
 
   getOrderById: async (id) => {
     const response = await api.get(`/Orders/GetOrder/${id}`);
+    return response.data;
+  },
+
+  getDesignersWithOrdersSummary: async () => {
+    const response = await api.get("/Orders/GetDesignersWithOrdersSummary");
     return response.data;
   },
 
@@ -890,6 +895,12 @@ export const expenseSourcesService = {
   // Get all expense sources
   getSources: async () => {
     const response = await api.get('/expense-sources/GetSources');
+    return response.data;
+  },
+
+  // Get sources by category (for filter: عرض المصدر بناءاً على الفئة)
+  getSourcesByCategory: async (categoryId) => {
+    const response = await api.get(`/expense-sources/GetSourcesByCategory/${categoryId}`);
     return response.data;
   },
   

@@ -14,10 +14,7 @@ import {
   Avatar,
   useMediaQuery,
   useTheme,
-  TextField,
-  InputAdornment,
   Paper,
-  Divider,
 } from "@mui/material";
 import {
   Logout,
@@ -27,8 +24,6 @@ import {
   Pending,
   Store,
   AccountBalance,
-  CalendarToday,
-  Clear,
   Settings,
   Business,
   AttachMoney,
@@ -62,6 +57,7 @@ const AdminDashboard = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { user, logout, employees } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
+  const [managementSubTabIndex, setManagementSubTabIndex] = useState(null);
   const [allOrders, setAllOrders] = useState([]);
   const [newNotificationReceived, setNewNotificationReceived] = useState(null);
   const [clientsCount, setClientsCount] = useState(0);
@@ -74,15 +70,6 @@ const AdminDashboard = () => {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   
   // Get today's date in YYYY-MM-DD format
-  const getTodayDate = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  const [dailyOrdersDate, setDailyOrdersDate] = useState(getTodayDate());
   const [designRequestsRefreshKey, setDesignRequestsRefreshKey] = useState(0);
   const unsubscribeOrdersRef = useRef(null);
   const unsubscribeDesignsRef = useRef(null);
@@ -208,6 +195,7 @@ const AdminDashboard = () => {
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
+    setManagementSubTabIndex(null);
     // إعادة تعيين الفلتر عند تغيير التاب يدوياً
     if (newValue !== 1) {
       setStatusFilter(null);
@@ -396,33 +384,45 @@ const AdminDashboard = () => {
             // تحديد البطاقات القابلة للنقر والحالة المناسبة لكل منها
             let isClickable = false;
             let statusToFilter = null;
+            let onCardClick = null;
             
             if (index === 0) {
-              // إجمالي الطلبات - عرض جميع الطلبات
               isClickable = true;
               statusToFilter = "all";
+              onCardClick = () => handleStatCardClick(statusToFilter);
             } else if (index === 1) {
-              // بانتظار الطباعة
               isClickable = true;
               statusToFilter = ORDER_STATUS.PENDING_PRINTING;
+              onCardClick = () => handleStatCardClick(statusToFilter);
             } else if (index === 2) {
-              // مكتملة
               isClickable = true;
               statusToFilter = ORDER_STATUS.COMPLETED;
+              onCardClick = () => handleStatCardClick(statusToFilter);
             } else if (index === 3) {
-              // في مرحلة التحضير
               isClickable = true;
               statusToFilter = ORDER_STATUS.IN_PREPARATION;
+              onCardClick = () => handleStatCardClick(statusToFilter);
             } else if (index === 4) {
-              // في مرحلة التغليف
               isClickable = true;
               statusToFilter = ORDER_STATUS.IN_PACKAGING;
+              onCardClick = () => handleStatCardClick(statusToFilter);
+            } else if (index === 5) {
+              // عدد العملاء → تاب الإدارة ثم تاب العملاء
+              isClickable = true;
+              onCardClick = () => {
+                setManagementSubTabIndex(3);
+                setCurrentTab(6);
+              };
+            } else if (index === 6) {
+              // طلبات العربون → تاب طلبات العربون
+              isClickable = true;
+              onCardClick = () => setCurrentTab(2);
             }
             
             return (
               <Grid item xs={6} sm={6} md={3} key={index}>
                 <Card
-                  onClick={isClickable ? () => handleStatCardClick(statusToFilter) : undefined}
+                  onClick={isClickable && onCardClick ? onCardClick : undefined}
                   sx={{
                     position: "relative",
                     background: cardStyle.background,
@@ -662,34 +662,6 @@ const AdminDashboard = () => {
               }}
             />
             <Tab
-              label="الطلبات اليومية"
-              icon={<CalendarToday />}
-              iconPosition="start"
-              sx={{
-                fontWeight: 600,
-                fontSize: { xs: "0.75rem", sm: "0.875rem", md: "0.9rem" },
-                color: "#7A9A8B",
-                minHeight: { xs: 40, sm: 48 },
-                padding: { xs: '6px 12px', sm: '8px 16px' },
-                textTransform: "none",
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  color: "#6B8E7F",
-                  backgroundColor: "rgba(107, 142, 127, 0.05)",
-                },
-                "&.Mui-selected": {
-                  color: "#5A7A6B",
-                  fontWeight: 700,
-                },
-                '& .MuiTab-iconWrapper': {
-                  marginRight: { xs: 0.5, sm: 0.75 },
-                  '& svg': {
-                    fontSize: { xs: '0.9rem', sm: '1.1rem' }
-                  }
-                }
-              }}
-            />
-            <Tab
               label="طلبات التصاميم"
               icon={<FilterList />}
               iconPosition="start"
@@ -755,133 +727,13 @@ const AdminDashboard = () => {
           {currentTab === 3 && <EmployeeManagement />}
           {currentTab === 4 && <FinancialManagement />}
           {currentTab === 5 && (
-            <Box>
-              <Paper
-                elevation={0}
-                sx={{
-                  padding: { xs: 2, sm: 3 },
-                  marginBottom: 3,
-                  background: calmPalette.surface,
-                  borderRadius: { xs: 2, sm: 3 },
-                  boxShadow: calmPalette.shadow,
-                  backdropFilter: "blur(8px)",
-                }}
-              >
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginBottom: 2,
-                  }}
-                >
-                  <Divider sx={{ flex: 1, borderColor: "rgba(255, 255, 255, 0.1)" }} />
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      paddingX: 2,
-                      fontWeight: 600,
-                      color: calmPalette.textPrimary,
-                      fontSize: { xs: '0.875rem', sm: '1rem', md: '1.25rem' }
-                    }}
-                  >
-                    فلترة حسب التاريخ
-                  </Typography>
-                  <Divider sx={{ flex: 1, borderColor: "rgba(255, 255, 255, 0.1)" }} />
-                </Box>
-
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
-                  <TextField
-                    type="date"
-                    size="medium"
-                    label="اختر التاريخ"
-                    value={dailyOrdersDate}
-                    onChange={(e) => {
-                      setDailyOrdersDate(e.target.value);
-                    }}
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <CalendarToday sx={{ fontSize: 20, color: 'text.secondary', pointerEvents: 'none' }} />
-                        </InputAdornment>
-                      ),
-                    }}
-                    inputProps={{
-                      style: { cursor: 'pointer' },
-                      onClick: (e) => {
-                        // Ensure the date picker opens when clicking on the input
-                        if (e.target.showPicker) {
-                          e.target.showPicker();
-                        }
-                      }
-                    }}
-                    onClick={(e) => {
-                      // Open date picker when clicking anywhere on the TextField
-                      const input = e.currentTarget.querySelector('input[type="date"]');
-                      if (input && input.showPicker) {
-                        e.preventDefault();
-                        input.showPicker();
-                      } else {
-                        // Fallback: focus the input which will show native date picker
-                        input?.focus();
-                        input?.click();
-                      }
-                    }}
-                    sx={{ 
-                      minWidth: { xs: 200, sm: 250 },
-                      cursor: 'pointer',
-                      '& .MuiOutlinedInput-root': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                        cursor: 'pointer',
-                        '&:hover': {
-                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        },
-                        '&.Mui-focused': {
-                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                        },
-                        '& input': {
-                          cursor: 'pointer',
-                        },
-                      },
-                      '& .MuiInputLabel-root': {
-                        color: calmPalette.textMuted,
-                      },
-                      '& .MuiInputLabel-root.Mui-focused': {
-                        color: calmPalette.textPrimary,
-                      },
-                    }}
-                  />
-                  <IconButton
-                    size="medium"
-                    onClick={() => {
-                      setDailyOrdersDate(getTodayDate());
-                    }}
-                    sx={{ 
-                      color: 'text.secondary',
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                      }
-                    }}
-                    title="إعادة تعيين إلى اليوم"
-                  >
-                    <Clear />
-                  </IconButton>
-                </Box>
-              </Paper>
-              <OrdersList dateFilter={dailyOrdersDate} />
-            </Box>
-          )}
-          {currentTab === 6 && (
             <DesignRequestsTab
               setSelectedImage={setSelectedImage}
               setImageDialogOpen={setImageDialogOpen}
               designRequestsRefreshKey={designRequestsRefreshKey}
             />
           )}
-          {currentTab === 7 && <ManagementDashboard />}
+          {currentTab === 6 && <ManagementDashboard initialSubTab={managementSubTabIndex} />}
         </Box>
       </Container>
 
