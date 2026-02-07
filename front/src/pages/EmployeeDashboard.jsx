@@ -1323,7 +1323,7 @@ const EmployeeDashboard = () => {
     navigate("/");
   };
 
-  const loadOrdersByDate = async (dateString) => {
+  const loadOrdersByDate = async (dateString, filterByDay = false) => {
     if (user?.role !== USER_ROLES.DESIGNER || !user?.id) return;
     
     setLoading(true);
@@ -1331,13 +1331,13 @@ const EmployeeDashboard = () => {
       const date = dateString ? new Date(dateString + "T12:00:00") : new Date();
       const year = date.getFullYear();
       const month = date.getMonth();
-      const dayCounter = date.getDate();
       const firstOfMonth = new Date(year, month, 1, 12, 0, 0);
       const isoDateString = firstOfMonth.toISOString();
+      const dayToSend = filterByDay ? date.getDate() : null;
       const response = await ordersService.getOrdersByDesignerAndMonth(
         user.id,
         isoDateString,
-        dayCounter
+        dayToSend
       );
       
       // الـ API يرجع object يحتوي على orders array
@@ -1352,9 +1352,10 @@ const EmployeeDashboard = () => {
         totalAmountWithoutDelivery: response?.totalAmountWithoutDelivery || 0,
         periodDescription: response?.periodDescription || "",
       });
-      
-      // تحديث العدد الإجمالي
-      setTotalOrdersCount(response?.totalCount || orders.length);
+      // تحديث عدد البطاقة "إجمالي الطلبات" فقط عند تحميل الشهر كامل (بدون فلتر يوم)
+      if (!filterByDay) {
+        setTotalOrdersCount(response?.totalCount || orders.length);
+      }
       
       // جلب حالة التوصيل فقط للطلبات المرسلة لشركة التوصيل
       orders.slice(0, 20).forEach((order) => {
@@ -1379,8 +1380,7 @@ const EmployeeDashboard = () => {
       const day = String(today.getDate()).padStart(2, "0");
       const todayString = `${year}-${month}-${day}`;
       setSelectedDate(todayString);
-      
-      await loadOrdersByDate(todayString);
+      await loadOrdersByDate(todayString, false);
       setOpenOrdersModal(true);
     }
   };
@@ -1390,7 +1390,7 @@ const EmployeeDashboard = () => {
     if (!newDateString || !user?.id) return;
     
     setSelectedDate(newDateString);
-    await loadOrdersByDate(newDateString);
+    await loadOrdersByDate(newDateString, true);
   };
 
   // Load image for display (lazy loading)
@@ -1705,6 +1705,9 @@ const EmployeeDashboard = () => {
     setSearchQuery("");
     setDeliveryCompanyFilter("all");
     setOrdersModalTab(0);
+    const today = new Date();
+    const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    setSelectedDate(todayString);
   };
 
   // الانتقال للطلب أو طلب التصميم عند النقر على الإشعار (حسب relatedEntityType)
@@ -1740,7 +1743,7 @@ const EmployeeDashboard = () => {
       setCurrentTab(1);
       setOrderIdToOpen(order.id);
       setSelectedDate(dateString);
-      await loadOrdersByDate(dateString);
+      await loadOrdersByDate(dateString, true);
       setOpenOrdersModal(true);
     } catch (err) {
       console.error("Notification click:", err);
@@ -2321,7 +2324,7 @@ const EmployeeDashboard = () => {
                       onChange={(e) => {
                         const v = e.target.value;
                         setSelectedDate(v);
-                        if (v) loadOrdersByDate(v);
+                        if (v) loadOrdersByDate(v, true);
                       }}
                       InputLabelProps={{ shrink: true }}
                       sx={{
