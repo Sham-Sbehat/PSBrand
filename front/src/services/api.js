@@ -329,13 +329,10 @@ export const ordersService = {
     return response.data;
   },
 
-  getOrdersByDesignerAndMonth: async (designerId, date) => {
-    const response = await api.get(`/Orders/GetOrdersByDesignerAndMonth`, {
-      params: {
-        designerId: designerId,
-        date: date
-      }
-    });
+  getOrdersByDesignerAndMonth: async (designerId, date, day = null) => {
+    const params = { designerId, date };
+    if (day != null) params.day = day;
+    const response = await api.get(`/Orders/GetOrdersByDesignerAndMonth`, { params });
     return response.data;
   },
 

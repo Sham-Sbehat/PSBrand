@@ -1328,12 +1328,16 @@ const EmployeeDashboard = () => {
     
     setLoading(true);
     try {
-      // تحويل التاريخ من YYYY-MM-DD إلى ISO string
-      const date = dateString ? new Date(dateString) : new Date();
-      const isoDateString = date.toISOString();
+      const date = dateString ? new Date(dateString + "T12:00:00") : new Date();
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const dayCounter = date.getDate();
+      const firstOfMonth = new Date(year, month, 1, 12, 0, 0);
+      const isoDateString = firstOfMonth.toISOString();
       const response = await ordersService.getOrdersByDesignerAndMonth(
         user.id,
-        isoDateString
+        isoDateString,
+        dayCounter
       );
       
       // الـ API يرجع object يحتوي على orders array
@@ -2308,6 +2312,24 @@ const EmployeeDashboard = () => {
                 }}
               />
                   </Box>
+                  {user?.role === USER_ROLES.DESIGNER && (
+                    <TextField
+                      size="small"
+                      label="فلترة حسب اليوم"
+                      type="date"
+                      value={selectedDate || ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setSelectedDate(v);
+                        if (v) loadOrdersByDate(v);
+                      }}
+                      InputLabelProps={{ shrink: true }}
+                      sx={{
+                        minWidth: 180,
+                        "& .MuiOutlinedInput-root": { borderRadius: 2 },
+                      }}
+                    />
+                  )}
                   <TextField
                     select
                     size="small"
