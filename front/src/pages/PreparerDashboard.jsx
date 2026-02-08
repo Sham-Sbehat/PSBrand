@@ -1308,10 +1308,8 @@ const PreparerDashboard = () => {
       // Update local state immediately
       setMyOpenOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
       
-      // After successful update, refresh the orders list
       setTimeout(() => {
         fetchAllOrders(false); // Don't show loading after action
-        setCurrentTab(1); // Switch to "الطلبات المتاحة" tab
       }, 500);
       
     } catch (error) {
@@ -1357,10 +1355,8 @@ const PreparerDashboard = () => {
       // 2) Set status to OpenOrder
       const response = await orderStatusService.setOpenOrder(orderId);
       
-      // After successful update, refresh the orders list and switch to Tab 1
       setTimeout(() => {
         fetchAllOrders(false); // Don't show loading after action
-        setCurrentTab(2); // Switch to "طلباتي المفتوحة" tab
       }, 500);
       
     } catch (error) {
