@@ -39,6 +39,7 @@ import {
   Edit,
   CheckCircle,
   ContactPhone,
+  Print,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../../services/api";
@@ -160,6 +161,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
   const [updatingStatusOrderId, setUpdatingStatusOrderId] = useState(null); // Track which order status is being updated
   const [statusMenuAnchor, setStatusMenuAnchor] = useState(null); // Anchor for status change menu
   const [orderForStatusChange, setOrderForStatusChange] = useState(null); // Order whose status is being changed
+  const [loadingInvoiceOrderId, setLoadingInvoiceOrderId] = useState(null);
 
   const getFullUrl = (url) => {
     if (!url || typeof url !== 'string') return url;
@@ -688,6 +690,33 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
   const handleNotesClick = (order) => {
     setSelectedOrder(order);
     setOpenNotesDialog(true);
+  };
+
+  const handlePrintInvoice = async (order) => {
+    const orderId = order.id;
+    setLoadingInvoiceOrderId(orderId);
+    try {
+      const response = await ordersService.getOrderInvoice(orderId);
+      const blob = response.data;
+      const contentDisposition = response.headers?.["content-disposition"];
+      let filename = `invoice-${order.orderNumber || orderId}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[*]?=(?:UTF-8'')?["']?([^"'\s]+)["']?/i);
+        if (match?.[1]) filename = decodeURIComponent(match[1].trim());
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.message || "فشل تحميل الفاتورة", severity: "error" });
+    } finally {
+      setLoadingInvoiceOrderId(null);
+    }
   };
 
   const handleCloseNotesDialog = () => {
@@ -2553,6 +2582,22 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                         </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
+                            <Tooltip title="طباعة فاتورة">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handlePrintInvoice(order)}
+                                  disabled={loadingInvoiceOrderId === order.id}
+                                  sx={{ color: 'primary.main' }}
+                                >
+                                  {loadingInvoiceOrderId === order.id ? (
+                                    <CircularProgress size={20} />
+                                  ) : (
+                                    <Print />
+                                  )}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
                             <Button
                               size="small"
                               variant="outlined"

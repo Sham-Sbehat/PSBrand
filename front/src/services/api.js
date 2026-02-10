@@ -220,6 +220,14 @@ export const ordersService = {
     return response.data;
   },
 
+  /** GET /Orders/GetOrder/{id}/invoice - returns blob (PDF). Use responseType blob. */
+  getOrderInvoice: async (id) => {
+    const response = await api.get(`/Orders/GetOrder/${id}/invoice`, {
+      responseType: "blob",
+    });
+    return response;
+  },
+
   getDesignersWithOrdersSummary: async () => {
     const response = await api.get("/Orders/GetDesignersWithOrdersSummary");
     return response.data;
