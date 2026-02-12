@@ -675,10 +675,14 @@ const OrderForm = ({
         return;
       }
 
+      // Trim name and phone (no leading/trailing spaces)
+      const trimmedName = (data.customerName || "").trim();
+      const trimmedPhone = (data.customerPhone || "").trim();
+
       // Prepare client data according to API format
       const clientData = {
-        name: data.customerName,
-        phone: data.customerPhone,
+        name: trimmedName,
+        phone: trimmedPhone,
         country: data.country,
         province: data.province,
         district: data.district,
@@ -693,9 +697,11 @@ const OrderForm = ({
       // Reload clients list to include the new client
       await loadAllClients();
 
-      // Update local state with client data
+      // Update local state with client data (trimmed)
       setCustomerData({
         ...data,
+        customerName: trimmedName,
+        customerPhone: trimmedPhone,
         address: dialogShippingAddress,
       });
       setClientId(response.id); // Store the new client ID
@@ -717,8 +723,8 @@ const OrderForm = ({
       // Auto-select the newly created client in the autocomplete
       const newClient = {
         id: response.id,
-        name: data.customerName,
-        phone: data.customerPhone,
+        name: trimmedName,
+        phone: trimmedPhone,
         country: data.country,
         province: data.province,
         district: data.district,
@@ -1728,6 +1734,11 @@ const OrderForm = ({
                           label="اسم العميل"
                           error={!!customerErrors.customerName}
                           helperText={customerErrors.customerName?.message}
+                          onBlur={(e) => {
+                            field.onBlur(e);
+                            const v = (field.value || "").trim();
+                            if (v !== field.value) setValue("customerName", v);
+                          }}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
@@ -1752,6 +1763,11 @@ const OrderForm = ({
                           label="رقم الهاتف"
                           error={!!customerErrors.customerPhone}
                           helperText={customerErrors.customerPhone?.message}
+                          onBlur={(e) => {
+                            field.onBlur(e);
+                            const v = (field.value || "").trim();
+                            if (v !== field.value) setValue("customerPhone", v);
+                          }}
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">

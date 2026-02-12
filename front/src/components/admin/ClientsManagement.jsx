@@ -205,17 +205,23 @@ const ClientsManagement = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.phone) {
+    const trimmed = {
+      ...formData,
+      name: (formData.name || '').trim(),
+      phone: (formData.phone || '').trim(),
+      phone2: (formData.phone2 || '').trim(),
+    };
+    if (!trimmed.name || !trimmed.phone) {
       setSnackbar({ open: true, message: 'يرجى إدخال الاسم ورقم الهاتف', severity: 'error' });
       return;
     }
 
     try {
       if (editingClient) {
-        await clientsService.updateClient(editingClient.id, formData);
+        await clientsService.updateClient(editingClient.id, trimmed);
         setSnackbar({ open: true, message: 'تم تحديث العميل بنجاح', severity: 'success' });
       } else {
-        await clientsService.createClient(formData);
+        await clientsService.createClient(trimmed);
         setSnackbar({ open: true, message: 'تم إضافة العميل بنجاح', severity: 'success' });
       }
       handleCloseDialog();
@@ -484,6 +490,7 @@ const ClientsManagement = () => {
                   label="الاسم"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onBlur={() => setFormData((prev) => ({ ...prev, name: (prev.name || '').trim() }))}
                   fullWidth
                   required
                 />
@@ -493,6 +500,7 @@ const ClientsManagement = () => {
                   label="رقم الهاتف"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onBlur={() => setFormData((prev) => ({ ...prev, phone: (prev.phone || '').trim() }))}
                   fullWidth
                   required
                 />
@@ -502,6 +510,7 @@ const ClientsManagement = () => {
                   label="رقم الهاتف 2 (اختياري)"
                   value={formData.phone2}
                   onChange={(e) => setFormData({ ...formData, phone2: e.target.value })}
+                  onBlur={() => setFormData((prev) => ({ ...prev, phone2: (prev.phone2 || '').trim() }))}
                   fullWidth
                 />
               </Grid>
