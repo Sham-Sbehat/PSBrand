@@ -694,26 +694,23 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
 
   const handlePrintInvoice = async (order) => {
     const orderId = order.id;
+    const orderNumber = order.orderNumber || `#${orderId}`;
     setLoadingInvoiceOrderId(orderId);
     try {
       const response = await ordersService.getOrderInvoice(orderId);
       const blob = response.data;
-      const contentDisposition = response.headers?.["content-disposition"];
-      let filename = `invoice-${order.orderNumber || orderId}.pdf`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename[*]?=(?:UTF-8'')?["']?([^"'\s]+)["']?/i);
-        if (match?.[1]) filename = decodeURIComponent(match[1].trim());
-      }
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
+      const pdfUrl = window.URL.createObjectURL(blob);
+      const titleText = `فاتورة طلب ${String(orderNumber).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")}`;
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titleText}</title></head><body style="margin:0"><iframe src="${pdfUrl}" style="width:100%;height:100vh;border:0" title="${titleText}"></iframe></body></html>`;
+      const htmlBlob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const htmlUrl = window.URL.createObjectURL(htmlBlob);
+      window.open(htmlUrl, "_blank");
+      setTimeout(() => {
+        window.URL.revokeObjectURL(pdfUrl);
+        window.URL.revokeObjectURL(htmlUrl);
+      }, 60000);
     } catch (err) {
-      setSnackbar({ open: true, message: err.response?.data?.message || "فشل تحميل الفاتورة", severity: "error" });
+      setSnackbar({ open: true, message: err.response?.data?.message || "فشل فتح الفاتورة", severity: "error" });
     } finally {
       setLoadingInvoiceOrderId(null);
     }
