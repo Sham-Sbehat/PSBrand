@@ -24,7 +24,6 @@ import {
   Snackbar,
   Alert,
   Menu,
-  Checkbox,
 } from "@mui/material";
 import {
   Visibility,
@@ -45,6 +44,7 @@ import { useApp } from "../../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../../services/api";
 import { subscribeToOrderUpdates } from "../../services/realtime";
 import { openWhatsApp } from "../../utils";
+import { generateInvoiceHtml, openInvoicePrintWindow } from "../../utils/invoicePrint";
 import {
   ORDER_STATUS,
   ORDER_STATUS_LABELS,
@@ -151,6 +151,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
   const [shippingNotes, setShippingNotes] = useState('');
   const [shippingLoading, setShippingLoading] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState([]); // Array of order IDs for bulk shipping
+  const [selectedForPrint, setSelectedForPrint] = useState([]); // Array of order IDs for bulk print (any status)
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [openDeliveryStatusDialog, setOpenDeliveryStatusDialog] = useState(false);
   const [deliveryStatusData, setDeliveryStatusData] = useState(null);
@@ -694,23 +695,28 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
 
   const handlePrintInvoice = async (order) => {
     const orderId = order.id;
-    const orderNumber = order.orderNumber || `#${orderId}`;
     setLoadingInvoiceOrderId(orderId);
     try {
-      const response = await ordersService.getOrderInvoice(orderId);
-      const blob = response.data;
-      const pdfUrl = window.URL.createObjectURL(blob);
-      const titleText = `فاتورة طلب ${String(orderNumber).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")}`;
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titleText}</title></head><body style="margin:0"><iframe src="${pdfUrl}" style="width:100%;height:100vh;border:0" title="${titleText}"></iframe></body></html>`;
-      const htmlBlob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const htmlUrl = window.URL.createObjectURL(htmlBlob);
-      window.open(htmlUrl, "_blank");
-      setTimeout(() => {
-        window.URL.revokeObjectURL(pdfUrl);
-        window.URL.revokeObjectURL(htmlUrl);
-      }, 60000);
+      const fullOrder = await ordersService.getOrderById(orderId);
+      openInvoicePrintWindow([fullOrder]);
     } catch (err) {
       setSnackbar({ open: true, message: err.response?.data?.message || "فشل فتح الفاتورة", severity: "error" });
+    } finally {
+      setLoadingInvoiceOrderId(null);
+    }
+  };
+
+  const handlePrintBulkInvoice = async () => {
+    if (selectedForPrint.length === 0) return;
+    setLoadingInvoiceOrderId("bulk");
+    try {
+      const fullOrders = await Promise.all(
+        selectedForPrint.map((id) => ordersService.getOrderById(id))
+      );
+      openInvoicePrintWindow(fullOrders);
+      setSelectedForPrint([]);
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.message || "فشل تحميل بيانات الطلبات", severity: "error" });
     } finally {
       setLoadingInvoiceOrderId(null);
     }
@@ -1236,7 +1242,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
     }
   };
 
-  // Toggle order selection
+  // Toggle order selection (for shipping - completed only)
   const handleToggleOrderSelection = (orderId) => {
     setSelectedOrders(prev => {
       if (prev.includes(orderId)) {
@@ -1247,22 +1253,33 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
     });
   };
 
-  // Select all visible orders
+  // Toggle print selection (any status)
+  const handleTogglePrintSelection = (orderId) => {
+    setSelectedForPrint(prev => {
+      if (prev.includes(orderId)) {
+        return prev.filter(id => id !== orderId);
+      } else {
+        return [...prev, orderId];
+      }
+    });
+  };
+
+  // Select all for print (current page, any status)
+  const handleSelectAllForPrint = () => {
+    const ids = paginatedOrders.map(o => o.id);
+    const allSelected = ids.length > 0 && ids.every(id => selectedForPrint.includes(id));
+    setSelectedForPrint(allSelected ? [] : ids);
+  };
+
+  // Select all completed orders on current page (for bulk shipping)
   const handleSelectAll = () => {
-    const completedOrders = filteredOrders.filter(order => {
-      const numericStatus = typeof order.status === 'number' 
-        ? order.status 
-        : parseInt(order.status, 10);
+    const completedOnPage = paginatedOrders.filter(order => {
+      const numericStatus = typeof order.status === 'number' ? order.status : parseInt(order.status, 10);
       return numericStatus === ORDER_STATUS.COMPLETED;
     });
-    
-    if (selectedOrders.length === completedOrders.length) {
-      // Deselect all
-      setSelectedOrders([]);
-    } else {
-      // Select all completed orders
-      setSelectedOrders(completedOrders.map(o => o.id));
-    }
+    const ids = completedOnPage.map(o => o.id);
+    const allSelected = ids.length > 0 && ids.every(id => selectedOrders.includes(id));
+    setSelectedOrders(allSelected ? [] : ids);
   };
 
   const handleDeliveryStatusClick = async (order) => {
@@ -2074,16 +2091,30 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         </Box>
 
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
-          {selectedOrders.length > 0 && (
+          {selectedForPrint.length > 0 && (
             <Button
-              variant="contained"
-              color="primary"
-              startIcon={<LocalShipping />}
-              onClick={handleBulkShipping}
+              variant="outlined"
+              color="secondary"
+              startIcon={loadingInvoiceOrderId === "bulk" ? <CircularProgress size={18} /> : <Print />}
+              onClick={handlePrintBulkInvoice}
+              disabled={loadingInvoiceOrderId === "bulk"}
               sx={{ minWidth: 150 }}
             >
-              إرسال المحدد ({selectedOrders.length})
+              {loadingInvoiceOrderId === "bulk" ? "جاري التحميل..." : `طباعة المحدد (${selectedForPrint.length})`}
             </Button>
+          )}
+          {selectedOrders.length > 0 && (
+            <>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<LocalShipping />}
+                onClick={handleBulkShipping}
+                sx={{ minWidth: 150 }}
+              >
+                إرسال المحدد ({selectedOrders.length})
+              </Button>
+            </>
           )}
           <TextField
             size="small"
@@ -2230,18 +2261,43 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             <Table>
               <TableHead>
                 <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                  <TableCell sx={{ fontWeight: 700, width: 50 }}>
-                    <Checkbox
-                      checked={selectedOrders.length > 0 && selectedOrders.length === filteredOrders.filter(o => {
-                        const numericStatus = typeof o.status === 'number' ? o.status : parseInt(o.status, 10);
-                        return numericStatus === ORDER_STATUS.COMPLETED;
-                      }).length}
-                      indeterminate={selectedOrders.length > 0 && selectedOrders.length < filteredOrders.filter(o => {
-                        const numericStatus = typeof o.status === 'number' ? o.status : parseInt(o.status, 10);
-                        return numericStatus === ORDER_STATUS.COMPLETED;
-                      }).length}
-                      onChange={handleSelectAll}
-                    />
+                  <TableCell sx={{ fontWeight: 700, width: 45 }} align="center">
+                    <Tooltip title="تحديد الكل للإرسال (المكتملة فقط)">
+                      <IconButton
+                        size="small"
+                        onClick={handleSelectAll}
+                        sx={{
+                          color: (() => {
+                            const completedOnPage = paginatedOrders.filter(o => {
+                              const s = typeof o.status === 'number' ? o.status : parseInt(o.status, 10);
+                              return s === ORDER_STATUS.COMPLETED;
+                            });
+                            const selectedCount = completedOnPage.filter(o => selectedOrders.includes(o.id)).length;
+                            return selectedCount > 0 ? 'primary.main' : 'action.disabled';
+                          })(),
+                        }}
+                      >
+                        <LocalShipping fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: 45 }} align="center">
+                    <Tooltip title="تحديد الكل للطباعة">
+                      <IconButton
+                        size="small"
+                        onClick={handleSelectAllForPrint}
+                        sx={{
+                          color: (() => {
+                            const selectedCount = paginatedOrders.filter(o => selectedForPrint.includes(o.id)).length;
+                            if (selectedCount === 0) return 'action.disabled';
+                            if (selectedCount === paginatedOrders.length) return 'primary.main';
+                            return 'primary.main';
+                          })(),
+                        }}
+                      >
+                        <Print fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>رقم الطلب</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>اسم العميل</TableCell>
@@ -2280,13 +2336,13 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                   <TableCell sx={{ fontWeight: 700 }}>حالة التوصيل</TableCell>
                   <TableCell sx={{ fontWeight: 700, minWidth: 80 }}>الملاحظات</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>التفاصيل</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}></TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: 45 }}></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {paginatedOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} align="center">
+                    <TableCell colSpan={15} align="center">
                       <Box sx={{ padding: 4 }}>
                         <Typography variant="h6" color="text.secondary">
                           لا توجد طلبات
@@ -2313,17 +2369,41 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                           } : {}),
                         }}
                       >
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedOrders.includes(order.id)}
-                            onChange={() => handleToggleOrderSelection(order.id)}
-                            disabled={(() => {
-                              const numericStatus = typeof order.status === 'number' 
-                                ? order.status 
-                                : parseInt(order.status, 10);
-                              return numericStatus !== ORDER_STATUS.COMPLETED;
-                            })()}
-                          />
+                        <TableCell align="center">
+                          <Tooltip title={(() => {
+                            const numericStatus = typeof order.status === 'number' ? order.status : parseInt(order.status, 10);
+                            if (numericStatus !== ORDER_STATUS.COMPLETED) return "للإرسال: الطلب يجب أن يكون مكتمل";
+                            return selectedOrders.includes(order.id) ? "إلغاء التحديد للإرسال" : "تحديد للإرسال";
+                          })()}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleToggleOrderSelection(order.id)}
+                                disabled={(() => {
+                                  const numericStatus = typeof order.status === 'number' ? order.status : parseInt(order.status, 10);
+                                  return numericStatus !== ORDER_STATUS.COMPLETED;
+                                })()}
+                                sx={{
+                                  color: selectedOrders.includes(order.id) ? 'primary.main' : 'action.disabled',
+                                }}
+                              >
+                                <LocalShipping fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Tooltip title={selectedForPrint.includes(order.id) ? "إلغاء التحديد للطباعة" : "تحديد للطباعة"}>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleTogglePrintSelection(order.id)}
+                              sx={{
+                                color: selectedForPrint.includes(order.id) ? 'primary.main' : 'action.disabled',
+                              }}
+                            >
+                              <Print fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -2579,22 +2659,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                         </TableCell>
                         <TableCell>
                           <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
-                            <Tooltip title="طباعة فاتورة">
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handlePrintInvoice(order)}
-                                  disabled={loadingInvoiceOrderId === order.id}
-                                  sx={{ color: 'primary.main' }}
-                                >
-                                  {loadingInvoiceOrderId === order.id ? (
-                                    <CircularProgress size={20} />
-                                  ) : (
-                                    <Print />
-                                  )}
-                                </IconButton>
-                              </span>
-                            </Tooltip>
                             <Button
                               size="small"
                               variant="outlined"
@@ -2680,72 +2744,6 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                             >
                               إلغاء
                             </Button>
-                            <Tooltip 
-                              title={
-                                (() => {
-                                  const numericStatus = typeof order.status === 'number' 
-                                    ? order.status 
-                                    : parseInt(order.status, 10);
-                                  const hasDeliveryStatus = deliveryStatuses[order.id] && 
-                                                           deliveryStatuses[order.id] !== null;
-                                  const isSentToDelivery = order.isSentToDeliveryCompany === true;
-                                  if (numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY || 
-                                      hasDeliveryStatus || 
-                                      isSentToDelivery) {
-                                    return "تم الإرسال لشركة التوصيل";
-                                  } else if (numericStatus !== ORDER_STATUS.COMPLETED) {
-                                    return "الطلب يجب أن يكون مكتملاً لإرساله لشركة التوصيل";
-                                  } else {
-                                    return "إرسال الطلب لشركة التوصيل";
-                                  }
-                                })()
-                              } 
-                              arrow 
-                              placement="top"
-                            >
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleShippingClick(order)}
-                                  disabled={
-                                    (() => {
-                                      const numericStatus = typeof order.status === 'number' 
-                                        ? order.status 
-                                        : parseInt(order.status, 10);
-                                      // التحقق من وجود shipment أو delivery status
-                                      const hasDeliveryStatus = deliveryStatuses[order.id] && 
-                                                               deliveryStatuses[order.id] !== null;
-                                      const isSentToDelivery = order.isSentToDeliveryCompany === true;
-                                      // الزر مفعّل فقط عندما يكون الطلب مكتملاً وغير مرسل لشركة التوصيل
-                                      return numericStatus !== ORDER_STATUS.COMPLETED || 
-                                             numericStatus === ORDER_STATUS.SENT_TO_DELIVERY_COMPANY ||
-                                             hasDeliveryStatus ||
-                                             isSentToDelivery;
-                                    })()
-                                  }
-                                  sx={{
-                                    color: '#2e7d32',
-                                    backgroundColor: 'rgba(46, 125, 50, 0.1)',
-                                    width: '36px',
-                                    height: '36px',
-                                    minWidth: '36px',
-                                    padding: '6px',
-                                    '&:hover': {
-                                      backgroundColor: 'rgba(46, 125, 50, 0.2)',
-                                      color: '#1b5e20',
-                                    },
-                                    '&:disabled': {
-                                      color: '#9e9e9e',
-                                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                                    },
-                                    border: '1px solid rgba(46, 125, 50, 0.3)',
-                                    borderRadius: 1,
-                                  }}
-                                >
-                                  <LocalShipping fontSize="small" />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
                             <IconButton
                               size="small"
                               color="error"

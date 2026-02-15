@@ -593,6 +593,11 @@ export const employeesService = {
     clearCache(CACHE_KEYS.EMPLOYEES);
     return response.data;
   },
+
+  changePassword: async (userId, newPassword) => {
+    const response = await api.put(`/Users/ChangePassword/${userId}`, { newPassword });
+    return response.data;
+  },
 };
 
 // Clients Service

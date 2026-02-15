@@ -39,6 +39,7 @@ import {
   AccessTime,
   Search,
   FilterList,
+  LockReset,
 } from '@mui/icons-material';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { useApp } from '../../context/AppContext';
@@ -56,6 +57,10 @@ const EmployeeManagement = () => {
   const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [currentSubTab, setCurrentSubTab] = useState(0);
+  const [passwordDialog, setPasswordDialog] = useState({ open: false, employee: null });
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -192,6 +197,38 @@ const EmployeeManagement = () => {
       } finally {
         setLoading(false);
       }
+    }
+  };
+
+  const handleOpenPasswordDialog = (employee) => {
+    setPasswordDialog({ open: true, employee });
+    setNewPassword('');
+  };
+
+  const handleClosePasswordDialog = () => {
+    setPasswordDialog({ open: false, employee: null });
+    setNewPassword('');
+    setShowNewPassword(false);
+    setChangePasswordLoading(false);
+  };
+
+  const handleChangePassword = async () => {
+    const { employee } = passwordDialog;
+    if (!employee || !newPassword.trim()) return;
+    const trimmed = newPassword.trim();
+    if (trimmed.length < 4) {
+      Swal.fire({ icon: 'warning', title: 'كلمة المرور قصيرة', text: 'يجب أن تكون كلمة المرور 4 أحرف على الأقل' });
+      return;
+    }
+    try {
+      setChangePasswordLoading(true);
+      await employeesService.changePassword(employee.id, trimmed);
+      Swal.fire({ icon: 'success', title: 'تم التغيير', text: `تم تغيير كلمة مرور ${employee.name} بنجاح` });
+      handleClosePasswordDialog();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'فشل التغيير', text: err.response?.data?.message || 'حدث خطأ أثناء تغيير كلمة المرور' });
+    } finally {
+      setChangePasswordLoading(false);
     }
   };
 
@@ -616,6 +653,16 @@ const EmployeeManagement = () => {
                   </TableCell>
                   <TableCell align="center">
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                      <Tooltip title="تغيير كلمة المرور" arrow>
+                        <IconButton
+                          color="primary"
+                          onClick={() => handleOpenPasswordDialog(employee)}
+                          disabled={loading}
+                          size="small"
+                        >
+                          <LockReset />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title={employee.isActive ? 'تعطيل الحساب' : 'تفعيل الحساب'} arrow>
                         <Switch
                           checked={employee.isActive !== false}
@@ -820,6 +867,54 @@ const EmployeeManagement = () => {
             )}
           />
         </Box>
+      </GlassDialog>
+
+      {/* نافذة تغيير كلمة المرور */}
+      <GlassDialog
+        open={passwordDialog.open}
+        onClose={handleClosePasswordDialog}
+        maxWidth="xs"
+        title="تغيير كلمة المرور"
+        subtitle={passwordDialog.employee?.name}
+        actions={
+          <>
+            <Button onClick={handleClosePasswordDialog} disabled={changePasswordLoading}>
+              إلغاء
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleChangePassword}
+              disabled={!newPassword.trim() || newPassword.trim().length < 4 || changePasswordLoading}
+              startIcon={changePasswordLoading ? <CircularProgress size={16} /> : <LockReset />}
+            >
+              {changePasswordLoading ? 'جاري التغيير...' : 'تغيير'}
+            </Button>
+          </>
+        }
+      >
+        <TextField
+          fullWidth
+          label="كلمة المرور الجديدة"
+          type={showNewPassword ? 'text' : 'password'}
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          helperText="4 أحرف على الأقل"
+          sx={{ mt: 1 }}
+          autoFocus
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  edge="end"
+                  size="small"
+                >
+                  {showNewPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+        />
       </GlassDialog>
         </Paper>
       )}
