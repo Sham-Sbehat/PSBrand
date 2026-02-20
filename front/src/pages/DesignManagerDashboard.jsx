@@ -25,6 +25,8 @@ import {
   Menu,
   ListItemIcon,
   ListItemText,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Close,
@@ -71,6 +73,8 @@ import ImagePreviewDialog from "../components/common/ImagePreviewDialog";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { user, logout } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
@@ -1952,23 +1956,35 @@ const DesignManagerDashboard = () => {
           <Paper
             elevation={0}
             sx={{
-              padding: 4,
+              padding: { xs: 2, sm: 4 },
               borderRadius: 3,
               background: calmPalette.surface,
               boxShadow: calmPalette.shadow,
               backdropFilter: "blur(8px)",
+              overflow: "hidden",
             }}
           >
-          <Box sx={{ marginBottom: 3 }}>
+          <Box sx={{ marginBottom: 3, overflow: "hidden" }}>
             <Tabs
               value={currentTab}
               onChange={(e, newValue) => setCurrentTab(newValue)}
-              variant="fullWidth"
+              variant={isMobile ? "scrollable" : "fullWidth"}
+              scrollButtons={isMobile ? "auto" : false}
+              allowScrollButtonsMobile
               sx={{
                 backgroundColor: calmPalette.surface,
                 borderRadius: 3,
                 boxShadow: calmPalette.shadow,
                 backdropFilter: "blur(8px)",
+                minHeight: 56,
+                "& .MuiTabs-flexContainer": {
+                  gap: isMobile ? 0 : undefined,
+                },
+                "& .MuiTab-root": {
+                  minWidth: isMobile ? "auto" : undefined,
+                  px: isMobile ? 1.5 : 2,
+                  fontSize: isMobile ? "0.8rem" : "1rem",
+                },
               }}
               TabIndicatorProps={{
                 sx: {
@@ -1987,7 +2003,7 @@ const DesignManagerDashboard = () => {
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
                   minHeight: 56,
                   color: currentTab === 0 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '12px 0 0 12px',
@@ -1998,13 +2014,13 @@ const DesignManagerDashboard = () => {
                 }}
               />
               <Tab
-                label={`بانتظار الطباعة (${pendingPrintingOrders.length})`}
+                label={isMobile ? `بانتظار (${pendingPrintingOrders.length})` : `بانتظار الطباعة (${pendingPrintingOrders.length})`}
                 icon={<Schedule />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
                   minHeight: 56,
                   color: currentTab === 1 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0',
@@ -2015,13 +2031,13 @@ const DesignManagerDashboard = () => {
                 }}
               />
               <Tab
-                label={`في مرحلة الطباعة (${inPrintingOrders.length})`}
+                label={isMobile ? `طباعة (${inPrintingOrders.length})` : `في مرحلة الطباعة (${inPrintingOrders.length})`}
                 icon={<Print />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
                   minHeight: 56,
                   color: currentTab === 2 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0',
@@ -2032,13 +2048,13 @@ const DesignManagerDashboard = () => {
                 }}
               />
               <Tab
-                label="متابعة الدوام"
+                label={isMobile ? "الدوام" : "متابعة الدوام"}
                 icon={<AccessTime />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
                   minHeight: 56,
                   color: currentTab === 3 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0',
@@ -2049,13 +2065,13 @@ const DesignManagerDashboard = () => {
                 }}
               />
               <Tab
-                label={`التصاميم`}
+                label="التصاميم"
                 icon={<ImageIcon />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
                   minHeight: 56,
                   color: currentTab === 4 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0',
@@ -2066,13 +2082,13 @@ const DesignManagerDashboard = () => {
                 }}
               />
               <Tab
-                label="طلبات التصاميم"
+                label={isMobile ? "طلبات التصميم" : "طلبات التصاميم"}
                 icon={<FilterList />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
                   minHeight: 56,
                   color: currentTab === 5 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',

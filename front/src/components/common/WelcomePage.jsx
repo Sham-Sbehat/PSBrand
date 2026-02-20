@@ -7,6 +7,8 @@ import {
   Grid,
   Avatar,
   Container,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   EmojiEvents,
@@ -19,6 +21,8 @@ import { useApp } from "../../context/AppContext";
 import calmPalette from "../../theme/calmPalette";
 
 const WelcomePage = ({ onNewMessage }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { user } = useApp();
   
   // Motivational quotes for the wheel
@@ -240,13 +244,13 @@ const WelcomePage = ({ onNewMessage }) => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, px: { xs: 1.5, sm: 2 } }}>
       {/* Welcome Hero Section */}
       <Box
         sx={{
           background: "linear-gradient(135deg, rgba(94, 78, 62, 0.1) 0%, rgba(75, 61, 49, 0.05) 100%)",
           borderRadius: 4,
-          p: 2.5,
+          p: { xs: 2, sm: 2.5 },
           mb: 4,
           border: "1px solid rgba(94, 78, 62, 0.15)",
           position: "relative",
@@ -264,36 +268,49 @@ const WelcomePage = ({ onNewMessage }) => {
           },
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2.5, position: "relative", zIndex: 1 }}>
-          <Avatar
-            sx={{
-              width: 70,
-              height: 70,
-              bgcolor: calmPalette.primary,
-              fontSize: "1.8rem",
-              fontWeight: 700,
-              boxShadow: "0 8px 24px rgba(94, 78, 62, 0.2)",
-            }}
-          >
-            {user?.name?.charAt(0) || "م"}
-          </Avatar>
-          <Box sx={{ flex: 1 }}>
-            <Typography
-              variant="h4"
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: { xs: 1.5, sm: 2.5 },
+            position: "relative",
+            zIndex: 1,
+            flexWrap: "wrap",
+            flexDirection: { xs: "column", sm: "row" },
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 1.5, sm: 2.5 }, width: { xs: "100%", sm: "auto" }, flex: { xs: "none", sm: "1" }, order: 1 }}>
+            <Avatar
               sx={{
-                fontWeight: 800,
-                color: calmPalette.textPrimary,
-                mb: 0.5,
-                background: "linear-gradient(135deg, #5E4E3E 0%, #4B3D31 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
+                width: { xs: 56, sm: 70 },
+                height: { xs: 56, sm: 70 },
+                bgcolor: calmPalette.primary,
+                fontSize: { xs: "1.4rem", sm: "1.8rem" },
+                fontWeight: 700,
+                boxShadow: "0 8px 24px rgba(94, 78, 62, 0.2)",
               }}
             >
-              {getGreeting()}، {user?.name || "موظفنا العزيز"} 👋
-            </Typography>
-            <Typography variant="body1" sx={{ color: calmPalette.textSecondary, fontWeight: 500 }}>
-              نتمنى لك يوم عمل مثمر ومليء بالإنجازات! 🌟
-            </Typography>
+              {user?.name?.charAt(0) || "م"}
+            </Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 800,
+                  color: calmPalette.textPrimary,
+                  mb: 0.5,
+                  fontSize: { xs: "1.25rem", sm: "2rem" },
+                  background: "linear-gradient(135deg, #5E4E3E 0%, #4B3D31 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}
+              >
+                {getGreeting()}، {user?.name || "موظفنا العزيز"} 👋
+              </Typography>
+              <Typography variant="body1" sx={{ color: calmPalette.textSecondary, fontWeight: 500, fontSize: { xs: "0.875rem", sm: "1rem" } }}>
+                نتمنى لك يوم عمل مثمر ومليء بالإنجازات! 🌟
+              </Typography>
+            </Box>
           </Box>
           <Box
             sx={{
@@ -301,14 +318,16 @@ const WelcomePage = ({ onNewMessage }) => {
               gap: 2,
               flexDirection: "column",
               alignItems: "center",
+              order: { xs: 2, sm: 1 },
+              width: { xs: "100%", sm: "auto" },
             }}
           >
             {/* Motivational Wheel */}
             <Box
               sx={{
                 position: "relative",
-                width: 200,
-                height: 200,
+                width: { xs: 140, sm: 200 },
+                height: { xs: 140, sm: 200 },
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -318,8 +337,8 @@ const WelcomePage = ({ onNewMessage }) => {
               <Box
                 sx={{
                   position: "absolute",
-                  width: 180,
-                  height: 180,
+                  width: { xs: 126, sm: 180 },
+                  height: { xs: 126, sm: 180 },
                   borderRadius: "50%",
                   background: `conic-gradient(
                     ${motivationalQuotes.map((q, i) => 
@@ -340,15 +359,15 @@ const WelcomePage = ({ onNewMessage }) => {
               <Box
                 onClick={spinWheel}
                 sx={{
-                  width: 170,
-                  height: 170,
+                  width: { xs: 119, sm: 170 },
+                  height: { xs: 119, sm: 170 },
                   borderRadius: "50%",
                   background: `conic-gradient(
                     ${motivationalQuotes.map((q, i) => 
                       `${q.color} ${(i * 360) / motivationalQuotes.length}deg ${((i + 1) * 360) / motivationalQuotes.length}deg`
                     ).join(', ')}
                   )`,
-                  border: "10px solid rgba(255, 255, 255, 0.95)",
+                  border: { xs: "6px solid rgba(255, 255, 255, 0.95)", sm: "10px solid rgba(255, 255, 255, 0.95)" },
                   boxShadow: `
                     0 0 0 4px rgba(94, 78, 62, 0.1),
                     0 12px 48px rgba(94, 78, 62, 0.4),
@@ -375,11 +394,11 @@ const WelcomePage = ({ onNewMessage }) => {
                     top: "50%",
                     left: "50%",
                     transform: "translate(-50%, -50%)",
-                    width: "60px",
-                    height: "60px",
+                    width: { xs: "42px", sm: "60px" },
+                    height: { xs: "42px", sm: "60px" },
                     borderRadius: "50%",
                     background: "linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.9) 100%)",
-                    border: "5px solid rgba(94, 78, 62, 0.2)",
+                    border: { xs: "3px solid rgba(94, 78, 62, 0.2)", sm: "5px solid rgba(94, 78, 62, 0.2)" },
                     boxShadow: "inset 0 2px 8px rgba(94, 78, 62, 0.1), 0 4px 12px rgba(94, 78, 62, 0.2)",
                     zIndex: 2,
                   },
@@ -413,10 +432,10 @@ const WelcomePage = ({ onNewMessage }) => {
                         top: "50%",
                         left: "50%",
                         width: "2px",
-                        height: "85px",
+                        height: isMobile ? "60px" : "85px",
                         background: "rgba(255, 255, 255, 0.6)",
                         transformOrigin: "0 0",
-                        transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-85px)`,
+                        transform: `translate(-50%, -50%) rotate(${angle}deg) translateY(-${isMobile ? 60 : 85}px)`,
                         zIndex: 1,
                       }}
                     />
@@ -622,8 +641,8 @@ const WelcomePage = ({ onNewMessage }) => {
       </Box>
 
       {/* Motivational Cards */}
-      <Grid container spacing={3} sx={{ mb: 4, display: "flex", flexWrap: "nowrap" }}>
-        <Grid item xs={4} sm={4} md={4} sx={{ flex: "1 1 0", minWidth: 0 }}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={4} md={4}>
           <Card
             elevation={0}
             sx={{
@@ -658,7 +677,7 @@ const WelcomePage = ({ onNewMessage }) => {
           </Card>
         </Grid>
 
-        <Grid item xs={4} sm={4} md={4} sx={{ flex: "1 1 0", minWidth: 0 }}>
+        <Grid item xs={12} sm={4} md={4}>
           <Card
             elevation={0}
             sx={{
@@ -693,7 +712,7 @@ const WelcomePage = ({ onNewMessage }) => {
           </Card>
         </Grid>
 
-        <Grid item xs={4} sm={4} md={4} sx={{ flex: "1 1 0", minWidth: 0 }}>
+        <Grid item xs={12} sm={4} md={4}>
           <Card
             elevation={0}
             sx={{

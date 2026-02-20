@@ -26,6 +26,8 @@ import {
   Menu,
   ListItemIcon,
   ListItemText,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Search,
@@ -99,6 +101,9 @@ const DesignsFromDesignersTab = ({
   const [imageUrl, setImageUrl] = useState(null);
   const [imageViewDialogOpen, setImageViewDialogOpen] = useState(false);
   const [loadedImages, setLoadedImages] = useState(new Set()); // Track loaded images
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   // Load users for mapping IDs to names
   const loadUsers = async () => {
@@ -616,8 +621,15 @@ const DesignsFromDesignersTab = ({
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+      <Box sx={{
+        display: "flex",
+        flexDirection: { xs: "column", sm: "row" },
+        justifyContent: "space-between",
+        alignItems: { xs: "stretch", sm: "center" },
+        gap: 2,
+        mb: 3,
+      }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: "1.15rem", sm: "1.5rem" } }}>
           التصاميم الواردة من المصممين ({getFilteredAndSortedDesigns().length})
         </Typography>
         <Button
@@ -626,6 +638,7 @@ const DesignsFromDesignersTab = ({
           onClick={() => loadDesigns(designsPage, designsPageSize)}
           disabled={loadingDesigns}
           size="small"
+          sx={{ alignSelf: { xs: "stretch", sm: "inherit" } }}
         >
           تحديث
         </Button>
@@ -645,9 +658,11 @@ const DesignsFromDesignersTab = ({
         <Tabs
           value={statusTab}
           onChange={(e, newValue) => setStatusTab(newValue)}
-          variant="fullWidth"
+          variant={isMobile ? "scrollable" : "fullWidth"}
+          scrollButtons={isMobile ? "auto" : false}
+          allowScrollButtonsMobile
           sx={{
-            minHeight: 64,
+            minHeight: { xs: 48, sm: 64 },
             backgroundColor: "#f5f5f5",
             "& .MuiTabs-flexContainer": {
               gap: 0.75,
@@ -655,12 +670,13 @@ const DesignsFromDesignersTab = ({
               py: 0.75,
             },
             "& .MuiTab-root": {
-              minHeight: 56,
+              minHeight: { xs: 48, sm: 56 },
+              minWidth: { xs: "auto", sm: undefined },
               textTransform: "none",
-              fontSize: "0.875rem",
+              fontSize: { xs: "0.8rem", sm: "0.875rem" },
               fontWeight: 600,
               color: calmPalette.textSecondary,
-              px: 2,
+              px: { xs: 1.5, sm: 2 },
               py: 1.25,
               borderRadius: 1.5,
               transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -832,8 +848,8 @@ const DesignsFromDesignersTab = ({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           sx={{
-            flex: 1,
-            minWidth: 300,
+            flex: { xs: "1 1 100%", sm: 1 },
+            minWidth: { xs: 0, sm: 300 },
             "& .MuiOutlinedInput-root": {
               backgroundColor: "rgba(255, 255, 255, 0.9)",
             },
@@ -875,7 +891,8 @@ const DesignsFromDesignersTab = ({
             shrink: true,
           }}
           sx={{
-            minWidth: 180,
+            flex: { xs: "1 1 100%", sm: "0 0 auto" },
+            minWidth: { xs: 0, sm: 180 },
             "& .MuiOutlinedInput-root": {
               backgroundColor: "rgba(255, 255, 255, 0.9)",
             },
@@ -890,7 +907,8 @@ const DesignsFromDesignersTab = ({
           onChange={(e) => setDesignerFilter(e.target.value)}
           size="small"
           sx={{
-            minWidth: 180,
+            flex: { xs: "1 1 100%", sm: "0 0 auto" },
+            minWidth: { xs: 0, sm: 180 },
             "& .MuiOutlinedInput-root": {
               backgroundColor: "rgba(255, 255, 255, 0.9)",
             },
@@ -961,9 +979,10 @@ const DesignsFromDesignersTab = ({
             border: `1px solid ${calmPalette.primary}15`,
             boxShadow: "0 4px 20px rgba(94, 78, 62, 0.08)",
             overflow: "hidden",
+            overflowX: { xs: "auto", sm: "hidden" },
           }}
         >
-          <Table>
+          <Table sx={{ minWidth: { xs: 800, sm: undefined } }}>
             <TableHead>
               <TableRow 
                 sx={{ 
@@ -1248,7 +1267,14 @@ const DesignsFromDesignersTab = ({
                     </Box>
                   </TableCell>
                   <TableCell align="center">
-                    <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
+                    <Box sx={{
+                      display: "flex",
+                      gap: 1.5,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      ...(isMobile && { "& .MuiIconButton-root": { minWidth: 44, minHeight: 44 } }),
+                    }}>
                       <Tooltip title="عرض التصميم" arrow>
                         <IconButton
                           size="medium"
