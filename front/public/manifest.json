@@ -1,0 +1,17 @@
+{
+  "name": "PSBrand - نظام إدارة الطلبات",
+  "short_name": "PSBrand",
+  "description": "نظام إدارة طلبات تصميم البلايز",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f1eb",
+  "theme_color": "#5e4e3e",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "/PsLogo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/PsLogo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/PsLogo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/PsLogo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
