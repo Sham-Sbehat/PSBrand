@@ -1184,6 +1184,7 @@ const DesignsFromDesignersTab = ({
                               border: `1px solid ${calmPalette.primary}30`,
                               width: 32,
                               height: 32,
+                              ...(isMobile && { minWidth: 44, minHeight: 44 }),
                               transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                               "&:hover": {
                                 backgroundColor: `${calmPalette.primary}20`,
@@ -1255,6 +1256,7 @@ const DesignsFromDesignersTab = ({
                           sx={{
                             color: calmPalette.textSecondary,
                             padding: 0.5,
+                            ...(isMobile && { minWidth: 44, minHeight: 44 }),
                             "&:hover": {
                               backgroundColor: "rgba(94, 78, 62, 0.08)",
                               color: calmPalette.primary,
@@ -1313,6 +1315,7 @@ const DesignsFromDesignersTab = ({
                             border: `1px solid ${calmPalette.primary}30`,
                             width: 40,
                             height: 40,
+                            ...(isMobile && { minWidth: 44, minHeight: 44 }),
                             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                             "&:hover": {
                               backgroundColor: `${calmPalette.primary}20`,
@@ -1343,6 +1346,7 @@ const DesignsFromDesignersTab = ({
                             border: hasDesignNote(design) ? "1px solid rgba(139, 69, 19, 0.3)" : "1px solid transparent",
                             width: 40,
                             height: 40,
+                            ...(isMobile && { minWidth: 44, minHeight: 44 }),
                             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                             "&:hover": {
                               backgroundColor: hasDesignNote(design) ? "rgba(139, 69, 19, 0.25)" : "rgba(0, 0, 0, 0.04)",

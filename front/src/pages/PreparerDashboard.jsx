@@ -25,6 +25,8 @@ import {
   Snackbar,
   Alert,
   Popover,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import { Visibility, Assignment, Note, Search, CameraAlt, ArrowBack, Message as MessageIcon, Close, Refresh } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
@@ -68,6 +70,8 @@ const getPrintFiles = (design) => {
 const PreparerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
@@ -1602,83 +1606,104 @@ const InfoItem = ({ label, value }) => (
       onMessagesIconClick={() => setShowMessageNotification(false)}
     >
         {/* Stats Cards */}
-        <Grid container spacing={3} sx={{ marginBottom: 4 }}>
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
-            return (
-              <Grid item xs={12} sm={4} key={index}>
-                <Card
-                  onClick={stat.onClick || undefined}
-                  sx={{
-                    position: "relative",
-                    background: cardStyle.background,
-                    color: cardStyle.highlight,
-                    borderRadius: 4,
-                    boxShadow: calmPalette.shadow,
-                    overflow: "hidden",
-                    transition: "transform 0.2s, box-shadow 0.2s",
-                    backdropFilter: "blur(6px)",
-                    cursor: stat.onClick ? "pointer" : "default",
-                    "&::after": {
-                      content: '""',
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
-                      pointerEvents: "none",
-                    },
-                    "&:hover": {
-                      transform: "translateY(-5px)",
-                      boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
-                    },
-                  }}
-                >
-                  <CardContent>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Box>
-                        <Typography
-                          variant="h3"
-                          sx={{ fontWeight: 700, color: cardStyle.highlight }}
-                        >
-                          {stat.value}
-                        </Typography>
-                        <Typography
-                          variant="body1"
-                          sx={{
-                            marginTop: 1,
-                            color: "rgba(255, 255, 255, 0.8)",
-                          }}
-                        >
-                          {stat.title}
-                        </Typography>
+        <Box
+          sx={{
+            marginBottom: 4,
+            overflowX: { xs: "auto", sm: "visible" },
+            pb: { xs: 1, sm: 0 },
+            "&::-webkit-scrollbar": { height: 6 },
+            "&::-webkit-scrollbar-thumb": { borderRadius: 3, bgcolor: "rgba(94, 78, 62, 0.2)" },
+          }}
+        >
+          <Grid container spacing={3} sx={{ flexWrap: { xs: "nowrap", sm: "wrap" }, minWidth: { xs: "min-content", sm: undefined } }}>
+            {stats.map((stat, index) => {
+              const Icon = stat.icon;
+              const cardStyle = calmPalette.statCards[index % calmPalette.statCards.length];
+              return (
+                <Grid item xs={12} sm={4} key={index} sx={{ minWidth: { xs: 260, sm: 0 }, flex: { xs: "0 0 auto", sm: undefined } }}>
+                  <Card
+                    onClick={stat.onClick || undefined}
+                    sx={{
+                      position: "relative",
+                      background: cardStyle.background,
+                      color: cardStyle.highlight,
+                      borderRadius: 4,
+                      boxShadow: calmPalette.shadow,
+                      overflow: "hidden",
+                      transition: "transform 0.2s, box-shadow 0.2s",
+                      backdropFilter: "blur(6px)",
+                      cursor: stat.onClick ? "pointer" : "default",
+                      height: "100%",
+                      minHeight: { xs: 100, sm: undefined },
+                      "&::after": {
+                        content: '""',
+                        position: "absolute",
+                        inset: 0,
+                        background:
+                          "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 55%)",
+                        pointerEvents: "none",
+                      },
+                      "&:hover": {
+                        transform: "translateY(-5px)",
+                        boxShadow: "0 28px 50px rgba(46, 38, 31, 0.22)",
+                      },
+                    }}
+                  >
+                    <CardContent sx={{ py: { xs: 2, sm: 3 }, px: { xs: 2, sm: 3 } }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography
+                            variant="h3"
+                            sx={{ fontWeight: 700, color: cardStyle.highlight, fontSize: { xs: "2rem", sm: "3rem" } }}
+                          >
+                            {stat.value}
+                          </Typography>
+                          <Typography
+                            variant="body1"
+                            sx={{
+                              marginTop: 1,
+                              color: "rgba(255, 255, 255, 0.8)",
+                              fontSize: { xs: "0.8rem", sm: "1rem" },
+                            }}
+                          >
+                            {stat.title}
+                          </Typography>
+                        </Box>
+                        <Icon sx={{ fontSize: { xs: 40, sm: 56 }, color: cardStyle.highlight, flexShrink: 0 }} />
                       </Box>
-                      <Icon sx={{ fontSize: 56, color: cardStyle.highlight }} />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Box>
 
         {/* Tabs */}
-        <Box sx={{ marginBottom: 3 }}>
+        <Box sx={{ marginBottom: 3, overflow: "hidden" }}>
           <Tabs
             value={currentTab}
             onChange={handleTabChange}
-            variant="fullWidth"
+            variant={isMobile ? "scrollable" : "fullWidth"}
+            scrollButtons={isMobile ? "auto" : false}
+            allowScrollButtonsMobile
             sx={{
               backgroundColor: calmPalette.surface,
               borderRadius: 3,
               boxShadow: calmPalette.shadow,
               backdropFilter: "blur(8px)",
+              minHeight: { xs: 48, sm: 64 },
+              "& .MuiTab-root": {
+                minWidth: { xs: "auto", sm: undefined },
+                fontSize: { xs: "0.8rem", sm: "1rem" },
+                minHeight: { xs: 48, sm: 64 },
+              },
             }}
             TabIndicatorProps={{
               sx: {
@@ -1696,7 +1721,7 @@ const InfoItem = ({ label, value }) => (
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: "1rem",
+                fontSize: { xs: "0.8rem", sm: "1rem" },
                 color: calmPalette.textMuted,
                 "&.Mui-selected": {
                   color: "#f7f2ea",
@@ -1704,12 +1729,12 @@ const InfoItem = ({ label, value }) => (
               }}
             />
             <Tab
-              label="الطلبات المتاحة للتحضير"
+              label={isMobile ? "متاحة للتحضير" : "الطلبات المتاحة للتحضير"}
               icon={<Assignment />}
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: "1rem",
+                fontSize: { xs: "0.8rem", sm: "1rem" },
                 color: calmPalette.textMuted,
                 "&.Mui-selected": {
                   color: "#f7f2ea",
@@ -1722,7 +1747,7 @@ const InfoItem = ({ label, value }) => (
               iconPosition="start"
               sx={{
                 fontWeight: 600,
-                fontSize: "1rem",
+                fontSize: { xs: "0.8rem", sm: "1rem" },
                 color: calmPalette.textMuted,
                 "&.Mui-selected": {
                   color: "#f7f2ea",
@@ -1736,13 +1761,14 @@ const InfoItem = ({ label, value }) => (
         <Paper
           elevation={0}
           sx={{
-            padding: 4,
+            padding: { xs: 2, sm: 4 },
             borderRadius: 4,
             background: calmPalette.surface,
             boxShadow: calmPalette.shadow,
             backdropFilter: "blur(8px)",
+            overflow: "hidden",
           }}
-          >
+        >
           {currentTab === 0 && (
             <WelcomePage onNewMessage={newMessageReceived} />
           )}
@@ -1751,9 +1777,9 @@ const InfoItem = ({ label, value }) => (
           <Typography
             variant="h5"
             gutterBottom
-            sx={{ fontWeight: 700, marginBottom: 3 }}
+            sx={{ fontWeight: 700, marginBottom: 3, fontSize: { xs: "1.15rem", sm: "1.5rem" } }}
           >
-       الطلبات المتاحة للتحضير ({availableOrders.length})
+            الطلبات المتاحة للتحضير ({availableOrders.length})
           </Typography>
 
           {/* Search Field */}
@@ -1763,8 +1789,8 @@ const InfoItem = ({ label, value }) => (
                 marginBottom: 2,
                 marginTop: 2,
                 position: 'relative',
-                width: '30%',
-                minWidth: 400,
+                width: { xs: '100%', sm: '30%' },
+                minWidth: { xs: 0, sm: 400 },
               }}
             >
               <TextField

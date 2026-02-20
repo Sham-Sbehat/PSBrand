@@ -11,6 +11,8 @@ import {
   Snackbar,
   Alert,
   Paper,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Close,
@@ -36,6 +38,8 @@ import calmPalette from "../theme/calmPalette";
 const MainDesignerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
@@ -262,24 +266,33 @@ const MainDesignerDashboard = () => {
         <Paper
           elevation={0}
           sx={{
-            padding: 5,
+            padding: { xs: 2, sm: 5 },
             borderRadius: 4,
             background: calmPalette.surface,
             boxShadow: calmPalette.shadow,
             backdropFilter: "blur(8px)",
             mb: 3,
+            overflow: "hidden",
           }}
         >
-          <Box sx={{ marginBottom: 3 }}>
+          <Box sx={{ marginBottom: 3, overflow: "hidden" }}>
             <Tabs
               value={currentTab}
               onChange={(e, newValue) => setCurrentTab(newValue)}
-              variant="fullWidth"
+              variant={isMobile ? "scrollable" : "fullWidth"}
+              scrollButtons={isMobile ? "auto" : false}
+              allowScrollButtonsMobile
               sx={{
                 backgroundColor: calmPalette.surface,
                 borderRadius: 3,
                 boxShadow: calmPalette.shadow,
                 backdropFilter: "blur(8px)",
+                minHeight: { xs: 48, sm: 56 },
+                "& .MuiTab-root": {
+                  minWidth: { xs: "auto", sm: undefined },
+                  fontSize: { xs: "0.8rem", sm: "1rem" },
+                  minHeight: { xs: 48, sm: 56 },
+                },
               }}
               TabIndicatorProps={{
                 sx: {
@@ -298,8 +311,8 @@ const MainDesignerDashboard = () => {
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  minHeight: 56,
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
+                  minHeight: { xs: 48, sm: 56 },
                   color: currentTab === 0 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '12px 0 0 12px',
                   zIndex: 1,
@@ -309,14 +322,14 @@ const MainDesignerDashboard = () => {
                 }}
               />
               <Tab
-                label="التصاميم الواردة"
+                label={isMobile ? "الواردة" : "التصاميم الواردة"}
                 icon={<ImageIcon />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  minHeight: 56,
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
+                  minHeight: { xs: 48, sm: 56 },
                   color: currentTab === 1 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0',
                   zIndex: 1,
@@ -332,8 +345,8 @@ const MainDesignerDashboard = () => {
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  minHeight: 56,
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
+                  minHeight: { xs: 48, sm: 56 },
                   color: currentTab === 2 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0',
                   zIndex: 1,
@@ -343,14 +356,14 @@ const MainDesignerDashboard = () => {
                 }}
               />
               <Tab
-                label="إضافة تصميم جديد"
+                label={isMobile ? "إضافة" : "إضافة تصميم جديد"}
                 icon={<Add />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  minHeight: 56,
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
+                  minHeight: { xs: 48, sm: 56 },
                   color: currentTab === 3 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0',
                   zIndex: 1,
@@ -360,14 +373,14 @@ const MainDesignerDashboard = () => {
                 }}
               />
               <Tab
-                label="متابعة حالة التصاميم"
+                label={isMobile ? "المتابعة" : "متابعة حالة التصاميم"}
                 icon={<ImageIcon />}
                 iconPosition="start"
                 sx={{
                   textTransform: 'none',
                   fontWeight: 600,
-                  fontSize: '1rem',
-                  minHeight: 56,
+                  fontSize: { xs: '0.8rem', sm: '1rem' },
+                  minHeight: { xs: 48, sm: 56 },
                   color: currentTab === 4 ? '#ffffff' : calmPalette.textMuted,
                   borderRadius: '0 12px 12px 0',
                   zIndex: 1,

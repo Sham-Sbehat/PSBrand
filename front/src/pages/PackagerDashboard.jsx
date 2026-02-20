@@ -26,6 +26,8 @@ import {
   Alert,
   Popover,
   Checkbox,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Inventory,
@@ -62,6 +64,8 @@ import { getFullUrl } from "../utils";
 const PackagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
@@ -1548,24 +1552,28 @@ const PackagerDashboard = () => {
         <Paper
             elevation={0}
             sx={{
-              padding: 4,
+              padding: { xs: 2, sm: 4 },
               borderRadius: 3,
               background: calmPalette.surface,
               boxShadow: calmPalette.shadow,
               backdropFilter: "blur(8px)",
+              overflow: "hidden",
             }}
           >
           {/* Tabs */}
-          <Box sx={{ marginBottom: 3 }}>
+          <Box sx={{ marginBottom: 3, overflow: "hidden" }}>
             <Tabs
               value={currentTab}
               onChange={handleTabChange}
-              variant="fullWidth"
+              variant={isMobile ? "scrollable" : "fullWidth"}
+              scrollButtons={isMobile ? "auto" : false}
               sx={{
                 backgroundColor: calmPalette.surface,
                 borderRadius: 3,
                 boxShadow: calmPalette.shadow,
                 backdropFilter: "blur(8px)",
+                minHeight: { xs: 48, sm: undefined },
+                "& .MuiTab-root": { fontSize: { xs: "0.8rem", sm: "1rem" }, minHeight: { xs: 48, sm: undefined } },
               }}
               TabIndicatorProps={{
                 sx: {
@@ -1591,7 +1599,7 @@ const PackagerDashboard = () => {
                 }}
               />
               <Tab
-                label={`في مرحلة التغليف (${packagedOrders.length})`}
+                label={isMobile ? `التغليف (${packagedOrders.length})` : `في مرحلة التغليف (${packagedOrders.length})`}
                 icon={<Inventory />}
                 iconPosition="start"
                 sx={{
@@ -1604,7 +1612,7 @@ const PackagerDashboard = () => {
                 }}
               />
               <Tab
-                label={`الطلبات المكتملة (${completedOrders.length})`}
+                label={isMobile ? `المكتملة (${completedOrders.length})` : `الطلبات المكتملة (${completedOrders.length})`}
                 icon={<CheckCircle />}
                 iconPosition="start"
                 sx={{
@@ -1617,7 +1625,7 @@ const PackagerDashboard = () => {
                 }}
               />
               <Tab
-                label={`طلبات التوصيل المؤكدة (${confirmedDeliveryOrders.length})`}
+                label={isMobile ? `التوصيل (${confirmedDeliveryOrders.length})` : `طلبات التوصيل المؤكدة (${confirmedDeliveryOrders.length})`}
                 icon={<LocalShipping />}
                 iconPosition="start"
                 sx={{
@@ -1650,15 +1658,15 @@ const PackagerDashboard = () => {
                 gap: 2,
               }}
             >
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: "1.15rem", sm: "1.5rem" } }}>
               {currentTab === 1 && <Inventory sx={{ verticalAlign: "middle", mr: 1 }} />}
               {currentTab === 2 && <CheckCircle sx={{ verticalAlign: "middle", mr: 1 }} />}
               {currentTab === 3 && <LocalShipping sx={{ verticalAlign: "middle", mr: 1 }} />}
               {currentTab === 1 
-                ? `في مرحلة التغليف (${filteredOrders.length})`
+                ? (isMobile ? `التغليف (${filteredOrders.length})` : `في مرحلة التغليف (${filteredOrders.length})`)
                 : currentTab === 2
-                ? `الطلبات المكتملة (${filteredOrders.length})`
-                : `طلبات التوصيل المؤكدة (${filteredOrders.length})`
+                ? (isMobile ? `المكتملة (${filteredOrders.length})` : `الطلبات المكتملة (${filteredOrders.length})`)
+                : (isMobile ? `التوصيل (${filteredOrders.length})` : `طلبات التوصيل المؤكدة (${filteredOrders.length})`)
               }
             </Typography>
 
@@ -1725,7 +1733,7 @@ const PackagerDashboard = () => {
                     backdropFilter: 'blur(10px)',
                     borderRadius: 3,
                     boxShadow: '0 4px 20px rgba(94, 78, 62, 0.1)',
-                    minWidth: 200,
+                    minWidth: { xs: 140, sm: 200 },
                     cursor: 'pointer',
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 3,
@@ -1750,7 +1758,7 @@ const PackagerDashboard = () => {
                   }}
                 />
               )}
-              <Box sx={{ flex: 1, minWidth: 400, position: 'relative' }}>
+              <Box sx={{ flex: 1, minWidth: { xs: 0, sm: 400 }, position: 'relative' }}>
                 <TextField
                   fullWidth
                   size="small"

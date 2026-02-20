@@ -25,6 +25,8 @@ import {
   InputAdornment,
   Tabs,
   Tab,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Search,
@@ -50,6 +52,8 @@ import { parseNoteConversation, formatNoteConversationEntry } from "../../utils"
 
 const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onDesignRequestOpened }) => {
   const { user } = useApp();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [designs, setDesigns] = useState([]);
   const [allDesigns, setAllDesigns] = useState([]); // Store all designs for counting
   const [loading, setLoading] = useState(false);
@@ -677,9 +681,11 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
             setPage(0);
           }}
           TabIndicatorProps={{ style: { display: 'none' } }}
-          variant="fullWidth"
+          variant={isMobile ? "scrollable" : "fullWidth"}
+          scrollButtons={isMobile ? "auto" : false}
+          allowScrollButtonsMobile
           sx={{
-            minHeight: 72,
+            minHeight: { xs: 56, sm: 72 },
             backgroundColor: "#fafafa",
             "& .MuiTabs-flexContainer": {
               gap: 1,
@@ -687,17 +693,18 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
               py: 1,
             },
             "& .MuiTab-root": {
-              minHeight: 64,
+              minHeight: { xs: 48, sm: 64 },
+              minWidth: { xs: "auto", sm: undefined },
               textTransform: "none",
-              fontSize: "0.9rem",
+              fontSize: { xs: "0.8rem", sm: "0.9rem" },
               fontWeight: 600,
               color: calmPalette.textSecondary,
-              px: 1.5,
+              px: { xs: 1, sm: 1.5 },
               py: 1.5,
               borderRadius: 2,
               transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
               border: "1px solid transparent",
-              flex: 1,
+              flex: isMobile ? undefined : 1,
               "&:hover:not(.Mui-selected)": {
                 backgroundColor: "rgba(255, 255, 255, 0.9)",
                 transform: "translateY(-2px)",
@@ -723,9 +730,9 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
               },
             }}
             label={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
-                  قيد التنفيذ
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: { xs: 0.75, sm: 1.5 } }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
+                  {isMobile ? "التنفيذ" : "قيد التنفيذ"}
                 </Typography>
                 <Chip
                   label={statusCounts[2]}
@@ -757,9 +764,9 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
               },
             }}
             label={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
-                  قيد المراجعة
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: { xs: 0.75, sm: 1.5 } }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
+                  {isMobile ? "المراجعة" : "قيد المراجعة"}
                 </Typography>
                 <Chip
                   label={statusCounts[3]}
@@ -791,9 +798,9 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
               },
             }}
             label={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
-                  بحاجة لتعديل
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: { xs: 0.75, sm: 1.5 } }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
+                  {isMobile ? "لتعديل" : "بحاجة لتعديل"}
                 </Typography>
                 <Chip
                   label={statusCounts[4]}
@@ -825,8 +832,8 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
               },
             }}
             label={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: { xs: 0.75, sm: 1.5 } }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
                   جاهز
                 </Typography>
                 <Chip
@@ -859,9 +866,9 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
               },
             }}
             label={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
-                  تم رفع التصميم
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: { xs: 0.75, sm: 1.5 } }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
+                  {isMobile ? "تم الرفع" : "تم رفع التصميم"}
                 </Typography>
                 <Chip
                   label={statusCounts[7]}
@@ -893,8 +900,8 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
               },
             }}
             label={
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: "0.9rem" }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: { xs: 0.75, sm: 1.5 } }}>
+                <Typography variant="body2" sx={{ fontWeight: "inherit", fontSize: { xs: "0.8rem", sm: "0.9rem" } }}>
                   ملغي
                 </Typography>
                 <Chip
@@ -918,7 +925,7 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
       </Box>
 
       {/* Search Field */}
-      <Box sx={{ mb: 3, width: "450px" }}>
+      <Box sx={{ mb: 3, width: { xs: "100%", sm: "450px" } }}>
         <TextField
           fullWidth
           size="small"
@@ -958,7 +965,7 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
         <Paper
           elevation={0}
           sx={{
-            p: 4,
+            p: { xs: 3, sm: 4 },
             textAlign: "center",
             backgroundColor: "rgba(255, 255, 255, 0.6)",
             borderRadius: 2,
@@ -989,9 +996,10 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
             border: `1px solid ${calmPalette.primary}15`,
             boxShadow: "0 4px 20px rgba(94, 78, 62, 0.08)",
             overflow: "hidden",
+            overflowX: { xs: "auto", sm: "hidden" },
           }}
         >
-          <Table>
+          <Table sx={{ minWidth: { xs: 800, sm: undefined } }}>
             <TableHead>
               <TableRow
                 sx={{
@@ -1188,7 +1196,7 @@ const MyDesignsTab = ({ designRequestsRefreshKey = 0, designRequestIdToOpen, onD
                       </Typography>
                     </TableCell>
                     <TableCell align="center">
-                      <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+                      <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", flexWrap: "wrap", alignItems: "center", ...(isMobile && { "& .MuiIconButton-root": { minWidth: 44, minHeight: 44 } }) }}>
                         <Tooltip title="عرض التفاصيل" arrow>
                           <IconButton
                             size="small"

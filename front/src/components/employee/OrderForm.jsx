@@ -31,6 +31,8 @@ import {
   Checkbox,
   FormControlLabel,
   Tooltip,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import { ExpandMore } from "@mui/icons-material";
 import {
@@ -171,6 +173,9 @@ const OrderForm = ({
   // Dirty state management to prevent duplicate submissions
   const [isDirty, setIsDirty] = useState(false);
   const [lastSubmittedData, setLastSubmittedData] = useState(null);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   // Get employee ID from URL
   const employeeIdFromUrl = searchParams.get("employeeId");
@@ -1652,7 +1657,7 @@ const OrderForm = ({
   };
 
   return (
-    <Box>
+    <Box sx={{ pb: { xs: 10, sm: 4 } }}>
       {/* Add Customer Button - Outside the form */}
       {!isEditMode && (
         <Box sx={{ mb: 3, display: "flex", justifyContent: "flex-end", gap: 2 }}>
@@ -1667,11 +1672,11 @@ const OrderForm = ({
         </Box>
       )}
 
-      <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
+      <Paper elevation={3} sx={{ padding: { xs: 2, sm: 4 }, pb: { xs: 4, sm: 4 }, borderRadius: 3 }}>
         <Typography
           variant="h5"
           gutterBottom
-          sx={{ textAlign: "center", mb: 3 }}
+          sx={{ textAlign: "center", mb: 3, fontSize: { xs: "1.25rem", sm: "1.5rem" } }}
         >
           <Assignment sx={{ mr: 1, verticalAlign: "middle" }} />
           {isEditMode ? "تعديل الطلب" : "إنشاء طلب جديد"}
@@ -2021,7 +2026,7 @@ const OrderForm = ({
                   <Grid item xs={12} sm={6}>
                     <Autocomplete
                       fullWidth
-                      sx={{ minWidth: "350px" }}
+                      sx={{ minWidth: { xs: 0, sm: "350px" } }}
                       options={dialogAreas}
                       getOptionLabel={(option) =>
                         option.name ||
@@ -2361,15 +2366,15 @@ const OrderForm = ({
           <Grid item xs={12} sx={{ width: "100%" }}>
             <Paper
               elevation={2}
-              sx={{ p: 3, bgcolor: "grey.50", width: "100%" }}
+              sx={{ p: { xs: 2, sm: 3 }, bgcolor: "grey.50", width: "100%", minWidth: 0 }}
             >
-              <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>
+              <Typography variant="h6" sx={{ mb: 2, color: "primary.main", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
                 معلومات شركة التوصيل
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
-                    sx={{ minWidth: "250px" }}
+                    sx={{ minWidth: { xs: 0, sm: "250px" } }}
                     fullWidth
                     required
                     label="العنوان"
@@ -2392,7 +2397,7 @@ const OrderForm = ({
                 <Grid item xs={12} sm={8} md={6}>
                   <Autocomplete
                     fullWidth
-                    sx={{ minWidth: "250px" }}
+                    sx={{ minWidth: { xs: 0, sm: "250px" } }}
                     options={cities}
                     getOptionLabel={(option) =>
                       option.arabicCityName ||
@@ -2517,7 +2522,7 @@ const OrderForm = ({
                 <Grid item xs={12} sm={8} md={6}>
                   <Autocomplete
                     fullWidth
-                    sx={{ minWidth: "350px" }}
+                    sx={{ minWidth: { xs: 0, sm: "350px" } }}
                     options={areas}
                     getOptionLabel={(option) =>
                       option.name ||
@@ -2655,7 +2660,7 @@ const OrderForm = ({
             <Paper
               elevation={2}
               sx={{
-                p: 3,
+                p: { xs: 2, sm: 3 },
                 width: "100%",
                 maxWidth: "100%",
                 minWidth: 0,
@@ -2666,7 +2671,7 @@ const OrderForm = ({
                 },
               }}
             >
-              <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>
+              <Typography variant="h6" sx={{ mb: 2, color: "primary.main", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
                 إضافة الطلبات
               </Typography>
 
@@ -2715,9 +2720,10 @@ const OrderForm = ({
                         alignItems: "center",
                         width: "100%",
                         pr: 2,
+                        minWidth: 0,
                       }}
                     >
-                      <Typography variant="h6" sx={{ color: "primary.main" }}>
+                      <Typography variant="h6" sx={{ color: "primary.main", fontSize: { xs: "0.95rem", sm: "1rem" }, overflow: "hidden", textOverflow: "ellipsis" }}>
                         {order.orderName || `طلب ${index + 1}`}
                       </Typography>
                       <IconButton
@@ -2727,7 +2733,7 @@ const OrderForm = ({
                           e.stopPropagation();
                           removeOrder(order.id);
                         }}
-                        sx={{ ml: "auto" }}
+                        sx={{ ml: "auto", ...(isMobile && { minWidth: 44, minHeight: 44 }) }}
                       >
                         <Delete />
                       </IconButton>
@@ -3307,10 +3313,10 @@ const OrderForm = ({
 
               {/* Notes Section */}
               <Grid item xs={12}>
-                <Paper elevation={2} sx={{ p: 3, bgcolor: "grey.50", mt: 2 }}>
+                <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, bgcolor: "grey.50", mt: 2 }}>
                   <Typography
                     variant="h6"
-                    sx={{ mb: 2, color: "primary.main" }}
+                    sx={{ mb: 2, color: "primary.main", fontSize: { xs: "1rem", sm: "1.25rem" } }}
                   >
                     الملاحظات
                   </Typography>
@@ -3322,6 +3328,8 @@ const OrderForm = ({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="أضف أي ملاحظات خاصة بالطلب هنا..."
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ "& .MuiOutlinedInput-root": { backgroundColor: "#fff" } }}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -3335,17 +3343,17 @@ const OrderForm = ({
 
               {/* Order Total Section */}
               <Grid item xs={12}>
-                <Paper elevation={2} sx={{ p: 3, bgcolor: "grey.50", mt: 2 }}>
+                <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, bgcolor: "grey.50", mt: 2 }}>
                   <Typography
                     variant="h6"
-                    sx={{ mb: 2, color: "primary.main" }}
+                    sx={{ mb: 2, color: "primary.main", fontSize: { xs: "1rem", sm: "1.25rem" } }}
                   >
                     ملخص الطلب
                   </Typography>
-                  <Grid container spacing={2} alignItems="center">
+                  <Grid container spacing={{ xs: 3, sm: 2 }} alignItems="stretch">
                     <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth required error={!!regionError}>
-                        <InputLabel id="region-select-label">
+                      <FormControl fullWidth required error={!!regionError} sx={{ minWidth: 0 }}>
+                        <InputLabel id="region-select-label" shrink>
                           اسم المنطقة
                         </InputLabel>
                         <Select
@@ -3353,7 +3361,7 @@ const OrderForm = ({
                           label="اسم المنطقة"
                           value={selectedRegion}
                           onChange={handleRegionChange}
-                          sx={{ minWidth: 200 }}
+                          sx={{ minWidth: { xs: 0, sm: 200 } }}
                         >
                           {deliveryRegions.map((r, idx) => (
                             <MenuItem key={idx} value={r.name || r}>
@@ -3369,6 +3377,8 @@ const OrderForm = ({
                         label="سعر التوصيل"
                         type="number"
                         value={deliveryPrice}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ minWidth: 0 }}
                         InputProps={{
                           readOnly: true,
                           startAdornment: (
@@ -3386,6 +3396,8 @@ const OrderForm = ({
                         select
                         value={discountType}
                         onChange={(e) => setDiscountType(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ minWidth: 0 }}
                       >
                         <MenuItem value="percentage">نسبة %</MenuItem>
                         <MenuItem value="fixed">مبلغ ثابت</MenuItem>
@@ -3404,6 +3416,8 @@ const OrderForm = ({
                         onChange={(e) =>
                           setDiscount(parseFloat(e.target.value) || 0)
                         }
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ minWidth: 0 }}
                         InputProps={{
                           endAdornment: (
                             <InputAdornment position="end">
@@ -3414,13 +3428,15 @@ const OrderForm = ({
                       />
                     </Grid>
                   </Grid>
-                  <Grid container spacing={2} sx={{ mt: 3 }}>
+                  <Grid container spacing={{ xs: 3, sm: 2 }} sx={{ mt: { xs: 3, sm: 3 } }}>
                     <Grid item xs={12} sm={4}>
                       <TextField
                         fullWidth
                         label="سعر الطلب"
                         type="number"
                         disabled
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ minWidth: 0 }}
                         value={orders
                           .reduce(
                             (sum, order) =>
@@ -3450,6 +3466,8 @@ const OrderForm = ({
                         onChange={(e) =>
                           setAdditionalPrice(parseFloat(e.target.value) || 0)
                         }
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ minWidth: 0 }}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
@@ -3578,6 +3596,7 @@ const OrderForm = ({
                         label="المجموع الكلي"
                         type="number"
                         disabled
+                        InputLabelProps={{ shrink: true }}
                         value={(() => {
                           const orderTotal = orders.reduce(
                             (sum, order) =>
@@ -3609,6 +3628,7 @@ const OrderForm = ({
                           ),
                         }}
                         sx={{
+                          minWidth: 0,
                           "& .MuiInputBase-root": {
                             backgroundColor: "primary.light",
                             fontWeight: 600,
@@ -3627,8 +3647,10 @@ const OrderForm = ({
                     display: "flex",
                     justifyContent: "center",
                     mt: 2,
+                    mb: { xs: 2, sm: 0 },
                     gap: 2,
                     flexWrap: "wrap",
+                    pb: { xs: 2, sm: 0 },
                   }}
                 >
                   {isEditMode && onCancel && (
@@ -3637,7 +3659,7 @@ const OrderForm = ({
                       size="large"
                       onClick={onCancel}
                       disabled={isSubmitting}
-                      sx={{ minWidth: 160, py: 1.5 }}
+                      sx={{ minWidth: { xs: "100%", sm: 160 }, py: 1.5 }}
                     >
                       إلغاء
                     </Button>
@@ -3656,7 +3678,7 @@ const OrderForm = ({
                         <Assignment />
                       )
                     }
-                    sx={{ minWidth: 200, py: 1.5 }}
+                    sx={{ minWidth: { xs: "100%", sm: 200 }, py: 1.5 }}
                   >
                     {isSubmitting
                       ? "جاري الإرسال..."

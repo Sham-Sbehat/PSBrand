@@ -19,6 +19,8 @@ import {
   Card,
   CardContent,
   InputAdornment,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Person,
@@ -40,7 +42,9 @@ import {
 const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) => {
   const { user } = useApp();
   const isEditMode = !!initialDepositOrder;
-  
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -288,7 +292,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
   const selectedClient = allClients.find((c) => c.id === Number(watch("clientId")));
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: { xs: 2, sm: 2 }, pb: { xs: 10, sm: 2 } }}>
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
@@ -305,8 +309,8 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
         <Grid container spacing={2}>
           {/* Customer Info Section in Form - Always visible */}
           <Grid item xs={12}>
-            <Paper elevation={2} sx={{ p: 3, bgcolor: "grey.50" }}>
-              <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>
+            <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 }, bgcolor: "grey.50" }}>
+              <Typography variant="h6" sx={{ mb: 2, color: "primary.main", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
                 معلومات العميل والموقع
               </Typography>
               <Grid container spacing={2}>
@@ -542,17 +546,18 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
           <Grid item xs={12} sx={{ width: "100%" }}>
             <Paper
               elevation={2}
-              sx={{ p: 3, bgcolor: "grey.50", width: "100%" }}
+              sx={{ p: { xs: 2, sm: 3 }, bgcolor: "grey.50", width: "100%", minWidth: 0 }}
             >
-              <Typography variant="h6" sx={{ mb: 2, color: "primary.main" }}>
+              <Typography variant="h6" sx={{ mb: 2, color: "primary.main", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
                 معلومات شركة التوصيل
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
-                    sx={{ minWidth: "250px" }}
+                    sx={{ minWidth: { xs: 0, sm: "250px" } }}
                     fullWidth
                     label="العنوان *"
+                    InputLabelProps={{ shrink: true }}
                     {...register("clientAddress", {
                       required: "يجب إدخال العنوان",
                     })}
@@ -580,7 +585,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                       return (
                         <Autocomplete
                           fullWidth
-                          sx={{ minWidth: "200px" }}
+                          sx={{ minWidth: { xs: 0, sm: "200px" } }}
                           options={cities}
                           getOptionLabel={(option) =>
                             option.arabicCityName ||
@@ -606,6 +611,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                               variant="outlined"
                               error={!!error}
                               helperText={error?.message}
+                              InputLabelProps={{ ...params.InputLabelProps, shrink: true }}
                               sx={{
                                 "& .MuiOutlinedInput-root": {
                                   backgroundColor: "#f5f5f5",
@@ -713,7 +719,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                       return (
                         <Autocomplete
                           fullWidth
-                          sx={{ minWidth: "270px" }}
+                          sx={{ minWidth: { xs: 0, sm: "270px" } }}
                           options={areas}
                           getOptionLabel={(option) =>
                             option.name ||
@@ -740,6 +746,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                               variant="outlined"
                               error={!!error}
                               helperText={error?.message}
+                              InputLabelProps={{ shrink: true }}
                               sx={{
                                 "& .MuiOutlinedInput-root": {
                                   backgroundColor: "#f5f5f5",
@@ -843,8 +850,8 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
 
           {/* المعلومات المالية */}
           <Grid item xs={12}>
-            <Paper elevation={0} sx={{ p: 2.5, bgcolor: "background.paper", borderRadius: 2 }}>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: "primary.main" }}>
+            <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, bgcolor: "background.paper", borderRadius: 2 }}>
+              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: "primary.main", fontSize: { xs: "0.95rem", sm: "1rem" } }}>
                 المعلومات المالية
               </Typography>
               <Grid container spacing={2}>
@@ -860,14 +867,16 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                     })}
                     error={!!errors.totalAmount}
                     helperText={errors.totalAmount?.message}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ minWidth: 0 }}
                     InputProps={{
                       startAdornment: <AttachMoney sx={{ mr: 1, color: "text.secondary" }} />,
                     }}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth required error={!!regionError}>
-                    <InputLabel id="region-select-label">
+                  <FormControl fullWidth required error={!!regionError} sx={{ minWidth: 0 }}>
+                    <InputLabel id="region-select-label" shrink>
                       اسم المنطقة
                     </InputLabel>
                     <Select
@@ -875,7 +884,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                       label="اسم المنطقة"
                       value={selectedRegion}
                       onChange={handleRegionChange}
-                      sx={{ minWidth: 295 }}
+                      sx={{ minWidth: { xs: 0, sm: 295 } }}
                     >
                       {deliveryRegions.map((r, idx) => (
                         <MenuItem key={idx} value={r.name || r}>
@@ -894,6 +903,8 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                     label="سعر التوصيل"
                     type="number"
                     value={watch("deliveryFee") || 0}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ minWidth: 0 }}
                     InputProps={{
                       readOnly: true,
                       startAdornment: (
@@ -910,8 +921,8 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
 
           {/* الملاحظات */}
           <Grid item xs={12}>
-            <Paper elevation={0} sx={{ p: 2.5, bgcolor: "background.paper", borderRadius: 2 }}>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: "primary.main" }}>
+            <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, bgcolor: "background.paper", borderRadius: 2 }}>
+              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: "primary.main", fontSize: { xs: "0.95rem", sm: "1rem" } }}>
                 الملاحظات
               </Typography>
               <Grid container spacing={2}>
@@ -923,6 +934,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                     label="ملاحظات عامة"
                     {...register("notes")}
                     placeholder="أي ملاحظات إضافية..."
+                    InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -933,6 +945,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                     label="ملاحظات شركة التوصيل"
                     {...register("shippingNotes")}
                     placeholder="ملاحظات خاصة بشركة التوصيل..."
+                    InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
               </Grid>
@@ -941,13 +954,13 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
 
           {/* أزرار الإجراءات */}
           <Grid item xs={12}>
-            <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end", mt: 15 }}>
+            <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end", flexWrap: "wrap", mt: { xs: 3, sm: 15 }, mb: { xs: 2, sm: 0 }, pb: { xs: 2, sm: 0 } }}>
               <Button
                 variant="outlined"
                 onClick={handleCancel}
                 disabled={loading}
                 startIcon={<Cancel />}
-                sx={{ minWidth: 120 }}
+                sx={{ minWidth: { xs: "100%", sm: 120 } }}
               >
                 إلغاء
               </Button>
@@ -957,7 +970,7 @@ const DepositOrderForm = ({ onSuccess, onCancel, initialDepositOrder = null }) =
                 disabled={loading}
                 startIcon={loading ? <CircularProgress size={20} /> : <Save />}
                 sx={{
-                  minWidth: 120,
+                  minWidth: { xs: "100%", sm: 120 },
                   background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                   "&:hover": {
                     background: "linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%)",
