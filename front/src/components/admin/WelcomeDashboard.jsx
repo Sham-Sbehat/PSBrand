@@ -15,6 +15,7 @@ import {
   Chip,
   Avatar,
   useTheme,
+  useMediaQuery,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -107,6 +108,7 @@ const getShiftLabel = (shiftTime) => {
 
 const WelcomeDashboard = () => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { user, employees, loadEmployees } = useApp();
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState([]);
@@ -738,11 +740,10 @@ const WelcomeDashboard = () => {
                 padding: { xs: 2, sm: 3, md: 4 },
                 boxShadow: "0 8px 32px rgba(139, 69, 19, 0.15)",
                 backdropFilter: "blur(10px)",
-                height: 450,
-                width:700,
+                width: isMobile ? "100%" : 700,
+                ...(isMobile ? { minHeight: 320, height: "auto", overflow: "visible" } : { height: 450, overflow: "hidden" }),
                 border: "1px solid rgba(139, 69, 19, 0.1)",
                 position: "relative",
-                overflow: "hidden",
                 "&::before": {
                   content: '""',
                   position: "absolute",
@@ -1022,15 +1023,20 @@ const WelcomeDashboard = () => {
                   />
                 </Box>
               )}
-              <ResponsiveContainer width="100%" height={350}>
-                <RechartsBarChart data={ordersChartData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+              {isMobile ? (
+              <Box sx={{ width: "100%", height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                <RechartsBarChart
+                  data={ordersChartData}
+                  margin={{ top: 20, right: 8, left: 0, bottom: 60 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
                   <XAxis
                     dataKey="name"
-                    tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }}
+                    tick={{ fill: "#2C1810", fontSize: 11, fontWeight: 600 }}
                     angle={-45}
                     textAnchor="end"
-                    height={100}
+                    height={70}
                   />
                   <YAxis 
                     tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }} 
@@ -1066,7 +1072,37 @@ const WelcomeDashboard = () => {
                     </linearGradient>
                   </defs>
                 </RechartsBarChart>
+                </ResponsiveContainer>
+              </Box>
+              ) : (
+              <ResponsiveContainer width="100%" height={350}>
+                <RechartsBarChart data={ordersChartData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                  />
+                  <YAxis
+                    tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }}
+                    label={{ value: "عدد الطلبات", angle: -90, position: "insideLeft", fill: "#2C1810", fontSize: 13, fontWeight: 600 }}
+                  />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(139, 69, 19, 0.1)" }} />
+                  <Bar dataKey="orders" fill="url(#colorOrders)" radius={[10, 10, 0, 0]} name="عدد الطلبات" paddingTop="50px">
+                    <LabelList dataKey="orders" position="top" style={{ fill: "#2C1810", fontSize: "14px", fontWeight: 700, fontFamily: "Cairo, Tajawal, sans-serif" }} />
+                  </Bar>
+                  <defs>
+                    <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6B8E7F" stopOpacity={1} />
+                      <stop offset="50%" stopColor="#8B7FA8" stopOpacity={0.9} />
+                      <stop offset="95%" stopColor="#D4A574" stopOpacity={0.8} />
+                    </linearGradient>
+                  </defs>
+                </RechartsBarChart>
               </ResponsiveContainer>
+              )}
             </Paper>
           </Grid>
 
@@ -1082,11 +1118,10 @@ const WelcomeDashboard = () => {
                 padding: { xs: 2, sm: 3, md: 4 },
                 boxShadow: "0 10px 40px rgba(139, 69, 19, 0.12), 0 2px 8px rgba(139, 69, 19, 0.08)",
                 backdropFilter: "blur(10px)",
-                height: 450,
-                width:700,
+                width: isMobile ? "100%" : 700,
+                ...(isMobile ? { minHeight: 320, height: "auto", overflow: "visible" } : { height: 450, overflow: "hidden" }),
                 border: "1px solid rgba(139, 69, 19, 0.12)",
                 position: "relative",
-                overflow: "hidden",
                 transition: "all 0.3s ease",
                 "&:hover": {
                   boxShadow: "0 15px 50px rgba(139, 69, 19, 0.18), 0 4px 12px rgba(139, 69, 19, 0.12)",
@@ -1240,25 +1275,22 @@ const WelcomeDashboard = () => {
                   />
                 </Box>
               )}
-              <ResponsiveContainer width="100%" height={400}>
-                <RechartsPieChart margin={{ top: 20, right: 60, bottom: 40, left: 60 }}>
+              {isMobile ? (
+              <Box sx={{ width: "100%", height: 280 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                <RechartsPieChart margin={isMobile ? { top: 20, right: 10, bottom: 20, left: 10 } : { top: 20, right: 60, bottom: 40, left: 60 }}>
                   <Pie
                     data={revenueChartData}
                     cx="50%"
                     cy="50%"
                     label={({ name, percent }) => {
                       const percentage = (percent * 100).toFixed(0);
-                      if (percentage < 8) return null; // فقط عرض labels للشرائح الكبيرة
+                      if (percentage < 8) return null;
                       return `${name} (${percentage}%)`;
                     }}
-                    labelLine={{
-                      stroke: "#2C1810",
-                      strokeWidth: 1.5,
-                      strokeLinecap: "round",
-                      strokeDasharray: "0"
-                    }}
-                    outerRadius={110}
-                    innerRadius={65}
+                    labelLine={{ stroke: "#2C1810", strokeWidth: 1.5, strokeLinecap: "round", strokeDasharray: "0" }}
+                    outerRadius={isMobile ? 75 : 110}
+                    innerRadius={isMobile ? 40 : 65}
                     fill="#8884d8"
                     dataKey="revenue"
                     paddingAngle={3}
@@ -1363,7 +1395,56 @@ const WelcomeDashboard = () => {
                     iconSize={18}
                   />
                 </RechartsPieChart>
+                </ResponsiveContainer>
+              </Box>
+              ) : (
+              <ResponsiveContainer width="100%" height={400}>
+                <RechartsPieChart margin={{ top: 20, right: 60, bottom: 40, left: 60 }}>
+                  <Pie
+                    data={revenueChartData}
+                    cx="50%"
+                    cy="50%"
+                    label={({ name, percent }) => {
+                      const percentage = (percent * 100).toFixed(0);
+                      if (percentage < 8) return null;
+                      return `${name} (${percentage}%)`;
+                    }}
+                    labelLine={{ stroke: "#2C1810", strokeWidth: 1.5, strokeLinecap: "round", strokeDasharray: "0" }}
+                    outerRadius={110}
+                    innerRadius={65}
+                    fill="#8884d8"
+                    dataKey="revenue"
+                    paddingAngle={3}
+                  >
+                    {revenueChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#ffffff" strokeWidth={3} />
+                    ))}
+                  </Pie>
+                  {revenueChartData.length === 0 ? (
+                    <>
+                      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: "18px", fontWeight: 700, fill: "#8B7FA8", fontFamily: "Cairo, Tajawal, sans-serif" }}>لا توجد بيانات</text>
+                      <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: "14px", fontWeight: 500, fill: "#D4A574", fontFamily: "Cairo, Tajawal, sans-serif" }}>للفترة المحددة</text>
+                    </>
+                  ) : (
+                    <text x="50%" y="55%" textAnchor="middle" dominantBaseline="middle" style={{ fontSize: "22px", fontWeight: 800, fill: "#6B5F7A", fontFamily: "Cairo, Tajawal, sans-serif" }}></text>
+                  )}
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <Paper sx={{ padding: 2, backgroundColor: "rgba(255, 255, 255, 0.98)", boxShadow: "0 6px 20px rgba(0,0,0,0.2)", borderRadius: 3, border: "2px solid #8B7FA8" }}>
+                            <Typography variant="body1" sx={{ fontWeight: 700, mb: 0.5, color: "#2C1810", fontSize: "1rem" }}>{payload[0].payload.name}</Typography>
+                            <Typography variant="body2" sx={{ color: payload[0].color, fontWeight: 600, fontSize: "0.95rem" }}>المبلغ: {payload[0].value.toLocaleString()} ₪</Typography>
+                          </Paper>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend wrapperStyle={{ color: "#2C1810", fontWeight: 700, fontSize: "0.8rem", paddingBottom: "40px" }} formatter={(value) => { const data = revenueChartData.find(d => d.name === value); if (data) { const total = revenueChartData.reduce((sum, item) => sum + item.revenue, 0); const percent = total > 0 ? ((data.revenue / total) * 100).toFixed(0) : 0; return `${value}: ${data.revenue.toLocaleString()} ₪ (${percent}%)`; } return value; }} iconType="circle" iconSize={18} />
+                </RechartsPieChart>
               </ResponsiveContainer>
+              )}
             </Paper>
           </Grid>
 
@@ -1379,11 +1460,10 @@ const WelcomeDashboard = () => {
                 padding: { xs: 2, sm: 3, md: 4 },
                 boxShadow: "0 10px 40px rgba(139, 69, 19, 0.12), 0 2px 8px rgba(139, 69, 19, 0.08)",
                 backdropFilter: "blur(10px)",
-                height: 450,
-                width:700,
+                width: isMobile ? "100%" : 700,
+                ...(isMobile ? { minHeight: 320, height: "auto", overflow: "visible" } : { height: 450, overflow: "hidden" }),
                 border: "1px solid rgba(139, 69, 19, 0.12)",
                 position: "relative",
-                overflow: "hidden",
                 transition: "all 0.3s ease",
                 "&:hover": {
                   boxShadow: "0 15px 50px rgba(139, 69, 19, 0.18), 0 4px 12px rgba(139, 69, 19, 0.12)",
@@ -1591,21 +1671,22 @@ const WelcomeDashboard = () => {
                     لا توجد بيانات لأنواع القماش في الفترة المحددة
                   </Typography>
                 </Box>
-              ) : (
-                <ResponsiveContainer width="100%" height={450}>
-                  <RechartsBarChart 
-                    data={fabricTypeChartData} 
-                    margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+              ) : isMobile ? (
+                <Box sx={{ width: "100%", height: 280 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart
+                    data={fabricTypeChartData}
+                    margin={{ top: 20, right: 8, left: 0, bottom: 70 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
                     <XAxis
                       dataKey="fabricType"
-                      tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }}
+                      tick={{ fill: "#2C1810", fontSize: 10, fontWeight: 600 }}
                       angle={-45}
                       textAnchor="end"
-                      height={100}
-                      dy={38}
-                      dx={-35}
+                      height={70}
+                      dy={28}
+                      dx={-20}
                     />
                     <YAxis 
                       tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }} 
@@ -1683,6 +1764,28 @@ const WelcomeDashboard = () => {
                       </linearGradient>
                     </defs>
                   </RechartsBarChart>
+                  </ResponsiveContainer>
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height={450}>
+                  <RechartsBarChart data={fabricTypeChartData} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
+                    <XAxis dataKey="fabricType" tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }} angle={-45} textAnchor="end" height={100} dy={38} dx={-35} />
+                    <YAxis tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }} label={{ value: "الكمية", angle: -90, position: "insideLeft", fill: "#2C1810", fontSize: 13, fontWeight: 600 }} />
+                    <Tooltip content={({ active, payload }) => { if (active && payload && payload.length) { return ( <Paper sx={{ padding: 2, backgroundColor: "rgba(255, 255, 255, 0.98)", boxShadow: "0 6px 20px rgba(0,0,0,0.2)", borderRadius: 3, border: "2px solid #7FB3A3" }}><Typography variant="body1" sx={{ fontWeight: 700, mb: 0.5, color: "#2C1810" }}>{payload[0].payload.designerName}</Typography><Typography variant="body2" sx={{ color: "#7FB3A3", fontWeight: 600 }}>{payload[0].payload.fabricType}: {payload[0].payload.quantity} قطعة</Typography></Paper> ); } return null; }} cursor={{ fill: "rgba(139, 69, 19, 0.1)" }} />
+                    <Legend wrapperStyle={{ color: "#2C1810", fontWeight: 600, fontSize: "0.85rem", paddingTop: "10px" }} />
+                    <Bar dataKey="quantity" fill="url(#colorFabric)" radius={[8, 8, 0, 0]} name="الكمية">
+                      <LabelList dataKey="quantity" position="top" style={{ fill: "#2C1810", fontSize: "12px", fontWeight: 700, fontFamily: "Cairo, Tajawal, sans-serif" }} />
+                      {fabricTypeChartData.map((entry, index) => ( <Cell key={`cell-${index}`} fill={VIBRANT_COLORS[index % VIBRANT_COLORS.length]} /> ))}
+                    </Bar>
+                    <defs>
+                      <linearGradient id="colorFabric" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#7FB3A3" stopOpacity={1} />
+                        <stop offset="50%" stopColor="#C99A9A" stopOpacity={0.9} />
+                        <stop offset="95%" stopColor="#B8A082" stopOpacity={0.8} />
+                      </linearGradient>
+                    </defs>
+                  </RechartsBarChart>
                 </ResponsiveContainer>
               )}
             </Paper>
@@ -1700,11 +1803,10 @@ const WelcomeDashboard = () => {
                 padding: { xs: 2, sm: 3, md: 4 },
                 boxShadow: "0 10px 40px rgba(139, 69, 19, 0.12), 0 2px 8px rgba(139, 69, 19, 0.08)",
                 backdropFilter: "blur(10px)",
-                height: 450,
-                width:700,
+                width: isMobile ? "100%" : 700,
+                ...(isMobile ? { minHeight: 320, height: "auto", overflow: "visible" } : { height: 450, overflow: "hidden" }),
                 border: "1px solid rgba(139, 69, 19, 0.12)",
                 position: "relative",
-                overflow: "hidden",
                 transition: "all 0.3s ease",
                 "&:hover": {
                   boxShadow: "0 15px 50px rgba(139, 69, 19, 0.18), 0 4px 12px rgba(139, 69, 19, 0.12)",
@@ -1876,12 +1978,10 @@ const WelcomeDashboard = () => {
                     لا توجد بيانات لطلبات التوصيل في الفترة المحددة
                   </Typography>
                 </Box>
-              ) : (
-                <ResponsiveContainer width="100%" height={400}>
-                  <ComposedChart 
-                    data={deliveryStats} 
-                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                  >
+              ) : isMobile ? (
+                <Box sx={{ width: "100%", height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={deliveryStats} margin={{ top: 20, right: 8, left: 0, bottom: 50 }}>
                     <defs>
                       <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6B9BC4" stopOpacity={0.8} />
@@ -1895,10 +1995,10 @@ const WelcomeDashboard = () => {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
                     <XAxis
                       dataKey="dateFormatted"
-                      tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }}
+                      tick={{ fill: "#2C1810", fontSize: 10, fontWeight: 600 }}
                       angle={-45}
                       textAnchor="end"
-                      height={80}
+                      height={56}
                     />
                     <YAxis 
                       yAxisId="left"
@@ -1982,6 +2082,24 @@ const WelcomeDashboard = () => {
                       name="المبلغ الإجمالي"
                     />
                   </ComposedChart>
+                  </ResponsiveContainer>
+                </Box>
+              ) : (
+                <ResponsiveContainer width="100%" height={400}>
+                  <ComposedChart data={deliveryStats} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                    <defs>
+                      <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6B9BC4" stopOpacity={0.8} /><stop offset="95%" stopColor="#6B9BC4" stopOpacity={0.1} /></linearGradient>
+                      <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#A67C8E" stopOpacity={0.8} /><stop offset="95%" stopColor="#A67C8E" stopOpacity={0.1} /></linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
+                    <XAxis dataKey="dateFormatted" tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }} angle={-45} textAnchor="end" height={80} />
+                    <YAxis yAxisId="left" tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }} label={{ value: "عدد الطلبات", angle: -90, position: "insideLeft", fill: "#6B9BC4", fontSize: 13, fontWeight: 600 }} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }} label={{ value: "المبلغ (₪)", angle: 90, position: "insideRight", fill: "#A67C8E", fontSize: 13, fontWeight: 600 }} />
+                    <Tooltip content={({ active, payload }) => { if (active && payload && payload.length) { return ( <Paper sx={{ padding: 2, backgroundColor: "rgba(255, 255, 255, 0.98)", boxShadow: "0 6px 20px rgba(0,0,0,0.2)", borderRadius: 3, border: "2px solid #6B9BC4" }}><Typography variant="body1" sx={{ fontWeight: 700, mb: 1, color: "#2C1810" }}>{payload[0].payload.dateFormatted}</Typography>{payload.map((entry, index) => ( <Typography key={index} variant="body2" sx={{ color: entry.color, fontWeight: 600 }}>{entry.name === "عدد الطلبات" && `الطلبات: ${entry.value}`}{entry.name === "المبلغ الإجمالي" && `المبلغ: ${entry.value.toLocaleString()} ₪`}</Typography> ))}</Paper> ); } return null; }} cursor={{ fill: "rgba(139, 69, 19, 0.1)" }} />
+                    <Legend wrapperStyle={{ color: "#2C1810", fontWeight: 600, fontSize: "0.85rem", paddingTop: "10px" }} />
+                    <Area yAxisId="left" type="monotone" dataKey="ordersCount" fill="url(#colorOrders)" stroke="#6B9BC4" strokeWidth={3} name="عدد الطلبات" />
+                    <Line yAxisId="right" type="monotone" dataKey="totalAmount" stroke="#A67C8E" strokeWidth={3} dot={{ fill: "#A67C8E", r: 5 }} activeDot={{ r: 7 }} name="المبلغ الإجمالي" />
+                  </ComposedChart>
                 </ResponsiveContainer>
               )}
             </Paper>
@@ -2061,8 +2179,8 @@ const WelcomeDashboard = () => {
             <Box
               sx={{
                 display: "flex",
-                flexDirection: "row",
-                flexWrap: "nowrap",
+                flexDirection: { xs: "column", sm: "row" },
+                flexWrap: { xs: "nowrap", sm: "nowrap" },
                 gap: 2,
                 width: "100%",
               }}
@@ -2078,7 +2196,8 @@ const WelcomeDashboard = () => {
                   <Card
                     key={fabric.fabricTypeId}
                     sx={{
-                      flex: "1 1 0",
+                      flex: { xs: "0 0 auto", sm: "1 1 0" },
+                      width: { xs: "100%", sm: "auto" },
                       minWidth: 0,
                       height: "100%",
                       background: `linear-gradient(135deg, ${color}15 0%, ${color}08 100%)`,
@@ -2093,7 +2212,7 @@ const WelcomeDashboard = () => {
                       },
                     }}
                   >
-                      <CardContent sx={{ p: 2.5 }}>
+                      <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
                         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
                           <Box
                             sx={{
@@ -2118,10 +2237,11 @@ const WelcomeDashboard = () => {
                             fontWeight: 700,
                             color: calmPalette.textPrimary,
                             mb: 1,
-                            fontSize: { xs: "0.95rem", sm: "1.1rem" },
-                            minHeight: 40,
+                            fontSize: { xs: "1rem", sm: "1.1rem" },
+                            minHeight: { xs: "auto", sm: 40 },
                             display: "flex",
                             alignItems: "center",
+                            wordBreak: "break-word",
                           }}
                         >
                           {fabric.fabricTypeNameAr || `نوع قماش ${fabric.fabricTypeId}`}
@@ -2329,10 +2449,16 @@ const WelcomeDashboard = () => {
                 <CircularProgress sx={{ color: "#A67C8E" }} />
               </Box>
             ) : orderStatusStats.length > 0 ? (
-              <ResponsiveContainer width="100%" height={400}>
+              <Box sx={{ width: "100%", height: isMobile ? 260 : 400 }}>
+                <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart
                   data={[...orderStatusStats].sort((a, b) => a.status - b.status)}
-                  margin={{ top: 5, right: 15, left: 5, bottom: 40 }}
+                  margin={{
+                    top: 5,
+                    right: isMobile ? 8 : 15,
+                    left: isMobile ? 0 : 5,
+                    bottom: isMobile ? 50 : 40,
+                  }}
                 >
                   <defs>
                     <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
@@ -2351,29 +2477,29 @@ const WelcomeDashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 69, 19, 0.1)" />
                   <XAxis
                     dataKey="statusNameAr"
-                    tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }}
+                    tick={{ fill: "#2C1810", fontSize: isMobile ? 10 : 12, fontWeight: 600 }}
                     angle={-45}
                     textAnchor="end"
-                    height={60}
+                    height={isMobile ? 50 : 60}
                   />
                   <YAxis
                     yAxisId="left"
-                    tick={{ fill: "#2C1810", fontSize: 13, fontWeight: 600 }}
+                    tick={{ fill: "#2C1810", fontSize: isMobile ? 10 : 13, fontWeight: 600 }}
                     label={{
                       value: "عدد الطلبات",
                       angle: -90,
                       position: "insideLeft",
                       fill: "#6B8E7F",
-                    fontSize: 12,
+                    fontSize: isMobile ? 10 : 12,
                     fontWeight: 600,
                     }}
-                    width={60}
+                    width={isMobile ? 36 : 60}
                   />
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fill: "#2C1810", fontSize: 12, fontWeight: 600 }}
-                    width={70}
+                    tick={{ fill: "#2C1810", fontSize: isMobile ? 10 : 12, fontWeight: 600 }}
+                    width={isMobile ? 42 : 70}
                     label={{
                       value: "المبلغ (₪)",
                       angle: 90,
@@ -2512,7 +2638,8 @@ const WelcomeDashboard = () => {
                     name="بدون التوصيل"
                   />
                 </ComposedChart>
-              </ResponsiveContainer>
+                </ResponsiveContainer>
+              </Box>
             ) : (
               <Box sx={{ textAlign: "center", py: 6 }}>
                 <Typography variant="body1" sx={{ color: calmPalette.textSecondary }}>

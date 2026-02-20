@@ -8,12 +8,16 @@ import {
   CardContent,
   CardActionArea,
   Grid,
-  Paper,
   Fade,
+  useMediaQuery,
+  useTheme,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import {
   AdminPanelSettings as AdminIcon,
-  Person as EmployeeIcon,
   DesignServices as DesignerIcon,
   Assignment as PreparerIcon,
   ManageAccounts as DesignManagerIcon,
@@ -26,10 +30,18 @@ const RoleSelection = () => {
   const navigate = useNavigate();
   const { login } = useApp();
   const [hoveredRole, setHoveredRole] = useState(null);
+  const [selectedRoleId, setSelectedRoleId] = useState("");
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const handleRoleSelect = (role) => {
-    // كل الأدوار تروح لنفس صفحة Login مع تمرير الـ Role
     navigate(`/login?role=${role}`);
+  };
+
+  const handleSelectChange = (e) => {
+    const roleId = e.target.value;
+    setSelectedRoleId(roleId);
+    if (roleId) navigate(`/login?role=${roleId}`);
   };
 
   const roles = [
@@ -92,117 +104,222 @@ const RoleSelection = () => {
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
+        backgroundColor: "#1a1a2e",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 3,
+        padding: { xs: 2, sm: 3 },
+        overflow: "auto",
       }}
     >
-      <Box
-        sx={{
-          position: "absolute",
-          top: { xs: 24, md: 40 },
-          left: "50%",
-          transform: "translateX(-50%)",
-          textAlign: "center",
-          color: "rgba(255, 255, 255, 0.9)",
-          zIndex: 1,
-          pointerEvents: "none",
-        }}
-      >
-        <Typography
-          variant="h6"
+      {/* على الديسكتوب فقط: عنوان بالشكل الأصلي (بدون صندوق) */}
+      {!isMobile && (
+        <Box
           sx={{
-            marginTop: 10,
-            fontWeight: 500,
-            color: "rgba(255, 255, 255, 0.85)",
-            fontSize: { xs: "1.5rem", md: "2rem" },
+            position: "absolute",
+            top: 40,
+            left: "50%",
+            transform: "translateX(-50%)",
+            textAlign: "center",
+            color: "rgba(255, 255, 255, 0.9)",
+            zIndex: 1,
+            pointerEvents: "none",
           }}
         >
-          نظام إدارة المبيعات
-        </Typography>
-      </Box>
-      <Container maxWidth="lg">
+          <Typography
+            variant="h6"
+            sx={{
+              marginTop: 10,
+              fontWeight: 500,
+              color: "rgba(255, 255, 255, 0.85)",
+              fontSize: "2rem",
+            }}
+          >
+            نظام إدارة المبيعات
+          </Typography>
+        </Box>
+      )}
+
+      <Container maxWidth="lg" sx={{ width: "100%" }}>
         <Fade in timeout={800}>
-          <Box>
-            <Grid
-              container
-              spacing={2}
-              justifyContent="center"
-              sx={{ marginTop: 9 }}
-            >
-              {roles.map((role, index) => {
-                const Icon = role.icon;
-                return (
-                  <Grid item xs={6} sm={4} md={1.7} marginTop={50} key={role.id}>
-                    <Fade in timeout={1000 + index * 200}>
-                      <Card
-                        sx={{
-                          height: "100%",
-                          transition: "all 0.3s ease-in-out",
-                          transform:
-                            hoveredRole === role.id
-                              ? "translateY(-10px) scale(1.02)"
-                              : "translateY(0) scale(1)",
-                          boxShadow:
-                            hoveredRole === role.id
-                              ? "0 18px 36px rgba(6, 11, 23, 0.32)"
-                              : "0 10px 22px rgba(6, 11, 23, 0.22)",
-                          background: "rgba(255, 255, 255, 0.12)",
-                          backdropFilter: "blur(14px)",
-                          border: "1px solid rgba(255, 255, 255, 0.28)",
-                          borderRadius: 4,
-                          overflow: "hidden",
-                        }}
-                        onMouseEnter={() => setHoveredRole(role.id)}
-                        onMouseLeave={() => setHoveredRole(null)}
-                      >
-                        <CardActionArea
-                          onClick={() => handleRoleSelect(role.id)}
-                          sx={{ height: "100%" }}
-                        >
-                          <CardContent
-                            sx={{
-                              padding: 1.9,
-                              textAlign: "center",
-                              color: "rgba(255, 255, 255, 0.95)",
-                            }}
-                          >
-                            <Typography
-                              variant="h5"
-                              gutterBottom
-                              sx={{ fontWeight: 700, color: "white" }}
-                            >
-                              {role.title}
-                            </Typography>
-                            <Typography
-                              variant="body1"
-                              sx={{
-                                fontSize: "0.85rem",
-                                color: "rgba(255, 255, 255, 0.85)",
-                              }}
-                            >
-                              {role.description}
-                            </Typography>
-                          </CardContent>
-                        </CardActionArea>
-                      </Card>
-                    </Fade>
-                  </Grid>
-                );
-              })}
-            </Grid>
-            <Box sx={{ textAlign: "center", marginTop: 4 }}>
-              <Typography
-                variant="body2"
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            {/* على الجوال فقط: صندوق العنوان الواضح + قائمة اختيار */}
+            {isMobile && (
+              <Box
                 sx={{
-                  color: "rgba(255, 255, 255, 0.9)",
-                  fontSize: "0.95rem",
+                  width: "100%",
+                  textAlign: "center",
+                  py: 2,
+                  px: 1,
+                  mb: 2,
+                  borderRadius: 2,
+                  background: "rgba(0,0,0,0.35)",
+                  border: "1px solid rgba(255,255,255,0.15)",
                 }}
               >
-                اختر نوع الحساب للمتابعة
-              </Typography>
-            </Box>
+                <Typography
+                  variant="h5"
+                  component="h1"
+                  sx={{ fontWeight: 600, color: "#fff", fontSize: "1.25rem" }}
+                >
+                  نظام إدارة المبيعات
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "rgba(255,255,255,0.85)", mt: 0.5, fontSize: "0.8rem" }}
+                >
+                  اختر نوع الحساب للمتابعة
+                </Typography>
+              </Box>
+            )}
+
+            {isMobile ? (
+              <Box sx={{ width: "100%", maxWidth: 360 }}>
+                <FormControl
+                  fullWidth
+                  size="medium"
+                  sx={{
+                    background: "rgba(255,255,255,0.95)",
+                    borderRadius: 2,
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(0,0,0,0.2)",
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "primary.main",
+                    },
+                  }}
+                >
+                  <InputLabel id="role-select-label">نوع الحساب</InputLabel>
+                  <Select
+                    labelId="role-select-label"
+                    id="role-select"
+                    value={selectedRoleId}
+                    label="نوع الحساب"
+                    onChange={handleSelectChange}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          maxHeight: 320,
+                          mt: 1.5,
+                          borderRadius: 2,
+                          boxShadow: 4,
+                        },
+                      },
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>اختر الدور</em>
+                    </MenuItem>
+                    {roles.map((role) => {
+                      const RoleIcon = role.icon;
+                      return (
+                      <MenuItem key={role.id} value={role.id}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                          <RoleIcon sx={{ color: role.color, fontSize: 22 }} />
+                          <Box>
+                            <Typography variant="body1" fontWeight={600}>
+                              {role.title}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {role.description}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </MenuItem>
+                    );})}
+                  </Select>
+                </FormControl>
+              </Box>
+            ) : (
+              /* على اللابتوب: الشكل الأصلي (شبكة + كروت كما كانت) */
+              <>
+                <Grid
+                  container
+                  spacing={2}
+                  justifyContent="center"
+                  sx={{ marginTop: 9 }}
+                >
+                  {roles.map((role, index) => {
+                    const Icon = role.icon;
+                    return (
+                      <Grid item xs={6} sm={4} md={1.7} marginTop={50} key={role.id}>
+                        <Fade in timeout={1000 + index * 200}>
+                          <Card
+                            sx={{
+                              height: "100%",
+                              transition: "all 0.3s ease-in-out",
+                              transform:
+                                hoveredRole === role.id
+                                  ? "translateY(-10px) scale(1.02)"
+                                  : "translateY(0) scale(1)",
+                              boxShadow:
+                                hoveredRole === role.id
+                                  ? "0 18px 36px rgba(6, 11, 23, 0.32)"
+                                  : "0 10px 22px rgba(6, 11, 23, 0.22)",
+                              background: "rgba(255, 255, 255, 0.12)",
+                              backdropFilter: "blur(14px)",
+                              border: "1px solid rgba(255, 255, 255, 0.28)",
+                              borderRadius: 4,
+                              overflow: "hidden",
+                            }}
+                            onMouseEnter={() => setHoveredRole(role.id)}
+                            onMouseLeave={() => setHoveredRole(null)}
+                          >
+                            <CardActionArea
+                              onClick={() => handleRoleSelect(role.id)}
+                              sx={{ height: "100%" }}
+                            >
+                              <CardContent
+                                sx={{
+                                  padding: 1.9,
+                                  textAlign: "center",
+                                  color: "rgba(255, 255, 255, 0.95)",
+                                }}
+                              >
+                                <Typography
+                                  variant="h5"
+                                  gutterBottom
+                                  sx={{ fontWeight: 700, color: "white" }}
+                                >
+                                  {role.title}
+                                </Typography>
+                                <Typography
+                                  variant="body1"
+                                  sx={{
+                                    fontSize: "0.85rem",
+                                    color: "rgba(255, 255, 255, 0.85)",
+                                  }}
+                                >
+                                  {role.description}
+                                </Typography>
+                              </CardContent>
+                            </CardActionArea>
+                          </Card>
+                        </Fade>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+                <Box sx={{ textAlign: "center", marginTop: 4 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "rgba(255, 255, 255, 0.9)",
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    اختر نوع الحساب للمتابعة
+                  </Typography>
+                </Box>
+              </>
+            )}
           </Box>
         </Fade>
       </Container>

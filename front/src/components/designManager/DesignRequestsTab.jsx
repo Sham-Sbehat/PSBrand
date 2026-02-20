@@ -21,6 +21,8 @@ import {
   FormControl,
   InputLabel,
   InputAdornment,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Search,
@@ -39,6 +41,8 @@ import calmPalette from "../../theme/calmPalette";
 import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 
 const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequestsRefreshKey = 0 }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [designs, setDesigns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
@@ -347,7 +351,16 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: { xs: "stretch", sm: "center" },
+          flexDirection: { xs: "column", sm: "row" },
+          gap: 2,
+          mb: 3,
+        }}
+      >
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           طلبات التصاميم ({filteredDesigns.length})
         </Typography>
@@ -357,15 +370,25 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
           onClick={loadDesigns}
           disabled={loading}
           size="small"
+          sx={{ width: { xs: "100%", sm: "auto" }, minWidth: { xs: 0, sm: "auto" } }}
         >
           تحديث
         </Button>
       </Box>
 
       {/* Filters and Search */}
-      <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
+      <Box
+        sx={{
+          mb: 3,
+          display: "flex",
+          gap: 2,
+          flexWrap: "wrap",
+          alignItems: "center",
+          flexDirection: { xs: "column", sm: "row" },
+        }}
+      >
         {/* Search Field */}
-        <Box sx={{ flex: 1, minWidth: 300 }}>
+        <Box sx={{ flex: { xs: "none", sm: 1 }, minWidth: { xs: 0, sm: 300 }, width: { xs: "100%", sm: "auto" } }}>
           <TextField
             fullWidth
             size="small"
@@ -397,7 +420,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
         </Box>
 
         {/* Status Filter */}
-        <FormControl size="small" sx={{ minWidth: 150 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 150 }, width: { xs: "100%", sm: "auto" } }}>
           <InputLabel>الحالة</InputLabel>
           <Select
             value={statusFilter}
@@ -422,7 +445,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
         </FormControl>
 
         {/* Designer Filter */}
-        <FormControl size="small" sx={{ minWidth: 180 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 180 }, width: { xs: "100%", sm: "auto" } }}>
           <InputLabel>المصمم</InputLabel>
           <Select
             value={designerFilter}
@@ -447,7 +470,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
         </FormControl>
 
         {/* Created By Filter */}
-        <FormControl size="small" sx={{ minWidth: 180 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 180 }, width: { xs: "100%", sm: "auto" } }}>
           <InputLabel>المنشئ</InputLabel>
           <Select
             value={createdByFilter}
@@ -513,11 +536,13 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
             borderRadius: 3,
             border: `1px solid ${calmPalette.primary}15`,
             boxShadow: "0 4px 20px rgba(94, 78, 62, 0.08)",
-            overflow: "hidden",
+            overflowX: "auto",
+            overflowY: "visible",
+            maxWidth: "100%",
             mb: 2,
           }}
         >
-          <Table>
+          <Table sx={{ minWidth: isMobile ? 800 : undefined }}>
             <TableHead>
               <TableRow
                 sx={{
@@ -681,8 +706,14 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
                         variant="body2"
                         sx={{
                           color: calmPalette.textSecondary,
-                          maxWidth: 300,
-                          whiteSpace: "pre-line",
+                          maxWidth: { xs: 200, sm: 300 },
+                          whiteSpace: isMobile ? "normal" : "pre-line",
+                          ...(isMobile && {
+                            display: "-webkit-box",
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }),
                         }}
                         title={design.description}
                       >
@@ -721,12 +752,13 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
                       </Typography>
                     </TableCell>
                     <TableCell align="center">
-                      <Box sx={{ display: "flex", gap: 1, justifyContent: "center", alignItems: "center" }}>
+                      <Box sx={{ display: "flex", gap: 1, justifyContent: "center", alignItems: "center", flexWrap: "wrap" }}>
                         <Tooltip title="عرض التفاصيل" arrow>
                           <IconButton
                             size="small"
                             onClick={() => handleViewDesign(design)}
                             sx={{
+                              ...(isMobile && { minWidth: 44, minHeight: 44 }),
                               color: calmPalette.primary,
                               backgroundColor: `${calmPalette.primary}10`,
                               border: `1px solid ${calmPalette.primary}30`,
@@ -771,6 +803,7 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
                             onClick={() => handleDeleteDesignRequest(design)}
                             disabled={deletingId === design.id}
                             sx={{
+                              ...(isMobile && { minWidth: 44, minHeight: 44 }),
                               color: "#d32f2f",
                               backgroundColor: "#d32f2f10",
                               border: "1px solid #d32f2f30",

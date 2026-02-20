@@ -26,6 +26,8 @@ import {
   Tab,
   Switch,
   Tooltip,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Add,
@@ -50,6 +52,8 @@ import EmployeeAttendanceCalendar from './EmployeeAttendanceCalendar';
 import Swal from 'sweetalert2';
 
 const EmployeeManagement = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { employees, addEmployee, deleteEmployee, setEmployees } = useApp();
   const [openDialog, setOpenDialog] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -337,12 +341,14 @@ const EmployeeManagement = () => {
       </Tabs>
 
       {currentSubTab === 0 && (
-        <Paper elevation={3} sx={{ padding: 4, borderRadius: 3 }}>
+        <Paper elevation={3} sx={{ padding: { xs: 2, sm: 4 }, borderRadius: 3 }}>
           <Box
             sx={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
+              alignItems: { xs: 'stretch', sm: 'center' },
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: 2,
               marginBottom: 3,
             }}
           >
@@ -353,6 +359,7 @@ const EmployeeManagement = () => {
               variant="contained"
               startIcon={<Add />}
               onClick={handleOpenDialog}
+              sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { xs: 0, sm: 'auto' } }}
             >
               إضافة موظف
             </Button>
@@ -376,8 +383,17 @@ const EmployeeManagement = () => {
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
         }}
       >
-        <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 2,
+            mb: 2,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            flexDirection: { xs: 'column', sm: 'row' },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
             <FilterList sx={{ color: 'text.secondary' }} />
             <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
               فلترة:
@@ -396,15 +412,16 @@ const EmployeeManagement = () => {
               ),
             }}
             sx={{
-              minWidth: 250,
-              flex: 1,
-              maxWidth: 400,
+              minWidth: { xs: 0, sm: 250 },
+              width: { xs: '100%', sm: 'auto' },
+              flex: { xs: 'none', sm: 1 },
+              maxWidth: { xs: '100%', sm: 400 },
               '& .MuiOutlinedInput-root': {
                 backgroundColor: 'rgba(255, 255, 255, 0.9)',
               },
             }}
           />
-          <FormControl size="small" sx={{ minWidth: 180 }}>
+          <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 180 }, width: { xs: '100%', sm: 'auto' } }}>
             <InputLabel>الوظيفة</InputLabel>
             <Select
               value={roleFilter}
@@ -428,7 +445,7 @@ const EmployeeManagement = () => {
                 setSearchQuery('');
                 setRoleFilter('all');
               }}
-              sx={{ color: 'text.secondary' }}
+              sx={{ width: { xs: '100%', sm: 'auto' }, color: 'text.secondary' }}
             >
               إلغاء الفلترة
             </Button>
@@ -468,7 +485,7 @@ const EmployeeManagement = () => {
               <Tab
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography sx={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: { xs: '0.85rem', sm: '0.95rem' } }}>
                       حسابات نشطة
                     </Typography>
                     <Chip
@@ -487,17 +504,17 @@ const EmployeeManagement = () => {
                 }
                 sx={{
                   textTransform: 'none',
-                  fontSize: '0.95rem',
+                  fontSize: { xs: '0.85rem', sm: '0.95rem' },
                   fontWeight: activeTab === 0 ? 700 : 500,
                   color: activeTab === 0 ? '#1976d2' : 'text.secondary',
                   minHeight: 60,
-                  px: 3,
+                  px: { xs: 2, sm: 3 },
                 }}
               />
               <Tab
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography sx={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: { xs: '0.85rem', sm: '0.95rem' } }}>
                      حسابات معطلة
                     </Typography>
                     <Chip
@@ -516,11 +533,11 @@ const EmployeeManagement = () => {
                 }
                 sx={{
                   textTransform: 'none',
-                  fontSize: '0.95rem',
+                  fontSize: { xs: '0.85rem', sm: '0.95rem' },
                   fontWeight: activeTab === 1 ? 700 : 500,
                   color: activeTab === 1 ? '#1976d2' : 'text.secondary',
                   minHeight: 60,
-                  px: 3,
+                  px: { xs: 2, sm: 3 },
                 }}
               />
             </Tabs>
@@ -588,8 +605,8 @@ const EmployeeManagement = () => {
                 </Typography>
               </Box>
             ) : (
-              <TableContainer>
-                <Table>
+              <TableContainer sx={{ overflowX: 'auto', maxWidth: '100%' }}>
+                <Table sx={{ minWidth: isMobile ? 700 : undefined }}>
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 700 }}>الاسم</TableCell>
@@ -652,13 +669,14 @@ const EmployeeManagement = () => {
                     />
                   </TableCell>
                   <TableCell align="center">
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
                       <Tooltip title="تغيير كلمة المرور" arrow>
                         <IconButton
                           color="primary"
                           onClick={() => handleOpenPasswordDialog(employee)}
                           disabled={loading}
                           size="small"
+                          sx={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                         >
                           <LockReset />
                         </IconButton>
@@ -678,6 +696,7 @@ const EmployeeManagement = () => {
                           onClick={() => handleDelete(employee.id)}
                           disabled={loading}
                           size="small"
+                          sx={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                         >
                           <Delete />
                         </IconButton>

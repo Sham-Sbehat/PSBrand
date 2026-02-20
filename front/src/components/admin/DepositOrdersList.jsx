@@ -24,6 +24,8 @@ import {
   Select,
   FormControl,
   InputLabel,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Visibility,
@@ -44,6 +46,8 @@ import GlassDialog from "../common/GlassDialog";
 import DepositOrderForm from "../employee/DepositOrderForm";
 
 const DepositOrdersList = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { user, employees, loadEmployees } = useApp();
   const [depositOrders, setDepositOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -377,8 +381,17 @@ const DepositOrdersList = () => {
 
   return (
     <Box>
-      <Paper sx={{ p: 3, borderRadius: 3, boxShadow: 3 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, boxShadow: 3 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: { xs: "stretch", sm: "center" },
+            flexDirection: { xs: "column", sm: "row" },
+            gap: 2,
+            mb: 3,
+          }}
+        >
           <Typography variant="h5" sx={{ fontWeight: 600 }}>
             طلبات العربون
           </Typography>
@@ -394,7 +407,7 @@ const DepositOrdersList = () => {
                 </InputAdornment>
               ),
             }}
-            sx={{ width: 300 }}
+            sx={{ width: { xs: "100%", sm: 300 }, minWidth: 0 }}
           />
         </Box>
 
@@ -408,12 +421,20 @@ const DepositOrdersList = () => {
             border: "1px solid rgba(107, 142, 127, 0.15)",
           }}
         >
-          <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#5A7A6B", minWidth: "fit-content" }}>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              alignItems: "center",
+              flexWrap: "wrap",
+              flexDirection: { xs: "column", sm: "row" },
+            }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#5A7A6B", width: { xs: "100%", sm: "fit-content" } }}>
               الفلترة:
             </Typography>
             
-            <FormControl size="small" sx={{ minWidth: 200 }}>
+            <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 200 }, width: { xs: "100%", sm: "auto" } }}>
               <InputLabel>البائع</InputLabel>
               <Select
                 value={filterDesignerId}
@@ -474,16 +495,13 @@ const DepositOrdersList = () => {
                 }
               }}
               sx={{ 
-                minWidth: 200,
+                minWidth: { xs: 0, sm: 200 },
+                width: { xs: "100%", sm: "auto" },
                 cursor: 'pointer',
                 '& .MuiOutlinedInput-root': {
                   cursor: 'pointer',
-                  '&:hover': {
-                    cursor: 'pointer',
-                  },
-                  '& input': {
-                    cursor: 'pointer',
-                  },
+                  '&:hover': { cursor: 'pointer' },
+                  '& input': { cursor: 'pointer' },
                 },
               }}
             />
@@ -495,6 +513,7 @@ const DepositOrdersList = () => {
                 startIcon={<Clear />}
                 onClick={handleResetFilters}
                 sx={{
+                  width: { xs: "100%", sm: "auto" },
                   color: "#5A7A6B",
                   borderColor: "#5A7A6B",
                   "&:hover": {
@@ -570,8 +589,8 @@ const DepositOrdersList = () => {
           </Box>
         ) : (
           <>
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: "auto", maxWidth: "100%" }}>
+              <Table sx={{ minWidth: isMobile ? 900 : undefined }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>رقم الطلب</TableCell>
@@ -673,12 +692,13 @@ const DepositOrdersList = () => {
                         </TableCell>
                         <TableCell>{formatDateTime(order.createdAt)}</TableCell>
                         <TableCell align="center">
-                          <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+                          <Box sx={{ display: "flex", gap: 1, justifyContent: "center", flexWrap: "wrap" }}>
                             <Tooltip title="عرض التفاصيل">
                               <IconButton
                                 size="small"
                                 onClick={() => handleViewOrder(order)}
                                 color="primary"
+                                sx={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                               >
                                 <Visibility />
                               </IconButton>
@@ -688,6 +708,7 @@ const DepositOrdersList = () => {
                                 size="small"
                                 onClick={() => handleEditOrder(order)}
                                 color="warning"
+                                sx={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                               >
                                 <Edit />
                               </IconButton>
@@ -698,6 +719,7 @@ const DepositOrdersList = () => {
                                   size="small"
                                   onClick={() => handleSendToDelivery(order)}
                                   color="success"
+                                  sx={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                                 >
                                   <LocalShipping />
                                 </IconButton>
@@ -708,6 +730,7 @@ const DepositOrdersList = () => {
                                 size="small"
                                 onClick={() => handleDeleteOrder(order)}
                                 color="error"
+                                sx={isMobile ? { minWidth: 44, minHeight: 44 } : {}}
                               >
                                 <Delete />
                               </IconButton>

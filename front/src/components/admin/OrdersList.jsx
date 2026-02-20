@@ -24,6 +24,8 @@ import {
   Snackbar,
   Alert,
   Menu,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   Visibility,
@@ -84,6 +86,8 @@ const DELIVERY_STATUSES = {
 };
 
 const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp, designerFilter: designerFilterProp, orderIdToOpen, onOrderOpened }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { orders, user, employees } = useApp();
   const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2056,13 +2060,14 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         sx={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: { xs: "stretch", sm: "center" },
+          flexDirection: { xs: "column", sm: "row" },
           marginBottom: 3,
           flexWrap: "wrap",
           gap: 2,
         }}
       >
-        <Box>
+        <Box sx={{ width: { xs: "100%", sm: "auto" } }}>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>
           جميع الطلبات ({sortedOrders.length})
         </Typography>
@@ -2090,7 +2095,16 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           )}
         </Box>
 
-        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 2,
+            alignItems: "center",
+            flexWrap: "wrap",
+            width: { xs: "100%", sm: "auto" },
+            flexDirection: { xs: "column", sm: "row" },
+          }}
+        >
           {selectedForPrint.length > 0 && (
             <Button
               variant="outlined"
@@ -2098,7 +2112,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               startIcon={loadingInvoiceOrderId === "bulk" ? <CircularProgress size={18} /> : <Print />}
               onClick={handlePrintBulkInvoice}
               disabled={loadingInvoiceOrderId === "bulk"}
-              sx={{ minWidth: 150 }}
+              sx={{ minWidth: { xs: "100%", sm: 150 } }}
             >
               {loadingInvoiceOrderId === "bulk" ? "جاري التحميل..." : `طباعة المحدد (${selectedForPrint.length})`}
             </Button>
@@ -2110,7 +2124,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                 color="primary"
                 startIcon={<LocalShipping />}
                 onClick={handleBulkShipping}
-                sx={{ minWidth: 150 }}
+                sx={{ minWidth: { xs: "100%", sm: 150 } }}
               >
                 إرسال المحدد ({selectedOrders.length})
               </Button>
@@ -2122,9 +2136,9 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
-              setPage(0); // Reset to first page when searching
+              setPage(0);
             }}
-            sx={{ minWidth: 400 }}
+            sx={{ minWidth: { xs: 0, sm: 400 }, width: { xs: "100%", sm: "auto" } }}
           />
           <TextField
             select
@@ -2132,9 +2146,9 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
-              setPage(0); // Reset to first page when filtering
+              setPage(0);
             }}
-            sx={{ minWidth: 150 }}
+            sx={{ minWidth: { xs: 0, sm: 150 }, width: { xs: "100%", sm: "auto" } }}
           >
             <MenuItem value="all">جميع الطلبات</MenuItem>
             <MenuItem value={ORDER_STATUS.PENDING_PRINTING}>بانتظار الطباعة</MenuItem>
@@ -2156,7 +2170,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             }}
             label="البائع"
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 180 }}
+            sx={{ minWidth: { xs: 0, sm: 180 }, width: { xs: "100%", sm: "auto" } }}
             disabled={loadingDesignersSummary}
             SelectProps={{
               renderValue: (v) => (v === "all" ? "جميع البائعين" : (designersWithSummary.find((d) => String(d.designerId) === v)?.designerName ?? v)),
@@ -2185,7 +2199,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               setDeliveryStatusFilter(e.target.value);
               setPage(0); // Reset to first page when filtering
             }}
-            sx={{ minWidth: 220 }}
+            sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: "100%", sm: "auto" } }}
             label="حالة التوصيل"
           >
             <MenuItem value="all">جميع حالات التوصيل</MenuItem>
@@ -2227,7 +2241,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               else input?.focus();
             }}
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 150, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
+            sx={{ minWidth: { xs: 0, sm: 150 }, width: { xs: "100%", sm: "auto" }, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
             inputProps={{ style: { cursor: 'pointer' } }}
           />
           <TextField
@@ -2245,7 +2259,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               else input?.focus();
             }}
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 150, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
+            sx={{ minWidth: { xs: 0, sm: 150 }, width: { xs: "100%", sm: "auto" }, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
             inputProps={{ style: { cursor: 'pointer' } }}
           />
         </Box>
@@ -2257,8 +2271,8 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         </Box>
       ) : (
         <>
-          <TableContainer>
-            <Table>
+          <TableContainer sx={{ overflowX: "auto", maxWidth: "100%" }}>
+            <Table sx={{ minWidth: isMobile ? 800 : undefined }}>
               <TableHead>
                 <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                   <TableCell sx={{ fontWeight: 700, width: 45 }} align="center">
@@ -2267,6 +2281,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                         size="small"
                         onClick={handleSelectAll}
                         sx={{
+                          ...(isMobile && { minWidth: 44, minHeight: 44 }),
                           color: (() => {
                             const completedOnPage = paginatedOrders.filter(o => {
                               const s = typeof o.status === 'number' ? o.status : parseInt(o.status, 10);
@@ -2287,6 +2302,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                         size="small"
                         onClick={handleSelectAllForPrint}
                         sx={{
+                          ...(isMobile && { minWidth: 44, minHeight: 44 }),
                           color: (() => {
                             const selectedCount = paginatedOrders.filter(o => selectedForPrint.includes(o.id)).length;
                             if (selectedCount === 0) return 'action.disabled';
@@ -2384,6 +2400,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                                   return numericStatus !== ORDER_STATUS.COMPLETED;
                                 })()}
                                 sx={{
+                                  ...(isMobile && { minWidth: 44, minHeight: 44 }),
                                   color: selectedOrders.includes(order.id) ? 'primary.main' : 'action.disabled',
                                 }}
                               >
@@ -2398,6 +2415,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
                               size="small"
                               onClick={() => handleTogglePrintSelection(order.id)}
                               sx={{
+                                ...(isMobile && { minWidth: 44, minHeight: 44 }),
                                 color: selectedForPrint.includes(order.id) ? 'primary.main' : 'action.disabled',
                               }}
                             >

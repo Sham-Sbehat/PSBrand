@@ -22,6 +22,7 @@ import {
   Checkbox,
   FormControlLabel,
   useTheme,
+  useMediaQuery,
   alpha,
   Card,
   CardContent,
@@ -62,6 +63,7 @@ const SHIFT_COLORS = {
 
 const EmployeeAttendanceCalendar = () => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { employees, loadEmployees } = useApp();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [logs, setLogs] = useState([]);
@@ -566,21 +568,30 @@ const EmployeeAttendanceCalendar = () => {
       <Paper
         elevation={0}
         sx={{
-          p: 2,
+          p: { xs: 1.5, sm: 2 },
           mb: 3,
           background: "linear-gradient(135deg, #6B8E7F 0%, #8B7FA8 50%, #D4A574 100%)",
           borderRadius: 3,
           color: "#fff",
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: { xs: "stretch", sm: "center" },
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 2,
+            flexDirection: { xs: "column", sm: "row" },
+          }}
+        >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <CalendarMonth sx={{ fontSize: 32 }} />
+            <CalendarMonth sx={{ fontSize: { xs: 28, sm: 32 } }} />
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.25 }}>
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.25, fontSize: { xs: "1.1rem", sm: "1.5rem" } }}>
                 متابعة دوام الموظفين
               </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.9, fontSize: "0.85rem" }}>
+              <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: "0.75rem", sm: "0.85rem" } }}>
                 انقر على أي يوم لإضافة دوام لموظف أو لجميع الموظفين
               </Typography>
             </Box>
@@ -592,6 +603,7 @@ const EmployeeAttendanceCalendar = () => {
               onClick={goToToday}
               size="small"
               sx={{
+                width: { xs: "100%", sm: "auto" },
                 bgcolor: "rgba(255,255,255,0.2)",
                 color: "#fff",
                 "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
@@ -601,23 +613,24 @@ const EmployeeAttendanceCalendar = () => {
             </Button>
           </Tooltip>
         </Box>
-        
+
         {/* Calendar Navigation */}
-        <Box 
-          sx={{ 
+        <Box
+          sx={{
             mt: 2.5,
             pt: 2,
             borderTop: "1px solid rgba(255,255,255,0.2)",
-            display: "flex", 
-            alignItems: "center", 
-            justifyContent: "space-between" 
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          <IconButton 
-            onClick={() => navigateMonth("prev")} 
-            sx={{ 
+          <IconButton
+            onClick={() => navigateMonth("prev")}
+            sx={{
               color: "#fff",
               bgcolor: "rgba(255,255,255,0.2)",
+              ...(isMobile && { minWidth: 44, minHeight: 44 }),
               "&:hover": {
                 bgcolor: "rgba(255,255,255,0.3)",
                 transform: "scale(1.1)",
@@ -627,20 +640,15 @@ const EmployeeAttendanceCalendar = () => {
           >
             <ChevronLeft />
           </IconButton>
-          <Typography 
-            variant="h5" 
-            sx={{ 
-              fontWeight: 700, 
-              color: "#fff",
-            }}
-          >
+          <Typography variant="h5" sx={{ fontWeight: 700, color: "#fff", fontSize: { xs: "1rem", sm: "1.5rem" } }}>
             {formatMonthYear(currentDate)}
           </Typography>
-          <IconButton 
-            onClick={() => navigateMonth("next")} 
-            sx={{ 
+          <IconButton
+            onClick={() => navigateMonth("next")}
+            sx={{
               color: "#fff",
               bgcolor: "rgba(255,255,255,0.2)",
+              ...(isMobile && { minWidth: 44, minHeight: 44 }),
               "&:hover": {
                 bgcolor: "rgba(255,255,255,0.3)",
                 transform: "scale(1.1)",
@@ -658,12 +666,13 @@ const EmployeeAttendanceCalendar = () => {
         <Tabs
           value={currentView}
           onChange={(e, newValue) => setCurrentView(newValue)}
+          variant={isMobile ? "fullWidth" : "standard"}
           sx={{
             borderBottom: "1px solid rgba(107, 142, 127, 0.15)",
-            '& .MuiTab-root': {
-              textTransform: 'none',
+            "& .MuiTab-root": {
+              textTransform: "none",
               fontWeight: 600,
-              fontSize: '0.9rem',
+              fontSize: { xs: "0.8rem", sm: "0.9rem" },
               minHeight: 48,
             },
           }}
@@ -709,10 +718,10 @@ const EmployeeAttendanceCalendar = () => {
           <CircularProgress size={60} />
         </Box>
       ) : (
-        <Paper 
-          elevation={0} 
-          sx={{ 
-            p: 3, 
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 1.5, sm: 3 },
             borderRadius: 3,
             background: "rgba(255, 255, 255, 0.7)",
             backdropFilter: "blur(10px)",
@@ -722,7 +731,7 @@ const EmployeeAttendanceCalendar = () => {
         >
           {/* Calendar Days Grid - Split into weeks */}
           {calendarWeeks.map((week, weekIndex) => (
-            <Box key={weekIndex} sx={{ display: "flex", gap: 1, mb: 1, width: "100%" }}>
+            <Box key={weekIndex} sx={{ display: "flex", gap: { xs: 0.5, sm: 1 }, mb: { xs: 0.5, sm: 1 }, width: "100%" }}>
               {week.map((day, dayIndex) => {
                 if (!day) {
                   return null;
@@ -752,16 +761,16 @@ const EmployeeAttendanceCalendar = () => {
                         {actualDayOfWeek !== null && (
                            <Box
                              sx={{
-                               p: 1,
+                               p: { xs: 0.5, sm: 1 },
                                textAlign: "center",
                                fontWeight: 700,
                                color: "#fff",
-                               background: isToday 
+                               background: isToday
                                  ? "linear-gradient(135deg, #6B8E7F 0%, #8B7FA8 100%)"
                                  : "linear-gradient(135deg, rgba(107, 142, 127, 0.6) 0%, rgba(139, 127, 168, 0.6) 100%)",
                                borderRadius: 2,
-                               fontSize: "0.8rem",
-                               mb: 1,
+                               fontSize: { xs: "0.65rem", sm: "0.8rem" },
+                               mb: { xs: 0.5, sm: 1 },
                                boxShadow: isToday ? "0 2px 8px rgba(107, 142, 127, 0.4)" : "0 1px 4px rgba(107, 142, 127, 0.3)",
                              }}
                            >
@@ -772,8 +781,8 @@ const EmployeeAttendanceCalendar = () => {
                            onClick={() => handleOpenDialog(day)}
                            elevation={0}
                            sx={{
-                             p: 1.5,
-                             minHeight: 130,
+                             p: { xs: 1, sm: 1.5 },
+                             minHeight: { xs: 95, sm: 130 },
                              display: "flex",
                              flexDirection: "column",
                              cursor: "pointer",
@@ -820,8 +829,8 @@ const EmployeeAttendanceCalendar = () => {
                             sx={{
                               fontWeight: isToday ? 800 : 700,
                               color: isToday ? "#6B8E7F" : "#2C1810",
-                              fontSize: "1.1rem",
-                              mb: 1,
+                              fontSize: { xs: "0.95rem", sm: "1.1rem" },
+                              mb: { xs: 0.5, sm: 1 },
                               position: "relative",
                               zIndex: 1,
                               textAlign: "right",
@@ -844,18 +853,18 @@ const EmployeeAttendanceCalendar = () => {
                                     title={`انقر لعرض التفاصيل - ${employeeName} - ${shiftColor?.label || ""}`}
                                   >
                                     <Chip
-                                      icon={<span style={{ fontSize: "0.7rem" }}>{shiftColor?.icon || "⏰"}</span>}
-                                      label={`${employeeName.substring(0, 7)}: ${shiftTime}`}
+                                      icon={<span style={{ fontSize: isMobile ? "0.6rem" : "0.7rem" }}>{shiftColor?.icon || "⏰"}</span>}
+                                      label={`${employeeName.substring(0, isMobile ? 5 : 7)}: ${shiftTime}`}
                                       size="small"
                                       onClick={(e) => handleOpenDetailsDialog(log, e)}
                                       onDelete={(e) => handleDeleteLog(log, e)}
-                                      deleteIcon={<Delete sx={{ fontSize: 12 }} />}
+                                      deleteIcon={<Delete sx={{ fontSize: isMobile ? 10 : 12 }} />}
                                       sx={{
                                         bgcolor: shiftColor?.bg || "#9E9E9E",
                                         color: "#fff",
                                         fontWeight: 600,
-                                        fontSize: "0.7rem",
-                                        height: 24,
+                                        fontSize: { xs: "0.6rem", sm: "0.7rem" },
+                                        height: { xs: 20, sm: 24 },
                                         cursor: "pointer",
                                         boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
                                         transition: "all 0.2s ease",
@@ -909,8 +918,8 @@ const EmployeeAttendanceCalendar = () => {
                       </Box>
                     ) : (
                       <Box>
-                        <Box sx={{ mb: 1 }} />
-                        <Box sx={{ minHeight: 120 }} />
+                        <Box sx={{ mb: { xs: 0.5, sm: 1 } }} />
+                        <Box sx={{ minHeight: { xs: 85, sm: 120 } }} />
                       </Box>
                     )}
                   </Box>
