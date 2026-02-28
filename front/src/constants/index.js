@@ -8,6 +8,7 @@ export const ORDER_STATUS = {
   OPEN_ORDER: 6,          // الطلب مفتوح (المحضّر أخذ الطلب)
   SENT_TO_DELIVERY_COMPANY: 7,  // تم الإرسال لشركة التوصيل
   IN_PACKAGING: 8,        // في مرحلة التغليف
+  RETURNED_SHIPMENT: 9,   // طرد مرتجع
 };
 
 export const ORDER_STATUS_LABELS = {
@@ -19,6 +20,7 @@ export const ORDER_STATUS_LABELS = {
   [ORDER_STATUS.OPEN_ORDER]: 'الطلب مفتوح',
   [ORDER_STATUS.SENT_TO_DELIVERY_COMPANY]: 'تم الإرسال لشركة التوصيل',
   [ORDER_STATUS.IN_PACKAGING]:  'في مرحلة التغليف',
+  [ORDER_STATUS.RETURNED_SHIPMENT]: 'طرد مرتجع',
 };
 
 export const ORDER_STATUS_COLORS = {
@@ -30,6 +32,7 @@ export const ORDER_STATUS_COLORS = {
   [ORDER_STATUS.OPEN_ORDER]: 'primary',
   [ORDER_STATUS.SENT_TO_DELIVERY_COMPANY]: 'info',
   [ORDER_STATUS.IN_PACKAGING]: 'warning',
+  [ORDER_STATUS.RETURNED_SHIPMENT]: 'default',
 };
 
 // User Role Constants

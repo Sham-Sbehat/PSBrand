@@ -161,12 +161,10 @@ export const ordersService = {
 
       const payload = response.data;
 
-      // Extract totalSum and totalSumWithoutDelivery from first page when date filter is active
-      if (hasDateFilter && currentPage === baseParams.page) {
-        if (!Array.isArray(payload) && payload) {
-          totalSum = payload.totalSum ?? null;
-          totalSumWithoutDelivery = payload.totalSumWithoutDelivery ?? null;
-        }
+      // استخراج totalSum و totalSumWithoutDelivery من أول صفحة إن وُجدا في الـ response
+      if (currentPage === baseParams.page && !Array.isArray(payload) && payload) {
+        totalSum = payload.totalSum ?? null;
+        totalSumWithoutDelivery = payload.totalSumWithoutDelivery ?? null;
       }
 
       if (Array.isArray(payload)) {
@@ -177,15 +175,11 @@ export const ordersService = {
       const pageData = Array.isArray(payload?.data) ? payload.data : [];
 
       if (userSpecifiedPage) {
-        // If date filter is active, return object with totals
-        if (hasDateFilter) {
-          return {
-            orders: pageData,
-            totalSum: payload?.totalSum ?? null,
-            totalSumWithoutDelivery: payload?.totalSumWithoutDelivery ?? null,
-          };
-        }
-        return pageData;
+        return {
+          orders: pageData,
+          totalSum: payload?.totalSum ?? null,
+          totalSumWithoutDelivery: payload?.totalSumWithoutDelivery ?? null,
+        };
       }
 
       accumulatedOrders.push(...pageData);
@@ -203,8 +197,8 @@ export const ordersService = {
       }
     }
 
-    // If date filter is active, return object with totals
-    if (hasDateFilter) {
+    // إرجاع الطلبات مع المجاميع إن وُجدت (لطباعتهما في الواجهة)
+    if (totalSum !== null || totalSumWithoutDelivery !== null) {
       return {
         orders: accumulatedOrders,
         totalSum,

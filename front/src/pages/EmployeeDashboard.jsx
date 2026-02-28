@@ -705,13 +705,14 @@ const EmployeeDashboard = () => {
     }
   };
 
-  // Fetch deposit orders count by designer
+  // Fetch deposit orders count by designer (use totalCount from paged API response)
   const fetchDepositOrdersCount = async () => {
     try {
       if (user?.id) {
         const response = await depositOrdersService.getAllDepositOrders({ designerId: user.id });
         const ordersArray = Array.isArray(response) ? response : (response?.data || []);
-        setDepositOrdersCount(ordersArray.length);
+        const count = response?.totalCount ?? ordersArray.length;
+        setDepositOrdersCount(count);
       }
     } catch (error) {
       setDepositOrdersCount(0);

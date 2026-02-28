@@ -31,6 +31,7 @@ import {
   AccessTime,
   Build,
   Inventory,
+  Reply as ReplyIcon,
   Send as SendIcon,
   FilterList,
 } from "@mui/icons-material";
@@ -83,7 +84,8 @@ const AdminDashboard = () => {
       try {
         const response = await ordersService.getAllOrders();
         if (isMounted) {
-          setAllOrders(response || []);
+          const list = Array.isArray(response) ? response : (response?.orders ?? []);
+          setAllOrders(list);
         }
       } catch (error) {
         console.error("Error fetching orders:", error);
@@ -128,12 +130,14 @@ const AdminDashboard = () => {
     fetchClientsCount();
 
     // Fetch deposit orders count (all orders, not filtered by designer)
+    // API returns paged result: use totalCount so the KPI matches "عدد الطلبات" in the tab
     const fetchDepositOrdersCount = async () => {
       try {
         const response = await depositOrdersService.getAllDepositOrders();
         const ordersArray = Array.isArray(response) ? response : (response?.data || []);
+        const count = response?.totalCount ?? ordersArray.length;
         if (isMounted) {
-          setDepositOrdersCount(ordersArray.length);
+          setDepositOrdersCount(count);
         }
       } catch (error) {
         console.error("Error fetching deposit orders count:", error);
@@ -255,6 +259,11 @@ const AdminDashboard = () => {
       title: "في مرحلة التغليف",
       value: allOrders.filter((order) => order.status === ORDER_STATUS.IN_PACKAGING).length,
       icon: Inventory,
+    },
+    {
+      title: "طرد مرتجع",
+      value: allOrders.filter((order) => order.status === ORDER_STATUS.RETURNED_SHIPMENT).length,
+      icon: ReplyIcon,
     },
     {
       title: "عدد العملاء",
@@ -407,13 +416,17 @@ const AdminDashboard = () => {
               statusToFilter = ORDER_STATUS.IN_PACKAGING;
               onCardClick = () => handleStatCardClick(statusToFilter);
             } else if (index === 5) {
+              isClickable = true;
+              statusToFilter = ORDER_STATUS.RETURNED_SHIPMENT;
+              onCardClick = () => handleStatCardClick(statusToFilter);
+            } else if (index === 6) {
               // عدد العملاء → تاب الإدارة ثم تاب العملاء
               isClickable = true;
               onCardClick = () => {
                 setManagementSubTabIndex(3);
                 setCurrentTab(6);
               };
-            } else if (index === 6) {
+            } else if (index === 7) {
               // طلبات العربون → تاب طلبات العربون
               isClickable = true;
               onCardClick = () => setCurrentTab(2);

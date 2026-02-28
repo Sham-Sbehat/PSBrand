@@ -41,6 +41,7 @@ import {
   CheckCircle,
   ContactPhone,
   Print,
+  Restore as RestoreIcon,
 } from "@mui/icons-material";
 import { useApp } from "../../context/AppContext";
 import { ordersService, orderStatusService, shipmentsService, colorsService, sizesService, fabricTypesService } from "../../services/api";
@@ -106,6 +107,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
   const [loadingImage, setLoadingImage] = useState(null); // Track which image is loading
   const [statusFilter, setStatusFilter] = useState("all");
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("all");
+  const [orderSourceFilter, setOrderSourceFilter] = useState("all"); // مصدر الطلب: 1 تيك توك، 2 إنستغرام
   const [designerFilter, setDesignerFilter] = useState(designerFilterProp ? String(designerFilterProp) : "all");
   const [designersWithSummary, setDesignersWithSummary] = useState([]);
   const [loadingDesignersSummary, setLoadingDesignersSummary] = useState(false);
@@ -294,6 +296,14 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           params.designerId = parseInt(designerFilter);
           cacheKey = `${cacheKey}_designer_${designerFilter}`;
         }
+        // فلتر حسب المصدر — يستخدم معامل orderSource من GET /api/Orders/GetOrders (قيم: 1 تيك توك، 2 إنستغرام)
+        if (orderSourceFilter && orderSourceFilter !== "all") {
+          const sourceValue = parseInt(orderSourceFilter, 10);
+          if (sourceValue === 1 || sourceValue === 2) {
+            params.orderSource = sourceValue;
+            cacheKey = `${cacheKey}_orderSource_${orderSourceFilter}`;
+          }
+        }
         
         // Check cache first (5 minutes TTL)
         const cachedData = getCache(cacheKey);
@@ -368,7 +378,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         setTotalSumWithoutDelivery(null);
         return [];
       }
-    }, [dateFilterProp, dateFilter, dateFromFilter, dateToFilter, designerFilter]);
+    }, [dateFilterProp, dateFilter, dateFromFilter, dateToFilter, designerFilter, orderSourceFilter]);
     
   // Fetch designers with orders summary (مرتبين حسب عدد الطلبات) للقائمة المنسدلة
   useEffect(() => {
@@ -2079,7 +2089,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               </Typography>
             ) : null;
           })()}
-          {(dateFilterProp || dateFilter || dateFromFilter || dateToFilter) && (totalSum !== null || totalSumWithoutDelivery !== null) && (
+          {(totalSum !== null || totalSumWithoutDelivery !== null) && (
             <Box sx={{ display: "flex", gap: 2, marginTop: 1, flexWrap: "wrap" }}>
               {totalSum !== null && (
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -2138,7 +2148,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               setSearchQuery(e.target.value);
               setPage(0);
             }}
-            sx={{ minWidth: { xs: 0, sm: 400 }, width: { xs: "100%", sm: "auto" } }}
+            sx={{ minWidth: { xs: 0, sm: 330 }, width: { xs: "100%", sm: "auto" } }}
           />
           <TextField
             select
@@ -2159,6 +2169,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
             <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
             <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
+            <MenuItem value={ORDER_STATUS.RETURNED_SHIPMENT}>طرد مرتجع</MenuItem>
           </TextField>
           <TextField
             select
@@ -2170,7 +2181,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
             }}
             label="البائع"
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: { xs: 0, sm: 180 }, width: { xs: "100%", sm: "auto" } }}
+            sx={{ minWidth: { xs: 0, sm: 130 }, width: { xs: "100%", sm: "auto" } }}
             disabled={loadingDesignersSummary}
             SelectProps={{
               renderValue: (v) => (v === "all" ? "جميع البائعين" : (designersWithSummary.find((d) => String(d.designerId) === v)?.designerName ?? v)),
@@ -2194,12 +2205,28 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           <TextField
             select
             size="small"
+            value={orderSourceFilter}
+            onChange={(e) => {
+              setOrderSourceFilter(e.target.value);
+              setPage(0);
+            }}
+            label="المصدر"
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 145, width: 145 }}
+          >
+            <MenuItem value="all">جميع المصادر</MenuItem>
+            <MenuItem value={1}>تيك توك</MenuItem>
+            <MenuItem value={2}>إنستغرام</MenuItem>
+          </TextField>
+          <TextField
+            select
+            size="small"
             value={deliveryStatusFilter}
             onChange={(e) => {
               setDeliveryStatusFilter(e.target.value);
               setPage(0); // Reset to first page when filtering
             }}
-            sx={{ minWidth: { xs: 0, sm: 220 }, width: { xs: "100%", sm: "auto" } }}
+            sx={{ minWidth: { xs: 0, sm: 200 }, width: { xs: "100%", sm: "auto" } }}
             label="حالة التوصيل"
           >
             <MenuItem value="all">جميع حالات التوصيل</MenuItem>
@@ -2241,7 +2268,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               else input?.focus();
             }}
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: { xs: 0, sm: 150 }, width: { xs: "100%", sm: "auto" }, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
+            sx={{ minWidth: { xs: 0, sm: 130 }, width: { xs: "100%", sm: "auto" }, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
             inputProps={{ style: { cursor: 'pointer' } }}
           />
           <TextField
@@ -2259,9 +2286,32 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
               else input?.focus();
             }}
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: { xs: 0, sm: 150 }, width: { xs: "100%", sm: "auto" }, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
+            sx={{ minWidth: { xs: 0, sm: 130 }, width: { xs: "100%", sm: "auto" }, cursor: 'pointer', '& .MuiOutlinedInput-root': { cursor: 'pointer' } }}
             inputProps={{ style: { cursor: 'pointer' } }}
           />
+          <Tooltip title="إعادة تعيين الفلاتر">
+            <IconButton
+              size="small"
+              onClick={() => {
+                setSearchQuery("");
+                setStatusFilter("all");
+                setDesignerFilter("all");
+                setOrderSourceFilter("all");
+                setDeliveryStatusFilter("all");
+                setDateFromFilter("");
+                setDateToFilter("");
+                setPage(0);
+              }}
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                "&:hover": { bgcolor: "action.hover" },
+              }}
+            >
+              <RestoreIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 

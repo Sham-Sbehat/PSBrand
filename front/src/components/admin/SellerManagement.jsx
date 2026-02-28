@@ -383,6 +383,7 @@ const SellerManagement = () => {
             <MenuItem value={ORDER_STATUS.CANCELLED}>ملغي</MenuItem>
             <MenuItem value={ORDER_STATUS.OPEN_ORDER}>الطلب مفتوح</MenuItem>
             <MenuItem value={ORDER_STATUS.SENT_TO_DELIVERY_COMPANY}>تم الإرسال لشركة التوصيل</MenuItem>
+            <MenuItem value={ORDER_STATUS.RETURNED_SHIPMENT}>طرد مرتجع</MenuItem>
           </TextField>
         </Box>
 

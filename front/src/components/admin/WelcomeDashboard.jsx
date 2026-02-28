@@ -273,7 +273,7 @@ const WelcomeDashboard = () => {
   const fetchOrderStatusStatistics = async () => {
     setLoadingStatusStats(true);
     try {
-      const statuses = [1, 2, 3, 4, 5, 6, 7, 8];
+      const statuses = [1, 2, 3, 4, 5, 6, 7, 8, 9];
       const statusNames = {
         1: "بانتظار الطباعة",
         2: "في مرحلة الطباعة",
@@ -283,6 +283,7 @@ const WelcomeDashboard = () => {
         6: "الطلب مفتوح",
         7: "تم الإرسال لشركة التوصيل",
         8: "في مرحلة التغليف",
+        9: "طرد مرتجع",
       };
       
       const promises = statuses.map(status => 
