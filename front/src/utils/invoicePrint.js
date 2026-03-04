@@ -26,12 +26,12 @@ function formatNum(n) {
   return isNaN(num) ? "0.00" : num.toFixed(2);
 }
 
-function getItemDescription(design, item) {
-  const designName = design?.designName ?? design?.name ?? "-";
-  const size = item?.sizeEntity?.nameAr ?? item?.sizeNameAr ?? item?.size ?? "-";
+function getItemFields(design, item) {
+  const description = design?.designName ?? design?.name ?? "-";
+  const size = item?.sizeEntity?.nameEn ?? item?.sizeEntity?.name ?? item?.sizeEntity?.sizeName ?? item?.sizeName ?? item?.size ?? item?.sizeEntity?.nameAr ?? item?.sizeNameAr ?? "-";
   const color = item?.colorEntity?.nameAr ?? item?.colorNameAr ?? item?.color ?? "-";
-  const fabric = item?.fabricTypeEntity?.nameAr ?? item?.fabricTypeNameAr ?? item?.fabricType ?? "-";
-  return `${designName} | ${size}، ${color}، ${fabric}`;
+  const fabricType = item?.fabricTypeEntity?.nameAr ?? item?.fabricTypeNameAr ?? item?.fabricType ?? "-";
+  return { description, size, color, fabricType };
 }
 
 function renderOrderSection(order, startRowNum, isMultiOrder) {
@@ -49,14 +49,16 @@ function renderOrderSection(order, startRowNum, isMultiOrder) {
   for (const design of designs) {
     const items = design?.orderDesignItems ?? [];
     for (const item of items) {
-      const desc = getItemDescription(design, item);
+      const { description, size, color, fabricType } = getItemFields(design, item);
       const qty = item?.quantity ?? 0;
       const unitPrice = item?.unitPrice ?? 0;
       const totalPrice = item?.totalPrice ?? qty * unitPrice;
       rowsHtml += `
         <tr>
-          <td style="border:1px solid #d1d9e0;padding:6px;text-align:center">${rowNum}</td>
-          <td style="border:1px solid #d1d9e0;padding:6px;font-size:13px">${escapeHtml(desc)}</td>
+          <td style="border:1px solid #d1d9e0;padding:6px;font-size:13px">${escapeHtml(description)}</td>
+          <td style="border:1px solid #d1d9e0;padding:6px;text-align:center;font-size:13px">${escapeHtml(size)}</td>
+          <td style="border:1px solid #d1d9e0;padding:6px;text-align:center;font-size:13px">${escapeHtml(color)}</td>
+          <td style="border:1px solid #d1d9e0;padding:6px;font-size:13px">${escapeHtml(fabricType)}</td>
           <td style="border:1px solid #d1d9e0;padding:6px;text-align:center">${qty}</td>
           <td style="border:1px solid #d1d9e0;padding:6px;text-align:left">${formatNum(unitPrice)}</td>
           <td style="border:1px solid #d1d9e0;padding:6px;text-align:left">${formatNum(totalPrice)}</td>
@@ -99,7 +101,7 @@ function renderOrderSection(order, startRowNum, isMultiOrder) {
         <div style="font-size:13px;color:#5a5a5a">التاريخ: ${dateStr}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-weight:600;margin-bottom:4px">العميل</div>
+        <div style="font-weight:600;margin-bottom:4px">العميل:</div>
         <div>${escapeHtml(clientName)}</div>
         <div style="font-size:13px">${escapeHtml(clientPhone)}</div>
         <div style="margin-top:8px;font-weight:600;font-size:13px">مكان التوصيل:</div>
@@ -145,11 +147,13 @@ export function generateInvoiceHtml(orders) {
         <table>
           <thead>
             <tr style="background:#e8eef4">
-              <th style="border:1px solid #d1d9e0;padding:8px;width:40px">ر.ت</th>
               <th style="border:1px solid #d1d9e0;padding:8px;text-align:right">الوصف</th>
-              <th style="border:1px solid #d1d9e0;padding:8px;width:60px">الكمية</th>
-              <th style="border:1px solid #d1d9e0;padding:8px;width:90px">سعر الوحدة</th>
-              <th style="border:1px solid #d1d9e0;padding:8px;width:90px">الإجمالي</th>
+              <th style="border:1px solid #d1d9e0;padding:8px;width:50px">المقاس</th>
+              <th style="border:1px solid #d1d9e0;padding:8px;width:60px">اللون</th>
+              <th style="border:1px solid #d1d9e0;padding:8px;text-align:right">نوع القماش</th>
+              <th style="border:1px solid #d1d9e0;padding:8px;width:50px">الكمية</th>
+              <th style="border:1px solid #d1d9e0;padding:8px;width:80px">سعر الوحدة</th>
+              <th style="border:1px solid #d1d9e0;padding:8px;width:80px">الإجمالي</th>
             </tr>
           </thead>
           <tbody>${section.rowsHtml}</tbody>
@@ -166,11 +170,13 @@ export function generateInvoiceHtml(orders) {
   <table>
     <thead>
       <tr style="background:#e8eef4">
-        <th style="border:1px solid #d1d9e0;padding:8px;width:40px">ر.ت</th>
         <th style="border:1px solid #d1d9e0;padding:8px;text-align:right">الوصف</th>
-        <th style="border:1px solid #d1d9e0;padding:8px;width:60px">الكمية</th>
-        <th style="border:1px solid #d1d9e0;padding:8px;width:90px">سعر الوحدة</th>
-        <th style="border:1px solid #d1d9e0;padding:8px;width:90px">الإجمالي</th>
+        <th style="border:1px solid #d1d9e0;padding:8px;width:50px">المقاس</th>
+        <th style="border:1px solid #d1d9e0;padding:8px;width:60px">اللون</th>
+        <th style="border:1px solid #d1d9e0;padding:8px;text-align:right">نوع القماش</th>
+        <th style="border:1px solid #d1d9e0;padding:8px;width:50px">الكمية</th>
+        <th style="border:1px solid #d1d9e0;padding:8px;width:80px">سعر الوحدة</th>
+        <th style="border:1px solid #d1d9e0;padding:8px;width:80px">الإجمالي</th>
       </tr>
     </thead>
     <tbody>${section.rowsHtml}</tbody>
