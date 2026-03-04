@@ -39,6 +39,7 @@ import { designRequestsService, employeesService } from "../../services/api";
 import { USER_ROLES } from "../../constants";
 import calmPalette from "../../theme/calmPalette";
 import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
+import { parseDesignDescription } from "../../utils";
 
 const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequestsRefreshKey = 0 }) => {
   const theme = useTheme();
@@ -554,10 +555,19 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
                   الصور
                 </TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }}>
-                  العنوان
+                  عنوان الطلب
                 </TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }}>
-                  الوصف
+                  عنوان التصميم
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }}>
+                  المنتج
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }}>
+                  اللون
+                </TableCell>
+                <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }}>
+                  إضافات
                 </TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: "0.95rem", py: 2 }}>
                   المنشئ
@@ -701,25 +711,45 @@ const DesignRequestsTab = ({ setSelectedImage, setImageDialogOpen, designRequest
                         {design.title || "-"}
                       </Typography>
                     </TableCell>
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: calmPalette.textSecondary,
-                          maxWidth: { xs: 200, sm: 300 },
-                          whiteSpace: isMobile ? "normal" : "pre-line",
-                          ...(isMobile && {
-                            display: "-webkit-box",
-                            WebkitLineClamp: 3,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                          }),
-                        }}
-                        title={design.description}
-                      >
-                        {design.description || "-"}
-                      </Typography>
-                    </TableCell>
+                    {(() => {
+                      const parsed = parseDesignDescription(design.description || "");
+                      return (
+                        <>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: calmPalette.textPrimary }}>
+                              {parsed ? parsed.designTitle : "-"}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: calmPalette.textPrimary }}>
+                              {parsed ? parsed.product : "-"}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: calmPalette.textPrimary }}>
+                              {parsed ? parsed.color : "-"}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: calmPalette.textSecondary,
+                                maxWidth: 200,
+                                whiteSpace: "pre-line",
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                              }}
+                              title={parsed ? parsed.additions : design.description}
+                            >
+                              {parsed ? parsed.additions : (design.description || "-")}
+                            </Typography>
+                          </TableCell>
+                        </>
+                      );
+                    })()}
                     <TableCell>
                       <Typography variant="body2" sx={{ color: calmPalette.textPrimary }}>
                         {design.createdByName || "-"}

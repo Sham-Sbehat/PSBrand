@@ -315,6 +315,27 @@ export const formatNoteConversationEntry = (role, text) => {
 };
 
 /**
+ * Parse design request description when stored as:
+ * "عنوان التصميم: X | المنتج: Y | اللون: Z | إضافات على التصميم: W"
+ * @param {string} str - description string from API
+ * @returns {{ designTitle: string, product: string, color: string, additions: string } | null}
+ */
+export const parseDesignDescription = (str) => {
+  if (!str || typeof str !== "string") return null;
+  const trimmed = str.trim();
+  if (!trimmed) return null;
+  const regex = /عنوان التصميم\s*:\s*(.*?)\s*\|\s*المنتج\s*:\s*(.*?)\s*\|\s*اللون\s*:\s*(.*?)\s*\|\s*إضافات على التصميم\s*:\s*([\s\S]*)/;
+  const m = trimmed.match(regex);
+  if (!m) return null;
+  return {
+    designTitle: (m[1] || "").trim(),
+    product: (m[2] || "").trim(),
+    color: (m[3] || "").trim(),
+    additions: (m[4] || "").trim(),
+  };
+};
+
+/**
  * Local storage helpers
  */
 export const storage = {

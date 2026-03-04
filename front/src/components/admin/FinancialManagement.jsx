@@ -45,6 +45,7 @@ import {
   AccountBalance,
   CalendarMonth,
   Description,
+  Print,
 } from '@mui/icons-material';
 import calmPalette from '../../theme/calmPalette';
 import { financialCategoriesService, expenseSourcesService, transactionsService, reportsService, accountingService } from '../../services/api';
@@ -970,6 +971,120 @@ const FinancialManagement = () => {
     return months[month - 1] || month;
   };
 
+  // Print transactions table (with logo and header like invoice)
+  const handlePrintTransactions = () => {
+    const logoUrl = import.meta.env.VITE_INVOICE_LOGO_URL || 'https://res.cloudinary.com/dz5dobxsr/image/upload/v1770741443/logo_psb_1_f5sus5.png';
+    const companyName = import.meta.env.VITE_INVOICE_COMPANY_NAME || 'PSBrand';
+    const companyPhone = import.meta.env.VITE_INVOICE_COMPANY_PHONE || '0569483466';
+    const logoHtml = logoUrl ? `<img src="${logoUrl.replace(/"/g, '&quot;')}" alt="Logo" style="height:42px;max-width:120px;object-fit:contain" />` : '';
+
+    const filterText = [];
+    if (selectedMonth && selectedMonth !== 'all') {
+      filterText.push(`الشهر: ${getMonthName(selectedMonth)} ${selectedYear}`);
+    } else {
+      filterText.push('الشهر: الكل');
+    }
+    if (filterByCategory) {
+      const cat = [...incomeCategories, ...expenseCategories].find((c) => String(c.id) === String(filterByCategory));
+      filterText.push(`الفئة: ${cat?.name ?? filterByCategory}`);
+    } else {
+      filterText.push('الفئة: الكل');
+    }
+    if (filterBySource) {
+      const src = sourcesForFilter.find((s) => String(s.id) === String(filterBySource));
+      filterText.push(`المصدر: ${src?.name ?? filterBySource}`);
+    } else {
+      filterText.push('المصدر: الكل');
+    }
+
+    const rows = transactions.map((t) => {
+      const d = new Date(t.transactionDate);
+      const month = d.getMonth() + 1;
+      const year = d.getFullYear();
+      const isIncome = t.type === 1;
+      const amountStr = (isIncome ? '+' : '-') + Number(t.amount).toLocaleString() + ' ₪';
+      return `<tr>
+        <td style="border:1px solid #d1d9e0;padding:8px">${(t.categoryName || '-').replace(/</g, '&lt;')}</td>
+        <td style="border:1px solid #d1d9e0;padding:8px">${(t.sourceName || '-').replace(/</g, '&lt;')}</td>
+        <td style="border:1px solid #d1d9e0;padding:8px;color:${isIncome ? '#2e7d32' : '#d32f2f'};font-weight:700">${amountStr}</td>
+        <td style="border:1px solid #d1d9e0;padding:8px">${getMonthName(month)} ${year}</td>
+        <td style="border:1px solid #d1d9e0;padding:8px">${(t.description || '-').replace(/</g, '&lt;')}</td>
+      </tr>`;
+    }).join('');
+
+    const safeFilename = `المعاملات-المالية-${selectedMonth && selectedMonth !== 'all' ? getMonthName(selectedMonth) + '-' + selectedYear : 'الكل'}.pdf`;
+
+    const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8">
+  <title>المعاملات المالية</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin: 0; padding: 1.2cm; font-size: 14px; color: #1a1a1a; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #2c3e50; color: #fff; padding: 10px; text-align: right; border: 1px solid #2c3e50; }
+    .print-actions { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .print-actions button { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .print-actions .btn-print { background: #1976d2; color: white; }
+    .print-actions .btn-pdf { background: #2e7d32; color: white; }
+    .print-actions button:hover { opacity: 0.9; }
+    .filter { margin-bottom: 16px; padding: 12px; background: #e8eef4; border-radius: 8px; }
+    @media print { .print-actions { display: none !important; } body { padding: 0.5cm; } }
+  </style>
+</head>
+<body>
+  <div class="print-actions">
+    <button class="btn-print" onclick="window.print()">طباعة</button>
+    <button class="btn-pdf" onclick="saveAsPdf()">حفظ كـ PDF</button>
+  </div>
+  <div id="print-content">
+  <div style="background:#1e3a5f;color:#fff;padding:16px;border-radius:8px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+    <div style="display:flex;align-items:center;gap:16px">
+      ${logoHtml}
+      <div>
+        <div style="font-size:20px;font-weight:bold">${(companyName || 'PSBrand').replace(/</g, '&lt;')}</div>
+        <div style="font-size:12px;opacity:0.9">${(companyPhone || '').replace(/</g, '&lt;')}</div>
+      </div>
+    </div>
+    <div style="font-size:24px;font-weight:bold">المعاملات المالية</div>
+  </div>
+  <div class="filter">${filterText.join(' | ')}</div>
+  <table>
+    <thead>
+      <tr>
+        <th>الفئة</th>
+        <th>المصدر</th>
+        <th>المبلغ</th>
+        <th>الشهر</th>
+        <th>الوصف</th>
+      </tr>
+    </thead>
+    <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:16px">لا توجد معاملات</td></tr>'}</tbody>
+  </table>
+  </div>
+  <script>
+    function saveAsPdf() {
+      if (typeof html2pdf === 'undefined') { alert('جاري تحميل المكتبة...'); return; }
+      var el = document.getElementById('print-content');
+      var opt = { margin: 10, filename: '${safeFilename}', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+      html2pdf().set(opt).from(el).save();
+    }
+  </script>
+</body>
+</html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) {
+      setSnackbar({ open: true, message: 'الرجاء السماح بالنوافذ المنبثقة لفتح نافذة الطباعة', severity: 'error' });
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+  };
+
   return (
     <Box>
       {/* Main Tabs Container */}
@@ -1700,6 +1815,30 @@ const FinancialManagement = () => {
                       </Button>
                     </span>
                   </Tooltip>
+                <Tooltip title="طباعة قائمة المعاملات المالية الحالية">
+                  <Button
+                    variant="outlined"
+                    startIcon={<Print />}
+                    onClick={handlePrintTransactions}
+                    fullWidth={isMobile}
+                    sx={{
+                      borderColor: '#5e4e3e',
+                      color: '#5e4e3e',
+                      borderRadius: 2,
+                      px: { xs: 2, sm: 3 },
+                      py: 1,
+                      fontSize: { xs: '0.875rem', sm: '1rem' },
+                      '&:hover': {
+                        borderColor: '#5e4e3e',
+                        backgroundColor: 'rgba(94, 78, 62, 0.08)',
+                        transform: { xs: 'none', sm: 'translateY(-2px)' },
+                      },
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    طباعة
+                  </Button>
+                </Tooltip>
                 <Button
                   variant="contained"
                   startIcon={<Add />}

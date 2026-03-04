@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import { Close, Visibility } from "@mui/icons-material";
 import calmPalette from "../../theme/calmPalette";
+import { parseDesignDescription } from "../../utils";
 
 const DesignRequestDetailsDialog = ({
   open,
@@ -78,20 +79,47 @@ const DesignRequestDetailsDialog = ({
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {/* Description (for design requests) */}
-          {design.description && (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}
-              >
-                الوصف:
-              </Typography>
-              <Typography variant="body2" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-line" }}>
-                {design.description}
-              </Typography>
-            </Box>
-          )}
+          {/* Description (for design requests) - عرض حقول منفصلة داخل المودال */}
+          {design.description && (() => {
+            const parsed = parseDesignDescription(design.description);
+            if (parsed) {
+              return (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: calmPalette.textPrimary, borderBottom: `2px solid ${calmPalette.primary}20`, pb: 1 }}>
+                    التفاصيل
+                  </Typography>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary, minWidth: "140px" }}>عنوان التصميم:</Typography>
+                      <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>{parsed.designTitle || "-"}</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary, minWidth: "140px" }}>المنتج:</Typography>
+                      <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>{parsed.product || "-"}</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary, minWidth: "140px" }}>اللون:</Typography>
+                      <Typography variant="body2" sx={{ color: calmPalette.textSecondary }}>{parsed.color || "-"}</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: calmPalette.textPrimary, minWidth: "140px" }}>إضافات على التصميم:</Typography>
+                      <Typography variant="body2" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-line", flex: 1 }}>{parsed.additions || "-"}</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              );
+            }
+            return (
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: calmPalette.textPrimary }}>
+                  الوصف:
+                </Typography>
+                <Typography variant="body2" sx={{ color: calmPalette.textSecondary, whiteSpace: "pre-line" }}>
+                  {design.description}
+                </Typography>
+              </Box>
+            );
+          })()}
 
           {/* Images (for design requests) - صور النموذج */}
           {design.images && design.images.length > 0 && (

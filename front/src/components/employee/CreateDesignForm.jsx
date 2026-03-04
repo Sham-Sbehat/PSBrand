@@ -12,6 +12,10 @@ import {
   CardMedia,
   Fade,
   Zoom,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import {
   CloudUpload,
@@ -19,8 +23,11 @@ import {
   Image as ImageIcon,
   Note,
   Create,
+  Category,
+  Palette,
+  AddCircleOutline,
 } from "@mui/icons-material";
-import { designRequestsService } from "../../services/api";
+import { designRequestsService, colorsService } from "../../services/api";
 import Swal from "sweetalert2";
 import calmPalette from "../../theme/calmPalette";
 
@@ -28,6 +35,8 @@ const CreateDesignForm = ({ onSuccess }) => {
   const [designImages, setDesignImages] = useState([]); // Array of { url, previewUrl, name, imageKey }
   const [uploadingImages, setUploadingImages] = useState(false);
   const [creatingDesign, setCreatingDesign] = useState(false);
+  const [colors, setColors] = useState([]);
+  const [loadingColors, setLoadingColors] = useState(true);
 
   const {
     register,
@@ -38,10 +47,30 @@ const CreateDesignForm = ({ onSuccess }) => {
   } = useForm({
     defaultValues: {
       designName: "",
-      description: "",
+      designTitle: "",
+      product: "",
+      designColors: "",
+      designAdditions: "",
       notes: "",
     },
   });
+
+  // Fetch colors for select
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const colorsData = await colorsService.getAllColors();
+        if (!cancelled) setColors(Array.isArray(colorsData) ? colorsData : []);
+      } catch {
+        if (!cancelled) setColors([]);
+      } finally {
+        if (!cancelled) setLoadingColors(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   // Reset form when component mounts
   useEffect(() => {
@@ -195,33 +224,69 @@ const CreateDesignForm = ({ onSuccess }) => {
         Swal.fire({
           icon: "error",
           title: "خطأ",
-          text: "اسم التصميم مطلوب",
+          text: "عنوان الطلب مطلوب",
           confirmButtonColor: calmPalette.primary,
         });
         setCreatingDesign(false);
         return;
       }
-
-      if (!data.description || data.description.trim() === '') {
+      if (!data.designTitle || data.designTitle.trim() === '') {
         Swal.fire({
           icon: "error",
           title: "خطأ",
-          text: "الوصف مطلوب",
+          text: "عنوان التصميم مطلوب",
+          confirmButtonColor: calmPalette.primary,
+        });
+        setCreatingDesign(false);
+        return;
+      }
+      if (!data.product || data.product.trim() === '') {
+        Swal.fire({
+          icon: "error",
+          title: "خطأ",
+          text: "المنتج مطلوب",
+          confirmButtonColor: calmPalette.primary,
+        });
+        setCreatingDesign(false);
+        return;
+      }
+      if (!data.designColors || data.designColors.trim() === '') {
+        Swal.fire({
+          icon: "error",
+          title: "خطأ",
+          text: "اللون مطلوب",
+          confirmButtonColor: calmPalette.primary,
+        });
+        setCreatingDesign(false);
+        return;
+      }
+      if (!data.designAdditions || data.designAdditions.trim() === '') {
+        Swal.fire({
+          icon: "error",
+          title: "خطأ",
+          text: "إضافات على التصميم مطلوبة",
           confirmButtonColor: calmPalette.primary,
         });
         setCreatingDesign(false);
         return;
       }
 
-      // Create design request payload according to API spec
-      // API expects fields directly (not wrapped in dto) with lowercase field names
+      // API القديم: title + description فقط. نجمع كل تفاصيل الحقول في وصف واحد.
+      const descriptionParts = [
+        `عنوان التصميم: ${data.designTitle.trim()}`,
+        `المنتج: ${data.product.trim()}`,
+        `اللون: ${data.designColors.trim()}`,
+        `إضافات على التصميم: ${data.designAdditions.trim()}`,
+      ];
+      const description = descriptionParts.join(' | ');
+
       const designRequestPayload = {
-        title: String(data.designName.trim()), // API expects "title" (lowercase) and it's required
-        description: String(data.description.trim()), // API expects "description" (lowercase) and it's required
-        imageKeys: imageKeys.length > 0 ? imageKeys : [], // صور اختيارية
-        status: 1, // Default status
-        mainDesignerId: 0, // Can be 0 or null, depending on API requirements
-        note: String(data.notes?.trim() || ''), // Additional notes field (optional)
+        title: String(data.designName.trim()),
+        description,
+        imageKeys: imageKeys.length > 0 ? imageKeys : [],
+        status: 1,
+        mainDesignerId: 0,
+        note: String(data.notes?.trim() || ''),
       };
 
       await designRequestsService.createDesignRequest(designRequestPayload);
@@ -347,7 +412,7 @@ const CreateDesignForm = ({ onSuccess }) => {
               <Controller
                 name="designName"
                 control={control}
-                rules={{ required: "اسم التصميم مطلوب" }}
+                rules={{ required: "عنوان الطلب مطلوب" }}
                 render={({ field }) => (
                   <Box>
                     <Typography
@@ -362,7 +427,7 @@ const CreateDesignForm = ({ onSuccess }) => {
                       }}
                     >
                       <Create sx={{ fontSize: 20, color: calmPalette.primary }} />
-                      اسم التصميم
+                      عنوان الطلب
                       <Typography
                         component="span"
                         sx={{ color: "error.main", fontSize: "1.2rem" }}
@@ -372,11 +437,71 @@ const CreateDesignForm = ({ onSuccess }) => {
                     </Typography>
                     <TextField
                       {...field}
-                      placeholder="أدخل اسم التصميم"
+                      placeholder="أدخل عنوان الطلب"
                       fullWidth
                       required
                       error={!!errors.designName}
                       helperText={errors.designName?.message}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          backgroundColor: "rgba(255, 255, 255, 0.95)",
+                          borderRadius: 2,
+                          transition: "all 0.3s ease",
+                          "&:hover": {
+                            backgroundColor: "rgba(255, 255, 255, 1)",
+                            boxShadow: `0 2px 8px ${calmPalette.primary}20`,
+                          },
+                          "&.Mui-focused": {
+                            backgroundColor: "rgba(255, 255, 255, 1)",
+                            boxShadow: `0 4px 12px ${calmPalette.primary}30`,
+                          },
+                          "& fieldset": {
+                            borderColor: `${calmPalette.primary}30`,
+                            borderWidth: 2,
+                          },
+                          "&:hover fieldset": {
+                            borderColor: `${calmPalette.primary}50`,
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderColor: calmPalette.primary,
+                            borderWidth: 2,
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
+                )}
+              />
+
+              {/* عنوان التصميم (designTitle) */}
+              <Controller
+                name="designTitle"
+                control={control}
+                rules={{ required: "عنوان التصميم مطلوب" }}
+                render={({ field }) => (
+                  <Box>
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        fontWeight: 600,
+                        mb: 1.5,
+                        color: calmPalette.textPrimary,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
+                    >
+                      <Create sx={{ fontSize: 20, color: calmPalette.primary }} />
+                      عنوان التصميم
+                      <Typography component="span" sx={{ color: "error.main", fontSize: "1.2rem" }}>*</Typography>
+                    </Typography>
+                    <TextField
+                      {...field}
+                      placeholder="أدخل عنوان التصميم"
+                      fullWidth
+                      required
+                      error={!!errors.designTitle}
+                      helperText={errors.designTitle?.message}
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           backgroundColor: "rgba(255, 255, 255, 0.95)",
@@ -588,11 +713,169 @@ const CreateDesignForm = ({ onSuccess }) => {
                 )}
               </Box>
 
-              {/* Description */}
+              {/* المنتج واللون في صف واحد - فلكس يقسم المساحة */}
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: { xs: "column", sm: "row" },
+                  gap: 3,
+                  "& > *": { flex: 1, minWidth: 0 },
+                }}
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Controller
+                    name="product"
+                    control={control}
+                    rules={{ required: "المنتج مطلوب" }}
+                    render={({ field }) => (
+                      <Box>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontWeight: 600,
+                            mb: 1.5,
+                            color: calmPalette.textPrimary,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                          }}
+                        >
+                          <Category sx={{ fontSize: 20, color: calmPalette.primary }} />
+                          المنتج
+                          <Typography component="span" sx={{ color: "error.main", fontSize: "1.2rem" }}>*</Typography>
+                        </Typography>
+                        <TextField
+                          {...field}
+                          placeholder="أدخل المنتج"
+                          fullWidth
+                          required
+                          error={!!errors.product}
+                          helperText={errors.product?.message}
+                          sx={{
+                            "& .MuiOutlinedInput-root": {
+                              backgroundColor: "rgba(255, 255, 255, 0.95)",
+                              borderRadius: 2,
+                              transition: "all 0.3s ease",
+                              "&:hover": {
+                                backgroundColor: "rgba(255, 255, 255, 1)",
+                                boxShadow: `0 2px 8px ${calmPalette.primary}20`,
+                              },
+                              "&.Mui-focused": {
+                                backgroundColor: "rgba(255, 255, 255, 1)",
+                                boxShadow: `0 4px 12px ${calmPalette.primary}30`,
+                              },
+                              "& fieldset": {
+                                borderColor: `${calmPalette.primary}30`,
+                                borderWidth: 2,
+                              },
+                              "&:hover fieldset": {
+                                borderColor: `${calmPalette.primary}50`,
+                              },
+                              "&.Mui-focused fieldset": {
+                                borderColor: calmPalette.primary,
+                                borderWidth: 2,
+                              },
+                            },
+                          }}
+                        />
+                      </Box>
+                    )}
+                  />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Controller
+                    name="designColors"
+                    control={control}
+                    rules={{ required: "اللون مطلوب" }}
+                    render={({ field }) => (
+                      <Box>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontWeight: 600,
+                            mb: 1.5,
+                            color: calmPalette.textPrimary,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                          }}
+                        >
+                          <Palette sx={{ fontSize: 20, color: calmPalette.primary }} />
+                          اللون
+                          <Typography component="span" sx={{ color: "error.main", fontSize: "1.2rem" }}>*</Typography>
+                        </Typography>
+                        <FormControl
+                          fullWidth
+                          error={!!errors.designColors}
+                          disabled={loadingColors}
+                          sx={{
+                            "& .MuiOutlinedInput-root": {
+                              backgroundColor: "rgba(255, 255, 255, 0.95)",
+                              borderRadius: 2,
+                              "& fieldset": {
+                                borderColor: `${calmPalette.primary}30`,
+                                borderWidth: 2,
+                              },
+                              "&:hover fieldset": {
+                                borderColor: `${calmPalette.primary}50`,
+                              },
+                              "&.Mui-focused fieldset": {
+                                borderColor: calmPalette.primary,
+                                borderWidth: 2,
+                              },
+                            },
+                          }}
+                        >
+                          <InputLabel>اختر اللون</InputLabel>
+                          <Select
+                            {...field}
+                            value={field.value || ""}
+                            onChange={(e) => field.onChange(e.target.value)}
+                            label="اختر اللون"
+                          >
+                            <MenuItem value="">
+                              <em>اختر اللون</em>
+                            </MenuItem>
+                            {colors.length > 0 ? (
+                              colors.map((color) => {
+                                const colorValue = color.nameAr || color.name || "";
+                                return (
+                                  <MenuItem key={color.id} value={colorValue}>
+                                    {colorValue}
+                                  </MenuItem>
+                                );
+                              })
+                            ) : (
+                              <>
+                                <MenuItem value="أسود">أسود</MenuItem>
+                                <MenuItem value="أبيض">أبيض</MenuItem>
+                                <MenuItem value="سكني">سكني</MenuItem>
+                                <MenuItem value="أزرق">أزرق</MenuItem>
+                                <MenuItem value="بني">بني</MenuItem>
+                                <MenuItem value="بنفسجي">بنفسجي</MenuItem>
+                                <MenuItem value="زهري">زهري</MenuItem>
+                                <MenuItem value="بيج">بيج</MenuItem>
+                                <MenuItem value="خمري">خمري</MenuItem>
+                              </>
+                            )}
+                          </Select>
+                          {errors.designColors && (
+                            <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
+                              {errors.designColors.message}
+                            </Typography>
+                          )}
+                        </FormControl>
+                      </Box>
+                    )}
+                  />
+                </Box>
+              </Box>
+
+              {/* إضافات على التصميم */}
               <Controller
-                name="description"
+                name="designAdditions"
                 control={control}
-                rules={{ required: "الوصف مطلوب" }}
+                rules={{ required: "إضافات على التصميم مطلوبة" }}
                 render={({ field }) => (
                   <Box>
                     <Typography
@@ -606,24 +889,19 @@ const CreateDesignForm = ({ onSuccess }) => {
                         gap: 1,
                       }}
                     >
-                      <Note sx={{ fontSize: 20, color: calmPalette.primary }} />
-                      الوصف
-                      <Typography
-                        component="span"
-                        sx={{ color: "error.main", fontSize: "1.2rem" }}
-                      >
-                        *
-                      </Typography>
+                      <AddCircleOutline sx={{ fontSize: 20, color: calmPalette.primary }} />
+                      إضافات على التصميم
+                      <Typography component="span" sx={{ color: "error.main", fontSize: "1.2rem" }}>*</Typography>
                     </Typography>
                     <TextField
                       {...field}
-                      placeholder="أدخل وصف التصميم..."
+                      placeholder="أدخل إضافات على التصميم"
                       fullWidth
                       required
                       multiline
-                      rows={4}
-                      error={!!errors.description}
-                      helperText={errors.description?.message}
+                      rows={3}
+                      error={!!errors.designAdditions}
+                      helperText={errors.designAdditions?.message}
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           backgroundColor: "rgba(255, 255, 255, 0.95)",

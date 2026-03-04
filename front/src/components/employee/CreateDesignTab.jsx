@@ -48,7 +48,7 @@ import DesignRequestDetailsDialog from "../common/DesignRequestDetailsDialog";
 import calmPalette from "../../theme/calmPalette";
 import Swal from "sweetalert2";
 import { useForm, Controller } from "react-hook-form";
-import { parseNoteConversation, formatNoteConversationEntry } from "../../utils";
+import { parseNoteConversation, formatNoteConversationEntry, parseDesignDescription } from "../../utils";
 
 const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designRequestsRefreshKey = 0, designRequestIdToOpen, onDesignRequestOpened }) => {
   const theme = useTheme();
@@ -712,8 +712,11 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
                         "& th": { whiteSpace: "nowrap" },
                       }}
                     >
-                      <TableCell sx={{ fontWeight: 700 }}>العنوان</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>الوصف</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>عنوان الطلب</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>عنوان التصميم</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>المنتج</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>اللون</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>إضافات على التصميم</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>الحالة</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>الصور</TableCell>
                       <TableCell sx={{ fontWeight: 700 }}>تاريخ الإنشاء</TableCell>
@@ -740,7 +743,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
                       if (filteredDesigns.length === 0) {
                         return (
                           <TableRow>
-                            <TableCell colSpan={6} align="center">
+                            <TableCell colSpan={9} align="center">
                               <Box sx={{ padding: 4 }}>
                                 <Typography variant="body1" color="text.secondary">
                                   {designsSearchQuery.trim() ? "لا توجد نتائج للبحث" : "لا توجد تصاميم"}
@@ -768,6 +771,7 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
                       return filteredDesigns.map((design) => {
                         const statusInfo = getStatusLabel(design.status);
                         const isDesignToScroll = designRequestIdToOpen === design.id;
+                        const parsed = parseDesignDescription(design.description || "");
                         return (
                           <TableRow
                             key={design.id}
@@ -781,15 +785,12 @@ const CreateDesignTab = ({ user, setSelectedImage, setImageDialogOpen, designReq
                             }}
                           >
                             <TableCell>{design.title || "-"}</TableCell>
+                            <TableCell>{parsed ? parsed.designTitle : "-"}</TableCell>
+                            <TableCell>{parsed ? parsed.product : "-"}</TableCell>
+                            <TableCell>{parsed ? parsed.color : "-"}</TableCell>
                             <TableCell>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  maxWidth: 300,
-                                  whiteSpace: "pre-line",
-                                }}
-                              >
-                                {design.description || "-"}
+                              <Typography variant="body2" sx={{ maxWidth: 280, whiteSpace: "pre-line" }}>
+                                {parsed ? parsed.additions : (design.description || "-")}
                               </Typography>
                             </TableCell>
                             <TableCell>
