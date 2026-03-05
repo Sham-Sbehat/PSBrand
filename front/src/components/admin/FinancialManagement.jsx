@@ -104,6 +104,7 @@ const FinancialManagement = () => {
   const [deletingSource, setDeletingSource] = useState(false);
   const [savingTransaction, setSavingTransaction] = useState(false);
   const [transactions, setTransactions] = useState([]);
+  const [transactionsTotalAmount, setTransactionsTotalAmount] = useState(null); // من استجابة ByMonth عند وجود totalAmount
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -149,6 +150,7 @@ const FinancialManagement = () => {
       // API returns an object with transactions array, or a direct array
       const transactionsData = response?.transactions || response;
       setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
+      setTransactionsTotalAmount(response?.totalAmount != null ? Number(response.totalAmount) : null);
     } catch (error) {
       setSnackbar({
         open: true,
@@ -156,6 +158,7 @@ const FinancialManagement = () => {
         severity: 'error'
       });
       setTransactions([]);
+      setTransactionsTotalAmount(null);
     } finally {
       setLoadingTransactions(false);
     }
@@ -971,12 +974,14 @@ const FinancialManagement = () => {
     return months[month - 1] || month;
   };
 
-  // Print transactions table (with logo and header like invoice)
+  // Print transactions table (with logo and header مثل فاتورة الطلبات)
   const handlePrintTransactions = () => {
     const logoUrl = import.meta.env.VITE_INVOICE_LOGO_URL || 'https://res.cloudinary.com/dz5dobxsr/image/upload/v1770741443/logo_psb_1_f5sus5.png';
-    const companyName = import.meta.env.VITE_INVOICE_COMPANY_NAME || 'PSBrand';
+    const logoWhiteUrl = import.meta.env.VITE_INVOICE_LOGO_WHITE_URL || '';
     const companyPhone = import.meta.env.VITE_INVOICE_COMPANY_PHONE || '0569483466';
-    const logoHtml = logoUrl ? `<img src="${logoUrl.replace(/"/g, '&quot;')}" alt="Logo" style="height:42px;max-width:120px;object-fit:contain" />` : '';
+    const invoiceLogoUrl = logoWhiteUrl || logoUrl;
+    const logoStyle = logoWhiteUrl ? 'height:42px;max-width:120px;object-fit:contain' : 'height:42px;max-width:120px;object-fit:contain;filter:brightness(0) invert(1)';
+    const logoHtml = invoiceLogoUrl ? `<img src="${invoiceLogoUrl.replace(/"/g, '&quot;')}" alt="Logo" style="${logoStyle}" />` : '';
 
     const filterText = [];
     if (selectedMonth && selectedMonth !== 'all') {
@@ -1014,6 +1019,11 @@ const FinancialManagement = () => {
 
     const safeFilename = `المعاملات-المالية-${selectedMonth && selectedMonth !== 'all' ? getMonthName(selectedMonth) + '-' + selectedYear : 'الكل'}.pdf`;
 
+    const showTotalInPrint = (filterByCategory || filterBySource) && transactionsTotalAmount != null;
+    const totalHtml = showTotalInPrint
+      ? `<div style="margin-bottom:16px;text-align:right;font-size:18px;font-weight:700;color:#1a1a1a">المجموع: ${Number(transactionsTotalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₪</div>`
+      : '';
+
     const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
@@ -1041,16 +1051,16 @@ const FinancialManagement = () => {
   </div>
   <div id="print-content">
   <div style="background:#1e3a5f;color:#fff;padding:16px;border-radius:8px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
-    <div style="display:flex;align-items:center;gap:16px">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;order:2">
       ${logoHtml}
-      <div>
-        <div style="font-size:20px;font-weight:bold">${(companyName || 'PSBrand').replace(/</g, '&lt;')}</div>
-        <div style="font-size:12px;opacity:0.9">${(companyPhone || '').replace(/</g, '&lt;')}</div>
+      <div style="align-self:flex-start;text-align:right">
+        ${companyPhone ? `<div style="font-size:14px;opacity:0.9">${(companyPhone || '').replace(/</g, '&lt;')}</div>` : ''}
       </div>
     </div>
-    <div style="font-size:24px;font-weight:bold">المعاملات المالية</div>
+    <div style="font-size:24px;font-weight:bold;order:1">المعاملات المالية</div>
   </div>
   <div class="filter">${filterText.join(' | ')}</div>
+  ${totalHtml}
   <table>
     <thead>
       <tr>
@@ -1965,6 +1975,14 @@ const FinancialManagement = () => {
                   </Select>
                 </FormControl>
               </Box>
+
+              {transactionsTotalAmount != null && !loadingTransactions && (filterByCategory || filterBySource) && (
+                <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: calmPalette.textPrimary }}>
+                    المجموع: {transactionsTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₪
+                  </Typography>
+                </Box>
+              )}
 
               <TableContainer 
                 component={Paper} 

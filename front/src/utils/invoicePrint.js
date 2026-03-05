@@ -5,9 +5,11 @@
 
 const INVOICE_SETTINGS = {
   companyName: import.meta.env.VITE_INVOICE_COMPANY_NAME || "PSBrand",
-  companyPhone: import.meta.env.VITE_INVOICE_COMPANY_PHONE || "0569483466",
+  companyPhone: import.meta.env.VITE_INVOICE_COMPANY_PHONE || "0595406149",
   companyAddress: import.meta.env.VITE_INVOICE_COMPANY_ADDRESS || "",
   logoUrl: import.meta.env.VITE_INVOICE_LOGO_URL || "https://res.cloudinary.com/dz5dobxsr/image/upload/v1770741443/logo_psb_1_f5sus5.png",
+  /** لوجو أبيض للهيدر الداكن - إن وُجد وإلا يُستخدم اللوجو العادي مع فلتر أبيض */
+  logoWhiteUrl: import.meta.env.VITE_INVOICE_LOGO_WHITE_URL || "",
 };
 
 function escapeHtml(text) {
@@ -95,18 +97,12 @@ function renderOrderSection(order, startRowNum, isMultiOrder) {
     orderHeader,
     clientInfo: !isMultiOrder
       ? `
-    <div style="display:flex;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:16px">
-      <div>
-        <div style="font-weight:600;margin-bottom:4px">رقم الطلب: ${escapeHtml(order?.orderNumber ?? order?.id ?? "-")}</div>
-        <div style="font-size:13px;color:#5a5a5a">التاريخ: ${dateStr}</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-weight:600;margin-bottom:4px">العميل:</div>
-        <div>${escapeHtml(clientName)}</div>
-        <div style="font-size:13px">${escapeHtml(clientPhone)}</div>
-        <div style="margin-top:8px;font-weight:600;font-size:13px">مكان التوصيل:</div>
-        <div style="font-size:13px;color:#5a5a5a">${escapeHtml(address)}</div>
-      </div>
+    <div style="margin-bottom:16px;text-align:right">
+      <div style="font-weight:600;margin-bottom:4px">العميل:</div>
+      <div>${escapeHtml(clientName)}</div>
+      <div style="font-size:13px">${escapeHtml(clientPhone)}</div>
+      <div style="margin-top:8px;font-weight:600;font-size:13px">مكان التوصيل:</div>
+      <div style="font-size:13px;color:#5a5a5a">${escapeHtml(address)}</div>
     </div>`
       : `
     <div style="margin-bottom:12px;padding:8px;background:#f5f7fa;border-radius:6px;border-right:4px solid #1e3a5f">
@@ -130,8 +126,12 @@ export function generateInvoiceHtml(orders) {
   if (!Array.isArray(orders) || orders.length === 0) return "";
 
   const isMultiOrder = orders.length > 1;
-  const logo = INVOICE_SETTINGS.logoUrl
-    ? `<img src="${escapeHtml(INVOICE_SETTINGS.logoUrl)}" alt="Logo" style="height:42px;max-width:120px;object-fit:contain" />`
+  const invoiceLogoUrl = INVOICE_SETTINGS.logoWhiteUrl || INVOICE_SETTINGS.logoUrl;
+  const logoStyle = INVOICE_SETTINGS.logoWhiteUrl
+    ? "height:42px;max-width:120px;object-fit:contain"
+    : "height:42px;max-width:120px;object-fit:contain;filter:brightness(0) invert(1)";
+  const logo = invoiceLogoUrl
+    ? `<img src="${escapeHtml(invoiceLogoUrl)}" alt="Logo" style="${logoStyle}" />`
     : "";
 
   let contentBlocks = "";
@@ -219,15 +219,14 @@ export function generateInvoiceHtml(orders) {
   </div>
   <div id="invoice-content">
   <div style="background:#1e3a5f;color:#fff;padding:16px;border-radius:8px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
-    <div style="display:flex;align-items:center;gap:16px">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;order:2">
       ${logo}
       <div>
-        <div style="font-size:20px;font-weight:bold">${escapeHtml(INVOICE_SETTINGS.companyName)}</div>
         ${INVOICE_SETTINGS.companyAddress ? `<div style="font-size:12px;opacity:0.9">${escapeHtml(INVOICE_SETTINGS.companyAddress)}</div>` : ""}
-        ${INVOICE_SETTINGS.companyPhone ? `<div style="font-size:12px;opacity:0.9">${escapeHtml(INVOICE_SETTINGS.companyPhone)}</div>` : ""}
+        ${INVOICE_SETTINGS.companyPhone ? `<div style="font-size:14px;opacity:0.9">${escapeHtml(INVOICE_SETTINGS.companyPhone)}</div>` : ""}
       </div>
     </div>
-    <div style="font-size:24px;font-weight:bold">${escapeHtml(title)}</div>
+    <div style="font-size:24px;font-weight:bold;order:1">${escapeHtml(title)}</div>
   </div>
 
   ${contentBlocks}
