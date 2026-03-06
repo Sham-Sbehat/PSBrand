@@ -736,6 +736,22 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
     }
   };
 
+  const handlePrintBulkInvoiceFinalOnly = async () => {
+    if (selectedForPrint.length === 0) return;
+    setLoadingInvoiceOrderId("bulk-final");
+    try {
+      const fullOrders = await Promise.all(
+        selectedForPrint.map((id) => ordersService.getOrderById(id))
+      );
+      openInvoicePrintWindow(fullOrders, { onlyFinalTotal: true });
+      setSelectedForPrint([]);
+    } catch (err) {
+      setSnackbar({ open: true, message: err.response?.data?.message || "فشل تحميل بيانات الطلبات", severity: "error" });
+    } finally {
+      setLoadingInvoiceOrderId(null);
+    }
+  };
+
   const handleCloseNotesDialog = () => {
     setOpenNotesDialog(false);
     setSelectedOrder(null);
@@ -2116,16 +2132,30 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           }}
         >
           {selectedForPrint.length > 0 && (
-            <Button
-              variant="outlined"
-              color="secondary"
-              startIcon={loadingInvoiceOrderId === "bulk" ? <CircularProgress size={18} /> : <Print />}
-              onClick={handlePrintBulkInvoice}
-              disabled={loadingInvoiceOrderId === "bulk"}
-              sx={{ minWidth: { xs: "100%", sm: 150 } }}
-            >
-              {loadingInvoiceOrderId === "bulk" ? "جاري التحميل..." : `طباعة المحدد (${selectedForPrint.length})`}
-            </Button>
+            <>
+              <Button
+                variant="outlined"
+                color="secondary"
+                startIcon={loadingInvoiceOrderId === "bulk" ? <CircularProgress size={18} /> : <Print />}
+                onClick={handlePrintBulkInvoice}
+                disabled={loadingInvoiceOrderId === "bulk" || loadingInvoiceOrderId === "bulk-final"}
+                sx={{ minWidth: { xs: "100%", sm: 150 } }}
+              >
+                {loadingInvoiceOrderId === "bulk" ? "جاري التحميل..." : `طباعة المحدد (${selectedForPrint.length})`}
+              </Button>
+              <span>
+                  <Button
+                    variant="outlined"
+                    color="secondary"
+                    startIcon={loadingInvoiceOrderId === "bulk-final" ? <CircularProgress size={18} /> : <Print />}
+                    onClick={handlePrintBulkInvoiceFinalOnly}
+                    disabled={loadingInvoiceOrderId === "bulk" || loadingInvoiceOrderId === "bulk-final"}
+                    sx={{ minWidth: { xs: "100%", sm: 140 } }}
+                  >
+                    {loadingInvoiceOrderId === "bulk-final" ? "جاري التحميل..." : `طباعة فاتورة الزبون `}
+                  </Button>
+                </span>
+            </>
           )}
           {selectedOrders.length > 0 && (
             <>

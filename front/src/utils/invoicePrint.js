@@ -28,6 +28,17 @@ function formatNum(n) {
   return isNaN(num) ? "0.00" : num.toFixed(2);
 }
 
+/** تنسيق تاريخ الطلب بالتوقيت المحلي (لتجنب اختلاف اليوم بسبب UTC) */
+function formatOrderDate(dateValue) {
+  if (dateValue == null) return "-";
+  const d = new Date(dateValue);
+  if (Number.isNaN(d.getTime())) return "-";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function getItemFields(design, item) {
   const description = design?.designName ?? design?.name ?? "-";
   const size = item?.sizeEntity?.nameEn ?? item?.sizeEntity?.name ?? item?.sizeEntity?.sizeName ?? item?.sizeName ?? item?.size ?? item?.sizeEntity?.nameAr ?? item?.sizeNameAr ?? "-";
@@ -36,13 +47,14 @@ function getItemFields(design, item) {
   return { description, size, color, fabricType };
 }
 
-function renderOrderSection(order, startRowNum, isMultiOrder) {
+function renderOrderSection(order, startRowNum, isMultiOrder, options = {}) {
+  const onlyFinalTotal = options.onlyFinalTotal === true;
   const client = order?.client ?? {};
   const clientName = client?.name ?? "-";
   const clientPhone = client?.phone ?? client?.phone1 ?? "-";
   const address = order?.clientAddress || client?.address || [order?.country, order?.province, order?.district].filter(Boolean).join("، ") || "-";
-  const orderDate = order?.orderDate || order?.createdAt;
-  const dateStr = orderDate ? new Date(orderDate).toISOString().slice(0, 10) : "-";
+  const crearedAt = order?.crearedAt || order?.createdAt;
+  const dateStr = formatOrderDate(crearedAt);
 
   let rowsHtml = "";
   let rowNum = startRowNum;
@@ -82,7 +94,14 @@ function renderOrderSection(order, startRowNum, isMultiOrder) {
        </div>`
     : "";
 
-  const summaryHtml = `
+  const summaryHtml = onlyFinalTotal
+    ? `
+    <div style="margin-top:14px;margin-right:auto;width:220px;background:#e8eef4;padding:12px;border-radius:6px">
+      <div style="display:flex;justify-content:space-between;font-weight:bold">
+        <span>المجموع النهائي</span><span>${formatNum(totalAmount)} ₪</span>
+      </div>
+    </div>`
+    : `
     <div style="margin-top:14px;margin-right:auto;width:220px;background:#e8eef4;padding:12px;border-radius:6px">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>المجموع الفرعي:</span><span>${formatNum(subTotal)}</span></div>
       ${discountAmount > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>الخصم:</span><span>-${formatNum(discountAmount)}</span></div>` : ""}
@@ -97,12 +116,28 @@ function renderOrderSection(order, startRowNum, isMultiOrder) {
     orderHeader,
     clientInfo: !isMultiOrder
       ? `
-    <div style="margin-bottom:16px;text-align:right">
-      <div style="font-weight:600;margin-bottom:4px">العميل:</div>
-      <div>${escapeHtml(clientName)}</div>
-      <div style="font-size:13px">${escapeHtml(clientPhone)}</div>
-      <div style="margin-top:8px;font-weight:600;font-size:13px">مكان التوصيل:</div>
-      <div style="font-size:13px;color:#5a5a5a">${escapeHtml(address)}</div>
+    <div style="margin-bottom:20px;text-align:right;direction:rtl;background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+      <table style="width:100%;border-collapse:collapse;font-size:14px" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:6px 0;width:100px;font-weight:700;color:#334155;font-size:13px;vertical-align:top">تاريخ الطلب</td>
+          <td style="padding:6px 0;color:#0f172a;font-weight:600">${escapeHtml(dateStr)}</td>
+        </tr>
+        <tr>
+          <td style="padding:2px 0 6px;font-weight:700;color:#334155;font-size:13px">العميل</td>
+          <td style="padding:2px 0 6px;color:#0f172a;font-weight:600">${escapeHtml(clientName)}</td>
+        </tr>
+        <tr>
+          <td style="padding:2px 0 6px;font-weight:600;color:#64748b;font-size:12px">الهاتف</td>
+          <td style="padding:2px 0 6px;color:#475569;font-size:13px">${escapeHtml(clientPhone)}</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:10px 0 6px;border-top:1px solid #e2e8f0"></td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;font-weight:700;color:#334155;font-size:13px;vertical-align:top">مكان التوصيل</td>
+          <td style="padding:6px 0;color:#0f172a;font-size:14px;line-height:1.5">${escapeHtml(address)}</td>
+        </tr>
+      </table>
     </div>`
       : `
     <div style="margin-bottom:12px;padding:8px;background:#f5f7fa;border-radius:6px;border-right:4px solid #1e3a5f">
@@ -120,9 +155,10 @@ function renderOrderSection(order, startRowNum, isMultiOrder) {
 /**
  * توليد HTML كامل للفاتورة من قائمة طلبات
  * @param {Array} orders - مصفوفة الطلبات (يجب أن تحتوي على orderDesigns و orderDesignItems)
+ * @param {Object} options - خيارات مثل { onlyFinalTotal: true } لطباعة النهائي فقط
  * @returns {string} HTML جاهز للطباعة
  */
-export function generateInvoiceHtml(orders) {
+export function generateInvoiceHtml(orders, options = {}) {
   if (!Array.isArray(orders) || orders.length === 0) return "";
 
   const isMultiOrder = orders.length > 1;
@@ -140,7 +176,7 @@ export function generateInvoiceHtml(orders) {
   if (isMultiOrder) {
     for (let i = 0; i < orders.length; i++) {
       const order = orders[i];
-      const section = renderOrderSection(order, rowNum, true);
+      const section = renderOrderSection(order, rowNum, true, options);
       contentBlocks += `
       <div class="order-block" style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px dashed #d1d9e0">
         ${section.orderHeader}
@@ -164,7 +200,7 @@ export function generateInvoiceHtml(orders) {
       rowNum = section.nextRowNum;
     }
   } else {
-    const section = renderOrderSection(orders[0], 1, false);
+    const section = renderOrderSection(orders[0], 1, false, options);
     contentBlocks = `
   ${section.clientInfo}
   <table>
@@ -249,9 +285,10 @@ export function generateInvoiceHtml(orders) {
 /**
  * فتح نافذة الطباعة للطلبات المحددة
  * @param {Array} orders - مصفوفة الطلبات الكاملة (من getOrderById)
+ * @param {Object} options - خيارات مثل { onlyFinalTotal: true } لطباعة النهائي فقط
  */
-export function openInvoicePrintWindow(orders) {
-  const html = generateInvoiceHtml(orders);
+export function openInvoicePrintWindow(orders, options = {}) {
+  const html = generateInvoiceHtml(orders, options);
   if (!html) return;
 
   const printWindow = window.open("", "_blank");

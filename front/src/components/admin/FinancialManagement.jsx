@@ -978,7 +978,7 @@ const FinancialManagement = () => {
   const handlePrintTransactions = () => {
     const logoUrl = import.meta.env.VITE_INVOICE_LOGO_URL || 'https://res.cloudinary.com/dz5dobxsr/image/upload/v1770741443/logo_psb_1_f5sus5.png';
     const logoWhiteUrl = import.meta.env.VITE_INVOICE_LOGO_WHITE_URL || '';
-    const companyPhone = import.meta.env.VITE_INVOICE_COMPANY_PHONE || '0569483466';
+    const companyPhone = import.meta.env.VITE_INVOICE_COMPANY_PHONE || '0595406149';
     const invoiceLogoUrl = logoWhiteUrl || logoUrl;
     const logoStyle = logoWhiteUrl ? 'height:42px;max-width:120px;object-fit:contain' : 'height:42px;max-width:120px;object-fit:contain;filter:brightness(0) invert(1)';
     const logoHtml = invoiceLogoUrl ? `<img src="${invoiceLogoUrl.replace(/"/g, '&quot;')}" alt="Logo" style="${logoStyle}" />` : '';
