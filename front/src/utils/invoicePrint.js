@@ -8,8 +8,8 @@ const INVOICE_SETTINGS = {
   companyPhone: import.meta.env.VITE_INVOICE_COMPANY_PHONE || "0595406149",
   companyAddress: import.meta.env.VITE_INVOICE_COMPANY_ADDRESS || "",
   logoUrl: import.meta.env.VITE_INVOICE_LOGO_URL || "https://res.cloudinary.com/dz5dobxsr/image/upload/v1770741443/logo_psb_1_f5sus5.png",
-  /** لوجو أبيض للهيدر الداكن - إن وُجد وإلا يُستخدم اللوجو العادي مع فلتر أبيض */
-  logoWhiteUrl: import.meta.env.VITE_INVOICE_LOGO_WHITE_URL || "",
+  /** لوجو أبيض للهيدر — نستخدم الأبيض افتراضياً (ملف في public أو عبر VITE_INVOICE_LOGO_WHITE_URL) */
+  logoWhiteUrl: import.meta.env.VITE_INVOICE_LOGO_WHITE_URL || "/white-logo.png",
 };
 
 function escapeHtml(text) {
