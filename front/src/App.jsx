@@ -6,6 +6,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import theme from './theme/theme';
 
 // Lazy load pages for code splitting (reduces initial bundle size)
+const ProjectSelection = lazy(() => import('./pages/ProjectSelection'));
 const RoleSelection = lazy(() => import('./pages/RoleSelection'));
 const EmployeeDashboard = lazy(() => import('./pages/EmployeeDashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
@@ -85,9 +86,18 @@ function AppContent() {
     <Router>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/" element={
-            user ? <Navigate to={getDefaultRoute()} replace /> : <RoleSelection />
-          } />
+          <Route
+            path="/"
+            element={
+              user ? <Navigate to={getDefaultRoute()} replace /> : <ProjectSelection />
+            }
+          />
+          <Route
+            path="/roles"
+            element={
+              user ? <Navigate to={getDefaultRoute()} replace /> : <RoleSelection />
+            }
+          />
           <Route path="/login" element={<Login />} />
           <Route
             path="/employee"

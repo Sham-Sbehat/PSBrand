@@ -30,6 +30,12 @@ import {
 import { useApp } from "../context/AppContext";
 import { authService } from "../services/api";
 import { STORAGE_KEYS } from "../constants";
+import BackToProjectCorner from "../components/common/BackToProjectCorner";
+import { getTenantId, TENANT_IDS } from "../services/tenantStorage";
+
+/** تذكرني + الحقول المحفوظة منفصلة لكل مشروع (tenant) وليس فقط لكل دور */
+const savedCredentialsKey = (role) => `savedCredentials_${getTenantId()}_${role}`;
+const rememberMeKey = (role) => `rememberMe_${getTenantId()}_${role}`;
 
 const Login = () => {
   const navigate = useNavigate();
@@ -54,13 +60,27 @@ const Login = () => {
     },
   });
 
-  // Load saved credentials for the currently selected role
+  // Load saved credentials for المشروع الحالي + الدور المختار
   useEffect(() => {
-    const credKey = `savedCredentials_${selectedRole}`;
-    const rememberKey = `rememberMe_${selectedRole}`;
-    const savedCredentials = localStorage.getItem(credKey);
-    const savedRememberMe = localStorage.getItem(rememberKey);
-    
+    const credKey = savedCredentialsKey(selectedRole);
+    const rememberKey = rememberMeKey(selectedRole);
+    let savedCredentials = localStorage.getItem(credKey);
+    let savedRememberMe = localStorage.getItem(rememberKey);
+
+    // ترحيل مرة واحدة: المفاتيح القديمة بدون tenant (كانوا لـ PSBrand فقط)
+    if (!savedCredentials && getTenantId() === TENANT_IDS.PSBRAND) {
+      const legacyCred = `savedCredentials_${selectedRole}`;
+      const legacyRem = `rememberMe_${selectedRole}`;
+      const lc = localStorage.getItem(legacyCred);
+      const lr = localStorage.getItem(legacyRem);
+      if (lc && lr === "true") {
+        savedCredentials = lc;
+        savedRememberMe = lr;
+        localStorage.setItem(credKey, lc);
+        localStorage.setItem(rememberKey, "true");
+      }
+    }
+
     if (savedCredentials && savedRememberMe === 'true') {
       try {
         const credentials = JSON.parse(savedCredentials);
@@ -179,9 +199,9 @@ const Login = () => {
           sessionStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, result.token);
           sessionStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(result.user));
         }  
-        // Save credentials if "Remember Me" is checked (per role)
-        const credKey = `savedCredentials_${selectedRole}`;
-        const rememberKey = `rememberMe_${selectedRole}`;
+        // Save credentials if "Remember Me" is checked (per مشروع + دور)
+        const credKey = savedCredentialsKey(selectedRole);
+        const rememberKey = rememberMeKey(selectedRole);
         if (rememberMe) {
           localStorage.setItem(credKey, JSON.stringify({
             username: data.username,
@@ -245,9 +265,9 @@ const Login = () => {
     setShowPassword(!showPassword);
   };
 
-  // إذا لم يتم تحديد role، ارجع للصفحة الرئيسية
+  // إذا لم يتم تحديد role، ارجع لصفحة اختيار نوع الحساب
   if (!selectedRole) {
-    navigate("/");
+    navigate("/roles");
     return null;
   }
 
@@ -474,20 +494,24 @@ const Login = () => {
             <Box sx={{ textAlign: "center", marginTop: 2.5 }}>
                <Button
                 variant="text"
-                onClick={() => navigate('/')}
+                onClick={() => navigate("/roles")}
                 disabled={isLoading}
                 sx={{ color: "rgba(255, 255, 255, 0.75)" }}
               >
-                العودة للصفحة الرئيسية
+                العودة لاختيار نوع الحساب
               </Button>
               {rememberMe && (
                 <Button
                   variant="text"
                   onClick={() => {
-                    const credKey = `savedCredentials_${selectedRole}`;
-                    const rememberKey = `rememberMe_${selectedRole}`;
+                    const credKey = savedCredentialsKey(selectedRole);
+                    const rememberKey = rememberMeKey(selectedRole);
                     localStorage.removeItem(credKey);
                     localStorage.removeItem(rememberKey);
+                    if (getTenantId() === TENANT_IDS.PSBRAND) {
+                      localStorage.removeItem(`savedCredentials_${selectedRole}`);
+                      localStorage.removeItem(`rememberMe_${selectedRole}`);
+                    }
                     setValue('username', '');
                     setValue('password', '');
                     setRememberMe(false);

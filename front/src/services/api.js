@@ -2,6 +2,33 @@ import axios from "axios";
 import { STORAGE_KEYS } from "../constants";
 import { storage } from "../utils";
 import { getCache, setCache, clearCache, CACHE_KEYS } from "../utils/cache";
+import { getTenantId, TENANT_IDS } from "./tenantStorage";
+
+/** مفاتيح كاش مرتبطة بقاعدة المشروع الحالي (multi-tenant) */
+const clientsListCacheKey = () => `${CACHE_KEYS.CLIENTS}_${getTenantId()}`;
+const colorsCacheKey = () => `${CACHE_KEYS.COLORS}_${getTenantId()}`;
+const sizesCacheKey = () => `${CACHE_KEYS.SIZES}_${getTenantId()}`;
+const fabricTypesCacheKey = () => `${CACHE_KEYS.FABRIC_TYPES}_${getTenantId()}`;
+
+const TENANT_SCOPED_CACHE_BASES = [
+  CACHE_KEYS.CLIENTS,
+  CACHE_KEYS.COLORS,
+  CACHE_KEYS.SIZES,
+  CACHE_KEYS.FABRIC_TYPES,
+];
+
+/** مسح كاش العملاء + الألوان + المقاسات + القماش (قديم ولكل tenant) */
+export function clearSharedTenantCaches() {
+  TENANT_SCOPED_CACHE_BASES.forEach((base) => {
+    clearCache(base);
+    Object.values(TENANT_IDS).forEach((id) => {
+      clearCache(`${base}_${id}`);
+    });
+  });
+}
+
+/** @deprecated استخدم clearSharedTenantCaches */
+export const clearClientsCacheAllTenants = clearSharedTenantCaches;
 
 // Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://psbrand-backend-production.up.railway.app/api";
@@ -34,17 +61,20 @@ const clearAuthTokenEverywhere = () => {
   storage.remove(STORAGE_KEYS.USER_DATA);
 };
 
-// Request interceptor for authentication
+// Request interceptor: JWT + X-Tenant-Id (قاعدة البيانات حسب المشروع)
 api.interceptors.request.use(
   (config) => {
     const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.headers["X-Tenant-Id"] = getTenantId();
     return config;
   },
   (error) => Promise.reject(error)
 );
+
+export { getTenantId, setTenantId, TENANT_OPTIONS, TENANT_IDS } from "./tenantStorage";
 
 // Response interceptor for error handling
 api.interceptors.response.use(
@@ -598,12 +628,12 @@ export const employeesService = {
 export const clientsService = {
   createClient: async (clientData) => {
     const response = await api.post("/Client/CreateClient", clientData);
-    clearCache(CACHE_KEYS.CLIENTS);
+    clearCache(clientsListCacheKey());
     return response.data;
   },
 
   getAllClients: async () => {
-    const cacheKey = CACHE_KEYS.CLIENTS;
+    const cacheKey = clientsListCacheKey();
     const cached = getCache(cacheKey);
     if (cached) return cached;
 
@@ -626,14 +656,14 @@ export const clientsService = {
   updateClient: async (id, clientData) => {
     // Correct endpoint format: /Client/UpdateClient{id} (without / before id)
     const response = await api.put(`/Client/UpdateClient${id}`, clientData);
-    clearCache(CACHE_KEYS.CLIENTS);
+    clearCache(clientsListCacheKey());
     return response.data;
   },
 
   deleteClient: async (id) => {
     // Correct endpoint format: /Client/DeleteClient{id} (without / before id)
     const response = await api.delete(`/Client/DeleteClient${id}`);
-    clearCache(CACHE_KEYS.CLIENTS);
+    clearCache(clientsListCacheKey());
     // 204 No Content has no response body
     return { success: true, status: response.status };
   },
@@ -642,8 +672,7 @@ export const clientsService = {
 // Colors Service
 export const colorsService = {
   getAllColors: async () => {
-    // Check cache first (cache for 30 days - colors don't change often)
-    const cacheKey = CACHE_KEYS.COLORS;
+    const cacheKey = colorsCacheKey();
     const cached = getCache(cacheKey);
     if (cached) {
       return cached;
@@ -666,15 +695,13 @@ export const colorsService = {
 
   createColor: async (colorData) => {
     const response = await api.post("/Colors", colorData);
-    // Clear cache after creating new color
-    clearCache(CACHE_KEYS.COLORS);
+    clearCache(colorsCacheKey());
     return response.data;
   },
 
   updateColor: async (id, colorData) => {
     const response = await api.put(`/Colors/${id}`, colorData);
-    // Clear cache after updating color
-    clearCache(CACHE_KEYS.COLORS);
+    clearCache(colorsCacheKey());
     return response.data;
   },
 
@@ -683,8 +710,7 @@ export const colorsService = {
       const response = await api.delete(`/Colors/${id}`);
       return response.data;
     } finally {
-      // Clear cache even if delete fails
-      clearCache(CACHE_KEYS.COLORS);
+      clearCache(colorsCacheKey());
     }
   },
 };
@@ -692,8 +718,7 @@ export const colorsService = {
 // Sizes Service
 export const sizesService = {
   getAllSizes: async () => {
-    // Check cache first (cache for 30 days - sizes don't change often)
-    const cacheKey = CACHE_KEYS.SIZES;
+    const cacheKey = sizesCacheKey();
     const cached = getCache(cacheKey);
     if (cached) {
       return cached;
@@ -716,15 +741,13 @@ export const sizesService = {
 
   createSize: async (sizeData) => {
     const response = await api.post("/Sizes", sizeData);
-    // Clear cache after creating new size
-    clearCache(CACHE_KEYS.SIZES);
+    clearCache(sizesCacheKey());
     return response.data;
   },
 
   updateSize: async (id, sizeData) => {
     const response = await api.put(`/Sizes/${id}`, sizeData);
-    // Clear cache after updating size
-    clearCache(CACHE_KEYS.SIZES);
+    clearCache(sizesCacheKey());
     return response.data;
   },
 
@@ -733,8 +756,7 @@ export const sizesService = {
       const response = await api.delete(`/Sizes/${id}`);
       return response.data;
     } finally {
-      // Clear cache even if delete fails
-      clearCache(CACHE_KEYS.SIZES);
+      clearCache(sizesCacheKey());
     }
   },
 };
@@ -742,8 +764,7 @@ export const sizesService = {
 // Fabric Types Service
 export const fabricTypesService = {
   getAllFabricTypes: async () => {
-    // Check cache first (cache for 30 days - fabric types don't change often)
-    const cacheKey = CACHE_KEYS.FABRIC_TYPES;
+    const cacheKey = fabricTypesCacheKey();
     const cached = getCache(cacheKey);
     if (cached) {
       return cached;
@@ -766,15 +787,13 @@ export const fabricTypesService = {
 
   createFabricType: async (fabricTypeData) => {
     const response = await api.post("/FabricTypes", fabricTypeData);
-    // Clear cache after creating new fabric type
-    clearCache(CACHE_KEYS.FABRIC_TYPES);
+    clearCache(fabricTypesCacheKey());
     return response.data;
   },
 
   updateFabricType: async (id, fabricTypeData) => {
     const response = await api.put(`/FabricTypes/${id}`, fabricTypeData);
-    // Clear cache after updating fabric type
-    clearCache(CACHE_KEYS.FABRIC_TYPES);
+    clearCache(fabricTypesCacheKey());
     return response.data;
   },
 
@@ -783,8 +802,7 @@ export const fabricTypesService = {
       const response = await api.delete(`/FabricTypes/${id}`);
       return response.data;
     } finally {
-      // Clear cache even if delete fails
-      clearCache(CACHE_KEYS.FABRIC_TYPES);
+      clearCache(fabricTypesCacheKey());
     }
   },
 };

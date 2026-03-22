@@ -51,6 +51,7 @@ import DesignRequestsTab from "../components/designManager/DesignRequestsTab";
 import ImagePreviewDialog from "../components/common/ImagePreviewDialog";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
+import { parseClientsListResponse } from "../utils/clientsResponse";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -101,23 +102,9 @@ const AdminDashboard = () => {
     const fetchClientsCount = async () => {
       try {
         const response = await clientsService.getAllClients();
-        // Handle both array and object responses
-        let clients = [];
-        if (Array.isArray(response)) {
-          clients = response;
-        } else if (response && Array.isArray(response.clients)) {
-          clients = response.clients;
-        } else if (response && Array.isArray(response.data)) {
-          clients = response.data;
-        } else if (response && typeof response === 'object') {
-          // If it's an object, try to find any array property
-          const arrayKey = Object.keys(response).find(key => Array.isArray(response[key]));
-          if (arrayKey) {
-            clients = response[arrayKey];
-          }
-        }
+        const { total } = parseClientsListResponse(response);
         if (isMounted) {
-          setClientsCount(clients.length);
+          setClientsCount(total);
         }
       } catch (error) {
         console.error("Error fetching clients:", error);

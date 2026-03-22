@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
-import { employeesService } from "../services/api";
+import { employeesService, clearSharedTenantCaches } from "../services/api";
 import { STORAGE_KEYS } from "../constants";
 import { storage } from "../utils";
 
@@ -84,6 +84,7 @@ export const AppProvider = ({ children }) => {
     try { sessionStorage.removeItem(STORAGE_KEYS.USER_DATA); } catch {}
     storage.remove(STORAGE_KEYS.AUTH_TOKEN);
     storage.remove(STORAGE_KEYS.USER_DATA);
+    clearSharedTenantCaches();
     setUser(null);
     setOrders([]);
     setEmployees([]);

@@ -1,5 +1,8 @@
 import { HubConnectionBuilder, LogLevel, HttpTransportType } from "@microsoft/signalr";
 import { STORAGE_KEYS } from "../constants";
+import { appendTenantQuery } from "./tenantStorage";
+
+const hubUrlsWithTenant = (urls) => urls.map(appendTenantQuery);
 
 const getApiBase = () => {
   const fromEnv = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) ? import.meta.env.VITE_API_BASE_URL : "https://psbrand-backend-production.up.railway.app/api";
@@ -25,7 +28,7 @@ const DESIGNS_HUB_PATH = "/designsHub";
 
 export const createOrderUpdatesConnection = () => {
   const base = getApiBase();
-  const hubUrl = `${base}${HUB_PATH}`;
+  const hubUrl = appendTenantQuery(`${base}${HUB_PATH}`);
 
   const connection = new HubConnectionBuilder()
     .withUrl(hubUrl)
@@ -48,20 +51,20 @@ export const subscribeToOrderUpdates = async ({
   onNewMessage
 } = {}) => {
   const primaryBase = getApiBase();
-  const candidates = [
+  const candidates = hubUrlsWithTenant([
     `${primaryBase}${HUB_PATH}`,
     // Protocol swap fallback (handle self-signed https issues)
     `${primaryBase.replace(/^https:\/\//, 'http://')}${HUB_PATH}`,
-  ];
+  ]);
 
   // Add common local dev fallbacks if base is localhost
   if (/^https?:\/\/localhost/.test(primaryBase)) {
     candidates.push(
-      // IIS Express typical SSL port
-      `https://localhost:44345${HUB_PATH}`,
-      // Kestrel defaults from launchSettings
-      `https://localhost:7036${HUB_PATH}`,
-      `http://localhost:5219${HUB_PATH}`
+      ...hubUrlsWithTenant([
+        `https://localhost:44345${HUB_PATH}`,
+        `https://localhost:7036${HUB_PATH}`,
+        `http://localhost:5219${HUB_PATH}`,
+      ])
     );
   }
 
@@ -288,17 +291,19 @@ export const subscribeToOrderUpdates = async ({
 // Helper function to create a temporary connection and invoke a method
 const invokeSignalRMethod = async (methodName, ...args) => {
   const primaryBase = getApiBase();
-  const candidates = [
+  const candidates = hubUrlsWithTenant([
     `${primaryBase}${HUB_PATH}`,
     `${primaryBase.replace(/^https:\/\//, 'http://')}${HUB_PATH}`,
-  ];
+  ]);
 
   // Add common local dev fallbacks if base is localhost
   if (/^https?:\/\/localhost/.test(primaryBase)) {
     candidates.push(
-      `https://localhost:44345${HUB_PATH}`,
-      `https://localhost:7036${HUB_PATH}`,
-      `http://localhost:5219${HUB_PATH}`
+      ...hubUrlsWithTenant([
+        `https://localhost:44345${HUB_PATH}`,
+        `https://localhost:7036${HUB_PATH}`,
+        `http://localhost:5219${HUB_PATH}`,
+      ])
     );
   }
 
@@ -372,17 +377,19 @@ const invokeSignalRMethod = async (methodName, ...args) => {
 export const subscribeToMessages = async ({ onNewMessage, onMessageUpdated, onMessageRemoved } = {}) => {
   const primaryBase = getApiBase();
   const MESSAGES_HUB_PATH = "/messagesHub";
-  const candidates = [
+  const candidates = hubUrlsWithTenant([
     `${primaryBase}${MESSAGES_HUB_PATH}`,
     `${primaryBase.replace(/^https:\/\//, 'http://')}${MESSAGES_HUB_PATH}`,
-  ];
+  ]);
 
   // Add common local dev fallbacks if base is localhost
   if (/^https?:\/\/localhost/.test(primaryBase)) {
     candidates.push(
-      `https://localhost:44345${MESSAGES_HUB_PATH}`,
-      `https://localhost:7036${MESSAGES_HUB_PATH}`,
-      `http://localhost:5219${MESSAGES_HUB_PATH}`
+      ...hubUrlsWithTenant([
+        `https://localhost:44345${MESSAGES_HUB_PATH}`,
+        `https://localhost:7036${MESSAGES_HUB_PATH}`,
+        `http://localhost:5219${MESSAGES_HUB_PATH}`,
+      ])
     );
   }
 
@@ -566,19 +573,21 @@ export const subscribeToDesigns = async ({
 } = {}) => {
   const primaryBase = getApiBase();
   const DESIGNS_HUB_PATH = "/designUpdatesHub";
-  const candidates = [
+  const candidates = hubUrlsWithTenant([
     `${primaryBase}${DESIGNS_HUB_PATH}`,
     `${primaryBase.replace(/^https:\/\//, 'http://')}${DESIGNS_HUB_PATH}`,
-  ];
+  ]);
 
   // Add common local dev fallbacks if base is localhost or 127.0.0.1
   if (/^https?:\/\/(localhost|127\.0\.0\.1)/.test(primaryBase)) {
     candidates.push(
-      `https://localhost:44345${DESIGNS_HUB_PATH}`,
-      `https://localhost:7036${DESIGNS_HUB_PATH}`,
-      `http://localhost:5219${DESIGNS_HUB_PATH}`,
-      `http://127.0.0.1:5219${DESIGNS_HUB_PATH}`,
-      `http://127.0.0.1:7036${DESIGNS_HUB_PATH}`
+      ...hubUrlsWithTenant([
+        `https://localhost:44345${DESIGNS_HUB_PATH}`,
+        `https://localhost:7036${DESIGNS_HUB_PATH}`,
+        `http://localhost:5219${DESIGNS_HUB_PATH}`,
+        `http://127.0.0.1:5219${DESIGNS_HUB_PATH}`,
+        `http://127.0.0.1:7036${DESIGNS_HUB_PATH}`,
+      ])
     );
   }
 

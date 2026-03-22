@@ -35,6 +35,32 @@ export const ORDER_STATUS_COLORS = {
   [ORDER_STATUS.RETURNED_SHIPMENT]: 'default',
 };
 
+/** يطابق enum OrderSource في الباكند */
+export const ORDER_SOURCE = {
+  TIKTOK: 1,
+  INSTAGRAM: 2,
+  PS_BRAND: 3,
+  PS_SPORT: 4,
+  PS_UNIFORM: 5,
+  MAVA: 6,
+};
+
+export const ORDER_SOURCE_OPTIONS = [
+  { value: 1, label: 'تيك توك' },
+  { value: 2, label: 'إنستغرام' },
+  { value: 3, label: 'PS BRAND' },
+  { value: 4, label: 'PS SPORT' },
+  { value: 5, label: 'PS UNIFORM' },
+  { value: 6, label: 'MAVA' },
+];
+
+export function getOrderSourceLabel(source) {
+  if (source == null || source === '') return '';
+  const n = Number(source);
+  const found = ORDER_SOURCE_OPTIONS.find((o) => o.value === n);
+  return found?.label ?? '';
+}
+
 // User Role Constants
 export const USER_ROLES = {
   ADMIN: 1,
@@ -192,6 +218,8 @@ export const API_ENDPOINTS = {
 export const STORAGE_KEYS = {
   USER_DATA: 'userData',
   AUTH_TOKEN: 'authToken',
+  /** يطابق Tenant:Tenants في appsettings (1 = PSBrand، 2 = MAVA) */
+  TENANT_ID: 'psbrandTenantId',
 };
 
 // Form Validation Rules

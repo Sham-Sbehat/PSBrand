@@ -16,6 +16,7 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
+import BackToProjectCorner from "../components/common/BackToProjectCorner";
 import {
   AdminPanelSettings as AdminIcon,
   DesignServices as DesignerIcon,
@@ -24,11 +25,8 @@ import {
   Inventory as PackagerIcon,
   Palette,
 } from "@mui/icons-material";
-import { useApp } from "../context/AppContext";
-
 const RoleSelection = () => {
   const navigate = useNavigate();
-  const { login } = useApp();
   const [hoveredRole, setHoveredRole] = useState(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const theme = useTheme();
@@ -112,6 +110,8 @@ const RoleSelection = () => {
         overflow: "auto",
       }}
     >
+      <BackToProjectCorner />
+
       {/* على الديسكتوب فقط: عنوان بالشكل الأصلي (بدون صندوق) */}
       {!isMobile && (
         <Box

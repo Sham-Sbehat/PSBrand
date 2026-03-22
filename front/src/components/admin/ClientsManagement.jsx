@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import { clientsService } from '../../services/api';
 import calmPalette from '../../theme/calmPalette';
+import { parseClientsListResponse } from '../../utils/clientsResponse';
 
 const ClientsManagement = () => {
   const [clients, setClients] = useState([]);
@@ -132,30 +133,9 @@ const ClientsManagement = () => {
     try {
       setLoading(true);
       const response = await clientsService.searchClients(searchQuery);
-      // Handle both array and object responses
-      let clients = [];
-      let count = 0;
-      if (Array.isArray(response)) {
-        clients = response;
-        count = response.length;
-      } else if (response && Array.isArray(response.clients)) {
-        clients = response.clients;
-        count = response.count || response.clients.length;
-      } else if (response && Array.isArray(response.data)) {
-        clients = response.data;
-        count = response.count || response.data.length;
-      } else if (response && typeof response === 'object') {
-        // If it's an object, try to find any array property
-        const arrayKey = Object.keys(response).find(key => Array.isArray(response[key]));
-        if (arrayKey) {
-          clients = response[arrayKey];
-          count = response.count || clients.length;
-        } else if (response.count !== undefined) {
-          count = response.count;
-        }
-      }
+      const { clients, total } = parseClientsListResponse(response);
       setClients(clients);
-      setClientsCount(count);
+      setClientsCount(total);
     } catch (error) {
       setSnackbar({ open: true, message: 'فشل في البحث عن العملاء', severity: 'error' });
     } finally {
