@@ -175,6 +175,10 @@ const Login = () => {
 
   const roleDetails = getRoleDetails(selectedRole);
   const Icon = roleDetails.icon;
+  const tenantId = getTenantId();
+  const isMava = tenantId === TENANT_IDS.MAVA;
+  const loginBackground = isMava ? "/mavaBackground.jpg" : "/PsbackLight.jpg";
+  const tenantLabel = isMava ? "Mava Brand" : "PS BRAND";
 
   const onSubmit = async (data) => {
     setIsLoading(true);
@@ -275,7 +279,7 @@ const Login = () => {
     <Box
       sx={{
         minHeight: "100vh",
-        backgroundImage: 'url("/PsbackLight.jpg")',
+        backgroundImage: `url("${loginBackground}")`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
@@ -303,14 +307,16 @@ const Login = () => {
             <Box sx={{ textAlign: "center", marginBottom: 3 }}>
               <Typography
                 variant="h5"
-                gutterBottom
                 sx={{
-                  fontWeight: 800,
+                  fontWeight: 900,
                   color: "#ffffff",
-                  letterSpacing: "0.02em",
+                  letterSpacing: "0.04em",
+                  mb: 1.2,
+                  textTransform: "none",
+                  textShadow: "0 4px 18px rgba(0, 0, 0, 0.35)",
                 }}
               >
-                PSBrand
+                {tenantLabel}
               </Typography>
               <Typography
                 variant="body2"

@@ -25,12 +25,16 @@ import {
   Inventory as PackagerIcon,
   Palette,
 } from "@mui/icons-material";
+import { getTenantId, TENANT_IDS } from "../services/tenantStorage";
 const RoleSelection = () => {
   const navigate = useNavigate();
   const [hoveredRole, setHoveredRole] = useState(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const tenantId = getTenantId();
+  const backgroundImageUrl =
+    tenantId === TENANT_IDS.MAVA ? "/mavaBackground.jpg" : "/PsBack.jpg";
 
   const handleRoleSelect = (role) => {
     navigate(`/login?role=${role}`);
@@ -98,7 +102,7 @@ const RoleSelection = () => {
       sx={{
         position: "relative",
         minHeight: "100vh",
-        backgroundImage: 'url("/PsBack.jpg")',
+        backgroundImage: `url("${backgroundImageUrl}")`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
@@ -244,12 +248,12 @@ const RoleSelection = () => {
                   container
                   spacing={2}
                   justifyContent="center"
-                  sx={{ marginTop: 9 }}
+                  sx={{ marginTop: 14 }}
                 >
                   {roles.map((role, index) => {
                     const Icon = role.icon;
                     return (
-                      <Grid item xs={6} sm={4} md={1.7} marginTop={50} key={role.id}>
+                      <Grid item xs={6} sm={4} md={1.7} marginTop={52} key={role.id}>
                         <Fade in timeout={1000 + index * 200}>
                           <Card
                             sx={{
@@ -263,9 +267,9 @@ const RoleSelection = () => {
                                 hoveredRole === role.id
                                   ? "0 18px 36px rgba(6, 11, 23, 0.32)"
                                   : "0 10px 22px rgba(6, 11, 23, 0.22)",
-                              background: "rgba(255, 255, 255, 0.12)",
+                              background: "rgba(20, 20, 20, 0.42)",
                               backdropFilter: "blur(14px)",
-                              border: "1px solid rgba(255, 255, 255, 0.28)",
+                              border: "1px solid rgba(255, 255, 255, 0.34)",
                               borderRadius: 4,
                               overflow: "hidden",
                             }}

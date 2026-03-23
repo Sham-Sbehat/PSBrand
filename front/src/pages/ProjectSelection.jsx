@@ -47,15 +47,14 @@ const ProjectSelection = () => {
         minHeight: "100vh",
         position: "relative",
         overflow: "hidden",
-        // ثيم بني: تدرجات قهوة / كراميل / بني غامق (قريب من theme-color المشروع)
         backgroundColor: "#1c1410",
         backgroundImage: `
-          radial-gradient(ellipse 115% 78% at 50% -28%, rgba(160, 120, 80, 0.32), transparent 56%),
-          radial-gradient(ellipse 68% 52% at 100% 38%, rgba(94, 78, 62, 0.42), transparent 52%),
-          radial-gradient(ellipse 58% 48% at 0% 72%, rgba(120, 82, 52, 0.28), transparent 50%),
-          radial-gradient(ellipse 45% 35% at 80% 85%, rgba(61, 44, 32, 0.55), transparent 60%),
-          linear-gradient(168deg, #16100d 0%, #2a1f18 38%, #1e1612 72%, #14100c 100%)
+          linear-gradient(160deg, rgba(10, 10, 10, 0.56) 0%, rgba(18, 12, 8, 0.58) 50%, rgba(8, 8, 8, 0.62) 100%),
+          url("/selectionBackground.jpg")
         `,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
         backgroundAttachment: "fixed",
         display: "flex",
         alignItems: "center",
@@ -97,7 +96,7 @@ const ProjectSelection = () => {
                           boxShadow: isHover
                             ? "0 20px 40px rgba(6, 11, 23, 0.4)"
                             : "0 10px 24px rgba(6, 11, 23, 0.25)",
-                          background: "rgba(255, 255, 255, 0.12)",
+                          background: "rgba(255, 255, 255, 0.08)",
                           backdropFilter: "blur(14px)",
                           border: isHover
                             ? "2px solid rgba(255, 255, 255, 0.55)"
@@ -138,7 +137,7 @@ const ProjectSelection = () => {
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                background: "rgba(0, 0, 0, 0.28)",
+                                background: "rgba(0, 0, 0, 0.2)",
                                 backdropFilter: "blur(8px)",
                                 border: "1px solid rgba(255, 255, 255, 0.22)",
                                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12), 0 8px 24px rgba(0,0,0,0.25)",
