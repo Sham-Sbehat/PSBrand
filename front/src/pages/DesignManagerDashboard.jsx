@@ -70,11 +70,13 @@ import OrdersTab from "../components/designManager/OrdersTab";
 import DesignsFromDesignersTab from "../components/designManager/DesignsFromDesignersTab";
 import DesignRequestsTab from "../components/designManager/DesignRequestsTab";
 import ImagePreviewDialog from "../components/common/ImagePreviewDialog";
+import { getTenantId, TENANT_IDS } from "../services/tenantStorage";
 
 const DesignManagerDashboard = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const tenantBrandName = getTenantId() === TENANT_IDS.MAVA ? "MAVA" : "PSBrand";
   const { user, logout } = useApp();
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
@@ -1922,7 +1924,7 @@ const DesignManagerDashboard = () => {
 
     return (
       <DashboardLayout
-        title="PSBrand - لوحة مدير التصميم"
+        title={`${tenantBrandName} - لوحة مدير التصميم`}
         user={user}
         onLogout={handleLogout}
         publicMessages={publicMessages}

@@ -42,6 +42,7 @@ import WelcomePage from "../components/common/WelcomePage";
 import DashboardLayout from "../components/common/DashboardLayout";
 import calmPalette from "../theme/calmPalette";
 import { getFullUrl } from "../utils";
+import { getTenantId, TENANT_IDS } from "../services/tenantStorage";
 
 const getMockupImages = (design) => {
   if (!design) return [];
@@ -72,6 +73,7 @@ const PreparerDashboard = () => {
   const { user, logout } = useApp();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const tenantBrandName = getTenantId() === TENANT_IDS.MAVA ? "MAVA" : "PSBrand";
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
@@ -1574,7 +1576,7 @@ const InfoItem = ({ label, value }) => (
 
   return (
     <DashboardLayout
-      title="PSBrand - لوحة محضر الطلبات"
+      title={`${tenantBrandName} - لوحة محضر الطلبات`}
       user={user}
       onLogout={handleLogout}
       publicMessages={publicMessages}

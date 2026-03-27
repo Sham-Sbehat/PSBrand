@@ -34,12 +34,14 @@ import DesignsManagement from "../components/mainDesigner/DesignsManagement";
 import AvailableDesignsTab from "../components/mainDesigner/AvailableDesignsTab";
 import MyDesignsTab from "../components/mainDesigner/MyDesignsTab";
 import calmPalette from "../theme/calmPalette";
+import { getTenantId, TENANT_IDS } from "../services/tenantStorage";
 
 const MainDesignerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const tenantBrandName = getTenantId() === TENANT_IDS.MAVA ? "MAVA" : "PSBrand";
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
@@ -230,7 +232,7 @@ const MainDesignerDashboard = () => {
 
   return (
     <DashboardLayout
-      title="PSBrand - لوحة المصمم"
+      title={`${tenantBrandName} - لوحة المصمم`}
       user={user}
       onLogout={handleLogout}
       publicMessages={publicMessages}

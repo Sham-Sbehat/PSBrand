@@ -60,12 +60,14 @@ import InfoItem from "../components/common/InfoItem";
 import calmPalette from "../theme/calmPalette";
 import { messagesService } from "../services/api";
 import { getFullUrl } from "../utils";
+import { getTenantId, TENANT_IDS } from "../services/tenantStorage";
 
 const PackagerDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useApp();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const tenantBrandName = getTenantId() === TENANT_IDS.MAVA ? "MAVA" : "PSBrand";
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
@@ -1518,7 +1520,7 @@ const PackagerDashboard = () => {
 
     return (
       <DashboardLayout
-        title="PSBrand - لوحة مسؤول التغليف"
+        title={`${tenantBrandName} - لوحة مسؤول التغليف`}
         user={user}
         onLogout={handleLogout}
         publicMessages={publicMessages}

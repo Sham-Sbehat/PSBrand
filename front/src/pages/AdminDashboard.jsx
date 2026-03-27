@@ -52,6 +52,7 @@ import ImagePreviewDialog from "../components/common/ImagePreviewDialog";
 import { ORDER_STATUS } from "../constants";
 import calmPalette from "../theme/calmPalette";
 import { parseClientsListResponse } from "../utils/clientsResponse";
+import { getTenantId, TENANT_IDS } from "../services/tenantStorage";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -70,6 +71,7 @@ const AdminDashboard = () => {
   const [orderIdToOpen, setOrderIdToOpen] = useState(null); // للطلب الذي يجب فتحه من الإشعار
   const [selectedImage, setSelectedImage] = useState(null);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const tenantBrandName = getTenantId() === TENANT_IDS.MAVA ? "MAVA" : "PSBrand";
   
   // Get today's date in YYYY-MM-DD format
   const [designRequestsRefreshKey, setDesignRequestsRefreshKey] = useState(0);
@@ -299,7 +301,7 @@ const AdminDashboard = () => {
               minWidth: 0,
             }}
           >
-            PSBrand - لوحة الأدمن
+            {tenantBrandName} - لوحة الأدمن
           </Typography>
           <Box sx={{ 
             display: "flex", 

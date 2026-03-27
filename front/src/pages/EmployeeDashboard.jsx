@@ -78,6 +78,7 @@ import {
 import { openWhatsApp, getFullUrl } from "../utils";
 import { useCitiesAndAreas } from "../hooks/useCitiesAndAreas";
 import DashboardLayout from "../components/common/DashboardLayout";
+import { getTenantId, TENANT_IDS } from "../services/tenantStorage";
 import OrderForm from "../components/employee/OrderForm";
 import DepositOrderForm from "../components/employee/DepositOrderForm";
 import CreateDesignTab from "../components/employee/CreateDesignTab";
@@ -186,6 +187,7 @@ const EmployeeDashboard = () => {
   const { user, logout, orders } = useApp();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const tenantBrandName = getTenantId() === TENANT_IDS.MAVA ? "MAVA" : "PSBrand";
   const [currentTab, setCurrentTab] = useState(0);
   const [newMessageReceived, setNewMessageReceived] = useState(null);
   const [messagesAnchorEl, setMessagesAnchorEl] = useState(null);
@@ -2004,7 +2006,7 @@ const EmployeeDashboard = () => {
 
   return (
     <DashboardLayout
-      title={isMobile ? "PSBrand" : "PSBrand - لوحة الموظف"}
+      title={isMobile ? tenantBrandName : `${tenantBrandName} - لوحة الموظف`}
       user={user}
       onLogout={handleLogout}
       publicMessages={publicMessages}
