@@ -10,6 +10,32 @@ const colorsCacheKey = () => `${CACHE_KEYS.COLORS}_${getTenantId()}`;
 const sizesCacheKey = () => `${CACHE_KEYS.SIZES}_${getTenantId()}`;
 const fabricTypesCacheKey = () => `${CACHE_KEYS.FABRIC_TYPES}_${getTenantId()}`;
 
+/** كاش الموظفين لازم يكون لكل مستأجر — وإلا تظهر مصممي PSBrand في MAVA والعكس */
+const employeesCacheKey = () => `${CACHE_KEYS.EMPLOYEES}_${getTenantId()}`;
+const employeesRoleCacheKey = (role) =>
+  `${CACHE_KEYS.EMPLOYEES}_${getTenantId()}_role_${role}`;
+
+function clearEmployeesCachesForCurrentTenant() {
+  clearCache(employeesCacheKey());
+  [1, 2, 3, 4, 5, 6].forEach((role) => {
+    clearCache(employeesRoleCacheKey(role));
+  });
+}
+
+/** مسح كاش الموظفين (المفاتيح القديمة غير المرتبطة بالـ tenant + كل مستأجر) */
+function clearEmployeesCachesAllTenants() {
+  clearCache(CACHE_KEYS.EMPLOYEES);
+  [1, 2, 3, 4, 5, 6].forEach((role) => {
+    clearCache(`${CACHE_KEYS.EMPLOYEES}_role_${role}`);
+  });
+  Object.values(TENANT_IDS).forEach((id) => {
+    clearCache(`${CACHE_KEYS.EMPLOYEES}_${id}`);
+    [1, 2, 3, 4, 5, 6].forEach((role) => {
+      clearCache(`${CACHE_KEYS.EMPLOYEES}_${id}_role_${role}`);
+    });
+  });
+}
+
 const TENANT_SCOPED_CACHE_BASES = [
   CACHE_KEYS.CLIENTS,
   CACHE_KEYS.COLORS,
@@ -17,7 +43,7 @@ const TENANT_SCOPED_CACHE_BASES = [
   CACHE_KEYS.FABRIC_TYPES,
 ];
 
-/** مسح كاش العملاء + الألوان + المقاسات + القماش (قديم ولكل tenant) */
+/** مسح كاش العملاء + الألوان + المقاسات + القماش + الموظفين (قديم ولكل tenant) */
 export function clearSharedTenantCaches() {
   TENANT_SCOPED_CACHE_BASES.forEach((base) => {
     clearCache(base);
@@ -25,6 +51,7 @@ export function clearSharedTenantCaches() {
       clearCache(`${base}_${id}`);
     });
   });
+  clearEmployeesCachesAllTenants();
 }
 
 /** @deprecated استخدم clearSharedTenantCaches */
@@ -531,7 +558,7 @@ export const employeesService = {
 
   // API calls - cache employees for 10 min (changes rarely)
   getAllEmployees: async () => {
-    const cacheKey = CACHE_KEYS.EMPLOYEES;
+    const cacheKey = employeesCacheKey();
     const cached = getCache(cacheKey);
     if (cached) return cached;
 
@@ -542,7 +569,7 @@ export const employeesService = {
   },
 
   getUsersByRole: async (role) => {
-    const cacheKey = `${CACHE_KEYS.EMPLOYEES}_role_${role}`;
+    const cacheKey = employeesRoleCacheKey(role);
     const cached = getCache(cacheKey);
     if (cached) return cached;
 
@@ -568,7 +595,7 @@ export const employeesService = {
     };
 
     const response = await api.post("/Users/CreateUser", apiData);
-    clearCache(CACHE_KEYS.EMPLOYEES);
+    clearEmployeesCachesForCurrentTenant();
     return response.data;
   },
 
@@ -600,7 +627,7 @@ export const employeesService = {
     }
 
     const response = await api.put(`/Users/UpdateUser${id}`, apiData);
-    clearCache(CACHE_KEYS.EMPLOYEES);
+    clearEmployeesCachesForCurrentTenant();
     return response.data;
   },
 
@@ -608,13 +635,13 @@ export const employeesService = {
     const response = await api.put(`/Users/ToggleUserActiveStatus/${id}`, {
       isActive: isActive,
     });
-    clearCache(CACHE_KEYS.EMPLOYEES);
+    clearEmployeesCachesForCurrentTenant();
     return response.data;
   },
 
   deleteEmployee: async (id) => {
     const response = await api.delete(`/Users/DeleteUser/${id}`);
-    clearCache(CACHE_KEYS.EMPLOYEES);
+    clearEmployeesCachesForCurrentTenant();
     return response.data;
   },
 

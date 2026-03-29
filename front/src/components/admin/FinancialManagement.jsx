@@ -50,16 +50,33 @@ import {
 import calmPalette from '../../theme/calmPalette';
 import { financialCategoriesService, expenseSourcesService, transactionsService, reportsService, accountingService } from '../../services/api';
 import { useApp } from '../../context/AppContext';
+import { getTenantId, TENANT_IDS } from '../../services/tenantStorage';
+
+/** فئة إيرادات الطلبات: PSBrand = 20، MAVA = 26 */
+function getOrdersIncomeCategoryId() {
+  return getTenantId() === TENANT_IDS.MAVA ? 26 : 20;
+}
+
+/** مصدر إيرادات الطلبات: PSBrand = 26، MAVA = 37 */
+function getOrdersIncomeSourceId() {
+  return getTenantId() === TENANT_IDS.MAVA ? 37 : 26;
+}
+
+/** فئة إيرادات العربون: PSBrand = 23، MAVA = 25 */
+function getDepositIncomeCategoryId() {
+  return getTenantId() === TENANT_IDS.MAVA ? 25 : 23;
+}
+
+/** مصدر إيرادات العربون: PSBrand = 26، MAVA = 38 */
+function getDepositIncomeSourceId() {
+  return getTenantId() === TENANT_IDS.MAVA ? 38 : 26;
+}
 
 const FinancialManagement = () => {
   const { user } = useApp();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
-  
-  // Protected IDs - cannot be deleted (used in income calculation)
-  const PROTECTED_CATEGORY_ID = 20; // مبيعات
-  const PROTECTED_SOURCE_ID = 26; // بلايز
   
   // Main tab state
   const [mainTab, setMainTab] = useState(0);
@@ -359,7 +376,7 @@ const FinancialManagement = () => {
 
   const handleDeleteCategory = (category) => {
     // Check if category is protected
-    if (category.id === PROTECTED_CATEGORY_ID) {
+    if (category.id === getOrdersIncomeCategoryId()) {
       setSnackbar({
         open: true,
         message: 'لا يمكن حذف هذه الفئة لأنها مستخدمة في حساب إيرادات الطلبات',
@@ -375,7 +392,7 @@ const FinancialManagement = () => {
     if (!categoryToDelete) return;
 
     // Double check protection
-    if (categoryToDelete.id === PROTECTED_CATEGORY_ID) {
+    if (categoryToDelete.id === getOrdersIncomeCategoryId()) {
       setSnackbar({
         open: true,
         message: 'لا يمكن حذف هذه الفئة لأنها مستخدمة في حساب إيرادات الطلبات',
@@ -481,7 +498,7 @@ const FinancialManagement = () => {
 
   const handleDeleteSource = (source) => {
     // Check if source is protected
-    if (source.id === PROTECTED_SOURCE_ID) {
+    if (source.id === getOrdersIncomeSourceId()) {
       setSnackbar({
         open: true,
         message: 'لا يمكن حذف هذا المصدر لأنه مستخدم في حساب إيرادات الطلبات',
@@ -497,7 +514,7 @@ const FinancialManagement = () => {
     if (!sourceToDelete) return;
 
     // Double check protection
-    if (sourceToDelete.id === PROTECTED_SOURCE_ID) {
+    if (sourceToDelete.id === getOrdersIncomeSourceId()) {
       setSnackbar({
         open: true,
         message: 'لا يمكن حذف هذا المصدر لأنه مستخدم في حساب إيرادات الطلبات',
@@ -552,9 +569,9 @@ const FinancialManagement = () => {
         return;
       }
 
-      // Step 2: Use fixed categoryId = 20 and sourceId = 26
-      const ordersCategoryId = 20;
-      const ordersSourceId = 26;
+      // Step 2: فئة ومصدر إيرادات الطلبات حسب المشروع (PSBrand / MAVA)
+      const ordersCategoryId = getOrdersIncomeCategoryId();
+      const ordersSourceId = getOrdersIncomeSourceId();
 
       // Step 3: Check if transaction already exists for this month/year
       const existingTransaction = transactions.find(
@@ -681,9 +698,9 @@ const FinancialManagement = () => {
         return;
       }
 
-      // Step 2: Use fixed categoryId = 23 for deposit orders (separate from regular orders)
-      const depositOrdersCategoryId = 23; // Separate category for deposit orders
-      const depositOrdersSourceId = 26; // Same source as orders
+      // Step 2: فئة ومصدر إيرادات العربون حسب المشروع (مستقل عن إيرادات الطلبات)
+      const depositOrdersCategoryId = getDepositIncomeCategoryId();
+      const depositOrdersSourceId = getDepositIncomeSourceId();
 
       // Step 3: Check if transaction already exists for this month/year (same logic as orders)
       const existingTransaction = transactions.find(
@@ -1334,7 +1351,7 @@ const FinancialManagement = () => {
                               <Edit fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          {category.id !== PROTECTED_CATEGORY_ID ? (
+                          {category.id !== getOrdersIncomeCategoryId() ? (
                             <Tooltip title="حذف">
                               <IconButton
                                 size="small"
@@ -1458,7 +1475,7 @@ const FinancialManagement = () => {
                                   <Edit fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              {category.id !== PROTECTED_CATEGORY_ID ? (
+                              {category.id !== getOrdersIncomeCategoryId() ? (
                               <Tooltip title="حذف">
                                 <IconButton
                                   size="small"
@@ -1591,7 +1608,7 @@ const FinancialManagement = () => {
                               <Edit fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          {source.id !== PROTECTED_SOURCE_ID ? (
+                          {source.id !== getOrdersIncomeSourceId() ? (
                             <Tooltip title="حذف">
                               <IconButton
                                 size="small"
@@ -1709,7 +1726,7 @@ const FinancialManagement = () => {
                                   <Edit fontSize="small" />
                                 </IconButton>
                               </Tooltip>
-                              {source.id !== PROTECTED_SOURCE_ID ? (
+                              {source.id !== getOrdersIncomeSourceId() ? (
                                 <Tooltip title="حذف">
                                   <IconButton
                                     size="small"
