@@ -152,3 +152,36 @@ export const CACHE_KEYS = {
   FABRIC_TYPES: 'fabric_types',
 };
 
+/**
+ * يمسح كل مفاتيح كاش الطلبات (قديمة ومرتبطة بـ tenant) عند تبديل المشروع
+ * حتى لا تُعرض طلبات MAVA تحت PSBrand والعكس.
+ */
+export function clearAllOrdersCachesFromStorage() {
+  try {
+    [localStorage, sessionStorage].forEach((storage) => {
+      const keysToRemove = [];
+      for (let i = 0; i < storage.length; i++) {
+        const full = storage.key(i);
+        if (!full) continue;
+        let suffix = null;
+        if (full.startsWith(CACHE_PREFIX)) {
+          suffix = full.slice(CACHE_PREFIX.length);
+        } else if (full.startsWith(CACHE_EXPIRY_PREFIX)) {
+          suffix = full.slice(CACHE_EXPIRY_PREFIX.length);
+        }
+        if (suffix == null) continue;
+        if (
+          suffix === CACHE_KEYS.ORDERS ||
+          suffix.startsWith(`${CACHE_KEYS.ORDERS}_`) ||
+          suffix.startsWith(CACHE_KEYS.ORDERS_BY_DATE)
+        ) {
+          keysToRemove.push(full);
+        }
+      }
+      keysToRemove.forEach((k) => storage.removeItem(k));
+    });
+  } catch {
+    /* ignore */
+  }
+}
+

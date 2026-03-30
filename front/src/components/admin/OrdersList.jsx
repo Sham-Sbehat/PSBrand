@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getCache, setCache, CACHE_KEYS } from "../../utils/cache";
+import { getTenantId } from "../../services/tenantStorage";
 import { debounce } from "../../utils";
 import {
   Paper,
@@ -90,6 +91,7 @@ const DELIVERY_STATUSES = {
 };
 
 const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp, designerFilter: designerFilterProp, orderIdToOpen, onOrderOpened }) => {
+  const tenantId = getTenantId();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { orders, user, employees } = useApp();
@@ -275,7 +277,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
       try {
         // Prepare params for API call
         const params = {};
-        let cacheKey = CACHE_KEYS.ORDERS;
+        let cacheKey = `${CACHE_KEYS.ORDERS}_${tenantId}`;
         
         const currentDateFilter = dateFilterProp || dateFilter;
         const useDateRange = !!(dateFromFilter || dateToFilter);
@@ -286,12 +288,12 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
           const [yTo, mTo, dTo] = to.split('-').map(Number);
           params.dateFrom = new Date(Date.UTC(yFrom, mFrom - 1, dFrom, 0, 0, 0, 0)).toISOString();
           params.dateTo = new Date(Date.UTC(yTo, mTo - 1, dTo, 23, 59, 59, 999)).toISOString();
-          cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${from}_${to}`;
+          cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${tenantId}_${from}_${to}`;
         } else if (currentDateFilter) {
           const [year, month, day] = currentDateFilter.split('-').map(Number);
           const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
           params.date = dateObj.toISOString();
-          cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${currentDateFilter}`;
+          cacheKey = `${CACHE_KEYS.ORDERS_BY_DATE}_${tenantId}_${currentDateFilter}`;
         }
         
         // Add designer filter to params if selected
@@ -381,7 +383,7 @@ const OrdersList = ({ dateFilter: dateFilterProp, statusFilter: statusFilterProp
         setTotalSumWithoutDelivery(null);
         return [];
       }
-    }, [dateFilterProp, dateFilter, dateFromFilter, dateToFilter, designerFilter, orderSourceFilter]);
+    }, [dateFilterProp, dateFilter, dateFromFilter, dateToFilter, designerFilter, orderSourceFilter, tenantId]);
     
   // Fetch designers with orders summary (مرتبين حسب عدد الطلبات) للقائمة المنسدلة
   useEffect(() => {

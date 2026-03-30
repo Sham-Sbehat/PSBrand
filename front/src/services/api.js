@@ -1,7 +1,7 @@
 import axios from "axios";
 import { STORAGE_KEYS } from "../constants";
 import { storage } from "../utils";
-import { getCache, setCache, clearCache, CACHE_KEYS } from "../utils/cache";
+import { getCache, setCache, clearCache, CACHE_KEYS, clearAllOrdersCachesFromStorage } from "../utils/cache";
 import { getTenantId, TENANT_IDS } from "./tenantStorage";
 
 /** مفاتيح كاش مرتبطة بقاعدة المشروع الحالي (multi-tenant) */
@@ -52,6 +52,7 @@ export function clearSharedTenantCaches() {
     });
   });
   clearEmployeesCachesAllTenants();
+  clearAllOrdersCachesFromStorage();
 }
 
 /** @deprecated استخدم clearSharedTenantCaches */
